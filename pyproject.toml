@@ -1,0 +1,14 @@
+[project]
+name = "jsonmathpy"
+version = "0.3.4"
+description = "A math json package which parses strings into math json objects."
+
+[dependencies]
+regex = "^2021.4.4"
+more_itertools = "^8.4.0"
+numpy = "^1.1.1"
+sympy = "^1.7.0"
+
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel", "regex", "more_itertools", "numpy", "sympy"]
+build-backend = "setuptools.build_meta"
