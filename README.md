@@ -19,7 +19,7 @@ Workflow module: Create linear mathematical workflows that allow you to assign v
 
 ## Dependencies
 
-This package depends on the JsonMathPy package, which is a Python package that can take a string as input and parse it into a Python dictionary (and, optionally, a JSON math file). The package can parse and evaluate expressions using the operations and objects injected by the user.
+This package depends on the [JsonMathPy](https://pypi.org/project/jsonmathpy/) package ([GitHub](https://github.com/cottrellashley/jsonmathpy)), which is a Python package that can take a string as input and parse it into a Python dictionary (and, optionally, a JSON math file). The package can parse and evaluate expressions using the operations and objects injected by the user.
 
 ## Installation
 
