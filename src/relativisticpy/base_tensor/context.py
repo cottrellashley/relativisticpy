@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from src.relativisticpy.tensor.base import BaseTensor
+from src.relativisticpy.base_tensor.base import BaseTensor
 
 @dataclass
 class TensorContext:

@@ -2,7 +2,7 @@ import re
 from sympy import MutableDenseNDimArray
 from src.relativisticpy.indices.representations import IndicesRepresentationA
 from src.relativisticpy.indices.data_structure import TensorIndicesObject
-from src.relativisticpy.helpers.string_to_sympy.sympy_parser import SympyParser
+from src.relativisticpy.shared.helpers.string_to_sympy.sympy_parser import SympyParser
 
 
 class TensorRepresentationIdentifier:
@@ -26,16 +26,17 @@ class TensorRepresentationIdentifier:
     def get_components(self):
         if isinstance(self.components, str):
             return MutableDenseNDimArray(SympyParser(self.components).convertToSympyObject())
-        elif isinstance(self.components, MutableDenseNDimArray):
-            return self.components
+        #elif isinstance(self.components, MutableDenseNDimArray):
         else:
-            raise ValueError("The object type you have entered for the components is not suppoerted.")
+            return self.components
+        # else:
+        #     raise ValueError("The object type you have entered for the components is not suppoerted.")
 
     def get_indices(self) -> TensorIndicesObject:
         if isinstance(self.indices, str) and self.is_representation_A(self.indices):
             return IndicesRepresentationA(self.indices, self.get_basis())
         else:
-            return ValueError("Index representation not recognized.")
+            return self.indices
 
     def get_dimention(self):
         indices = self.get_indices()
@@ -52,6 +53,9 @@ class TensorRepresentationIdentifier:
     def get_scalar_bool(self):
         indices = self.get_indices()
         return indices.scalar
+
+    def rank_fits_tensor(self):
+        return True
         
     def is_representation_A(self, string):
         """

@@ -26,5 +26,12 @@ class BaseTensorIndices:
     valid           : bool
     "Given all properties, is resulting parent Tesnor a valid Tesnor."
 
+    self_summed     : bool = False
+    "Given all indices which makes up this object, are there two summing each other."
+
     parent_tensor   : str = None
     "The name of the tensor to which this indices object belongs to, represented as a string."
+
+
+    def __index__(self):
+        return tuple([int(i.values) if not i.running else slice(None) for i in self.indices])

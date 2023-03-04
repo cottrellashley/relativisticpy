@@ -19,18 +19,28 @@ class IndexDataStructure(BaseIndex):
     context : IndexContext = None
     "Extra information an index object can have. More context we can use for latter in the expressions"
 
-    slice : slice = None
+    @staticmethod
+    def from_string(str : str):
+        return IndexDataStructure()
+
+    def to_string(repr : int):
+        pass
 
     def __repr__(self):
-        return f"""Index:(  'Index symbol'          : {self.symbol}, \n\
-                            'Order in Tensor'       : {self.order}, \n\
-                            'Dimention'             : {self.dimention}, \n\
-                            'Running Index'         : {self.running}, \n\
-                            'Index value(s)'        : {self.values}, \n\
-                            'Type of Component'     : {self.comp_type}, \n\
-                            'Basis representation'  : {self.basis}, \n\
-                            'Parent Object'         : {self.parent}, \n\
-                        )
+        return f"""IndexDataStructure(
+                                        symbol      = {self.symbol},    \n\
+                                        order       = {self.order},     \n\
+                                        dimention   = {self.dimention}, \n\
+                                        running     = {self.running},   \n\
+                                        values      = {self.values},    \n\
+                                        comp_type   = {self.comp_type}, \n\
+                                        basis       = {self.basis},     \n\
+                                        parent      = {self.parent},    \n\
+                                        summed      = {self.summed},    \n\
+                                        repeated    = {self.repeated},  \n\
+                                        child       = {self.child},     \n\
+                                        context     = {self.context}    \n\
+                                    )
                 """
 
     def set_start(self):
@@ -71,12 +81,6 @@ class IndexDataStructure(BaseIndex):
             return True
         else:
             return False
-
-    def __index__(self):
-        if not self.running:
-            return self.values
-        else:
-            raise ValueError("The index {} you have entered has not been assigned a constant.".format(self.symbol))
         
     def __str__(self) -> str:
         return self.__repr__()

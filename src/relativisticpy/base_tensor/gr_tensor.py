@@ -1,14 +1,16 @@
-from src.relativisticpy.tensor.data_structure import TensorObject
+from src.relativisticpy.base_tensor.data_structure import TensorObject
 from src.relativisticpy.indices.pattern_identifier import TensorRepresentationIdentifier
 from src.relativisticpy.indices.representations import IndexRepresentationA
-from sympy import MutableDenseNDimArray
+from sympy.tensor.array.dense_ndim_array import MutableDenseNDimArray
+import sympy as smp
 
 class GrTensor(TensorObject):
     def __init__(self,
                  components,
                  indices,
                  basis,
-                 name : str = None
+                 name : str = None,
+                 context = None
                  ):
         tensor = TensorRepresentationIdentifier(components, indices, basis)
         TensorObject.__init__(self,
@@ -17,13 +19,11 @@ class GrTensor(TensorObject):
                                 indices     = tensor.get_indices(),
                                 dimention   = tensor.get_dimention(),
                                 shape       = tensor.get_shape(),
-                                rank        = tensor.get_shape(),
-                                scalar      = tensor.get_scalar_bool()
+                                rank        = tensor.get_rank(),
+                                scalar      = tensor.get_scalar_bool(),
+                                context     = context
         )
         self.name = name
-
-    def get_specified_components(self):
-        return self.components[tuple(self.indices.slice)]
 
     def gr_tensor_as_dict(self):
         return {

@@ -1,7 +1,7 @@
 import re
 from src.relativisticpy.indices.indices import Indices
 from src.relativisticpy.index.representations import IndexRepresentationA
-from src.relativisticpy.helpers.string_to_sympy.sympy_parser import SympyParser
+from src.relativisticpy.shared.helpers.string_to_sympy.sympy_parser import SympyParser
 
 
 class IndicesRepresentationA(Indices):
@@ -25,5 +25,20 @@ class IndicesRepresentationA(Indices):
 
     def _is_valid_indices(self, indices):
         return indices    
+
+    def is_representation_A(self, string):
+        """
+        Example of string to match this category:
+            ^{a}^{b}_{theta = 0}_{phi=1}
+        
+        Conditions for this category to be recognized: 
+            - Cannot contain anything but: = or { or } or _ or ^ or [a-zAZ0-9]
+            - Has correct pattern: _{}^{}...
+            - Between every curly brackets {}, there must be at least one [A-Za-z]+ character/word.
+        """
+        if isinstance(string, str):
+            return bool(re.search("^((\^|\_)(\{)(\}))+$", re.sub('[^\^^\_^\{^\}]',"", string).replace(" ",'')))
+        else:
+            return False
 
     

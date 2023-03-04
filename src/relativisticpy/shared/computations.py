@@ -38,7 +38,6 @@ class GrComputations:
                         A[i, j, k] += smp.Rational(1, 2)*(ig[d,i])*(smp.diff(self.Metric[k,d],self.Basis[j]) + smp.diff(self.Metric[d,j],self.Basis[k]) - smp.diff(self.Metric[j,k],self.Basis[d]))
         return smp.simplify(A)
     
-    
     def TDerivative(self, V):
         N = self.Dimention
         A = smp.MutableDenseNDimArray(smp.zeros(N**3),(N,N,N))
@@ -130,17 +129,47 @@ class GrComputations:
                         for d in range(N):
                             A[i,j,k,p] += self.Metric[i,d]*R[d,j,k,p]
         return smp.simplify(A)
-    
-    def Riemann0100(self):
+
+    def Riemann1100(self):
         N = self.Dimention
         R = self.Riemann1000()
+        I = self.Ginv()
         A = smp.MutableDenseNDimArray(smp.zeros(N**4),(N,N,N,N))
         for i in range(N):
             for j in range(N):
                 for k in range(N):
                     for p in range(N):
                         for d in range(N):
-                            A[i,j,k,p] += self.Metric[i,d]*R[d,j,k,p]
+                            A[j,i,k,p] += I[i,d]*R[j,d,k,p]
+        return smp.simplify(A)
+
+    def Riemann1110(self):
+        N = self.Dimention
+        R = self.Riemann1000()
+        I = self.Ginv()
+        A = smp.MutableDenseNDimArray(smp.zeros(N**4),(N,N,N,N))
+        for i in range(N):
+            for j in range(N):
+                for k in range(N):
+                    for p in range(N):
+                        for d in range(N):
+                            for s in range(N):
+                                A[j,i,s,p] += I[s,k]*I[i,d]*R[j,d,k,p]
+        return smp.simplify(A)
+
+    def Riemann1111(self):
+        N = self.Dimention
+        R = self.Riemann1000()
+        I = self.Ginv()
+        A = smp.MutableDenseNDimArray(smp.zeros(N**4),(N,N,N,N))
+        for i in range(N):
+            for j in range(N):
+                for k in range(N):
+                    for p in range(N):
+                        for d in range(N):
+                            for s in range(N):
+                                for n in range(N):
+                                    A[j,i,s,n] += I[n,p]*I[s,k]*I[i,d]*R[j,d,k,p]
         return smp.simplify(A)
     
     def Ricci(self):

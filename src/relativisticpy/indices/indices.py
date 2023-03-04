@@ -1,4 +1,3 @@
-import itertools as it
 from src.relativisticpy.index.data_structure import IndexDataStructure
 from src.relativisticpy.indices.data_structure import TensorIndicesObject
 from sympy.tensor.array import MutableDenseNDimArray
@@ -16,8 +15,6 @@ class Indices(TensorIndicesObject):
                             valid           = True
                             ),
         self.is_valid_index_structure = self.__validate_index_structure()
-        self.slice = tuple([x.slice for x in self.indices])
-        self.__indices_iterator = list(it.product(*[x for x in self.indices]))
 
     def __validate_index_structure(self):
         """Validate the index from the scope of this class. Not the whole index."""

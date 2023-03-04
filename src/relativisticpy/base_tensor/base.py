@@ -18,3 +18,9 @@ class BaseTensor:
     shape : tuple[int]
 
     scalar : bool
+
+    def get_specified_components(self):
+        return self.components[self.indices.__index__()]
+
+
+

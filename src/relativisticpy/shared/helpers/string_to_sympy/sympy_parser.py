@@ -2,7 +2,7 @@ import re
 import sympy as smp
 import numpy as np
 from sympy import sin, cos, tan, sinh, cosh, tanh, exp, asin, acos, atan
-from src.relativisticpy.helpers.string_to_sympy.string_tokenizer import _StringParser
+from src.relativisticpy.shared.helpers.string_to_sympy.string_tokenizer import _StringParser
 
 class SympyParser:
     def __init__(self, equationString):

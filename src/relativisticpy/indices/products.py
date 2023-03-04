@@ -1,18 +1,40 @@
 from operator import itemgetter
 import itertools as it
-from src.relativisticpy.indices.data_structure import TensorIndicesObject
-from src.relativisticpy.helpers.helpers import transpose_list
+
+from src.relativisticpy.shared.helpers.helpers import transpose_list
+
+
+class TensorSelfSummed:
+
+    def __init__(self, indices):
+        self.indices = indices
+        self.resulting_indices = self.indices.get_self_summed_contex()
+
+    def all_component(self):
+        ne = [[i.order, j.order] for i, j in it.combinations(self.indices.indices, r=2) if i*j]
+        repeated_index_locations = transpose_list(ne)
+        return [indices for indices in list(self.indices) if itemgetter(*repeated_index_locations[0])(indices) == itemgetter(*repeated_index_locations[1])(indices)]
+
+    def component(self, components = None):
+        new = self.resulting_indices.result
+        old = self.indices
+        ne = [[new_index.order, old_index.order] for new_index,old_index in it.product(self.indices.get_self_summed_contex().result.indices, self.indices.get_self_summed_contex().old_indices.indices) if new_index+old_index]
+        repeated_index_locations = transpose_list(ne)
+        if not new.scalar and components != None:
+            return [indices for indices in self.all_component() if itemgetter(*repeated_index_locations[1])(indices) == itemgetter(*repeated_index_locations[0])(components)]
+        else:
+            return self.all_component()
 
 class TensorIndicesArithmetic:
 
-    def __init__(self, indicesA : TensorIndicesObject, indicesB : TensorIndicesObject):
+    def __init__(self, indicesA, indicesB):
         self.indicesA = indicesA
         self.indicesB = indicesB
         self.product_object = self.indicesA + self.indicesB
 
     def all_component(self):
         ne = [[i.order, i.context.repeated_index.order] for i in self.product_object.parentA.indices]
-        repeated_index_locations =  transpose_list(ne)
+        repeated_index_locations = transpose_list(ne)
         return [(IndexA, IndexB) for (IndexA, IndexB) in list(it.product(self.indicesA, self.indicesB)) if itemgetter(*repeated_index_locations[0])(IndexA) == itemgetter(*repeated_index_locations[1])(IndexB)]
 
     def component(self, components = None):
@@ -24,7 +46,7 @@ class TensorIndicesArithmetic:
 
 class TensorIndicesProduct:
 
-    def __init__(self, indicesA : TensorIndicesObject, indicesB : TensorIndicesObject):
+    def __init__(self, indicesA, indicesB):
         self.indicesA = indicesA
         self.indicesB = indicesB
         self.product_object = self.indicesA * self.indicesB
@@ -60,8 +82,13 @@ class TensorIndicesProduct:
         A_indices_not_summed = index_locations['indices_A_matched_with_result']
         B_indices_not_summed = index_locations['indices_B_matched_with_result']
         if not res.result.scalar and components != None:
-            return [(IndicesA, IndicesB) for (IndicesA, IndicesB) in self.all_component() if itemgetter(*A_indices_not_summed)(IndicesA) == itemgetter(*result_indices_in_A)(components) \
-                    and itemgetter(*B_indices_not_summed)(IndicesB) == itemgetter(*result_indices_in_B)(components)]
+            if len(A_indices_not_summed) != 0 and len(B_indices_not_summed) != 0:
+                return [(IndicesA, IndicesB) for (IndicesA, IndicesB) in self.all_component() if itemgetter(*A_indices_not_summed)(IndicesA) == itemgetter(*result_indices_in_A)(components) \
+                        and itemgetter(*B_indices_not_summed)(IndicesB) == itemgetter(*result_indices_in_B)(components)]
+            elif len(A_indices_not_summed) == 0 and len(B_indices_not_summed) != 0:
+                return [(IndicesA, IndicesB) for (IndicesA, IndicesB) in self.all_component() if itemgetter(*B_indices_not_summed)(IndicesB) == itemgetter(*result_indices_in_B)(components)]
+            elif len(B_indices_not_summed) == 0 and len(A_indices_not_summed) != 0:
+                return [(IndicesA, IndicesB) for (IndicesA, IndicesB) in self.all_component() if itemgetter(*A_indices_not_summed)(IndicesB) == itemgetter(*result_indices_in_A)(components)]
         elif not res.result.scalar and components != None and self.operation in ['+', '-']:
             return [(IndicesA, IndicesB) for (IndicesA, IndicesB) in self.all_component() if IndicesA == tuple(components)]
         else:
