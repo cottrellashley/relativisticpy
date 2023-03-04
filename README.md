@@ -1,5 +1,7 @@
 
-# General Relativity Python Package
+# RelativisticPy
+
+[PiPy](https://pypi.org/project/relativisticpy/)
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
@@ -24,7 +26,7 @@ This package depends on the JsonMathPy package, which is a Python package that c
 To install the package and its dependencies, simply use pip:
 
 ```
-pip install general-relativity jsonmathpy
+pip install relativisticpy
 ```
 
 ## Usage
@@ -34,20 +36,22 @@ Once installed, the package can be used in your Python code by importing it:
 python
 
 ```
-import general_relativity as gr
+import relativisticpy as rel
 ```
 
 From there, you can use the various modules and functions provided by the package. For example, to perform symbolic calculations:
 
 ```
-x = gr.Symbol('x')
-y = gr.Symbol('y')
-expr = x**2 + 2*x*y + y**2
-simplified_expr = gr.simplify(expr)
-print(simplified_expr)
+w = rel.Workbook()
+w.expr('f = r**2 + 3*r +10')
+w.expr('diff(f, r)')
 ```
 
-The above code will output (x + y)**2, which is the simplified version of the original expression.
+Output:
+
+```
+2 𝑟 + 3
+```
 
 For more information on how to use the package, please refer to the documentation.
 
