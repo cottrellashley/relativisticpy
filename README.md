@@ -1,7 +1,7 @@
 
 # RelativisticPy
 
-[PiPy](https://pypi.org/project/relativisticpy/)
+[PyPi](https://pypi.org/project/relativisticpy/)
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
