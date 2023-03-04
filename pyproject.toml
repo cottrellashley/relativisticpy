@@ -1,14 +1,15 @@
-[project]
-name = "jsonmathpy"
-version = "0.3.4"
-description = "A math json package which parses strings into math json objects."
+[tool.poetry]
+name = "relativisticpy"
+version = "1.0.2"
+description = "A General Relativity package to solve ."
+authors = ["Ashley Cottrell"]
 
-[dependencies]
-regex = "^2021.4.4"
+[build-system]
+requires = ["setuptools>=40.8.0", "wheel", "more_itertools", "numpy", "sympy", "jsonmathpy"]
+build-backend = "setuptools.build_meta"
+
+[tool.poetry.dependencies]
 more_itertools = "^8.4.0"
 numpy = "^1.1.1"
 sympy = "^1.7.0"
-
-[build-system]
-requires = ["setuptools>=40.8.0", "wheel", "regex", "more_itertools", "numpy", "sympy"]
-build-backend = "setuptools.build_meta"
+jsonmathpy = "^1.1.8"
