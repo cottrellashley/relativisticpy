@@ -2,6 +2,8 @@ import re
 import sympy as smp
 from jsonmathpy.compute import MathJSONInterpreter
 from jsonmathpy.mathify import Mathify
+from relativisticpy.base_tensor.data_structure import TensorObject
+from relativisticpy.base_tensor.gr_tensor import GrTensor
 from relativisticpy.tensors.metric import Metric
 from relativisticpy.tensors.metric import MetricWork
 from relativisticpy.tensors.riemann import Riemann
@@ -125,6 +127,10 @@ class Workbook:
         if bool(re.match('([a-zA-Z]+)(\=)', expression.replace(' ',''))):
             self.cache_equation(expression)
         else:
-            return MathJSONInterpreter(self.get_operations_with_latest_cache()).interpret(Mathify(expression)())
+            ans = MathJSONInterpreter(self.get_operations_with_latest_cache()).interpret(Mathify(expression)())
+            if isinstance(ans, (Metric, MetricWork, GrTensor, Riemann, TensorObject)):
+                return ans.get_specified_components()
+            else:
+                return ans
 
 
