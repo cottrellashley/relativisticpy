@@ -13,6 +13,20 @@ Some of the key features of this package include:
 Symbolic expression manipulation: Perform symbolic calculations and manipulations with ease.
 Workflow module: Create linear mathematical workflows that allow you to assign variables and use them later on.
 
+## Coming Soon!
+
+- Coordinate Transformations
+- Complex Numbers
+- New Functions:
+    - Trigonometric
+    - Hyperbolic
+    - solve
+    - series
+    - limit
+    - numeric
+    - expand
+    - expand
+
 ## General Relativity functionality: 
 
 - Solve tensor expressions in General Relativity, such as "G_{mu}{nu} * R^{nu}{a}{b}{c}".
