@@ -1,3 +1,4 @@
+![RelativisticPy](./assets/logo.png)
 
 # RelativisticPy
 
