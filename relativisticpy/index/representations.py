@@ -9,10 +9,10 @@ class IndexRepresentationA(Index):
         Index.__init__(self, 
                        symbol       = re.search('[a-zA-Z]+', self.index_string_representation).group(),
                        order        = self.__is_valid_order(order),
-                       running      = not bool(re.search('^[^=]*(=)([0-9]+)[^=]*$', self.index_string_representation)),
+                       running      = not bool(re.search('^[^=]*(\:)([0-9]+)[^=]*$', self.index_string_representation)),
                        comp_type    = 'covariant' if (self.index_string_representation[0] == "_") else 'contravariant',
                        basis        = self.__is_valid_basis(coordinate_basis),
-                       values       = integers[re.split('[=]', self.index_string_representation.replace('{','').replace('}','').replace('_','').replace('^',''))[1].replace(" ","")] if bool(re.match('^[^=]*(=)([0-9]+)[^=]*$', self.index_string_representation)) else None
+                       values       = integers[re.split('[\:]', self.index_string_representation.replace('{','').replace('}','').replace('_','').replace('^',''))[1].replace(" ","")] if bool(re.match('^[^=]*(\:)([0-9]+)[^=]*$', self.index_string_representation)) else None
                        )
 
     def __is_valid_basis(self, basis):
@@ -23,7 +23,7 @@ class IndexRepresentationA(Index):
         condition1 = index_[0] == "_" or index_[0] == "^"
         condition2 = index_[1] == "{"
         condition3 = index_[-1] == "}"
-        condition4 = bool(re.search('^[^=]*(=)([0-9]+)[^=]*$', index_)) or bool(re.search('^[^=]*[a-zA-Z]+[^=]*$', index_))
+        condition4 = bool(re.search('^[^=]*(\:)([0-9]+)[^=]*$', index_)) or bool(re.search('^[^=]*[a-zA-Z]+[^=]*$', index_))
         if not condition1:
             raise ValueError("The index {} you have entered, does not contain the necessary characters _ OR ^ to indicate covariace or contravariance.".format(index_))
         elif not condition2 or not condition3:

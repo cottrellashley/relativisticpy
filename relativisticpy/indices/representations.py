@@ -1,8 +1,6 @@
 import re
 from relativisticpy.indices.indices import Indices
 from relativisticpy.index.representations import IndexRepresentationA
-from relativisticpy.shared.helpers.string_to_sympy.sympy_parser import SympyParser
-
 
 class IndicesRepresentationA(Indices):
     def __init__(self, indices, basis):

@@ -90,7 +90,7 @@ class IndexDataStructure(BaseIndex):
 
     def __neg__(self):
         return BaseIndex(
-                        symbol         = self.symbol, 
+                        symbol          = self.symbol, 
                         order           = self.order,
                         running         = self.running, 
                         basis           = self.basis,
