@@ -1,8 +1,10 @@
 from asyncio import constants
 from dataclasses import dataclass
-from relativisticpy.indices.products import *
-from relativisticpy.base_tensor.base import BaseTensor
-from relativisticpy.base_tensor.context import TensorContext
+
+from relativisticpy.indices.products import TensorIndicesArithmetic, TensorIndicesProduct, TensorSelfSummed
+from relativisticpy.tensors.core.tensor_base_object import BaseTensor
+from relativisticpy.tensors.core.tensor_context_object import TensorContext
+from relativisticpy.tensors.core.transformation_base_objects import CoordinateTransformation
 
 @dataclass
 class TensorObject(BaseTensor):
@@ -11,21 +13,21 @@ class TensorObject(BaseTensor):
 
     def __neg__(self):
         return TensorObject(
-            components  =-self.components,
-            indices     =self.indices,
-            basis       =self.basis,
+            components  = -self.components,
+            indices     = self.indices,
+            basis       = self.basis,
             rank        = self.rank,
-            dimention   =self.dimention,
-            shape       =self.shape,
-            scalar=self.scalar,
-            context=self.context
+            dimention   = self.dimention,
+            shape       = self.shape,
+            scalar      = self.scalar,
+            context     = self.context
         )
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.set_metric_context()
         self.set_self_summed()
     
-    def set_self_summed(self):
+    def set_self_summed(self) -> None:
         if self.indices.self_summed:
             contex = self.indices.get_self_summed_contex()
 
@@ -205,3 +207,6 @@ class TensorObject(BaseTensor):
                                 )
         else:
             raise ValueError("Cannot divide with anything other than int or float.")
+
+    def coordinate_transformation(self, transformation: CoordinateTransformation):
+        pass

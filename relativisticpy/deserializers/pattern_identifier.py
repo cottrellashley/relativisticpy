@@ -1,8 +1,8 @@
 import re
 from sympy import MutableDenseNDimArray
-from relativisticpy.indices.representations import IndicesRepresentationA
-from relativisticpy.indices.data_structure import TensorIndicesObject
-from relativisticpy.shared.helpers.string_to_sympy.sympy_parser import SympyParser
+from relativisticpy.deserializers.representations import IndicesRepresentationA
+from relativisticpy.indices.indices_data_structure import TensorIndicesObject
+from relativisticpy.shared.functions import sympify
 
 
 class TensorRepresentationIdentifier:
@@ -17,7 +17,7 @@ class TensorRepresentationIdentifier:
 
     def get_basis(self):
         if isinstance(self.basis, str):
-            return MutableDenseNDimArray(SympyParser(self.basis).convertToSympyObject())
+            return MutableDenseNDimArray(sympify(self.basis))
         elif isinstance(self.basis, MutableDenseNDimArray):
             return self.basis
         else:
@@ -25,7 +25,7 @@ class TensorRepresentationIdentifier:
         
     def get_components(self):
         if isinstance(self.components, str):
-            return MutableDenseNDimArray(SympyParser(self.components).convertToSympyObject())
+            return MutableDenseNDimArray(sympify(self.components))
         #elif isinstance(self.components, MutableDenseNDimArray):
         else:
             return self.components
@@ -60,7 +60,7 @@ class TensorRepresentationIdentifier:
     def is_representation_A(self, string):
         """
         Example of string to match this category:
-            ^{a}^{b}_{theta = 0}_{phi=1}
+            ^{a}^{b}_{theta : 0}_{phi:1}
         
         Conditions for this category to be recognized: 
             - Cannot contain anything but: = or { or } or _ or ^ or [a-zAZ0-9]
@@ -71,25 +71,6 @@ class TensorRepresentationIdentifier:
             return bool(re.search("^((\^|\_)(\{)(\}))+$", re.sub('[^\^^\_^\{^\}]',"", string).replace(" ",'')))
         else:
             return False
-
-    def is_representation_B(self):
-        """
-        Example of string to match this category:
-            [^a, ^b, _theta = 0, _phi = 1]
-        """
-        return NotImplementedError
-
-    def is_representation_C(self):
-        """
-        Example of string to match this category:
-            ^{a}^{b}_{theta:0}_{phi:1}
-        
-        Conditions for this category to be recognized: 
-            - Cannot contain anything but: = or { or } or _ or ^ or [a-zAZ0-9]
-            - Has correct pattern: _{}^{}...
-            - Between every curly brackets {}, there must be at least one [A-Za-z]+ character/word.
-        """
-        return NotImplementedError
 
     def is_latex_representation(self):
         """

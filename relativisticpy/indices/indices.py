@@ -1,6 +1,7 @@
-from relativisticpy.index.data_structure import IndexDataStructure
-from relativisticpy.indices.data_structure import TensorIndicesObject
-from sympy.tensor.array import MutableDenseNDimArray
+from sympy import MutableDenseNDimArray
+from relativisticpy.indices.index.index_data_structure import IndexDataStructure
+from relativisticpy.indices.indices_data_structure import TensorIndicesObject
+
 
 class Indices(TensorIndicesObject):
 

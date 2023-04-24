@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from sympy import MutableDenseNDimArray
-from relativisticpy.indices.data_structure import TensorIndicesObject
+
+from relativisticpy.indices.indices_data_structure import TensorIndicesObject
+
 
 @dataclass
 class BaseTensor:
@@ -21,6 +23,3 @@ class BaseTensor:
 
     def get_specified_components(self):
         return self.components[self.indices.__index__()]
-
-
-

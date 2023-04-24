@@ -1,7 +1,6 @@
 import sympy as smp
 
-from relativisticpy.base_tensor.gr_tensor import GrTensor
-
+from relativisticpy.tensors.core.tensor import GrTensor
 
 
 class Derivative(GrTensor):

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from relativisticpy.index.index import Index
 from sympy import MutableDenseNDimArray
+from relativisticpy.indices.index.index import Index
+
 
 @dataclass
 class BaseTensorIndices:

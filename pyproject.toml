@@ -1,15 +1,13 @@
 [tool.poetry]
 name = "relativisticpy"
-version = "1.0.3"
-description = "A General Relativity package to solve ."
+version = "1.0.9"
+description = "A General Relativity package to solve symbolic General Relativistic equations."
 authors = ["Ashley Cottrell"]
 
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel", "more_itertools", "numpy", "sympy", "jsonmathpy"]
+requires = ["setuptools>=40.8.0", "wheel", "sympy", "jsonmathpy"]
 build-backend = "setuptools.build_meta"
 
 [tool.poetry.dependencies]
-more_itertools = "^8.4.0"
-numpy = "^1.1.1"
 sympy = "^1.7.0"
-jsonmathpy = "^1.1.8"
+jsonmathpy = "1.2.5"

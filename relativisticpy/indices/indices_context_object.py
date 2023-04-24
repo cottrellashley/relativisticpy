@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from relativisticpy.indices.base import BaseTensorIndices
+from relativisticpy.indices.indices_base_object import BaseTensorIndices
+
 
 @dataclass
 class IndicesProductContext:
