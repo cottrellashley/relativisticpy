@@ -235,7 +235,7 @@ Before it creates the file, it will ask you which output cells you wish to outpu
 
 # License
 
-This package is licensed under the MIT license. See the LICENSE file for more information.
+This package is licensed. See the LICENSE file for more information.
 
 # Contributing
 
