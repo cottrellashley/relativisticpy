@@ -45,9 +45,9 @@ w = rel.Workbook()
 
 Which you can now use `w.expr()` to enter new expressions.
 
-# Usage
+# Feature Summary
 
-- **1. Variable Assignment:** Assign expressions to variables using equals sign, to use later on in your workflow.
+- **Variable Assignment:** Assign expressions to variables using equals sign, to use later on in your workflow.
 - **Integration:** Integrate expressions with respect to specified variables.
 - **Differentiation:** Differentiate expressions with respect to specified variables.
 - **Solve:** Solve a algebraic equation, or set of algebraic equations with repect to set of variables.
