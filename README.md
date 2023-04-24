@@ -1,6 +1,6 @@
-![RelativisticPy](./assets/logo.png)
 
 # RelativisticPy
+![RelativisticPy](./assets/logo.png)
 
 [PyPi](https://pypi.org/project/relativisticpy/)
 
@@ -69,52 +69,72 @@ Which you can now use `w.expr()` to enter new expressions.
 The variable assignment function allows you to assign a value or expression to a variable and use it in subsequent calculations.
 
 
-`y = x**2 + 5*x + 9`
+```
+y = x**2 + 5*x + 9
+```
 
 We can now use this variable *y* at any point later in the notebook and use it as a replacement for the expression above.
 
-`integrate( y , x )`
+```
+integrate( y , x )
+```
 
 ### 2. Integration
 The integrate function allows you to perform integration of an expression with respect to the specified variables.
 
-`integrate( x**4 + x - 8 , x )`
+```
+integrate( x**4 + x - 8 , x )
+```
 
 ### 3. Differentiation
 The diff function allows you to perform differentiation of an expression with respect to the specified variables.
 
-`diff(sin(x) + exp(x**2) + x**2, x)`
+```
+diff(sin(x) + exp(x**2) + x**2, x)
+```
 
 ### 4. Solve
 The solve function allows you to solve an equation or system of equations.
 
-`solve(x**2 + 4*x + 4, x)`
+```
+solve(x**2 + 4*x + 4, x)
+```
 
 ### 5. Simplify
 The simplify function allows you to simplify a given expression by applying algebraic transformations.
 
-`simplify( x**2 + 4*x + 4 )`
+```
+simplify( x**2 + 4*x + 4 )
+```
 
 ### 6. Expand
 The expand function allows you to expand a given expression by multiplying out parentheses and combining like terms.
 
-`expand( (x + 5)**3 )`
+```
+expand( (x + 5)**3 )
+```
 
 ### 7. Series
 The series function allows you to compute the power series expansion of a given expression.
 
-`series(sin(x), x, 1, 5)`
+```
+series(sin(x), x, 1, 5)
+```
 
 ### 8. Factor
 The factor function allows you to factor a given expression by finding its prime factors.
 
-`factor( x**2 + 4*x + 4 )`
+```
+factor( x**2 + 4*x + 4 )
+```
 
 
 ### 8. Limit
 The limit function allows you to compute the limit of a given expression as a variable approaches a specified value.
 
-`limit(1/x**2, x, 10)`
+```
+limit(1/x**2, x, 10)
+```
 
 # General Relativity Tensor Operations
 
@@ -125,14 +145,18 @@ The General Relativity Tensor Operations allow you to perform tensor calculation
 The define metric and basis function allows you to define a metric and basis for use in tensor calculations.
 
 
-`Metric([[g00, ....], [g10, ....], ... , [..., gNN]], [var1, ...., varN])`
+```
+Metric([[g00, ....], [g10, ....], ... , [..., gNN]], [var1, ...., varN])
+```
 
 Now you have defined the metric components as `[[g00, ....], [g10, ....], ... , [..., gNN]]` with the basis coordinates as `[var1, ...., varN]` and we can now write Tensor Expression!
 
 The write tensor expression function allows you to write a tensor expression using the defined metric and basis.
 
 
-`G_{mu}_{nu}`
+```
+G_{mu}_{nu}
+```
 
 This will output the components you have entered:
 
@@ -152,38 +176,31 @@ Output: The (1,1) component of the metric components
 
 This also works for any tensor and their assignment of individual components:
 
-`R_{nu:1}_{b:2}_{mu}_{d}`
-`R_{nu:1}_{b}_{mu}_{d}`
-`R_{nu:1}_{b:2}_{mu:1}_{d:2}`
+```
+R_{nu:1}_{b:2}_{mu}_{d}
+R_{nu:1}_{b}_{mu}_{d}
+R_{nu:1}_{b:2}_{mu:1}_{d:2}
+```
 
 Assign the (1, 1) component of a tensor to a variable `Comp`:
 
-`Comp = G_{mu:1}_{nu:1}`
+```
+Comp = G_{mu:1}_{nu:1}
+```
 
 The tensor expressions function allows you to perform tensor expressions using the defined metric and basis.
 
-`G^{mu}^{nu}*R_{nu}_{b}_{c}_{d}`
-`R^{a}_{b}_{a}_{d}`
-`G^{mu}^{nu}*R_{nu}_{b}_{mu}_{d}`
+```
+G^{mu}^{nu}*R_{nu}_{b}_{c}_{d}
+R^{a}_{b}_{a}_{d}
+G^{mu}^{nu}*R_{nu}_{b}_{mu}_{d}
+```
 
 This app is a calculator for various relativistic equations. To use it, simply enter the equation you would like to solve or manipulate, and select the function you want to perform.
 
 ### Equations
 
 Equations can be entered using standard Python syntax. For example, to solve the equation `x**2 - 3*x + 2 = 0`, you would enter `x**2 - 3*x + 2` in the equation field.
-
-### Asignment Functionality 
-
-You are able to store values in variables simply by using the equals sign. For instance, if I write in `Cell 1`:
-
-`y = x**2 - 3*x + 2`
-
-Then, later on in `Cell 2` I can use this variable y to do what I want:
-
-`integrate(y , x)`
-
-Such as integrate the expression with repect to `x`.
-
 
 ### Furture Features
 
