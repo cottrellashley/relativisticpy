@@ -1,8 +1,8 @@
 import re
 from sympy import MutableDenseNDimArray
-from relativisticpy.indices.representations import IndicesRepresentationA
-from relativisticpy.indices.data_structure import TensorIndicesObject
-from relativisticpy.core.simpify import Simpify
+from relativisticpy.deserializers.representations import IndicesRepresentationA
+from relativisticpy.indices.indices_data_structure import TensorIndicesObject
+from relativisticpy.shared.functions import sympify
 
 
 class TensorRepresentationIdentifier:
@@ -17,7 +17,7 @@ class TensorRepresentationIdentifier:
 
     def get_basis(self):
         if isinstance(self.basis, str):
-            return MutableDenseNDimArray(Simpify().parse(self.basis))
+            return MutableDenseNDimArray(sympify(self.basis))
         elif isinstance(self.basis, MutableDenseNDimArray):
             return self.basis
         else:
@@ -25,7 +25,7 @@ class TensorRepresentationIdentifier:
         
     def get_components(self):
         if isinstance(self.components, str):
-            return MutableDenseNDimArray(Simpify().parse(self.components))
+            return MutableDenseNDimArray(sympify(self.components))
         #elif isinstance(self.components, MutableDenseNDimArray):
         else:
             return self.components

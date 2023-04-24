@@ -1,11 +1,13 @@
 import itertools as it
 from dataclasses import dataclass
-from relativisticpy.indices.base import *
-from relativisticpy.indices.products import *
-from relativisticpy.indices.context import *
 from sympy import MutableDenseNDimArray
-from relativisticpy.index.data_structure import IndexDataStructure
-from relativisticpy.index.base import IndexContext
+
+from relativisticpy.indices.index.index_context_object import IndexContext
+from relativisticpy.indices.index.index_data_structure import IndexDataStructure
+
+from relativisticpy.indices.indices_base_object import BaseTensorIndices
+from relativisticpy.indices.indices_context_object import IndicesProductContext
+
 
 
 @dataclass

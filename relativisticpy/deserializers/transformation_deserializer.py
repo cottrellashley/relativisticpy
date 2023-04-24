@@ -1,7 +1,7 @@
 # This deserializes a string into a Coordinate transformation object.
 from sympy import MutableDenseNDimArray
-from relativisticpy.transformations.base import CoordinateTransformation, Transformation, Basis
-from relativisticpy.core.simpify import Simpify
+from relativisticpy.tensors.core.transformation_base_objects import CoordinateTransformation, Transformation, Basis
+from relativisticpy.shared.functions import sympify
 
 class TransformationDeserializer:
 
@@ -52,12 +52,12 @@ class TransformationDeserializer:
         # list of list [ ['x1' , 'expr1' ], ['x2' , 'expr2' ], ['x3' , 'expr3' ], ... , ['xN' , 'exprN' ]]
         to_list = lambda string : [i.split('=') for i in string.replace(']','').replace('[', '').replace(' ','').split(',')]
 
-        # Second we do a dictionary conprehension to convert this to a dictionary with simpifyed objects.
-        deserializer = lambda list : {Simpify().parse(key) : Simpify().parse(value) for key, value in list}
+        # Second we do a dictionary conprehension to convert this to a dictionary with Sympifyed objects.
+        deserializer = lambda list : {sympify(key) : sympify(value) for key, value in list}
 
         # Return dictionary
         return deserializer(to_list(self.transformation))
 
     def get_symbols_from_string(self):
-        return Simpify().parse(self.basis)
+        return sympify(self.basis)
 

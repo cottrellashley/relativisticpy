@@ -1,6 +1,6 @@
 import re
+from relativisticpy.deserializers.index_representations import IndexRepresentationA
 from relativisticpy.indices.indices import Indices
-from relativisticpy.index.representations import IndexRepresentationA
 
 class IndicesRepresentationA(Indices):
     def __init__(self, indices, basis):

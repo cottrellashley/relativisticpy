@@ -1,11 +1,13 @@
 from sympy import MutableDenseNDimArray as Array
 from sympy import Symbol, tensorproduct, diff, simplify
-
-
-from relativisticpy.transformations.base import CoordinateTransformation
 from relativisticpy.indices.indices import Indices
-from relativisticpy.base_tensor.gr_tensor import GrTensor
-from relativisticpy.base_tensor.context import TensorContext
+
+from relativisticpy.tensors.core.tensor import GrTensor
+from relativisticpy.tensors.core.tensor_context_object import TensorContext
+from relativisticpy.tensors.core.transformation_base_objects import CoordinateTransformation
+
+
+
 
 # The metric tensor with lower indices, such as g_{ab}, is called the "covariant metric tensor" or simply the "metric tensor".
 # The metric tensor with raised indices, such as g^{ab}, is called the "contravariant metric tensor" or the "inverse metric tensor".

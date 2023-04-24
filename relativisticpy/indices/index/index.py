@@ -1,4 +1,4 @@
-from relativisticpy.index.data_structure import IndexDataStructure
+from relativisticpy.indices.index.index_data_structure import IndexDataStructure
 
 
 class Index(IndexDataStructure):

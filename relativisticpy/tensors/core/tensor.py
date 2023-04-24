@@ -1,8 +1,10 @@
-from relativisticpy.base_tensor.data_structure import TensorObject
-from relativisticpy.indices.pattern_identifier import TensorRepresentationIdentifier
-from relativisticpy.indices.representations import IndexRepresentationA
+
 from sympy.tensor.array.dense_ndim_array import MutableDenseNDimArray
-import sympy as smp
+from sympy import ones
+
+from relativisticpy.deserializers.index_representations import IndexRepresentationA
+from relativisticpy.deserializers.pattern_identifier import TensorRepresentationIdentifier
+from relativisticpy.tensors.core.tensor_data_structure import TensorObject
 
 class GrTensor(TensorObject):
     def __init__(self,
@@ -38,4 +40,4 @@ class GrTensor(TensorObject):
         D = self.dimention
         A = int(self.rank)
         Shape = self.return_tensor_ans_shape()
-        return MutableDenseNDimArray(smp.ones(D**A)*number, Shape)
+        return MutableDenseNDimArray(ones(D**A)*number, Shape)

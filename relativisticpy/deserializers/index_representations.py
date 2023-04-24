@@ -1,5 +1,5 @@
 import re
-from relativisticpy.index.index import Index
+from relativisticpy.indices.index.index import Index
 
 class IndexRepresentationA(Index):
     integers = {'0': 0, '1':1, '2':2, '3':3, '4':4, '5':5, '6':6, '7':7, '8':8, '9':9}

@@ -4,13 +4,13 @@ import re
 import sympy as smp
 from jsonmathpy.compute import MathJSONInterpreter
 from jsonmathpy.mathify import Mathify
-from relativisticpy.core.simpify import Simpify
-from relativisticpy.base_tensor.data_structure import TensorObject
-from relativisticpy.base_tensor.gr_tensor import GrTensor
+from relativisticpy.shared.functions import sympify
+from relativisticpy.tensors.core.tensor import TensorObject
+from relativisticpy.tensors.core.tensor import GrTensor
 from relativisticpy.tensors.metric import Metric
 from relativisticpy.tensors.riemann import Riemann
 from relativisticpy.tensors.derivative import Derivative
-from relativisticpy.transformations.deserializer import TransformationDeserializer
+from relativisticpy.deserializers.transformation_deserializer import TransformationDeserializer
 
 @dataclass
 class ChacheItem:
@@ -37,43 +37,43 @@ class Workbook:
     def __init__(self):
         schild = ChacheItem(
             "Schwarzschild", 
-            Simpify().parse("[[-(1 - (G)/(r)),0,0,0],[0,1/(1 - (G)/(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
+            sympify("[[-(1 - (G)/(r)),0,0,0],[0,1/(1 - (G)/(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
             "[[-(1 - (G)/(r)),0,0,0],[0,1/(1 - (G)/(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",
             Metric("[[-(1 - (G)/(r)),0,0,0],[0,1/(1 - (G)/(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",'_{mu}_{nu}', '[t, r, theta, phi]')
             )
         schild_general = ChacheItem(
             "SchildGeneral", 
-            Simpify().parse("[[-F(r),0,0,0],[0,1/(F(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
+            sympify("[[-F(r),0,0,0],[0,1/(F(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
             "[[-F(r),0,0,0],[0,1/(F(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",
             Metric("[[-F(r),0,0,0],[0,1/(F(r)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",'_{mu}_{nu}', '[t, r, theta, phi]')
             )
         AntiDeSitter = ChacheItem(
             "AntiDeSitter", 
-            Simpify().parse("[[-(k**2*r**2 + 1),0,0,0],[0,1/(k**2*r**2 + 1),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
+            sympify("[[-(k**2*r**2 + 1),0,0,0],[0,1/(k**2*r**2 + 1),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
             "[[-(k**2*r**2 + 1),0,0,0],[0,1/(k**2*r**2 + 1),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",
             Metric("[[-(k**2*r**2 + 1),0,0,0],[0,1/(k**2*r**2 + 1),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",'_{mu}_{nu}', '[t, r, theta, phi]')
             )
         PolarCoordinates = ChacheItem(
             "PolarCoordinates", 
-            Simpify().parse("[[-1,0,0,0],[0,1,0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
+            sympify("[[-1,0,0,0],[0,1,0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
             "[[-1,0,0,0],[0,1,0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",
             Metric("[[-1,0,0,0],[0,1,0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]", '_{mu}_{nu}', '[t, r, theta, phi]')
             )
         Minkowski = ChacheItem(
             "Minkowski", 
-            Simpify().parse("[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]"), 
+            sympify("[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]"), 
             "[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]",
             Metric("[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]",'_{mu}_{nu}', '[t, r, theta, phi]')
             )
         Minkowski = ChacheItem(
             "Minkowski", 
-            Simpify().parse("[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]"), 
+            sympify("[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]"), 
             "[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]",
             Metric("[[-1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]", '_{mu}_{nu}', '[t, x, y, z]')
             )
         ReissnerNordstrom = ChacheItem(
             "ReissnerNordstrom", 
-            Simpify().parse("[[-(1 - (G)/(r) + (Q**2)/(r**2)),0,0,0],[0,1/(1 - (G)/(r) + (Q**2)/(r**2)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
+            sympify("[[-(1 - (G)/(r) + (Q**2)/(r**2)),0,0,0],[0,1/(1 - (G)/(r) + (Q**2)/(r**2)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]"), 
             "[[-(1 - (G)/(r) + (Q**2)/(r**2)),0,0,0],[0,1/(1 - (G)/(r) + (Q**2)/(r**2)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]",
             Metric("[[-(1 - (G)/(r) + (Q**2)/(r**2)),0,0,0],[0,1/(1 - (G)/(r) + (Q**2)/(r**2)),0,0],[0,0,r**2,0],[0,0,0,r**2*sin(theta)**2]]", '_{mu}_{nu}', '[t, r, theta, phi]')
             )           

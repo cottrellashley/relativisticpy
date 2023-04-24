@@ -1,7 +1,9 @@
 from operator import itemgetter
 import itertools as it
 
-from relativisticpy.shared.helpers.helpers import transpose_list
+from relativisticpy.shared.functions import transpose_list
+
+
 
 
 class TensorSelfSummed:

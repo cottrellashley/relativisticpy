@@ -1,9 +1,8 @@
 from jsonmathpy import MathJSONInterpreter
 from jsonmathpy import Mathify
-import re
 import sympy as smp
 
-class Simpify:
+class Sympify:
 
     def operations(self):
         return {
@@ -56,7 +55,7 @@ class Simpify:
                     "ATANH"              : self.atanh,
                 }
 
-    def parse(self, expression):
+    def parse(self, expression: str):
         ans = MathJSONInterpreter(self.operations()).interpret(Mathify(expression)())
         return ans
 
