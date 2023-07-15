@@ -8,13 +8,14 @@ from sympy import MutableDenseNDimArray
 # Internal
 from relativisticpy.core.indices import Indices
 from relativisticpy.core.decorators import einstein_convention
-from relativisticpy.core.helpers import transpose_list
+from relativisticpy.providers import ISymCalc
 
 @einstein_convention
 class MultiIndexObject:
     __slots__ = "components", "indices", "basis"
+    default_comp = 'd'
 
-    def __init__(self, components: MutableDenseNDimArray, indices: Indices, basis: MutableDenseNDimArray):
+    def __init__(self, indices: Indices, components: MutableDenseNDimArray = None, basis: MutableDenseNDimArray = None):
         self.components = components
         self.indices = indices
         self.basis = basis
@@ -72,20 +73,3 @@ class MultiIndexObject:
             self.indices = result.indices
         else:
             pass
-
-# __add__ , __sub__ BUG: When we add two MultiIndexObjects, the order seems to matter when combined with multiplication.
-# This violates the commutativity of MultiIndexObjects: A*(B + C) == A*B + A*C
-# Source of BUG:
-# Say we are subtracting: ((1,0),(0,1)) 
-# Then we are essentially calculating 
-# Result[(1,0)] = T1[(1,0)] - T2[(0,1)] 
-# but if we had inverted the inputs and inputted the reverse instead
-# Result[(1,0)] = T2[(1,0)] - T1[(0,1)] 
-# (Since for addition we take the resulting indices to be the first MultiIndexObject.)
-# this same component in the above woule have been T2[(0,1)] - T1[(1,0)] 
-# which in the new order, in the resulting components is now at Result[(0,1)] 
-# A fix would involve storing commutation rules within the object 
-# i.e. We can also find the symmetries and then impose '[]' = [Idx(a)] as an Idx property => this index is commutated with Idx(a) 
-# also '{}' = [Idx(a)] as an Idx property => this index is anti-commutated with Idx(a) 
-# furthermore we can even find out from a non-resulting Indices object, whether the parent tensor can be further decomposed into 
-# a sum of indices symmetries 

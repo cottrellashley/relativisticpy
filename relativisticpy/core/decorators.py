@@ -46,7 +46,6 @@ def einstein_convention(cls):
 
     # Dunders
     def setitem(self, indices: Indices, other_expr: Union[cls, MutableDenseNDimArray]):
-        print('hello')
         if isinstance(other_expr, cls) or issubclass(cls, type(other_expr)) or issubclass(type(other_expr), cls):
             summed_index_locations = transpose_list(indices._get_all_repeated_locations(other_expr.indices))
             all = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(indices, other_expr.indices)) if itemgetter(*summed_index_locations[0])(IndexA) == itemgetter(*summed_index_locations[1])(IndexB)]

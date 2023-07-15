@@ -94,7 +94,7 @@ class Indices:
         self._basis = None
 
     # Properties
-    @property
+    @property 
     def basis(self) -> MutableDenseNDimArray: return self._basis
     @property
     def dimention(self) -> int: return self.indices[0].dimention
