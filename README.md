@@ -8,8 +8,8 @@ This Python package is designed to assist in performing mathematical operations,
 
 | Directory            | Description |
 |----------------------|-------------|
-| `core`               | Defined data structures (single-index, multi-index, tensor) coupled with index rules,     |
-|                      | such that tensors can be multiplied together as defined by einstein summation convention. |
+| `core`               | Defined data structures (single-index, multi-index, tensor) 
+coupled with index rules,such that tensors can be multiplied together as defined by einstein summation convention.|
 | `data_objects`       | Data        |
 | `workbook`           | Data        |
 | `general_relativity` | Data        |

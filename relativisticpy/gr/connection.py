@@ -1,20 +1,13 @@
-# Standard
+# Standard Library
 from itertools import product
-from operator import itemgetter
-from typing import Union, Optional
+from typing import Optional
 
-# External
-from sympy import MutableDenseNDimArray, Rational, diff, simplify, zeros
+# External Modules
+from relativisticpy.core import Idx, Indices, MultiIndexObject, einstein_convention
+from relativisticpy.providers import SymbolArray, Rational, diff, simplify
 
-# Internal 
-#   - core
-from relativisticpy.core.helpers import transpose_list, empty_sympy_array
-from relativisticpy.core.decorators import einstein_convention
-from relativisticpy.core.multi_index_obj import MultiIndexObject
-from relativisticpy.core.indices import Idx, Indices
-#   - gr
-from relativisticpy.gr.metric import Metric, MetricIndices
-from relativisticpy.gr.derivative import Derivative
+# This Module
+from relativisticpy.gr.metric import Metric
 
 @einstein_convention
 class Connection(MultiIndexObject):
@@ -22,19 +15,18 @@ class Connection(MultiIndexObject):
 
     def _compute_comps(metric: Metric):
         D = metric.dimention
-        empty = empty_sympy_array(D, (D, D, D))
+        empty = SymbolArray.zeros(D, D, D)
         g = metric._.components
         ig = metric.inv.components
         wrt = metric.basis
         for (i, j, k, d) in product(range(D), range(D), range(D), range(D)): empty[i, j, k] += Rational(1, 2)*(ig[d,i])*(diff(g[k,d],wrt[j]) + diff(g[d,j],wrt[k]) - diff(g[j,k],wrt[d]))
         return simplify(empty)
 
-    def __init__(self, indices: Indices, metric : Optional[Union[Metric, MultiIndexObject]] = None):
+    def __init__(self, indices: Indices, components: Optional[MultiIndexObject] = None, basis: Optional[MultiIndexObject] = None, metric: Metric = None):
         self.__default_comp = indices.zeros_array()
         self.__default_basis = Idx.default_basis
-        self.metric = metric
         super().__init__(
-                            components  =   Connection._compute_comps(metric) if metric != None else self.__default_comp,
                             indices     =   indices,
-                            basis       =   metric.basis if metric != None else self.__default_basis
+                            components  =   components if components != None else Connection._compute_comps(metric) if metric != None else self.__default_comp,
+                            basis       =   basis if basis != None else metric.basis if metric != None else self.__default_basis
                         )

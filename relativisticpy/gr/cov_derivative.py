@@ -1,7 +1,10 @@
+# Standard Library
 from typing import Union
 
-from relativisticpy.core.indices import Indices
-from relativisticpy.core.multi_index_obj import MultiIndexObject
+# External Modules
+from relativisticpy.core import Indices, MultiIndexObject
+
+# This Module
 from relativisticpy.gr.metric import Metric
 from relativisticpy.gr.connection import Connection
 

@@ -1,39 +1,18 @@
-# Standard
+# Standard Library
 from operator import itemgetter
 from itertools import product, combinations
 from itertools import product
 from typing import Tuple, List, Union, Optional
 
-# External (easy to remove sympy dependency from relativisticpy.core module in the future).
-from sympy import MutableDenseNDimArray, Symbol
+# External Modules
+from relativisticpy.providers import SymbolArray, transpose_list, symbols
 
-# Internal
-from relativisticpy.core.helpers import transpose_list
 
 class Idx:
-    """
-    The Idx class represents a single index object, providing methods for
-    operations such as checking whether it is identical or contracted with
-    another index, or getting its summed and repeated locations.
 
-    IMPORTANT: An Idx object should be initiated and used within an Indices object.
-
-    Attributes:
-        symbol (str): A string representing the symbol of the index.
-        order (int, optional): An integer representing the order of the index.
-        basis (NDimArray, optional): An NDimArray representing the basis of the index.
-        values (list or int, optional): A list or int representing the values of the index.
-        covariant (bool, optional): A boolean representing whether the index is covariant.
-
-    Example:
-        >>> from relativisticpy import Indices, Idx
-        >>> indices_a = Indices(Idx('a'), Idx('b'))
-        >>> indices_b = Indices(-Idx('a'), Idx('c'))
-        >>> result = indices_a.einsum_product(indices_b)
-        >>> print(result)  # Represents the einstein summation convention object: Indices(Idx('b'), Idx('c'))
-
-    """
-    default_basis = MutableDenseNDimArray([Symbol('x'), Symbol('y')])
+    cartesian_basis_2d = SymbolArray([symbols('x'), symbols('y')])
+    polar_basis_2d = SymbolArray([symbols('t'), symbols('theta')])
+    default_basis = cartesian_basis_2d
 
     def __init__(self, symbol: str, order: Optional[int] = None, values: Optional[Union[list, int]] = None, covariant: Optional[bool] = True):
         self.symbol: str = symbol
@@ -47,9 +26,9 @@ class Idx:
     @property
     def dimention(self) -> int: return len(self.basis)
     @property
-    def basis(self) -> MutableDenseNDimArray: return self._basis
+    def basis(self) -> SymbolArray: return self._basis
     @basis.setter
-    def basis(self, value: MutableDenseNDimArray) -> None: self._basis = value
+    def basis(self, value: SymbolArray) -> None: self._basis = value
     
     def set_order(self, order: int) -> 'Idx': return Idx(self.symbol, order, self.values, self.covariant)
 
@@ -95,7 +74,7 @@ class Indices:
 
     # Properties
     @property 
-    def basis(self) -> MutableDenseNDimArray: return self._basis
+    def basis(self) -> SymbolArray: return self._basis
     @property
     def dimention(self) -> int: return self.indices[0].dimention
     @property
@@ -108,7 +87,7 @@ class Indices:
     def self_summed(self) -> bool: return len([[i.order, j.order] for i, j in combinations(self.indices, r=2) if i.is_contracted_with(j)]) > 0
 
     @basis.setter
-    def basis(self, value: MutableDenseNDimArray) -> None:
+    def basis(self, value: SymbolArray) -> None:
         self._basis = value
         for idx in self.indices:
             idx.basis = value
@@ -137,7 +116,7 @@ class Indices:
             raise StopIteration
 
     # Publics
-    def zeros_array(self): return MutableDenseNDimArray.zeros(*self.shape)
+    def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
 
     def einsum_product(self, other: 'Indices') -> 'Indices':

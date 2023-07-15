@@ -1,21 +1,16 @@
-from itertools import product
-from operator import itemgetter
-from typing import Union
+# External Modules
+from relativisticpy.providers import SymbolArray, IMultiIndexArray
 
-# Dependencies
-from sympy import MutableDenseNDimArray
-
-# Internal
+# This Module
 from relativisticpy.core.indices import Indices
 from relativisticpy.core.decorators import einstein_convention
-from relativisticpy.providers import ISymCalc
 
 @einstein_convention
-class MultiIndexObject:
+class MultiIndexObject(IMultiIndexArray):
     __slots__ = "components", "indices", "basis"
     default_comp = 'd'
 
-    def __init__(self, indices: Indices, components: MutableDenseNDimArray = None, basis: MutableDenseNDimArray = None):
+    def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components
         self.indices = indices
         self.basis = basis
@@ -34,29 +29,29 @@ class MultiIndexObject:
     # Dunders
     def __post_init__(self) -> None: self.__set_self_summed() # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
 
-    def __add__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
+    def __add__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         operation = lambda a, b : a + b
         result = self.additive_operation(other, operation) # Implementation inserted by decorator
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __sub__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
+    def __sub__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         operation = lambda a, b : a - b
         result = self.additive_operation(other, operation)
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __mul__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
+    def __mul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         if isinstance(other, (float, int)): # If we're number then just multiply every component by it.
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         operation = lambda a, b : a * b
         result = self.einsum_operation(other, operation)
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __rmul__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
+    def __rmul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         if isinstance(other, (float, int)): # If we're number then just multiply every component by it.
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         return self * other
 
-    def __truediv__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
+    def __truediv__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         if isinstance(other, (float, int)): # If we're number then just divide every component by it.
             return MultiIndexObject(components = self.components/other, indices = self.indices, basis = self.basis)
         else:

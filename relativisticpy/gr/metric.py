@@ -1,16 +1,11 @@
-# Standard
+# Standard Library
 from typing import Union
 from itertools import product
 from operator import itemgetter
 
-# External 
-from sympy import MutableDenseNDimArray, Symbol, tensorproduct, diff, simplify 
-
-# Internal
-from relativisticpy.core.multi_index_obj import MultiIndexObject
-from relativisticpy.core.indices import Indices, Idx
-from relativisticpy.core.helpers import transpose_list
-from relativisticpy.core.decorators import einstein_convention
+# External Modules
+from relativisticpy.core import MultiIndexObject, einstein_convention, Indices, Idx
+from relativisticpy.providers import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray
 
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
@@ -55,9 +50,8 @@ class Metric(MultiIndexObject):
     # The metric tensor with raised indices, such as g^{ab}, is called the "contravariant metric tensor" or the "inverse metric tensor".
     cron_delta = (1,1); contravariant = (0,2); covariant = (2,0)
 
-    def __init__(self, components, indices: MetricIndices, basis):
-        if indices.rank != Metric.cron_delta:
-            super().__init__(components, indices, basis)
+    def __init__(self, indices: MetricIndices, components: IMultiIndexArray, basis: IMultiIndexArray):
+        super().__init__(indices = indices, components = components, basis = basis)
 
     @property
     def _(self):
@@ -65,9 +59,9 @@ class Metric(MultiIndexObject):
             comp = self.components
             ind = self.indices
         else:
-            comp = MutableDenseNDimArray(self.components.tomatrix().inv())
+            comp = SymbolArray(self.components.tomatrix().inv())
             ind = MetricIndices(*[-j for j in self.indices.indices])
-        return Metric(comp, ind, self.basis)
+        return Metric(indices = ind, components = comp, basis = self.basis)
 
     @property     
     def inv(self):
@@ -75,9 +69,9 @@ class Metric(MultiIndexObject):
             comp = self.components
             ind = self.indices
         else:
-            comp = MutableDenseNDimArray(self.components.tomatrix().inv())
+            comp = SymbolArray(self.components.tomatrix().inv())
             ind = MetricIndices(*[-j for j in self.indices.indices])
-        return Metric(comp, ind, self.basis)
+        return Metric(indices = ind, components = comp, basis = self.basis)
 
 
     def __pow__(self, other):
@@ -97,12 +91,12 @@ class Metric(MultiIndexObject):
         sub = lambda i : i.subs(transformation.transformation.as_dict) if issubclass(type(i), Symbol) else i
         
         # - New components is substituted components
-        self.components = MutableDenseNDimArray([[sub(i) for i in j] for j in metric_components])
+        self.components = SymbolArray([[sub(i) for i in j] for j in metric_components])
 
         ############# STEP TWO: #################
 
         # - Get the jacobian matrix from transformation given.
-        jacobian = lambda t, b : MutableDenseNDimArray([[diff(j, i) for j in t] for i in b])
+        jacobian = lambda t, b : SymbolArray([[diff(j, i) for j in t] for i in b])
         components = jacobian([i[1] for i in list(transformation.transformation.as_dict.items())], transformation.new_basis.as_symbol)
 
         # - Acquire indices from metric given.
