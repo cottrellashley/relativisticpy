@@ -6,6 +6,15 @@
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
+| Directory            | Description |
+|----------------------|-------------|
+| `tensor`             | Defined data structures (single-index, multi-index, tensor) coupled with index rules,     |
+|                      | such that tensors can be multiplied together as defined by einstein summation convention. |
+| `data_objects`       | Data        |
+| `workbook`           | Data        |
+| `general_relativity` | Data        |
+| `descerializers`     | Data        |
+
 ## Features
 
 Some of the key features of this package include:

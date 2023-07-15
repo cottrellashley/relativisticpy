@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "relativisticpy"
-version = "1.0.9"
+version = "1.1.0"
 description = "A General Relativity package to solve symbolic General Relativistic equations."
 authors = ["Ashley Cottrell"]
 
@@ -10,4 +10,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.poetry.dependencies]
 sympy = "^1.7.0"
-jsonmathpy = "1.2.5"

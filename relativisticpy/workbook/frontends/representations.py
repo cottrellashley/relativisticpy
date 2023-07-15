@@ -38,5 +38,3 @@ class IndicesRepresentationA(Indices):
             return bool(re.search("^((\^|\_)(\{)(\}))+$", re.sub('[^\^^\_^\{^\}]',"", string).replace(" ",'')))
         else:
             return False
-
-    

@@ -1,6 +1,9 @@
 import sympy as smp
 
 class GrComputations:
+    """
+    Warning: Depricated class. Will be removed when it's dependencies are fully removed.
+    """
     def __init__(self, Metric, Basis):
         self.Metric = Metric
         self.Basis = Basis
@@ -15,7 +18,6 @@ class GrComputations:
                     A[i,j,k] = smp.diff(self.Metric[j,k],self.Basis[i])
         return smp.simplify(A)
     
-    
     def Ginv(self):
         N = self.Dimention
         g_m = self.Metric.tomatrix()
@@ -25,7 +27,6 @@ class GrComputations:
             for j in range(N):
                 A[i,j] = inv_g[i, j]
         return smp.simplify(A)
-    
     
     def Gamma(self):
         N = self.Dimention

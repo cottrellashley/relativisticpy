@@ -10,7 +10,7 @@ class IndexRepresentationA(Index):
                        symbol       = re.search('[a-zA-Z]+', self.index_string_representation).group(),
                        order        = self.__is_valid_order(order),
                        running      = not bool(re.search('^[^=]*(\:)([0-9]+)[^=]*$', self.index_string_representation)),
-                       comp_type    = 'covariant' if (self.index_string_representation[0] == "_") else 'contravariant',
+                       covariant    = self.index_string_representation[0] == "_",
                        basis        = self.__is_valid_basis(coordinate_basis),
                        values       = integers[re.split('[\:]', self.index_string_representation.replace('{','').replace('}','').replace('_','').replace('^',''))[1].replace(" ","")] if bool(re.match('^[^=]*(\:)([0-9]+)[^=]*$', self.index_string_representation)) else None
                        )
