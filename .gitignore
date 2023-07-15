@@ -138,7 +138,6 @@ __pycache__
 # Packages/installer info
 *.egg
 *.egg-info
-*.ipynb
 dist
 build
 eggs

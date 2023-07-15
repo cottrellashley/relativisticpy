@@ -31,31 +31,7 @@ class MultiIndexObject:
     def dimention(self): return len(self.basis)
 
     # Dunders
-    def __getitem__(self, indices): return self.components[indices.__index__()]
-    def __neg__(self): self.components = -self.components; return self
     def __post_init__(self) -> None: self.__set_self_summed() # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
-    
-    def __setitem__(self, indices: Indices, other_expr: Union['MultiIndexObject', MutableDenseNDimArray]):
-        """
-        Mapps resulting components into the shape of the setted indices.
-        Indices must match in symbols and covariance, but in any order.
-        If other_expr is another MultiIndexObject, we not only map the components, but match the indices.
-            T[Indices] = T1[Indices]*T2[Indices] + T3[Indices]
-        Else, if other_expr just an array, we replace the components of the tesnor with components specifies in the argument of the setter.
-            T[Indices] = Array of components -> instace T(components, indices, basis)
-        """
-        if isinstance(other_expr, MultiIndexObject) and other_expr.indices == indices:
-            summed_index_locations = transpose_list(indices._get_all_repeated_locations(other_expr.indices))
-            all = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(indices, other_expr.indices)) if itemgetter(*summed_index_locations[0])(IndexA) == itemgetter(*summed_index_locations[1])(IndexB)]
-            for idxa, idxb  in all:
-                self.components[idxa] = other_expr.components[idxb]
-            return MultiIndexObject(self.components, indices, self.basis)
-        elif isinstance(other_expr, MutableDenseNDimArray) and other_expr.shape == self.components.shape:
-            for idxa in self.indices:
-                self.components[idxa] = other_expr[idxa]
-            return MultiIndexObject(self.components, indices, self.basis)
-        else:
-            raise ValueError(f'The object you are trying to set and/or map to the {self} has the a shape which does not match {self.shape}.')
 
     def __add__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         operation = lambda a, b : a + b
