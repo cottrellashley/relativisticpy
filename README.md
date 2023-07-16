@@ -6,16 +6,22 @@
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
+## Package Philosophy
+
+1. Ease of use. The main reason for this package's existance is to make Einstein tensor equations look exactly like they do in mathematical papers, but with a computational engine which can actually compute those symbolic tensor equations.
+
+2. Keep it very lightweight. The packge is meant to have all the main functionality of a mathematical symbolic compotational tool, but yet not big and cluncky. We leave it to Sympy to do all the symbolic calculation work for us.
+
+To put it simply, keep it simple for devs and users.
+
+## For Developers
+
 | Directory            | Description |
 |----------------------|-------------|
-| `core`               | Defined data structures (single-index, multi-index, tensor) 
-coupled with index rules,such that tensors can be multiplied together as defined by einstein summation convention.|
-| `data_objects`       | Data        |
-| `workbook`           | Data        |
-| `general_relativity` | Data        |
-| `descerializers`     | Data        |
-
-## Philosophy
+| `core`               | Core Module. Contains logic for einstein summation convention of multi-indexed array like objects and descerialisation logic of tensors. |
+| `gr`                 | Defines all the main General Relativity Tensors, such as initialization logic and interation logic. Inherits core module logic (which provides the logic of einsum tensor manipulations.) |
+| `providers`           | Contains all the external package dependencies of relativisticpy, which currently are: Sympy and JsonMathPy. Any module within RelativisticPy only imports relativisticpy.provider module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
+| `workbook` | This modules is the module which 'brings it all together' if you will. It here to allow non-python users to use the RelativisticPy package. It handles all the parsing from strings, the object initializations, memory storage and workflow for the end-user.        |
 
 ## Features
 
