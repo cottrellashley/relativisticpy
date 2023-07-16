@@ -4,7 +4,7 @@ from itertools import product
 from operator import itemgetter
 
 # External Modules
-from relativisticpy.core import MultiIndexObject, einstein_convention, Indices, Idx
+from relativisticpy.core import MultiIndexObject, einstein_convention, deserialisable_tensor, Indices, Idx
 from relativisticpy.providers import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray
 
 class MetricIndices(Indices):
@@ -45,12 +45,13 @@ class MetricIndices(Indices):
         return res
 
 @einstein_convention
+@deserialisable_tensor
 class Metric(MultiIndexObject):
     # The metric tensor with lower indices, such as g_{ab}, is called the "covariant metric tensor" or simply the "metric tensor".
     # The metric tensor with raised indices, such as g^{ab}, is called the "contravariant metric tensor" or the "inverse metric tensor".
     cron_delta = (1,1); contravariant = (0,2); covariant = (2,0)
     _cls_idcs = MetricIndices
-    
+
     def __init__(self, indices: MetricIndices, components: IMultiIndexArray, basis: IMultiIndexArray):
         super().__init__(indices = indices, components = components, basis = basis)
 

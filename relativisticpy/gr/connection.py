@@ -3,13 +3,14 @@ from itertools import product
 from typing import Optional
 
 # External Modules
-from relativisticpy.core import Idx, Indices, MultiIndexObject, einstein_convention
+from relativisticpy.core import Idx, Indices, MultiIndexObject, einstein_convention, deserialisable_tensor
 from relativisticpy.providers import SymbolArray, Rational, diff, simplify
 
 # This Module
 from relativisticpy.gr.metric import Metric
 
 @einstein_convention
+@deserialisable_tensor
 class Connection(MultiIndexObject):
     _cls_idcs = Indices
 

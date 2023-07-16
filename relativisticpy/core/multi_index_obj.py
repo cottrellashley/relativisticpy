@@ -2,13 +2,15 @@
 from relativisticpy.providers import SymbolArray, IMultiIndexArray, Sympify
 
 # This Module
-from relativisticpy.core.indices import Indices
-from relativisticpy.core.decorators import einstein_convention
+from relativisticpy.core.indices import Indices, Idx
+from relativisticpy.core.einsum_convention import einstein_convention
+from relativisticpy.core.string_to_tensor import deserialisable_tensor
 
 @einstein_convention
+@deserialisable_tensor
 class MultiIndexObject(IMultiIndexArray):
     __slots__ = "components", "indices", "basis"
-    default_comp = 'd'
+    _cls_idx = Idx
     _cls_idcs = Indices
 
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
@@ -59,14 +61,6 @@ class MultiIndexObject(IMultiIndexArray):
             return MultiIndexObject(components = self.components/other, indices = self.indices, basis = self.basis)
         else:
             raise ValueError("Cannot divide with anything other than int or float.")
-
-    def coordinate_transformation(self, transformation):
-        pass
-
-    @classmethod
-    def from_string(cls, indices, components, basis):
-        return cls(indices = cls._cls_idcs.from_string(indices), components = Sympify(components), basis = Sympify(basis))
-
 
     # Privates
     def __set_self_summed(self) -> None:
