@@ -1,4 +1,5 @@
 # Standard Library
+import re
 from operator import itemgetter
 from itertools import product, combinations
 from itertools import product
@@ -115,6 +116,10 @@ class Indices:
         else:
             raise StopIteration
 
+    @classmethod
+    def from_string(cls, arg: str):
+        return cls(*[Idx(symbol = Indices.__get_symbol(i), covariant=Indices.__covariant(i), values=int(Indices.__get_values(i)) if not Indices.__is_running(i) else None) for i in Indices.__split(arg)]) if Indices.__is_repr_a(arg) else None
+
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
@@ -169,3 +174,10 @@ class Indices:
     def _get_all_repeated_locations(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_repeated_locations(other.indices)[0] for index in self.indices if len(index.get_repeated_locations(other.indices)) > 0 ]
     def _get_all_summed_location(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_summed_location(other.indices) for index in self.indices if len(index.get_repeated_location(other.indices)) > 0]
     def _get_all_repeated_location(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_repeated_location(other.indices) for index in self.indices if len(index.get_repeated_location(other.indices)) > 0 ]
+
+    def __is_repr_a(arg: str): return bool(re.search("^((\^|\_)(\{)(\}))+$", re.sub('[^\^^\_^\{^\}]',"", arg).replace(" ",''))) if isinstance(arg, str) else False
+    def __is_running(arg: str): return not bool(re.search('^[^=]*(\:)([0-9]+)[^=]*$', arg))
+    def __get_symbol(arg: str): return re.search(r'[a-zA-Z]+', arg).group() if re.search(r'[a-zA-Z]+', arg) else None
+    def __get_values(arg: str): return re.search(r'[0-9]+', arg).group() if re.search(r'[0-9]+', arg) else None
+    def __covariant(arg: str): return arg[0] == '_' if isinstance(arg, str) else True # Always default to coveriant
+    def __split(arg: str): return [item for item in re.split('(?=[_^])', arg) if item] if Indices.__is_repr_a(arg) else arg

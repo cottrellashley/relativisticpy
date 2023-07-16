@@ -11,7 +11,7 @@ from relativisticpy.gr.metric import Metric
 
 @einstein_convention
 class Connection(MultiIndexObject):
-    # Idea: if user initiates this object without components => set all zeros => This will allow users to then call __setitem__ object, mapping the zeros into the resulting expression.
+    _cls_idcs = Indices
 
     def _compute_comps(metric: Metric):
         D = metric.dimention

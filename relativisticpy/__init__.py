@@ -6,7 +6,6 @@ Python library for Tensor Manipulation in General Relativity.
 """
 
 from sympy import NDimArray, Symbol, MutableDenseNDimArray
-from relativisticpy.workbook.frontends.sympify.sympify import Sympify
 from relativisticpy.core.indices import Indices, Idx
 from relativisticpy.core.multi_index_obj import MultiIndexObject
 from relativisticpy.gr.metric import Metric, MetricIndices

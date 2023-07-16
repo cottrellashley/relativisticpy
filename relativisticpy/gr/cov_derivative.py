@@ -24,7 +24,6 @@ class CovDerivative(MultiIndexObject):
                          basis       =   arg.basis
                         )
 
-
     def __mul__(self, other : MultiIndexObject) -> MultiIndexObject:
         self.__cov_derivative_object(other) # The number of connections in expression depends on indices stricture of other component
         pass

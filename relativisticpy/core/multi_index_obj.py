@@ -1,5 +1,5 @@
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray
+from relativisticpy.providers import SymbolArray, IMultiIndexArray, Sympify
 
 # This Module
 from relativisticpy.core.indices import Indices
@@ -9,6 +9,7 @@ from relativisticpy.core.decorators import einstein_convention
 class MultiIndexObject(IMultiIndexArray):
     __slots__ = "components", "indices", "basis"
     default_comp = 'd'
+    _cls_idcs = Indices
 
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components
@@ -28,6 +29,8 @@ class MultiIndexObject(IMultiIndexArray):
 
     # Dunders
     def __post_init__(self) -> None: self.__set_self_summed() # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
+    def __getitem__(self, indices: Indices): return self.components[indices.__index__()]
+    def __neg__(self): return MultiIndexObject(self.indices, -self.components, self.basis)
 
     def __add__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         operation = lambda a, b : a + b
@@ -59,6 +62,11 @@ class MultiIndexObject(IMultiIndexArray):
 
     def coordinate_transformation(self, transformation):
         pass
+
+    @classmethod
+    def from_string(cls, indices, components, basis):
+        return cls(indices = cls._cls_idcs.from_string(indices), components = Sympify(components), basis = Sympify(basis))
+
 
     # Privates
     def __set_self_summed(self) -> None:

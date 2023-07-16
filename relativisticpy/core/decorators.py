@@ -65,7 +65,10 @@ def einstein_convention(cls: IMultiIndexArray):
             raise ValueError(f'The object you are trying to set and/or map to the {self} has the a shape which does not match {self.shape}.')
 
     def getitem(self, indices: Indices): return self.components[indices.__index__()]
-    def neg(self): self.components = -self.components
+    def neg(self):
+        comps = -self.components
+        self.components = comps
+        return self
 
     cls.additive_operation = additive_operation
     cls.einsum_operation = einsum_operation

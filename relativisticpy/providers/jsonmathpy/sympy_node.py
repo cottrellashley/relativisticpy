@@ -1,6 +1,6 @@
 import sympy as smp
 from dataclasses import dataclass
-from relativisticpy.workbook.frontends.sympify.simple_node import SimpleNode
+from relativisticpy.providers.jsonmathpy.simple_node import SimpleNode
 
 @dataclass
 class Node:

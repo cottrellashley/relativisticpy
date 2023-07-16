@@ -1,13 +1,9 @@
 import sympy as smp
 import re
 from dataclasses import dataclass
-from relativisticpy.deserializers.sympify.sympy_node import SympyNode
-from relativisticpy.tensors.core.tensor import TensorObject
-from relativisticpy.tensors.core.tensor import GrTensor
-from relativisticpy.tensors.metric import Metric
-from relativisticpy.tensors.riemann import Riemann
-from relativisticpy.tensors.derivative import Derivative
-from relativisticpy.deserializers.transformation_deserializer import TransformationDeserializer
+
+from relativisticpy.providers.jsonmathpy import SympyNode
+from relativisticpy.gr import Derivative, Riemann, Metric
 
 @dataclass
 class Node:
