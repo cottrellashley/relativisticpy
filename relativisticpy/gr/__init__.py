@@ -1,3 +1,4 @@
+""" General Relativity Module """
 
 from relativisticpy.gr.connection import Connection
 from relativisticpy.gr.metric import Metric, MetricIndices

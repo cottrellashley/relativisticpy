@@ -6,6 +6,7 @@ from operator import itemgetter
 # External Modules
 from relativisticpy.core import MultiIndexObject, einstein_convention, deserialisable_tensor, Indices, Idx
 from relativisticpy.providers import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray
+from relativisticpy.providers.helper_functions import tensor_trace_product
 
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
@@ -75,12 +76,14 @@ class Metric(MultiIndexObject):
             ind = MetricIndices(*[-j for j in self.indices.indices])
         return Metric(indices = ind, components = comp, basis = self.basis)
 
-
     def __pow__(self, other):
         if other == -1:
             return self.inv
         else:
             raise ValueError('Cannot raise Tensor to power. Only combatible with taking the inverse by taking the pow of value -1.')
+
+    def rs(self, other: IMultiIndexArray, idx): return tensor_trace_product(self.inv, other.components, [[0, idx]])
+    def lw(self, other: IMultiIndexArray, idx): return tensor_trace_product(self._, other.components, [[0, idx]])
 
     def get_transformed_metric(self, transformation):
 

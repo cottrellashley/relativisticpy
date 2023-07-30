@@ -115,10 +115,11 @@ class Indices:
             return self._indices_iterator()[x-1]
         else:
             raise StopIteration
-
+ 
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
+    def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple('rs', i.order) if i.covariant else tuple('lw', i.order) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
 
     def einsum_product(self, other: 'Indices') -> 'Indices':
         summed_index_locations = transpose_list(self._get_all_summed_locations(other))
@@ -168,5 +169,4 @@ class Indices:
     def _get_additive_result(self) -> 'Indices': return Indices(*[idx for idx in self.indices]) # Need to add commutation & anti-commutation rules
     def _get_all_summed_locations(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_summed_locations(other.indices)[0] for index in self.indices if len(index.get_summed_locations(other.indices)) > 0]
     def _get_all_repeated_locations(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_repeated_locations(other.indices)[0] for index in self.indices if len(index.get_repeated_locations(other.indices)) > 0 ]
-    def _get_all_summed_location(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_summed_location(other.indices) for index in self.indices if len(index.get_repeated_location(other.indices)) > 0]
     def _get_all_repeated_location(self, other: 'Indices') -> List[Tuple[int, int]]: return [index.get_repeated_location(other.indices) for index in self.indices if len(index.get_repeated_location(other.indices)) > 0 ]

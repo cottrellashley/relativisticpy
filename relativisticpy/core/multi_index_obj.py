@@ -1,5 +1,8 @@
+# Standard Library
+from typing import List
+
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray, Sympify
+from relativisticpy.providers import SymbolArray, IMultiIndexArray, Sympify, tensor_trace_product
 
 # This Module
 from relativisticpy.core.indices import Indices, Idx
@@ -10,8 +13,8 @@ from relativisticpy.core.string_to_tensor import deserialisable_tensor
 @deserialisable_tensor
 class MultiIndexObject(IMultiIndexArray):
     __slots__ = "components", "indices", "basis"
-    _cls_idx = Idx
-    _cls_idcs = Indices
+    _cls_idx = Idx # Descerialization of index strings into which type
+    _cls_idcs = Indices  # Descerialization of indices strings into which type
 
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components
@@ -61,6 +64,8 @@ class MultiIndexObject(IMultiIndexArray):
             return MultiIndexObject(components = self.components/other, indices = self.indices, basis = self.basis)
         else:
             raise ValueError("Cannot divide with anything other than int or float.")
+
+    def comps_contraction(self, other: IMultiIndexArray, idcs: List[List[int]]): return tensor_trace_product(self.components, other.components, idcs)
 
     # Privates
     def __set_self_summed(self) -> None:

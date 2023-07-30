@@ -5,7 +5,7 @@ from relativisticpy.providers import Sympify
 def deserialisable_tensor(cls):
     """
     Class decorator. Injects descerilization of a tensor object. The specific __init__ rules are determined by class taking the attribute.
-        
+
     Required class property definitions:
             >>> ClassName._cls_idx
             >>> ClassName._cls_idcs

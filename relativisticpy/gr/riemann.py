@@ -11,6 +11,7 @@ from relativisticpy.gr.metric import Metric
 from relativisticpy.gr.connection import Connection
 
 class Riemann(MultiIndexObject):
+    # __getitem__() => Riemann[Indices] => Riemann components corresponding to the Indices structure provided by the Indices.
 
     @classmethod
     def from_metric(metric: Metric) -> 'Riemann':

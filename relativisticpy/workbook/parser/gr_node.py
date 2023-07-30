@@ -3,13 +3,15 @@ import re
 from dataclasses import dataclass
 
 from relativisticpy.providers.jsonmathpy import SympyNode
-from relativisticpy.gr import Derivative, Riemann, Metric
+from relativisticpy.gr import Derivative, Riemann, Metric, Ricci
 
 @dataclass
 class Node:
     node: str
     handler: str
     args: any
+
+def gr_tensor_mapper(key): return { 'G': Metric, 'd': Derivative, 'R': (Riemann, Ricci) }[key]
 
 class GRNode(SympyNode):
 
@@ -26,7 +28,7 @@ class GRNode(SympyNode):
 
         if not self.key_exists('Metric') or not self.key_exists('Basis'):
             raise ValueError('No Metric has been defined')
-    
+
         if tensor_name == 'G':
             return self.METRIC.new_indices(tesnor_indices)
         elif tensor_name == 'd':

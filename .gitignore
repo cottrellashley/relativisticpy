@@ -8,8 +8,8 @@ __pycache__/
 
 # Distribution / packaging
 .Python
+gr-lab/
 build/
-gr/
 develop-eggs/
 dist/
 downloads/
