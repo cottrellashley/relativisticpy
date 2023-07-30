@@ -7,3 +7,4 @@ from relativisticpy.gr.riemann import Riemann
 from relativisticpy.gr.cov_derivative import CovDerivative
 from relativisticpy.gr.derivative import Derivative
 from relativisticpy.gr.coord_transformation import TransformationDeserializer
+from relativisticpy.gr.tensor import GrTensor

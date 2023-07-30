@@ -6,39 +6,30 @@
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
-## Package Philosophy
-
-1. Ease of use. The main reason for this package's existance is to make Einstein tensor equations look exactly like they do in mathematical papers, but with a computational engine which can actually compute those symbolic tensor equations.
-
-2. Keep it very lightweight. The packge is meant to have all the main functionality of a mathematical symbolic compotational tool, but yet not big and cluncky. We leave it to Sympy to do all the symbolic calculation work for us.
-
-To put it simply, keep it simple for devs and users.
-
-## For Developers
-
-| Directory            | Description |
-|----------------------|-------------|
-| `core`               | Core Module. Contains logic for einstein summation convention of multi-indexed array like objects and descerialisation logic of tensors. |
-| `gr`                 | Defines all the main General Relativity Tensors, such as initialization logic and interation logic. Inherits core module logic (which provides the logic of einsum tensor manipulations.) |
-| `providers`           | Contains all the external package dependencies of relativisticpy, which currently are: Sympy and JsonMathPy. Any module within RelativisticPy only imports relativisticpy.provider module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
-| `workbook` | This modules is the module which 'brings it all together' if you will. It here to allow non-python users to use the RelativisticPy package. It handles all the parsing from strings, the object initializations, memory storage and workflow for the end-user.        |
-
-## Features
+# Features
 
 Some of the key features of this package include:
 
-Symbolic expression manipulation: Perform symbolic calculations and manipulations with ease.
-Workflow module: Create linear mathematical workflows that allow you to assign variables and use them later on.
+- **Variable Assignment:** Assign expressions to variables using equals sign, to use later on in your workflow.
+- **Integration:** Integrate expressions with respect to specified variables.
+- **Differentiation:** Differentiate expressions with respect to specified variables.
+- **Solve:** Solve a algebraic equation, or set of algebraic equations with repect to set of variables.
+- **Simplify:** Simplify a specified mathematical expression.
+- **Expand:** Expand expression raised to some power.
+- **Substitute:** Substitute a variable within an expression (if not already assigned.)
+- **Sum:** Find the descrete sum of an expression.
+- **Series:** Find the taylor series of some function/expr.
+- **Factor:** Factor an expression if possible.
+- **Limit:** Find the limit of an expression if possible.
+- **General Relativity Tensor Operations:**
+    - Define Metric and Basis using the assignment operation.
+    - Write Tensor Expressions using indices to represent the summation of the components (Einstein summation convention.)
+    - Get and Assign Specific Components from Tensors: Choice to assign indices to numbers, to return subset of components. And also assign those to other variables.
 
 ## General Relativity functionality: 
 
 - Solve tensor expressions in General Relativity, such as "G_{mu}{nu} * R^{nu}{a}{b}{c}".
 - Mathematical operations: Perform mathematical operations such as differentiation, integration, and simplification of expressions.
-
-## Dependencies
-
-- Sympy: This package has a large dependency in Sympy to perform all it's symbolic calculations and functions.
-- JsonMathPy: This package depends on the [JsonMathPy](https://pypi.org/project/jsonmathpy/) package ([GitHub](https://github.com/cottrellashley/jsonmathpy)), which is a Python package that can take a string as input and parse it into a Python dictionary (and, optionally, a JSON math file). The package can parse and evaluate expressions using the operations and objects injected by the user.
 
 ## Installation
 
@@ -62,25 +53,31 @@ w = rel.Workbook()
 
 Which you can now use `w.expr()` to enter new expressions.
 
-# Feature Summary
+## Package Philosophy
 
-- **Variable Assignment:** Assign expressions to variables using equals sign, to use later on in your workflow.
-- **Integration:** Integrate expressions with respect to specified variables.
-- **Differentiation:** Differentiate expressions with respect to specified variables.
-- **Solve:** Solve a algebraic equation, or set of algebraic equations with repect to set of variables.
-- **Simplify:** Simplify a specified mathematical expression.
-- **Expand:** Expand expression raised to some power.
-- **Substitute:** Substitute a variable within an expression (if not already assigned.)
-- **Sum:** Find the descrete sum of an expression.
-- **Series:** Find the taylor series of some function/expr.
-- **Factor:** Factor an expression if possible.
-- **Limit:** Find the limit of an expression if possible.
-- **General Relativity Tensor Operations:**
-    - Define Metric and Basis using the assignment operation.
-    - Write Tensor Expressions using indices to represent the summation of the components (Einstein summation convention.)
-    - Get and Assign Specific Components from Tensors: Choice to assign indices to numbers, to return subset of components. And also assign those to other variables.
-)
-## Examples
+1. Ease of use. The main reason for this package's existance is to make Einstein tensor equations look exactly like they do in mathematical papers, but with a computational engine which can actually compute those symbolic tensor equations.
+
+2. Keep it very lightweight. The packge is meant to have all the main functionality of a mathematical symbolic compotational tool, but yet not big and cluncky. We leave it to Sympy to do all the symbolic calculation work for us.
+
+To put it simply, keep it simple for devs and users.
+
+## Directory Breakdown
+
+| Directory            | Description |
+|----------------------|-------------|
+| `core`               | Core Module. Contains logic for einstein summation convention of multi-indexed array like objects and descerialisation logic of tensors. |
+| `gr`                 | Defines all the main General Relativity Tensors, such as initialization logic and interation logic. Inherits core module logic (which provides the logic of einsum tensor manipulations.) |
+| `providers`           | Contains all the external package dependencies of relativisticpy, which currently are: Sympy and JsonMathPy. Any module within RelativisticPy only imports relativisticpy.provider module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
+| `workbook` | This modules is the module which 'brings it all together' if you will. It here to allow non-python users to use the RelativisticPy package. It handles all the parsing from strings, the object initializations, memory storage and workflow for the end-user.        |
+| `em` | Future module -> Electromagnetism   |
+| `ft` | Future module -> Field Theory       |
+
+## Project Dependencies
+
+- Sympy: This package has a large dependency in Sympy to perform all it's symbolic calculations and functions.
+- JsonMathPy: This package depends on the [JsonMathPy](https://pypi.org/project/jsonmathpy/) package ([GitHub](https://github.com/cottrellashley/jsonmathpy)), which is a Python package that can take a string as input and parse it into a Python dictionary (and, optionally, a JSON math file). The package can parse and evaluate expressions using the operations and objects injected by the user.
+
+## Use Examples
 
 ### 1. Variable Assignment
 The variable assignment function allows you to assign a value or expression to a variable and use it in subsequent calculations.
