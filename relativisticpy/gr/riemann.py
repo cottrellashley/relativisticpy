@@ -14,18 +14,17 @@ class Riemann(MultiIndexObject):
     # __getitem__() => Riemann[Indices] => Riemann components corresponding to the Indices structure provided by the Indices.
 
     @classmethod
-    def from_metric(metric: Metric) -> 'Riemann':
-        connection_comps = Connection._compute_comps(metric)
+    def comps_from_metric(metric: Metric) -> SymbolArray:
         N = metric.dimention
         wrt = metric.basis
-        C = connection_comps
+        C = Connection._compute_comps(metric)
         A = SymbolArray(zeros(N**4),(N,N,N,N))
         for i, j, k, p, d in product(range(N), range(N), range(N), range(N), range(N)):
             A[i, j, k, p] += Rational(1, N)*(diff(C[i,p,j],wrt[k])-diff(C[i,k,j],wrt[p]))+(C[i,k,d]*C[d,p,j]-C[i,p,d]*C[d,k,j])
         return simplify(A)
 
     @classmethod
-    def from_connection(connection: Connection) -> 'Riemann':
+    def comps_from_connection(connection: Connection) -> SymbolArray:
         N = connection.dimention
         wrt = connection.basis
         C = connection.components
@@ -34,12 +33,28 @@ class Riemann(MultiIndexObject):
             A[i, j, k, p] += Rational(1, N)*(diff(C[i,p,j],wrt[k])-diff(C[i,k,j],wrt[p]))+(C[i,k,d]*C[d,p,j]-C[i,p,d]*C[d,k,j])
         return simplify(A)
     
-    def __init__(self, indices: Indices, arg: Union[Metric, Connection, SymbolArray] = None, basis: SymbolArray = None):
+    def __init__(self, indices: Indices, arg: Union[Metric, Connection] = None, basis: SymbolArray = None):
+        self.indices = indices
+
+        if isinstance(arg, Metric):
+            self.metric = arg
+
         if isinstance(arg, (Metric, Connection, SymbolArray)):
-            comps = arg if isinstance(arg, SymbolArray) else Riemann.from_metric(arg) if isinstance(arg, Metric) else Riemann.from_connection(arg)
-            basis = basis if basis != None else arg.basis
+            self.comps = Riemann.from_metric(arg) if isinstance(arg, Metric) else Riemann.from_connection(arg)
+            self.basis = basis if basis != None else arg.basis
             super().__init__(
-                                components  =   comps, 
-                                indices     =   indices,
-                                basis       =   basis
+                                components  =   self.comps, 
+                                indices     =   self.indices,
+                                basis       =   self.basis
                             )
+
+    def __getitem__(self, idcs: Indices):
+        # This should be implemented as follows:
+        # 1. If the indices cov and contravarient indices structure matches the self.indices, then just return the current components
+        # 2. If the indices does not match the self.indices, we must then perform a summation with the metric tensor in order to return the components
+        #    which represent the indices structure given by the input parameter
+        res = self.comps
+        deltas = self.indices.covariance_delta(idcs) # { 'raise': [0,1], 'lower': [3] }
+        for delta in deltas:
+            res = getattr(self.metric, delta[0])(res, delta[1])
+        return res[idcs.__index__()]

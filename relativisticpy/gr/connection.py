@@ -12,9 +12,10 @@ from relativisticpy.gr.metric import Metric
 @einstein_convention
 @deserialisable_tensor
 class Connection(MultiIndexObject):
-    _cls_idcs = Indices
+    _cls_idcs = Indices # On Descerialization, this is the class that will be __init__ for indices.
 
-    def _compute_comps(metric: Metric):
+    @classmethod
+    def from_metric(metric: Metric) -> SymbolArray:
         D = metric.dimention
         empty = SymbolArray.zeros(D, D, D)
         g = metric._.components
@@ -28,6 +29,6 @@ class Connection(MultiIndexObject):
         self.__default_basis = Idx.default_basis
         super().__init__(
                             indices     =   indices,
-                            components  =   components if components != None else Connection._compute_comps(metric) if metric != None else self.__default_comp,
+                            components  =   components if components != None else Connection.from_metric(metric) if metric != None else self.__default_comp,
                             basis       =   basis if basis != None else metric.basis if metric != None else self.__default_basis
                         )
