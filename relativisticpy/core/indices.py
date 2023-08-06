@@ -3,7 +3,7 @@ import re
 from operator import itemgetter
 from itertools import product, combinations
 from itertools import product
-from typing import Tuple, List, Union, Optional
+from typing import Tuple, List, Union, Optional, Any
 
 # External Modules
 from relativisticpy.providers import SymbolArray, transpose_list, symbols
@@ -81,9 +81,9 @@ class Indices:
     @property
     def scalar(self) -> bool: return self.rank == (0,0)
     @property
-    def shape(self) -> Tuple[int]: return tuple([i.dimention for i in self.indices])
+    def shape(self) -> Tuple[int, ...]: return tuple([i.dimention for i in self.indices])
     @property
-    def rank(self) -> Tuple[int]: return tuple([len([i for i in self.indices if not i.covariant]), len([i for i in self.indices if i.covariant])])
+    def rank(self) -> Tuple[int, ...]: return tuple([len([i for i in self.indices if not i.covariant]), len([i for i in self.indices if i.covariant])])
     @property
     def self_summed(self) -> bool: return len([[i.order, j.order] for i, j in combinations(self.indices, r=2) if i.is_contracted_with(j)]) > 0
 
@@ -94,9 +94,9 @@ class Indices:
             idx.basis = value
 
     # Dunders
-    def __index__(self) -> Union[Tuple[int], Tuple[slice]]: return tuple([int(i.values) if not i.running else slice(None) for i in self.indices])
+    def __index__(self) -> Union[Tuple[int, ...], Tuple[slice, ...]]: return tuple([int(i.values) if not i.running else slice(None) for i in self.indices])
     def __len__(self) -> int: return len(self.indices)
-    def __eq__(self, other: 'Indices') -> bool: return [i==j for (i, j) in list(product(self.indices, other.indices))].count(True) == len(self)
+    def __eq__(self, other: Union['Indices', Any]) -> bool: return [i==j for (i, j) in list(product(self.indices, other.indices))].count(True) == len(self)
     def __mul__(self, other: 'Indices') -> 'Indices': return self.einsum_product(other)
     def __add__(self, other: 'Indices') -> 'Indices': return self.additive_product(other)
     def __sub__(self, other: 'Indices') -> 'Indices': return self.additive_product(other)
@@ -119,7 +119,7 @@ class Indices:
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
-    def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple('rs', i.order) if i.covariant else tuple('lw', i.order) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
+    def cov_diff(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple(['raise_idx', i.order]) if i.covariant else tuple(['lower_idx', i.order]) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
 
     def einsum_product(self, other: 'Indices') -> 'Indices':
         summed_index_locations = transpose_list(self._get_all_summed_locations(other))

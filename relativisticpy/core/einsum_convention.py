@@ -64,16 +64,34 @@ def einstein_convention(cls: IMultiIndexArray):
         else:
             raise ValueError(f'The object you are trying to set and/or map to the {self} has the a shape which does not match {self.shape}.')
 
-    def getitem(self, indices: Indices): return self.components[indices.__index__()]
+    def getitem(self, idcs: Indices):
+        """
+            This should be implemented as follows:
+            1. If the indices cov and contravarient indices structure matches the self.indices, then just return the current components
+            2. If the indices does not match the self.indices, we must then perform a summation with the metric tensor in order to return the components
+            which represent the indices structure given by the input parameter        
+        """
+        assert isinstance(self.indices, idcs), 'Indices must be of the same type.'
+        assert len(self.indices) == len(idcs), 'Indices must be of the same number of idxs'
+        deltas = self.indices.cov_diff(idcs) # [('rs', 0), ('lw', 1)]
+        if len(deltas) > 0:
+            res = self.components
+            for delta in deltas: res = getattr(self.metric, delta[0])(res, delta[1]) # metric must implement raise and lower indices 
+            return res[idcs.__index__()]
+        else:
+            return self.components[idcs.__index__()]
+
     def neg(self):
         comps = -self.components
         self.components = comps
         return self
 
+    # Monkey patch the methods onto classes which need Einstein Summation Abilitiy.
     cls.additive_operation = additive_operation
     cls.einsum_operation = einsum_operation
     cls.selfsum_operation = selfsum_operation
     cls.__setitem__ = setitem
     cls.__neg__ = neg
     cls.__getitem__ = getitem
+
     return cls

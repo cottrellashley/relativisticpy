@@ -72,6 +72,36 @@ To put it simply, keep it simple for devs and users.
 | `em` | Future module -> Electromagnetism   |
 | `ft` | Future module -> Field Theory       |
 
+### Package Tree-Structure
+
+core (!Rough downward dependency!)
+│
+├── Indices
+│   └── Tuple[ Idx ]
+|
+├── Einstein Summation Convention Decorator
+│
+├── MultiIndexObject
+|   |
+│   ├── gr
+│   │   ├── GeometricObject
+|   |   |   ├── Metric
+|   |   |   ├── Connection
+|   |   |   ├── Riemann
+|   |   |   ├── Ricci
+|   |   |   └── CovariantDerivative
+|   |   |
+│   │   └── PhysicalObject
+|   |       ├── StressEnergyTensor
+|   |       └── ElectromagneticTensor
+│   │
+│   ├── em (TODO: Electromagnetism Module)
+│   └── ft (TODO: Field Theory Module)
+│
+└── Descerializer
+    └── String -> Any Tensor Objects Above
+
+
 ## Project Dependencies
 
 - Sympy: This package has a large dependency in Sympy to perform all it's symbolic calculations and functions.

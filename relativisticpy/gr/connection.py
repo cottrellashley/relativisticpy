@@ -15,7 +15,7 @@ class Connection(MultiIndexObject):
     _cls_idcs = Indices # On Descerialization, this is the class that will be __init__ for indices.
 
     @classmethod
-    def from_metric(metric: Metric) -> SymbolArray:
+    def comps_from_metric(cls, metric: Metric) -> SymbolArray:
         D = metric.dimention
         empty = SymbolArray.zeros(D, D, D)
         g = metric._.components

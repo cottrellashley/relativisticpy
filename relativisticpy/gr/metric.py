@@ -82,8 +82,8 @@ class Metric(MultiIndexObject):
         else:
             raise ValueError('Cannot raise Tensor to power. Only combatible with taking the inverse by taking the pow of value -1.')
 
-    def rs(self, other: IMultiIndexArray, idx): return tensor_trace_product(self.inv, other.components, [[0, idx]])
-    def lw(self, other: IMultiIndexArray, idx): return tensor_trace_product(self._, other.components, [[0, idx]])
+    def raise_idx(self, other: IMultiIndexArray, idx): return tensor_trace_product(self.inv, other, [[0, idx]])
+    def lower_idx(self, other: IMultiIndexArray, idx): return tensor_trace_product(self._, other, [[0, idx]])
 
     def get_transformed_metric(self, transformation):
 
