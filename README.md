@@ -75,31 +75,43 @@ To put it simply, keep it simple for devs and users.
 ### Package Tree-Structure
 
 core (!Rough downward dependency!)
-│
-├── Indices
-│   └── Tuple[ Idx ]
 |
-├── Einstein Summation Convention Decorator
-│
-├── MultiIndexObject
+|-- Indices
 |   |
-│   ├── gr
-│   │   ├── GeometricObject
-|   |   |   ├── Metric
-|   |   |   ├── Connection
-|   |   |   ├── Riemann
-|   |   |   ├── Ricci
-|   |   |   └── CovariantDerivative
+|   |-- Tuple[ Idx ]
+|
+|-- Einstein Summation Convention Decorator
+|
+|-- MultiIndexObject
+|   |
+|   |-- gr
 |   |   |
-│   │   └── PhysicalObject
-|   |       ├── StressEnergyTensor
-|   |       └── ElectromagneticTensor
-│   │
-│   ├── em (TODO: Electromagnetism Module)
-│   └── ft (TODO: Field Theory Module)
-│
-└── Descerializer
-    └── String -> Any Tensor Objects Above
+|   |   |-- GeometricObject
+|   |   |   |
+|   |   |   |-- Metric
+|   |   |   |
+|   |   |   |-- Connection
+|   |   |   |
+|   |   |   |-- Riemann
+|   |   |   |
+|   |   |   |-- Ricci
+|   |   |   |
+|   |   |   |-- CovariantDerivative
+|   |   |
+|   |   |-- PhysicalObject
+|   |       |
+|   |       |-- StressEnergyTensor
+|   |       |
+|   |       |-- ElectromagneticTensor
+|   |
+|   |-- em (TODO: Electromagnetism Module)
+|   |
+|   |-- ft (TODO: Field Theory Module)
+|
+|-- Descerializer
+    |
+    |-- String -> Any Tensor Objects Above
+
 
 
 ## Project Dependencies
