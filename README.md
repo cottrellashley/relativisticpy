@@ -74,6 +74,7 @@ To put it simply, keep it simple for devs and users.
 
 ### Package Tree-Structure
 
+```
 core (!Rough downward dependency!)
 |
 |-- Indices
@@ -111,6 +112,8 @@ core (!Rough downward dependency!)
 |-- Descerializer
     |
     |-- String -> Any Tensor Objects Above
+```
+
 
 
 
