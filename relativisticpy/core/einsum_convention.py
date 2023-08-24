@@ -88,10 +88,12 @@ def einstein_convention(cls: IMultiIndexArray):
         self.components = comps
         return self
 
+    # Monkey patch the methods onto classes which need Einstein Summation Abilitiy.
     cls.additive_operation = additive_operation
     cls.einsum_operation = einsum_operation
     cls.selfsum_operation = selfsum_operation
     cls.__setitem__ = setitem
     cls.__neg__ = neg
     cls.__getitem__ = getitem
+
     return cls

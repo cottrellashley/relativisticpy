@@ -23,7 +23,7 @@ class Riemann(MultiIndexObject):
         return simplify(A)
 
     @classmethod
-    def comps_from_connection(connection: Connection) -> SymbolArray:
+    def comps_from_connection(cls, connection: Connection) -> SymbolArray:
         N = connection.dimention
         wrt = connection.basis
         C = connection.components
