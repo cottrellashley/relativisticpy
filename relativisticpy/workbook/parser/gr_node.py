@@ -2,8 +2,10 @@ import sympy as smp
 import re
 from dataclasses import dataclass
 
+from relativisticpy.core import Metric
+
 from relativisticpy.providers.jsonmathpy import SympyNode
-from relativisticpy.gr import Derivative, Riemann, Metric, Ricci
+from relativisticpy.gr import Derivative, Riemann, Ricci
 
 @dataclass
 class Node:

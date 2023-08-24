@@ -119,7 +119,7 @@ class Indices:
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
-    def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple('rs', i.order) if i.covariant else tuple('lw', i.order) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
+    def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
 
     def einsum_product(self, other: 'Indices') -> 'Indices':
         summed_index_locations = transpose_list(self._get_all_summed_locations(other))

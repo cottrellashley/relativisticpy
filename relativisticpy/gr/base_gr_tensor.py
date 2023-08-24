@@ -1,6 +1,6 @@
-from core import MultiIndexObject, Indices
+from relativisticpy.core import MultiIndexObject, Indices, Metric
 from typing import Union
-from gr import Metric, Connection
+from relativisticpy.gr import  Connection
 
 class GrTensor(MultiIndexObject):
     """
@@ -16,17 +16,6 @@ class GrTensor(MultiIndexObject):
         self.comps = GrTensor._get_comps()
         self.metric = metric
         super().__init__(indices, comps, basis)
-
-    def __getitem__(self, idcs: Indices):
-        # This should be implemented as follows:
-        # 1. If the indices cov and contravarient indices structure matches the self.indices, then just return the current components
-        # 2. If the indices does not match the self.indices, we must then perform a summation with the metric tensor in order to return the components
-        #    which represent the indices structure given by the input parameter
-        res = self.comps
-        deltas = self.indices.covariance_delta(idcs) # { 'raise': [0,1], 'lower': [3] }
-        for delta in deltas:
-            res = getattr(self.metric, delta[0])(res, delta[1])
-        return res[idcs.__index__()]
 
     def __setitem__(self, key, value):
         return super().__setitem__(key, value)

@@ -2,10 +2,9 @@
 from typing import Union
 
 # External Modules
-from relativisticpy.core import Indices, MultiIndexObject
+from relativisticpy.core import Indices, MultiIndexObject, Metric
 
 # This Module
-from relativisticpy.gr.metric import Metric
 from relativisticpy.gr.connection import Connection
 
 class CovDerivative(MultiIndexObject):

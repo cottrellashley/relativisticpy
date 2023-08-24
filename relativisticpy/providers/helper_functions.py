@@ -21,7 +21,9 @@ def transpose_list(l):
 
 def tensor_trace_product(a: SymbolArray, b: SymbolArray, trace: List[List[int]]):
     """
-    Performs the tensor product 
+    Performs the tensor product by:
+        1. Performing the tensor product.
+        2. Taking the trace.
     """
     if len(trace) == 0:
         return tensorproduct(a, b)

@@ -7,3 +7,4 @@ from relativisticpy.core.einsum_convention import einstein_convention
 from relativisticpy.core.string_to_tensor import deserialisable_tensor
 from relativisticpy.core.multi_index_obj import MultiIndexObject
 from relativisticpy.core.indices import Idx, Indices
+from relativisticpy.core.metric import Metric, MetricIndices
