@@ -45,7 +45,6 @@ def einstein_convention(cls: IMultiIndexArray):
 
     def setitem(self: IMultiIndexArray, indices: Indices, other_expr: Union[IMultiIndexArray, SymbolArray]):
         if issubclass(type(self), type(other_expr)):
-            print('hello there')
             summed_index_locations = transpose_list(indices._get_all_repeated_locations(other_expr.indices))
             all = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(indices, other_expr.indices)) if itemgetter(*summed_index_locations[0])(IndexA) == itemgetter(*summed_index_locations[1])(IndexB)]
             comp = SymbolArray(self.components) if not isinstance(self.components, SymbolArray) else self.components

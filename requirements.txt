@@ -1,2 +1,1 @@
 sympy==1.12
-jsonmathpy==2.0.7

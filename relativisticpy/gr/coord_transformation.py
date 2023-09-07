@@ -1,6 +1,6 @@
 # This deserializes a string into a Coordinate transformation object.
 
-from relativisticpy.providers import Sympify, SymbolArray
+from relativisticpy.providers import SymbolArray
 
 # Standard
 from dataclasses import dataclass
@@ -69,12 +69,12 @@ class TransformationDeserializer:
         # list of list [ ['x1' , 'expr1' ], ['x2' , 'expr2' ], ['x3' , 'expr3' ], ... , ['xN' , 'exprN' ]]
         to_list = lambda string : [i.split('=') for i in string.replace(']','').replace('[', '').replace(' ','').split(',')]
 
-        # Second we do a dictionary conprehension to convert this to a dictionary with Sympifyed objects.
-        deserializer = lambda list : {Sympify(key) : Sympify(value) for key, value in list}
+        # Second we do a dictionary conprehension to convert this to a dictionary with Mathifyed objects.
+        deserializer = lambda list : {Mathify(key) : Mathify(value) for key, value in list}
 
         # Return dictionary
         return deserializer(to_list(self.transformation))
 
     def get_symbols_from_string(self):
-        return Sympify(self.basis)
+        return Mathify(self.basis)
 

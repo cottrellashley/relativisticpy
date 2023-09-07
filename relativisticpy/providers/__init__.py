@@ -12,5 +12,13 @@ from sympy import Symbol, Rational, diff, integrate, simplify, tensorproduct, sy
 from sympy import MutableDenseNDimArray as SymbolArray
 
 from relativisticpy.providers.interfaces import IMultiIndexArray, IIdx, IIndices
-from relativisticpy.providers.helper_functions import transpose_list, tensor_trace_product
-from relativisticpy.providers.jsonmathpy.sympify import Sympify # Sympify: string => parser => sympy objects
+from relativisticpy.providers.helpers import (
+                        transpose_list, 
+                        tensor_trace_product, 
+                        connection_components_from_metric, 
+                        riemann1000_components_from_metric,
+                        riemann0000_components_from_metric,
+                        ricci_components_from_metric,
+                        ricci_scalar,
+                        kscalar_from_metric
+                        )

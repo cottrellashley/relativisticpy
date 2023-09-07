@@ -1,0 +1,1 @@
+Module parses strings into python tensor object.

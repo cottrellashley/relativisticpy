@@ -31,9 +31,7 @@ def match_boolean(i):
         return False
 
 # Notice the node type is object, but when we enter these strings, it will call the matcher method and change the node key to "TENSOR"
-class Variables:
-     def __init__(self):
-         self.value = [
+variables = [
             {
                 'node': 'object',
                 'node_key': "tensor",

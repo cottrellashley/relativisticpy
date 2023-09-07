@@ -1,5 +1,5 @@
 import re
-from relativisticpy.providers import Sympify
+from relativisticpy.core.mathify import Mathify
 
 
 def deserialisable_tensor(cls):
@@ -38,7 +38,7 @@ def deserialisable_tensor(cls):
     # Once we have more representations, we can add a representation matcher, which mathes the rn type and passes responsibility to relevant parser.
 
     def deserialiser(indices, components, basis):
-        return cls(indices = r1_deserialiser(indices), components = Sympify(components), basis = Sympify(basis))
+        return cls(indices = r1_deserialiser(indices), components = Mathify(components), basis = Mathify(basis))
 
     cls.from_string = deserialiser
     return cls

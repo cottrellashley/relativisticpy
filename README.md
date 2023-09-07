@@ -67,7 +67,7 @@ To put it simply, keep it simple for devs and users.
 |----------------------|-------------|
 | `core`               | Core Module. Contains logic for einstein summation convention of multi-indexed array like objects and descerialisation logic of tensors. |
 | `gr`                 | Defines all the main General Relativity Tensors, such as initialization logic and interation logic. Inherits core module logic (which provides the logic of einsum tensor manipulations.) |
-| `providers`           | Contains all the external package dependencies of relativisticpy, which currently are: Sympy and JsonMathPy. Any module within RelativisticPy only imports relativisticpy.provider module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
+| `providers`           | Contains all the external package dependencies of relativisticpy, which currently are: Sympy. Any module within RelativisticPy only imports relativisticpy.provider module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
 | `workbook` | This modules is the module which 'brings it all together' if you will. It here to allow non-python users to use the RelativisticPy package. It handles all the parsing from strings, the object initializations, memory storage and workflow for the end-user.        |
 | `em` | Future module -> Electromagnetism   |
 | `ft` | Future module -> Field Theory       |
@@ -120,7 +120,6 @@ core (!Rough downward dependency!)
 ## Project Dependencies
 
 - Sympy: This package has a large dependency in Sympy to perform all it's symbolic calculations and functions.
-- JsonMathPy: This package depends on the [JsonMathPy](https://pypi.org/project/jsonmathpy/) package ([GitHub](https://github.com/cottrellashley/jsonmathpy)), which is a Python package that can take a string as input and parse it into a Python dictionary (and, optionally, a JSON math file). The package can parse and evaluate expressions using the operations and objects injected by the user.
 
 ## Use Examples
 

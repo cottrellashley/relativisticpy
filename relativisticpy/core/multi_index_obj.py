@@ -2,7 +2,7 @@
 from typing import List
 
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray, Sympify, tensor_trace_product
+from relativisticpy.providers import SymbolArray, IMultiIndexArray, tensor_trace_product
 
 # This Module
 from relativisticpy.core.indices import Indices, Idx

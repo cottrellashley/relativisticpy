@@ -1,5 +1,7 @@
 from relativisticpy.core import MultiIndexObject, Indices, Metric
 from typing import Union
+from abc import ABC, abstractmethod
+from relativisticpy.providers import SymbolArray
 
 class GeometricObject(MultiIndexObject):
     """
@@ -8,13 +10,11 @@ class GeometricObject(MultiIndexObject):
         condition of setting Covarient derivative of the metric to be zero.) The GR tensor inheriting this object will all
         be tensors which can be defined from the connection and/or the metric tensor. 
     """
-    _get_comps = lambda args : None
 
-    def __init__(self, indices: Indices, metric: Metric, comps = None, basis = None):
+    def __init__(self, indices: Indices, metric: Metric, components = None, basis = None):
         # Gr Tensors are all associated to a metric or a connection => both are defining properties of a Manifold
-        self.comps = GeometricObject._get_comps()
+        self.components = GeometricObject.compute_components()
         self.metric = metric
-        super().__init__(indices, comps, basis)
+        super().__init__(indices, components, basis)
 
-    def __setitem__(self, key, value):
-        return super().__setitem__(key, value)
+    def compute_components(self) -> SymbolArray: return NotImplementedError()

@@ -83,3 +83,14 @@ class IMultiIndexArray(ABC):
 
     @abstractproperty
     def basis(self) -> SymbolArray: pass
+
+    @abstractproperty
+    def dimention(self) -> SymbolArray: pass
+
+class IMetric(IMultiIndexArray):
+
+    @abstractproperty
+    def _(self) -> 'IMetric': pass
+
+    @abstractproperty
+    def inv(self) -> 'IMetric': pass
