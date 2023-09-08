@@ -1,7 +1,7 @@
 
 # RelativisticPy
 <p align="center">
-  <img src="./assets/logo.gif" alt="RelativisticPy">
+  <img src="./assets/logo.gif" alt="RelativisticPy" width="500">
 </p>
 
 [PyPi](https://pypi.org/project/relativisticpy/)
