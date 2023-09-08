@@ -1,6 +1,8 @@
 
 # RelativisticPy
-![RelativisticPy](./assets/logo.png)
+<p align="center">
+  <img src="./assets/logo.gif" alt="RelativisticPy">
+</p>
 
 [PyPi](https://pypi.org/project/relativisticpy/)
 
