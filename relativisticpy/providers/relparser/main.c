@@ -1,5 +1,6 @@
 // main.c
 #include <stdio.h>
+#include <string.h>
 #include "iterator.h"
 
 int main() {
