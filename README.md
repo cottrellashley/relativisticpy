@@ -33,7 +33,7 @@ wb.expr('eq5 = ((a*B + b*A)*(r*B))') # Works
 wb.expr('B_solution = diff_solve(eq5, B)')
 
 # We can substiture variables into equatins
-wb.expr('eq6 = subs(c, B, C_0/A)')
+wb.expr('eq6 = subs(c, B, C_0/A)') # <<<----- sub back into metric and we get the Schwarzschild solution
 
 ```
 
