@@ -6,7 +6,7 @@
 
 [PyPi](https://pypi.org/project/relativisticpy/)
 
-# TD;DR - Calculate Black Hole Solution in less than 10 lines
+# TD;DR - (Black Hole Solution in < 10 lines)
 
 ```
 !pip install relativisticpy
