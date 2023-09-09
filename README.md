@@ -6,6 +6,36 @@
 
 [PyPi](https://pypi.org/project/relativisticpy/)
 
+# TD;DR - Calculate Black Hole Solution in less than 10 lines
+
+```
+!pip install relativisticpy
+
+from relativisticpy import Workbook as wb
+
+# Define what symbol you want the metric tensor to be
+wb.expr('MetricSymbol := G ')
+
+# Define the corrdinate system you are working in
+wb.expr('Coordinates := [t, r, theta, phi]')
+
+# Define the Metric components
+wb.expr('G_{mu}_{nu} := [[-A_{a:1}_{r:2},0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]')
+
+# Now we have defined the metruc we can: compute GR tensors, read in a component and then assign it to a variable in memory.
+exp4 = 'a = Ric_{mu:0}_{nu:0}' # Works
+
+# We can use the variable 'a' in later equations and assgin new ones
+exp5 = 'eq5 = ((a*B + b*A)*(r*B))' # Works
+
+# We can use memory objects to solve differential equations
+exp6 = 'B_solution = diff_solve(eq5, B)'
+
+# We can substiture variables into equatins
+exp7 = 'eq6 = subs(c, B, C_0/A)'
+
+```
+
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
 # Features
