@@ -7,6 +7,7 @@
 [PyPi](https://pypi.org/project/relativisticpy/)
 
 # TD;DR - (Black Hole Solution in < 10 lines)
+#### PACKAGE NOT LIVE YET
 
 ```
 !pip install relativisticpy
