@@ -21,7 +21,7 @@ wb.expr('MetricSymbol := G ')
 wb.expr('Coordinates := [t, r, theta, phi]')
 
 # Define the Metric components
-wb.expr('G_{mu}_{nu} := [[-A_{a:1}_{r:2},0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]')
+wb.expr('G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]')
 
 # Now we have defined the metruc we can: compute GR tensors, read in a component and then assign it to a variable in memory.
 wb.expr('a = Ric_{mu:0}_{nu:0}') # Works
