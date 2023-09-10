@@ -1,7 +1,5 @@
 
 
-
-
 struct node
 {
     int data;

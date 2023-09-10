@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     wb = Workbook()
 
-    print(Mathify('exp(r) - t + w '))
+    print(wb.expr('exp(r) - t + w '))
 
     # print(wb.expr('x + y '))
 
