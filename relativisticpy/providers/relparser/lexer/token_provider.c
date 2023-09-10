@@ -31,11 +31,11 @@ bool tripple_match_exists(char c1, char c2, char c3)
     return three_char_token(c1, c2, c3) != NONE;
 }
 
-void new_single_operation_token(char c1) 
+void new_single_operation_token(TokenList *p_toke_list, char c1) 
 {
     if (single_match_exists(c1)) 
     {
-        new_token(one_char_token(c1), &c1);
+        new_token(p_toke_list, one_char_token(c1), &c1);
     }
 }
 
@@ -44,7 +44,7 @@ void new_double_operation_token(char c1, char c2)
     if (double_match_exists(c1, c2)) 
     {
         char value[3] = {c1, c2, '\0'};
-        new_token(two_char_token(c1, c2), value);
+        new_token(p_toke_list, two_char_token(c1, c2), value);
     }
 }
 
@@ -53,7 +53,7 @@ void new_tripple_operation_token(char c1, char c2, char c3)
     if (tripple_match_exists(c1, c2, c3)) 
     {
         char value[4] = {c1, c2, c3, '\0'};
-        new_token(three_char_token(c1, c2, c3), value);
+        new_token(p_toke_list, three_char_token(c1, c2, c3), value);
     }
 }
 

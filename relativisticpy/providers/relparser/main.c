@@ -15,18 +15,21 @@ int main(int argc, char *argv[]) {
     }
 
     const char *testStr = argv[1];
+
     CharIterator chariter; // Represents the String + Methods to allow us to peek etc...
     TokenList tokenList = {NULL, 0}; // As StringIterator is used, token_provider will generate tokens, appending them to this list -> pass a pointer.
     
-    TokenIterator tokiter
-    Iterator_Init(&chariter, testStr);
-    Iterator_Advance(&chariter);
+    TokenIterator tokiter;
 
-    while (Iterator_Current(&chariter) != '\0') {
-        Iterator_Advance(&chariter);
+    init_char_iter(&chariter, testStr);
+
+    advance_char(&chariter);
+
+    while (current_char(&chariter) != '\0') {
+        advance_char(&chariter);
     }
 
-    Iterator_Cleanup(&chariter);
+    free_char_iter(&chariter);
 
     return 0;
 }

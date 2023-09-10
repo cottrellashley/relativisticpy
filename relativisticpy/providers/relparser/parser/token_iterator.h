@@ -12,11 +12,11 @@ typedef struct {
     int location;   // Current location in the iterable
 } TokenIterator;
 
-void Iterator_Init(TokenIterator* p_iter, const Token* str);
-void Iterator_Advance(TokenIterator* p_iter);
-char Iterator_Peek(TokenIterator* p_iter, int n);
-int Iterator_Length(TokenIterator* p_iter);
-char Iterator_Current(TokenIterator* p_iter);
-void Iterator_Cleanup(TokenIterator* p_iter);
+void init_token_iterator(TokenIterator* p_iter, const Token* str);
+void advance_token(TokenIterator* p_iter);
+char peek_token(TokenIterator* p_iter, int n);
+int token_len(TokenIterator* p_iter);
+char current_token(TokenIterator* p_iter);
+void cleanup_token(TokenIterator* p_iter);
 
 #endif  // ITERATOR_H
