@@ -4,9 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-TokenList tokenList = {NULL, 0};
-
-void new_token(char* type, char *value) 
+void new_token(TokenList* p_token_list, char* type[], char* value[]) 
 {
     Token newToken = {type, value};
     tokenList.tokens = realloc(tokenList.tokens, sizeof(Token) * (tokenList.size + 1));
@@ -75,7 +73,8 @@ int one_char_token(int c1)
 {
     switch (c1) 
     {
-        case '!': return EXCLAMATION;
+        case '@': return AT;        
+        case '.': return DOT;        
         case '%': return PERCENT;
         case '&': return AMPER;
         case '(': return LPAR;
@@ -84,14 +83,12 @@ int one_char_token(int c1)
         case '+': return PLUS;
         case ',': return COMMA;
         case '-': return MINUS;
-        case '.': return DOT;
         case '/': return SLASH;
         case ':': return COLON;
         case ';': return SEMI;
         case '<': return LESS;
         case '=': return EQUAL;
         case '>': return GREATER;
-        case '@': return AT;
         case '[': return LSQB;
         case ']': return RSQB;
         case '^': return CIRCUMFLEX;
@@ -99,6 +96,7 @@ int one_char_token(int c1)
         case '|': return VBAR;
         case '}': return RBRACE;
         case '~': return TILDE;
+        case '!': return EXCLAMATION;
     }
 
     return NONE;

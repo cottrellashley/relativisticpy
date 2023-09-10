@@ -11,7 +11,7 @@ typedef struct
     char value[];
 } Token;
 
-void new_token(char type[], char *value);
+void new_token(TokenList *token_list, char type[], char value[]);
 bool single_match_exists(char c1);
 bool double_match_exists(char c1, char c2);
 int tokens_len(TokenList *p_token_list);
