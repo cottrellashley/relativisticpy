@@ -4,6 +4,7 @@ from operator import itemgetter
 from itertools import product, combinations
 from itertools import product
 from typing import Tuple, List, Union, Optional, Any
+from relativisticpy.core.string_to_tensor import deserialisable_indices
 
 # External Modules
 from relativisticpy.providers import SymbolArray, transpose_list, symbols
@@ -65,9 +66,10 @@ class Idx:
         else:
             raise StopIteration
 
+@deserialisable_indices
 class Indices:
     """ Representation of Tensor Indices. Initialized as a list of Idx objecs. """
-
+    _cls_idx = Idx
     def __init__(self, *args: Idx):
         self.indices: Union[List[Idx], Tuple[Idx]] = tuple([index.set_order(order) for order, index in enumerate([*args])])
         self.generator = lambda: None

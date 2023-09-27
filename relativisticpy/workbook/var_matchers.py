@@ -31,15 +31,10 @@ def match_boolean(i):
         return False
 
 # Notice the node type is object, but when we enter these strings, it will call the matcher method and change the node key to "TENSOR"
-variables = [
+variable_matchers = [
             {
                 'node': 'object',
                 'node_key': "tensor",
                 'string_matcher_callback': match_tensors
-            },
-            {
-                'node': 'object',
-                'node_key': "boolean",
-                'string_matcher_callback': match_boolean
             }
         ]

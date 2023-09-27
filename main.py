@@ -16,9 +16,14 @@ if __name__ == '__main__':
 
     wb = Workbook()
 
-    print(wb.expr('exp(r) - t + w '))
+    print(wb.expr('MetricSymbol := G '))
+    # print(wb.expr('differentiate([differentiate(sin(A*c**2),c), r**7],r)'))
 
-    # print(wb.expr('x + y '))
+    print(wb.expr('Coordinates := [t, r, theta, phi] '))
+
+    print(wb.expr('G_{mu}_{nu} := [[1,0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]'))
+
+    test = wb.expr('G_{mu}_{nu} ')
 
     # Test cases: The following is the list of equations to derive the Schild Black Hole Solution 
 
