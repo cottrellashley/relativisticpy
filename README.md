@@ -14,26 +14,38 @@
 
 from relativisticpy import Workbook as wb
 
+expression = """
 # Define what symbol you want the metric tensor to be
-wb.expr('MetricSymbol := G ')
+MetricSymbol := G 
 
 # Define the corrdinate system you are working in
-wb.expr('Coordinates := [t, r, theta, phi]')
+RicciSymbol := Ric 
+
+# Define the corrdinate system you are working in
+Coordinates := [t, r, theta, phi]
 
 # Define the Metric components
-wb.expr('G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]')
+G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
 
 # Now we have defined the metruc we can: compute GR tensors, read in a component and then assign it to a variable in memory.
-wb.expr('a = Ric_{mu:0}_{nu:0}') # Works
+n = Ric_{mu:0}_{nu:0} 
+
+# Now we have defined the metruc we can: compute GR tensors, read in a component and then assign it to a variable in memory.
+m = Ric_{mu:1}_{nu:1} 
 
 # We can use the variable 'a' in later equations and assgin new ones
-wb.expr('eq5 = ((a*B + b*A)*(r*B))') # Works
+eq5 = (n*B(r) + m*A(r))*(r*B(r)) # Works
+
+# We simplify the equation
+eq = simplify(eq5)
 
 # We can use memory objects to solve differential equations
-wb.expr('B_solution = diff_solve(eq5, B)')
+dsolve(eq, B(r))
+"""
 
-# We can substiture variables into equatins
-wb.expr('eq6 = subs(c, B, C_0/A)') # <<<----- sub back into metric and we get the Schwarzschild solution
+wb.expr(expression)
+
+
 
 ```
 
