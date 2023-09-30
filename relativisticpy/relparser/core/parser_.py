@@ -190,11 +190,11 @@ class Parser(IParser):
 
         elif token.type == TokenType.PLUS:
             self.iterating_tokens.advance()
-            return self.node_provider.new_node(NodeType.POSITIVE, self.object())
+            return self.node_provider.new_node(NodeType.POSITIVE, [self.object()])
 
         elif token.type == TokenType.MINUS:
             self.iterating_tokens.advance()
-            return self.node_provider.new_node(NodeType.MINUS, self.object())
+            return self.node_provider.new_node(NodeType.NEGATIVE, [self.object()])
 
         elif token.type == TokenType.LSQB:
             self.iterating_tokens.advance()

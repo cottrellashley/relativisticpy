@@ -43,6 +43,7 @@ class NodeType(Enum):
     POSITIVE                = 'positive'                # Positive operator '+'
     AND                     = '&'                # Positive operator '+'
     OR                      = '|'                # Positive operator '+'
+    NEGATIVE                = 'negative'
 
 
 class TokenType(Enum):

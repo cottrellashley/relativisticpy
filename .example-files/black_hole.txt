@@ -1,0 +1,14 @@
+
+# Define the symbol for the metric tensor
+MetricSymbol := G # Comment in line test
+
+# Define the corrdinate system we are working in
+Coordinates := [t, r, theta, phi] 
+
+# Define components of the metric tensor
+G_{mu}_{nu} := [[-1,0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
+
+RicciSymbol := Ric 
+RiemannSymbol := R # Hello
+
+Ric_{mu}_{nu} # Finally we can return the object

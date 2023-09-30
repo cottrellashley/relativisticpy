@@ -124,3 +124,5 @@ class Metric(MultiIndexObject):
         new_components = self.get_metric() if indices.count('_') == 2 else self.get_inverse()
         return Metric(new_components.components, indices, self.basis, self.signature)
 
+    def new_metric(self, indices: MetricIndices):
+        return self[indices]

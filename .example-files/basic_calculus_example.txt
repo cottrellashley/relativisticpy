@@ -1,0 +1,19 @@
+
+# First we define the equation
+a = differentiate(f(x), x) + f(x)*r**2*sin(theta)**2 # Test of comments on the same line as string
+
+# next we solve the equation we called a for the function f(x):
+b = dsolve(a, f(x)) 
+
+# next we define another equation called c which is the same as equation b, where we substituted theta for y
+c = subs(b, theta, y) 
+
+# definitions of two functions:
+B = g(x) 
+A = h(x) 
+
+# next, we multiply all the equations together in a specific way and, then set the result to a new variable:
+eq5 = ((a*B + b*A)*(r*B)) + c
+
+# finally we return the result of our whole computation
+eq5 

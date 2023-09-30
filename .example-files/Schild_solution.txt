@@ -1,0 +1,20 @@
+
+MetricSymbol := G # Works
+
+RicciSymbol := Ric # Does not work
+
+Coordinates := [t, r, theta, phi]
+
+G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] # Works
+
+n = Ric_{mu:0}_{nu:0} # Works
+
+m = Ric_{mu:1}_{nu:1} # Works
+
+eq5 = (n*B(r) + m*A(r))*(r*B(r)) # Works
+
+eq = simplify(eq5)
+
+dsolve(eq, B(r))
+
+#Bsolution
