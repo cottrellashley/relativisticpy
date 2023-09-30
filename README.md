@@ -10,8 +10,6 @@
 #### PACKAGE NOT LIVE YET
 
 ```
-!pip install relativisticpy
-
 from relativisticpy import Workbook as wb
 
 expression = """
