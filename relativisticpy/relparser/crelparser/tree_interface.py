@@ -33,6 +33,15 @@ def convert_c_tree_to_python(cnode):
     node.right = convert_c_tree_to_python(cnode.contents.right)
     return node
 
+class RelParserCInterface:
+    """ 
+    Class which interfaces the whole of the C parser module:
+        1. Build the C .exe file.
+        2. Interface the .exe and call it with user defined strings.
+        3. Convert the C object output into python again.
+    """
+    pass
+
 if __name__ == '__main__':
     c_root = libtree.create_sample_tree()
     root = convert_c_tree_to_python(c_root)

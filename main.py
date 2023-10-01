@@ -9,8 +9,8 @@ if __name__ == '__main__':
 
     # print(wb.exe('/Users/ashleycottrell/code/repositories/relativisticpy/.example-files/black_hole.txt'))
 
-    # print(wb.exe('/Users/ashleycottrell/code/repositories/relativisticpy/.example-files/basic_calculus_example.txt'))
+    print(wb.exe('.example-files/basic_calculus_example.txt'))
 
-    print(wb.exe('/Users/ashleycottrell/code/repositories/relativisticpy/.example-files/Schild_solution.txt'))
+    # print(wb.exe('/Users/ashleycottrell/code/repositories/relativisticpy/.example-files/Schild_solution.txt'))
 
-    # print(wb.expr('numerical(pi + e, 20) ** 5.8598744820488384738 '))
+    # print(wb.expr('numerical(pi + e, 20) ** 5.8598744820488384738 '))
