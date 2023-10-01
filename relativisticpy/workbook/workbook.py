@@ -12,41 +12,11 @@ from relativisticpy.core import Mathify
 from relativisticpy.gr import Derivative, Riemann, Ricci
 from relativisticpy.workbook.var_matchers import variable_matchers
 
-def Mathify_two(expression: str): 
-    """Builds mathematical python object representing the string exporession enterred.""" 
-    return RelParser(WorkbookNode(), node_configuration).exe(expression)
-
-@dataclass
-class ChacheItem:
-    name: str
-    string_obj: str
-    decesrialized_obj: any
-    mathjson_obj: dict = None
-
-    def __hash__(self):
-        return hash((self.name, str(self.mathjson_obj), self.string_obj, str(self.decesrialized_obj)))
-
-    def __eq__(self, other):
-        if isinstance(other, ChacheItem):
-            return (self.name == other.name and
-                    self.mathjson_obj == other.mathjson_obj and
-                    self.string_obj == other.string_obj and
-                    self.decesrialized_obj == other.decesrialized_obj)
-        return False
-
 @dataclass
 class Node:
     node: str
     handler: str
     args: List['Node']
-
-@dataclass
-class TensorNode:
-    key: str
-    obj: any
-
-    def __str__(self) -> str:
-        return self.key
 
 class VariableStore:
     def __init__(self):
@@ -70,45 +40,20 @@ def gr_tensor_mapper(key): return { 'G': Metric, 'd': Derivative, 'R': (Riemann,
 
 class WorkbookNode:
 
-    def add(self, node: Node):
-        return node.args[0] + node.args[1]
-
-    def dsolve(self, node: Node):
-        if len(node.args) < 2:
-            print('Incorect number of arguments.')
-        
-        equation = node.args[0]
-        wrt = node.args[1]
-
-        return smp.dsolve(equation, wrt).rhs
-
     def subs(self, node: Node):
         expr = node.args[0]
         var = node.args[1]
         sub_value = node.args[2]
 
         return expr.subs(var, sub_value)
-
-
-    # How should it work:
-    # Metric Symbol should be defined as G but user can overide it.
-    # User must ALWAYS define a coordinate system in which the tensors are in as otherwise derivatives are not known. 
-
-    # If metric dependent tensors are written, we throw an error as metric dependent imply user must first define the metric for obvious reasons.
-    # If user writes T_{a}_{c}_{s} := [... [... [... ]]]
-    # We simply initiate a tensor object with key set as the object. So user can if they wish, 
-    # def __new__(self): 
-    #     self.cache = {}
-    #     self.Metric = None
-    #     self.MetricSymbol = 'G'
-    #     self.Coordinates = None
+    
+    def latex(self, node: Node):
+        return smp.latex(node.args[0])
 
     def assigner(self, node: Node):
         global_store.set_variable(str(node.args[0]), node.args[1])
 
     def define(self, node: Node):
-        # This method instantiates a class set by user:
-
         node_symbol = re.match('([a-zA-Z]+)', str(node.args[0])).group()
 
         metric_symbol = global_store.get_variable('MetricSymbol') if global_store.has_variable('MetricSymbol') else 'G'
@@ -124,12 +69,6 @@ class WorkbookNode:
             global_store.set_variable(str(node.args[0]), str(node.args[1]))
         else:
             global_store.set_variable(str(node.args[0]), node.args[1])
-
-    # def tensor(self, node: Node):
-    #     expr = node.args[0]
-    #     x0   = node.args[1]
-    #     x1   = node.args[2]
-    #     return smp.limit(expr, x0, x1)
 
     def sub(self, node):
         return node.args[0] - node.args[1]
@@ -182,30 +121,43 @@ class WorkbookNode:
         expr = node.args[0]
         return smp.solve(expr)
 
-    # def numerical(self, *args):
-    #     wrt = args[1]
-    #     return smp.N(args[0], wrt)
+    def numerical(self, node: Node):
+        return smp.N(node.args[0], node.args[1]) if len(node.args) == 2 else smp.N(node.args[0], 15)
 
     def array(self, node: Node):
         return smp.MutableDenseNDimArray(list(node.args))
 
-    # def minus(self, *args):
-    #     a = args[0]
-    #     return -a
-
     def exp(self, node: Node):
         return smp.exp(node.args[0])
 
-    # def constant(self, *args):
-    #     if args[0] == 'pi':
-    #         return smp.pi
-    #     if args[0] == 'e':
-    #         return smp.E
+    def constant(self, node: Node):
+        a = ''.join(node.args)
+        if a == 'pi':
+            return smp.pi
+        elif a == 'e':
+            return smp.E
+
+    def add(self, node: Node):
+        return node.args[0] + node.args[1]
+
+    def dsolve(self, node: Node):
+        if len(node.args) < 2:
+            print('Incorect number of arguments.')
+        
+        equation = node.args[0]
+        wrt = node.args[1]
+
+        return smp.dsolve(equation, wrt).rhs
 
     def object(self, node: Node):
         a = ''.join(node.args)
-        if not global_store.has_variable(a):
+
+        if a in ['pi', 'e']:
+            return self.constant(node)
+
+        elif not global_store.has_variable(a):
             return smp.symbols('{}'.format(a))
+
         else:
             return global_store.get_variable(str(a))
 
@@ -249,7 +201,7 @@ class WorkbookNode:
         return smp.atanh(node.args[0])
 
     def tensor(self, node: Node):
-        # return TensorNode(type(global_store.get_variable('Metric')))
+
         tensor_string_representation = ''.join(node.args)
         tensor_name = re.match('([a-zA-Z]+)', tensor_string_representation).group()
         tesnor_indices = tensor_string_representation.replace(tensor_name, '')
@@ -264,7 +216,7 @@ class WorkbookNode:
         elif tensor_name == global_store.get_variable('DiffSymbol') and metric_defined:
             return Derivative(indices_obj)
         elif tensor_name == global_store.get_variable('RiemannSymbol') and metric_defined:
-            return Riemann(indices_obj, global_store.get_variable('Metric'))
+            return self.riemann(tesnor_indices)
         elif tensor_name == global_store.get_variable('RicciSymbol') and metric_defined:
             return self.ricci(tesnor_indices)
         else:
@@ -284,6 +236,10 @@ class WorkbookNode:
 
     def riemann(self, indices_str: str):
         indices = Indices.from_string(indices_str)
+
+        if not global_store.has_variable('Riemann'):
+            global_store.set_variable('Riemann', Riemann(Indices.from_string(indices_str if not re.search(r'\d',  indices_str) else '_{a}_{b}_{c}_{d}'), global_store.get_variable('Metric')))
+
         return global_store.get_variable('Riemann')[indices] if re.search(r'\d',  indices_str) else global_store.get_variable('Riemann')
 
 

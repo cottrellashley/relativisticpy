@@ -9,42 +9,54 @@
 # TD;DR - (Black Hole Solution in < 10 lines)
 #### PACKAGE NOT LIVE YET
 
+#### `python environment`
+```
+pip install relativisticpy
+```
+
+#### `Schild_solution.txt` file:
+``` 
+# First: Define the pre-requisites of our problem
+
+# Symbols we want Metric and Ricci to have
+MetricSymbol := G 
+RicciSymbol := Ric 
+Coordinates := [t, r, theta, phi] 
+
+# Define the metric tensor components: we define a general spherically symmetric tensor
+G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
+
+# Now we have defined the metric above, we can call any individual component of the Ricci tensor itself (as it is metric dependent)
+eq0 = Ric_{mu:0}_{nu:0} 
+eq1 = Ric_{mu:1}_{nu:1} 
+eq2 = Ric_{mu:2}_{nu:2} 
+
+# We construct a simplified equation from the Ricci components as follows
+eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r)) 
+
+# We call the dsolve method which is a differential equation solver
+solutionB = dsolve(eq5, B(r)) # returns B(r) = C1/A(r)
+
+# We know the solution of B(r) = C1/A(r) so we substitute it in the third Ricci equation we have available to us
+eq6 = simplify(subs(eq2, B(r), C1/A(r)))
+
+# Finally set the answers as A and B
+A = dsolve(eq6, A(r)) 
+
+B = 1/A
+
+# Output the answer as latex, if you wish: (remove latex method if you do not)
+latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]) 
+
+```
+
+#### `main.py` file:
 ```
 from relativisticpy import Workbook as wb
 
-expression = """
-# Define what symbol you want the metric tensor to be
-MetricSymbol := G 
-
-# Define the corrdinate system you are working in
-RicciSymbol := Ric 
-
-# Define the corrdinate system you are working in
-Coordinates := [t, r, theta, phi]
-
-# Define the Metric components
-G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
-
-# Now we have defined the metruc we can: compute GR tensors, read in a component and then assign it to a variable in memory.
-n = Ric_{mu:0}_{nu:0} 
-
-# Now we have defined the metruc we can: compute GR tensors, read in a component and then assign it to a variable in memory.
-m = Ric_{mu:1}_{nu:1} 
-
-# We can use the variable 'a' in later equations and assgin new ones
-eq5 = (n*B(r) + m*A(r))*(r*B(r)) # Works
-
-# We simplify the equation
-eq = simplify(eq5)
-
-# We can use memory objects to solve differential equations
-dsolve(eq, B(r))
-"""
-
-wb.expr(expression)
-
-
-
+if __name__ == '__main__':
+    wb = Workbook()
+    wb.exe('<file-path>/Schild_solution.txt')
 ```
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.

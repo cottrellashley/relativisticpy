@@ -1,20 +1,31 @@
+# First: Define the pre-requisites of our problem
 
-MetricSymbol := G # Works
+# Symbols we want Metric and Ricci to have
+MetricSymbol := G 
+RicciSymbol := Ric 
+Coordinates := [t, r, theta, phi] 
 
-RicciSymbol := Ric # Does not work
+# Define the metric tensor components: we define a general spherically symmetric tensor
+G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
 
-Coordinates := [t, r, theta, phi]
+# Now we have defined the metric above, we can call any individual component of the Ricci tensor itself (as it is metric dependent)
+eq0 = Ric_{mu:0}_{nu:0} 
+eq1 = Ric_{mu:1}_{nu:1} 
+eq2 = Ric_{mu:2}_{nu:2} 
 
-G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] # Works
+# We construct a simplified equation from the Ricci components as follows
+eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r)) 
 
-n = Ric_{mu:0}_{nu:0} # Works
+# We call the dsolve method which is a differential equation solver
+solutionB = dsolve(eq5, B(r)) # returns B(r) = C1/A(r)
 
-m = Ric_{mu:1}_{nu:1} # Works
+# We know the solution of B(r) = C1/A(r) so we substitute it in the third Ricci equation we have available to us
+eq6 = simplify(subs(eq2, B(r), C1/A(r)))
 
-eq5 = (n*B(r) + m*A(r))*(r*B(r)) # Works
+# Finally set the answers as A and B
+A = dsolve(eq6, A(r)) 
 
-eq = simplify(eq5)
+B = 1/A
 
-dsolve(eq, B(r))
-
-#Bsolution
+# Output the answer as latex, if you wish: (remove latex method if you do not)
+latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]) 
