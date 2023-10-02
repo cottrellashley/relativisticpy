@@ -1,5 +1,5 @@
 """
-All external dependecies of relativisticpy are interfaces through this provider module (and so should/will any future dependencies).
+All external dependecies or generic/useful modules of relativisticpy are interfaces through this provider module (and so should/will any future dependencies).
 """
 
 # Note on swapping implementations: simple methods such as zeros and Rational are much simpler to swap if needed. 

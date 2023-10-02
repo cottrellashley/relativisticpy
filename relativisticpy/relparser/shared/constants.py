@@ -36,6 +36,7 @@ class NodeType(Enum):
     EXPONENTIATION1         = '^'                       # The `**` symbol for exponentiation
     EXPONENTIATION2         = '**'
     OBJECT                  = 'object'                  # A variable name    
+    VARIABLEKEY             = 'variable_key'                  # A variable name    
     FLOAT                   = 'float'                   # A floating-point number
     INTEGER                 = 'integer'                 # An integer number
     FUNCTION                = 'function'                # A function name
@@ -44,6 +45,10 @@ class NodeType(Enum):
     AND                     = '&'                # Positive operator '+'
     OR                      = '|'                # Positive operator '+'
     NEGATIVE                = 'negative'
+    TENSOR_INIT             = 'tensor_init'
+    TENSOR_KEY              = 'tensor_key'
+    SYMBOL_DEFINITION       = 'symbol_definition'
+    SYMBOL_KEY              = 'symbol_key'
 
 
 class TokenType(Enum):

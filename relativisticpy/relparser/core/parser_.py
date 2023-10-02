@@ -1,3 +1,4 @@
+from relativisticpy.providers.regex import str_is_tensors, is_symbol_object_key
 from relativisticpy.relparser.shared.interfaces.iterator import IIterator
 from relativisticpy.relparser.shared.interfaces.node_provider import INodeProvider
 from relativisticpy.relparser.shared.interfaces.parser_ import IParser
@@ -51,11 +52,19 @@ class Parser(IParser):
         current_token = self.iterating_tokens.current()
         next_token = self.iterating_tokens.peek(1, Token(TokenType.NONE, 'NONE'))
         if current_token.type == TokenType.OBJECT and next_token.type == TokenType.EQUAL:
-            subject_variable = self.object()
+            subject_variable = self.object('object_key')
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.EQUALS, [subject_variable, self.statement()])
+        elif current_token.type == TokenType.OBJECT and next_token.type == TokenType.COLONEQUAL and str_is_tensors(current_token.value):
+            subject_variable = self.object('tensor_key')
+            self.iterating_tokens.advance()
+            return self.node_provider.new_node(NodeType.TENSOR_INIT, [subject_variable, self.statement()])
+        elif current_token.type == TokenType.OBJECT and next_token.type == TokenType.COLONEQUAL and is_symbol_object_key(current_token.value):
+            subject_variable = self.object('symbol_key')
+            self.iterating_tokens.advance()
+            return self.node_provider.new_node(NodeType.SYMBOL_DEFINITION, [subject_variable, self.statement()])
         elif current_token.type == TokenType.OBJECT and next_token.type == TokenType.COLONEQUAL:
-            subject_variable = self.object()
+            subject_variable = self.object('object_key')
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.ASSIGNMENT, [subject_variable, self.statement()])
         else:
@@ -167,7 +176,7 @@ class Parser(IParser):
                 result = self.node_provider.new_node(NodeType.EXPONENTIATION2, [result, self.object()])
         return result
 
-    def object(self):
+    def object(self, context: str = None):
         """
         Parse an object.
 
@@ -176,27 +185,39 @@ class Parser(IParser):
         """
         token = self.iterating_tokens.current()
 
-        if token.type == TokenType.FLOAT:
+        if token.type == TokenType.FLOAT and context == None:
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.FLOAT, token)
 
-        elif token.type == TokenType.INTEGER:
+        elif token.type == TokenType.OBJECT and context == 'object_key':
+            self.iterating_tokens.advance()
+            return self.node_provider.new_node(NodeType.VARIABLEKEY, token)
+
+        elif token.type == TokenType.OBJECT and context == 'tensor_key':
+            self.iterating_tokens.advance()
+            return self.node_provider.new_node(NodeType.TENSOR_KEY, token)
+
+        elif token.type == TokenType.OBJECT and context == 'symbol_key':
+            self.iterating_tokens.advance()
+            return self.node_provider.new_node(NodeType.SYMBOL_KEY, token)
+
+        elif token.type == TokenType.INTEGER and context == None:
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.INTEGER, token)
 
-        elif token.type == TokenType.OBJECT:
+        elif token.type == TokenType.OBJECT and context == None:
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.OBJECT, token)
 
-        elif token.type == TokenType.PLUS:
+        elif token.type == TokenType.PLUS and context == None:
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.POSITIVE, [self.object()])
 
-        elif token.type == TokenType.MINUS:
+        elif token.type == TokenType.MINUS and context == None:
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.NEGATIVE, [self.object()])
 
-        elif token.type == TokenType.LSQB:
+        elif token.type == TokenType.LSQB and context == None:
             self.iterating_tokens.advance()
             elements = []
             if self.iterating_tokens.current().type != TokenType.RSQB:
@@ -209,7 +230,7 @@ class Parser(IParser):
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.ARRAY, elements)
 
-        elif token.type == TokenType.FUNCTION:
+        elif token.type == TokenType.FUNCTION and context == None:
             self.iterating_tokens.advance()
             func_name = token.value
             if self.iterating_tokens.current().type != TokenType.LPAR:
@@ -221,7 +242,7 @@ class Parser(IParser):
             self.iterating_tokens.advance()
             return self.node_provider.new_node(NodeType.FUNCTION, [func_name, wrt_variables])
 
-        elif token.type == TokenType.LPAR:
+        elif token.type == TokenType.LPAR and context == None:
             self.iterating_tokens.advance()
             result = self.expr()
             if self.iterating_tokens.current().type != TokenType.RPAR:

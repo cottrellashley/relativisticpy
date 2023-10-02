@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import List
 from relativisticpy.core.indices import Indices
 from relativisticpy.core.metric import MetricIndices
+from relativisticpy.providers.regex import extract_tensor_symbol, extract_tensor_indices, tensor_index_running
 from relativisticpy.relparser import RelParser
 import sympy as smp
 import re
@@ -11,6 +12,14 @@ from relativisticpy.core import Metric
 from relativisticpy.core import Mathify
 from relativisticpy.gr import Derivative, Riemann, Ricci
 from relativisticpy.workbook.var_matchers import variable_matchers
+
+class TensorKey:
+
+    def __init__(self, tensor_string_repr: str):
+        self.str_key = extract_tensor_symbol(tensor_string_repr)
+        self.str_tensor = tensor_string_repr
+        self.str_indices = extract_tensor_indices(tensor_string_repr)
+
 
 @dataclass
 class Node:
@@ -36,12 +45,10 @@ class VariableStore:
 
 global_store = VariableStore()
 
-def gr_tensor_mapper(key): return { 'G': Metric, 'd': Derivative, 'R': (Riemann, Ricci) }[key]
-
 class WorkbookNode:
 
     def subs(self, node: Node):
-        expr = node.args[0]
+        expr: smp.Symbol = node.args[0]
         var = node.args[1]
         sub_value = node.args[2]
 
@@ -54,21 +61,12 @@ class WorkbookNode:
         global_store.set_variable(str(node.args[0]), node.args[1])
 
     def define(self, node: Node):
-        node_symbol = re.match('([a-zA-Z]+)', str(node.args[0])).group()
-
-        metric_symbol = global_store.get_variable('MetricSymbol') if global_store.has_variable('MetricSymbol') else 'G'
-
-        if bool(re.search("^((\^|\_)(\{)(\}))+$", re.sub('[^\^^\_^\{^\}]',"", str(node.args[0]).replace(metric_symbol, '')).replace(" ",''))) and node_symbol == metric_symbol:
-            metric = Metric(
-                            MetricIndices.from_string(str(node.args[0]).replace(metric_symbol, '')),
-                            node.args[1],
-                            global_store.get_variable('Coordinates')
-                        )
-            global_store.set_variable('Metric',  metric)
-        elif re.match(r'\b\w+Symbol\b', str(node.args[0])):
-            global_store.set_variable(str(node.args[0]), str(node.args[1]))
+        if isinstance(node.args[0], str):
+            key = node.args[0]
         else:
-            global_store.set_variable(str(node.args[0]), node.args[1])
+            raise ValueError('Node is not a string.')
+
+        global_store.set_variable(key, node.args[1])
 
     def sub(self, node):
         return node.args[0] - node.args[1]
@@ -161,6 +159,11 @@ class WorkbookNode:
         else:
             return global_store.get_variable(str(a))
 
+    def variable_key(self, node: Node):
+        """ This is a key to be used as storage for an object as value. Return string """
+        a = ''.join(node.args)
+        return a
+
     def function(self, node: Node):
         return smp.symbols('{}'.format(node.handler), cls=smp.Function)(*node.args)
     
@@ -200,47 +203,70 @@ class WorkbookNode:
     def atanh(self, node: Node):
         return smp.atanh(node.args[0])
 
+    def symbol_key(self, node: Node):
+        a = ''.join(node.args)
+        return a
+
+    def symbol_definition(self, node: Node):
+        global_store.set_variable(node.args[0],  str(node.args[1]))
+
+    def tensor_key(self, node: Node):
+        """ This is a key to be used as storage for an object as value. Return string """
+        a = ''.join(node.args)
+        return TensorKey(a)
+
+    def tensor_init(self, node: Node):
+        tensor_key = node.args[0]
+        tensor_comps = node.args[1]
+        metric_symbol = global_store.get_variable('MetricSymbol') if global_store.has_variable('MetricSymbol') else 'G'
+
+        metric = Metric(
+                        MetricIndices.from_string(tensor_key.str_indices),
+                        tensor_comps,
+                        global_store.get_variable('Coordinates')
+                    )
+
+        global_store.set_variable('Metric',  metric)
+
     def tensor(self, node: Node):
 
-        tensor_string_representation = ''.join(node.args)
-        tensor_name = re.match('([a-zA-Z]+)', tensor_string_representation).group()
-        tesnor_indices = tensor_string_representation.replace(tensor_name, '')
-        indices_obj = Indices.from_string(tesnor_indices)
+        tensor_repr = TensorKey(''.join(node.args))
+        indices_obj = Indices.from_string(tensor_repr.str_indices)
 
         # if not self.key_exists('Metric') or not self.key_exists('Basis'):
         #     raise ValueError('No Metric has been defined')
         metric_defined = global_store.has_variable('Metric')
 
-        if tensor_name == global_store.get_variable('MetricSymbol') and metric_defined:
-            return self.metric(tesnor_indices)
-        elif tensor_name == global_store.get_variable('DiffSymbol') and metric_defined:
+        if tensor_repr.str_key == global_store.get_variable('MetricSymbol') and metric_defined:
+            return self.metric(tensor_repr.str_indices)
+        elif tensor_repr.str_key == global_store.get_variable('DiffSymbol') and metric_defined:
             return Derivative(indices_obj)
-        elif tensor_name == global_store.get_variable('RiemannSymbol') and metric_defined:
-            return self.riemann(tesnor_indices)
-        elif tensor_name == global_store.get_variable('RicciSymbol') and metric_defined:
-            return self.ricci(tesnor_indices)
+        elif tensor_repr.str_key == global_store.get_variable('RiemannSymbol') and metric_defined:
+            return self.riemann(tensor_repr.str_indices)
+        elif tensor_repr.str_key == global_store.get_variable('RicciSymbol') and metric_defined:
+            return self.ricci(tensor_repr.str_indices)
         else:
-            return tensor_string_representation
+            return tensor_repr.str_tensor
 
     def metric(self, indices_str: str):
         indices = MetricIndices.from_string(indices_str)
-        return global_store.get_variable('Metric')[indices] if re.search(r'\d',  indices_str) else global_store.get_variable('Metric')
+        return global_store.get_variable('Metric')[indices] if not tensor_index_running(indices_str) else global_store.get_variable('Metric')
 
     def ricci(self, indices_str: str):
         indices = Indices.from_string(indices_str)
 
         if not global_store.has_variable('Ricci'):
-            global_store.set_variable('Ricci', Ricci(Indices.from_string(indices_str if not re.search(r'\d',  indices_str) else '_{a}_{b}'), global_store.get_variable('Metric')))
+            global_store.set_variable('Ricci', Ricci(Indices.from_string(indices_str if tensor_index_running(indices_str) else '_{a}_{b}'), global_store.get_variable('Metric')))
 
-        return global_store.get_variable('Ricci')[indices] if re.search(r'\d', indices_str) else global_store.get_variable('Ricci')
+        return global_store.get_variable('Ricci')[indices] if not tensor_index_running(indices_str) else global_store.get_variable('Ricci')
 
     def riemann(self, indices_str: str):
         indices = Indices.from_string(indices_str)
 
         if not global_store.has_variable('Riemann'):
-            global_store.set_variable('Riemann', Riemann(Indices.from_string(indices_str if not re.search(r'\d',  indices_str) else '_{a}_{b}_{c}_{d}'), global_store.get_variable('Metric')))
+            global_store.set_variable('Riemann', Riemann(Indices.from_string(indices_str if tensor_index_running(indices_str) else '_{a}_{b}_{c}_{d}'), global_store.get_variable('Metric')))
 
-        return global_store.get_variable('Riemann')[indices] if re.search(r'\d',  indices_str) else global_store.get_variable('Riemann')
+        return global_store.get_variable('Riemann')[indices] if not tensor_index_running(indices_str) else global_store.get_variable('Riemann')
 
 
 node_configuration = [
@@ -295,6 +321,26 @@ node_configuration = [
             {
                 'node': 'positive',
                 'handler': "pos"
+            },
+            {
+                'node': 'tensor_init',
+                'handler': "tensor_init"
+            },
+            {
+                'node': 'tensor_key',
+                'handler': 'tensor_key'
+            },
+            {
+                'node': 'variable_key',
+                'handler': "variable_key"
+            },
+            {
+                'node': 'symbol_definition',
+                'handler': "symbol_definition"
+            },
+            {
+                'node': 'symbol_key',
+                'handler': "symbol_key"
             }
         ]
 
@@ -304,9 +350,27 @@ class Workbook:
 
     def expr(self, string: str):
         if re.search(r'\n|\r\n?', string):
+            tasks = []
             lines = string.splitlines()
-            tasks = [Workbook.parser.exe(line) for line in lines if line.replace(" ", "") != ""]
-            return [task for task in tasks if task != None]
+            for line in lines:
+                if line.strip():
+                    # If line starts with "#", ignore it
+                    if line.startswith("#"):
+                        continue
+                    
+                    # If line contains "#", split and take the part before "#"
+                    if "#" in line:
+                        line = line.split("#")[0].strip()
+
+                    if ";" in line:
+                        lines = line.split(";")
+                        for l in lines:
+                            tasks.append(l.strip())
+                        continue
+                    
+                    tasks.append(line.strip())
+            res = [Workbook.parser.exe(task) for task in tasks if task.strip()]
+            return [r for r in res if r != None ]
 
         return Workbook.parser.exe(string)
 
@@ -327,8 +391,16 @@ class Workbook:
                     
                     # If line contains "#", split and take the part before "#"
                     if "#" in line:
-                        line = line.split("#")[0].strip() + " "
+                        line = line.split("#")[0].strip()
+
+                    if ";" in line:
+                        lines = line.split(";")
+                        for l in lines:
+                            tasks.append(l.strip())
+                        continue
                     
-                    tasks.append(Workbook.parser.exe(line))
-        
-            return [task for task in tasks if task != None]
+                    tasks.append(line.strip())
+
+            res = [Workbook.parser.exe(task) for task in tasks if task.strip()]
+
+            return [r for r in res if r != None ]
