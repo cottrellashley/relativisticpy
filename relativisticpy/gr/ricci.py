@@ -8,20 +8,33 @@ from relativisticpy.providers import SymbolArray, Rational, zeros, diff, simplif
 
 # This Module
 from relativisticpy.gr.connection import Connection
+from relativisticpy.gr.geometric_object import GeometricObject
 from relativisticpy.gr.riemann import Riemann
 
-class Ricci(MultiIndexObject):
+class Ricci(GeometricObject):
 
-    def from_metric(metric: Metric) -> 'Ricci':
-        N = metric.dimention
-        ig = metric.inv.components
-        CR = Ricci.riemann0000(metric)
+    def __init__(self, indices : Indices, arg, basis: SymbolArray = None):
+        super().__init__(indices = indices, symbols = arg, basis = basis)
+
+    def from_connection(self, connection: Connection) -> SymbolArray:
+        N = connection.dimention
+        wrt = connection.basis
+        Gamma = connection.components
         A = SymbolArray(zeros(N**2),(N,N))
-        for i, j, d, s in product(range(N), range(N), range(N), range(N)):
-            A[i,j] += ig[d,s]*CR[d,i,s,j]
+        for mu, nu, lamda, sigma in product(range(N), range(N), range(N), range(N)):
+            A[mu, nu] += Rational(1, N)*(diff(Gamma[lamda,mu,nu],wrt[lamda])-diff(Gamma[lamda,mu,lamda],wrt[nu]))+(Gamma[lamda,mu,sigma]*Gamma[sigma,nu,lamda]-Gamma[lamda,mu,nu]*Gamma[sigma,sigma,lamda])
         return simplify(A)
 
-    def riemann0000(metric: Metric) -> 'Ricci':
+    def from_metric(self, metric: Metric) -> SymbolArray: 
+        N = metric.dimention
+        wrt = metric.basis
+        Gamma = Connection.from_metric(metric)
+        A = SymbolArray(zeros(N**2),(N,N))
+        for mu, nu, lamda, sigma in product(range(N), range(N), range(N), range(N)):
+            A[mu, nu] += Rational(1, N)*(diff(Gamma[lamda,mu,nu],wrt[lamda])-diff(Gamma[lamda,mu,lamda],wrt[nu]))+(Gamma[lamda,mu,sigma]*Gamma[sigma,nu,lamda]-Gamma[lamda,mu,nu]*Gamma[sigma,sigma,lamda])
+        return simplify(A)
+
+    def riemann0000(metric: Metric) -> SymbolArray:
         G = metric.components
         N = metric.dimention
         R = Riemann.comps_from_metric(metric)
@@ -29,12 +42,3 @@ class Ricci(MultiIndexObject):
         for i, j, k, p, d in product(range(N), range(N), range(N), range(N), range(N)):
             RL[i,j,k,p] += G[i,d]*R[d,j,k,p]
         return RL
-
-    def from_connection(connection: Connection) -> 'Ricci':
-        return None
-
-    def from_riemann(riemann: Riemann) -> 'Ricci':
-        return None
-    
-    def __init__(self, indices : Indices, arg : Union[Metric, Connection]):
-        super().__init__(indices = indices, components = Ricci.from_metric(arg), basis = arg.basis)

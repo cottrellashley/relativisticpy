@@ -11,7 +11,7 @@ from relativisticpy.core.string_to_tensor import deserialisable_tensor
 
 @einstein_convention
 @deserialisable_tensor
-class MultiIndexObject(IMultiIndexArray):
+class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it should not need it.
     __slots__ = "components", "indices", "basis"
     _cls_idx = Idx # Descerialization of index strings into which type
     _cls_idcs = Indices  # Descerialization of indices strings into which type
@@ -48,7 +48,7 @@ class MultiIndexObject(IMultiIndexArray):
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
     def __mul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
-        if isinstance(other, (float, int)): # If we're number then just multiply every component by it.
+        if isinstance(other, (float, int)): # If we're number then just multiply every component by it (assuming the SymbolArray implements the * method ... )
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         operation = lambda a, b : a * b
         result = self.einsum_operation(other, operation)

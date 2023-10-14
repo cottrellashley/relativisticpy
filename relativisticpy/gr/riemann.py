@@ -8,12 +8,18 @@ from relativisticpy.providers import SymbolArray, Rational, zeros, diff, simplif
 
 # This Module
 from relativisticpy.gr.connection import Connection
+from relativisticpy.gr.geometric_object import GeometricObject
 
 @einstein_convention
-class Riemann(MultiIndexObject):
+class Riemann(GeometricObject):
     # __getitem__() => Riemann[Indices] => Riemann components corresponding to the Indices structure provided by the Indices.
+    
+    def __init__(self, indices: Indices, arg, basis: SymbolArray = None):
+        super().__init__( symbols = arg, indices = indices, basis = basis)
 
-    def comps_from_metric(metric: Metric) -> SymbolArray:
+    def from_components(self, components) -> SymbolArray: return components
+
+    def from_metric(self, metric: Metric) -> SymbolArray:
         N = metric.dimention
         wrt = metric.basis
         C = Connection.from_metric(metric)
@@ -22,8 +28,7 @@ class Riemann(MultiIndexObject):
             A[i, j, k, p] += Rational(1, N)*(diff(C[i,p,j],wrt[k])-diff(C[i,k,j],wrt[p]))+(C[i,k,d]*C[d,p,j]-C[i,p,d]*C[d,k,j])
         return simplify(A)
 
-    @classmethod
-    def comps_from_connection(cls, connection: Connection) -> SymbolArray:
+    def from_connection(self, connection: Connection) -> SymbolArray:
         N = connection.dimention
         wrt = connection.basis
         C = connection.components
@@ -31,25 +36,3 @@ class Riemann(MultiIndexObject):
         for i, j, k, p, d in product(range(N), range(N), range(N), range(N), range(N)):
             A[i, j, k, p] += Rational(1, N)*(diff(C[i,p,j],wrt[k])-diff(C[i,k,j],wrt[p]))+(C[i,k,d]*C[d,p,j]-C[i,p,d]*C[d,k,j])
         return simplify(A)
-    
-    def __init__(self, indices: Indices, arg: Union[Metric, Connection] = None, basis: SymbolArray = None):
-        self.indices = indices
-
-        if isinstance(arg, Metric):
-            self.metric = arg
-            self.components = Riemann.comps_from_metric(arg)
-            self.basis = basis if basis != None else arg.basis
-            super().__init__(
-                                components  =   self.components, 
-                                indices     =   self.indices,
-                                basis       =   self.basis
-                            )
-
-        if isinstance(arg, (Connection, SymbolArray)):
-            self.comps = Riemann.comps_from_metric(arg) if isinstance(arg, Metric) else Riemann.comps_from_connection(arg)
-            self.basis = basis if basis != None else arg.basis
-            super().__init__(
-                                components  =   self.comps, 
-                                indices     =   self.indices,
-                                basis       =   self.basis
-                            )

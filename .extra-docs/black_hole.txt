@@ -6,9 +6,9 @@ MetricSymbol := G # Comment in line test
 Coordinates := [t, r, theta, phi] 
 
 # Define components of the metric tensor
-G_{mu}_{nu} := [[-1,0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
+G_{mu}_{nu} := [[-C1 - C2/r, 0, 0, 0], [0, 1/(C1 + C2/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]
 
 RicciSymbol := Ric 
 RiemannSymbol := R # Hello
 
-Ric_{mu}_{nu} # Finally we can return the object
+Ric_{a}_{b}
