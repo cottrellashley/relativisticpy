@@ -3,12 +3,11 @@ import re
 from operator import itemgetter
 from itertools import product, combinations
 from itertools import product
-from typing import Tuple, List, Union, Optional, Any
+from typing import Callable, Tuple, List, Union, Optional, Any
 from relativisticpy.core.string_to_tensor import deserialisable_indices
 
 # External Modules
 from relativisticpy.providers import SymbolArray, transpose_list, symbols
-
 
 class Idx:
 
@@ -33,13 +32,7 @@ class Idx:
     def basis(self, value: SymbolArray) -> None: self._basis = value
     
     def set_order(self, order: int) -> 'Idx': return Idx(self.symbol, order, self.values, self.covariant)
-
-    # Dunders
-    def __neg__(self) -> 'Idx': return Idx(self.symbol, self.order, self.values, not self.covariant)
-    def __len__(self) -> int: return self.dimention
-    def __eq__(self, other: 'Idx') -> bool: return self.covariant == other.covariant if self.symbol == other.symbol else False
-    def __repr__(self) -> str: return f"""{'_' if self.covariant else '^'}{self.symbol}  """
-    def __str__(self) -> str: return self.__repr__()
+    def non_running(self) -> 'Idx': return Idx(self.symbol, order = self.order, values = [i for i in range(self.dimention)], covariant = self.covariant) if self.dimention != None else None
 
     # Publics (Index - Index operations)
     def is_identical_to(self, other: 'Idx') -> bool: return self == other # and id(self) != id(other) <-- Still undicided
@@ -52,6 +45,21 @@ class Idx:
     def get_repeated_location(self, indices: 'Indices') -> List[int]: return [self.order for index in indices if self.is_identical_to(index)]
     def get_summed_locations(self, indices: 'Indices') -> List[Tuple[int]]: return [(self.order, index.order) for index in indices if self.is_contracted_with(index)]
     def get_repeated_locations(self, indices: 'Indices') -> List[Tuple[int]]: return [(self.order, index.order) for index in indices if self.is_identical_to(index)]
+
+    # Equality comparitors
+    def symbol_eq(self, other: 'Idx') -> bool: return self.symbol == other.symbol
+    def symbol_in_indices(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol for other_idx in other.indices])
+    def symbol_in_indices_and_order(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol and self.order == other_idx.order for other_idx in other.indices])
+    def covariance_eq(self, other: 'Idx') -> bool: return self.covariant == other.covariant
+    def rank_match_in_indices(self, other: 'Indices') -> bool: return any([self.order == other_idx.order and self.covariant == other_idx.covariant for other_idx in other.indices])
+    def order_match(self, other: 'Idx') -> bool: return self.order == other.order and self.symbol == other.symbol
+
+    # Dunders
+    def __neg__(self) -> 'Idx': return Idx(self.symbol, self.order, self.values, not self.covariant)
+    def __len__(self) -> int: return self.dimention
+    def __eq__(self, other: 'Idx') -> bool: return self.covariant == other.covariant if self.symbol == other.symbol else False
+    def __repr__(self) -> str: return f"""{'_' if self.covariant else '^'}{self.symbol}  """
+    def __str__(self) -> str: return self.__repr__()
 
     def __iter__(self):
         self.first_index_value = 0 if self.running else self.values
@@ -70,14 +78,17 @@ class Idx:
 class Indices:
     """ Representation of Tensor Indices. Initialized as a list of Idx objecs. """
     _cls_idx = Idx
+
     def __init__(self, *args: Idx):
         self.indices: Union[List[Idx], Tuple[Idx]] = tuple([index.set_order(order) for order, index in enumerate([*args])])
-        self.generator = lambda: None
+        self.generator = lambda: None # mokey patch product implementations of index depending on mul or add products
         self._basis = None
 
     # Properties
     @property 
     def basis(self) -> SymbolArray: return self._basis
+    @property
+    def anyrunnig(self) -> bool: return any([not idx.running for idx in self.indices])
     @property
     def dimention(self) -> int: return self.indices[0].dimention
     @property
@@ -122,6 +133,7 @@ class Indices:
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
     def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
+    def get_non_running(self) -> 'Indices': return Indices(*[idx.non_running() for idx in self.indices])
 
     def einsum_product(self, other: 'Indices') -> 'Indices':
         summed_index_locations = transpose_list(self._get_all_summed_locations(other))
@@ -162,6 +174,14 @@ class Indices:
         old_indices_not_self_summed = [i[0] for i in self._get_all_repeated_location(res) if len(i) > 0]
         res.generator = lambda idx : [indices for indices in all if itemgetter(*old_indices_not_self_summed)(indices) == tuple(idx)] if not res.scalar and idx != None else all
         return res
+
+
+    # Types of equality
+    def rank_eq(self, other: 'Indices') -> bool:  return all([idx.rank_match_in_indices(other) for idx in self.indices])
+    def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices])
+    def symbol_order_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices_and_order(other) for idx in self.indices])
+    def symbol_order_rank_eq(self, other: 'Indices') -> bool:  return all([i[0] == i[1] for i in zip(self.indices, other.indices)]) if len(self.indices) == len(other.indices) else False
+    def get_equality_type_callback(self, equality_type) -> Union['Indices', None]: pass 
 
     # Privates
     def _indices_iterator(self): return list(product(*[x for x in self.indices]))

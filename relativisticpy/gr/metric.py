@@ -50,8 +50,11 @@ class MetricIndices(Indices):
 class Metric(MultiIndexObject):
     # The metric tensor with lower indices, such as g_{ab}, is called the "covariant metric tensor" or simply the "metric tensor".
     # The metric tensor with raised indices, such as g^{ab}, is called the "contravariant metric tensor" or the "inverse metric tensor".
+    SYMBOL = "MetricSymbol"
+    NAME = "Metric"
     cron_delta = (1,1); contravariant = (0,2); covariant = (2,0)
     _cls_idcs = MetricIndices
+
 
     def __init__(self, indices: MetricIndices, components: IMultiIndexArray, basis: IMultiIndexArray):
         super().__init__(indices = indices, components = components, basis = basis)

@@ -37,3 +37,4 @@ def extract_tensor_indices(string: str) -> str | None:
 
 def tensor_index_running(string: str) -> bool:
     return not bool(re.search(r'\d',  string))
+

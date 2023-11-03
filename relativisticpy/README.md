@@ -11,3 +11,42 @@ Notes:
 1. If the string is a variable definition -> we define a pointer and add the value to the dictionary.
 2. If the variable is being called -> we get and replace the pointer with the value within the dict tree.
 3. If we are defining something -> we perform a specific task (We set a property in the class and re-call it latter within the workbook whenever we use it.)
+
+
+```
+
+Condition1
+|
+|------No
+|       |
+yes     |-- Action1
+|
+Condition2
+|
+|-- MultiIndexObject
+|
+|-- Metric
+|
+|------ gr
+|       |
+|       |-- GeometricObject -> Metric Dependent
+|       |   |
+|       |   |-- Connection
+|       |   |
+|       |   |-- Riemann
+|       |   |
+|       |   |-- Ricci
+|       |   |
+|       |   |-- CovariantDerivative
+|       |
+|       |-- PhysicalObject -> User/State Defined
+|           |
+|           |-- StressEnergyTensor
+|           |
+|           |-- ElectromagneticTensor
+|    
+|------ em (TODO: Electromagnetism Module)
+|
+|------ ft (TODO: Field Theory Module)
+
+```

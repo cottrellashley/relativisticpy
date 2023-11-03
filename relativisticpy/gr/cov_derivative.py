@@ -9,6 +9,9 @@ from relativisticpy.gr.connection import Connection
 
 class CovDerivative(MultiIndexObject):
 
+    SYMBOL = "CovDerivativeSymbol"
+    NAME = "CovDerivative"
+
     @classmethod
     def from_metric(metric: Metric) -> 'CovDerivative':
         pass

@@ -3,7 +3,7 @@ from typing import Union
 from itertools import product
 
 # External Modules
-from relativisticpy.core import Indices, MultiIndexObject, Metric, einstein_convention
+from relativisticpy.core import Indices, Metric, einstein_convention
 from relativisticpy.providers import SymbolArray, Rational, zeros, diff, simplify
 
 # This Module
@@ -12,8 +12,10 @@ from relativisticpy.gr.geometric_object import GeometricObject
 
 @einstein_convention
 class Riemann(GeometricObject):
-    # __getitem__() => Riemann[Indices] => Riemann components corresponding to the Indices structure provided by the Indices.
-    
+
+    SYMBOL = "RiemannSymbol"
+    NAME = "Riemann"
+
     def __init__(self, indices: Indices, arg, basis: SymbolArray = None):
         super().__init__( symbols = arg, indices = indices, basis = basis)
 

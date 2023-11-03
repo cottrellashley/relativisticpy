@@ -6,6 +6,9 @@ from relativisticpy.providers import IMultiIndexArray, diff, simplify
 @einstein_convention
 class Derivative(MultiIndexObject):
 
+    SYMBOL = "DerivativeSymbol"
+    NAME = "Derivative"
+
     def __init__(self, indices: Indices):
         self.indices = indices
 

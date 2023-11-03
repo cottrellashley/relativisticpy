@@ -94,9 +94,9 @@ class RelPyAstNodeTraverser:
             return self.cache.get_variable(str(a))
 
     # Tensor type node handlers
-    def tensor_key(self, node: AstNode): return TensorKeyNode().handle(node)
-    def tensor_init(self, node: AstNode): TensorDefinitionNode(self.cache).handle(node)
-    def tensor(self, node: AstNode): return TensorNode(self.cache).handle(node)
+    def tensor_key(self, node: AstNode): return TensorKeyNode().handle(node) # Handles Tensor identifyers G_{a}_{b} etc ...
+    def tensor_init(self, node: AstNode): TensorDefinitionNode(self.cache).handle(node) # Tensor Setter : G_{a}_{b} := [[a, b],[c,d]]
+    def tensor(self, node: AstNode): return TensorNode(self.cache).handle(node) # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
 
     # Node Traverser Configuration 
 

@@ -63,7 +63,7 @@ def einstein_convention(cls: IMultiIndexArray):
         else:
             raise ValueError(f'The object you are trying to set and/or map to the {self} has the a shape which does not match {self.shape}.')
 
-    def getitem(self, idcs: Indices):
+    def getitem(self: IMultiIndexArray, idcs: Indices):
         # This should be implemented as follows:
         # 1. If the indices cov and contravarient indices structure matches the self.indices, then just return the current components
         # 2. If the indices does not match the self.indices, we must then perform a summation with the metric tensor in order to return the components

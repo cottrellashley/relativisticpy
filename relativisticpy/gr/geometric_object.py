@@ -12,11 +12,27 @@ class GeometricObject(MultiIndexObject):
     """
 
     def __init__(self, indices: Indices, symbols: Union[Metric, Connection, SymbolArray], basis: SymbolArray = None):
-        if isinstance(symbols, Metric): components = self.from_metric(symbols)
-        elif isinstance(symbols, Connection): components = self.from_connection(symbols)
-        elif isinstance(symbols, SymbolArray): components = self.from_components(symbols)
+        if isinstance(symbols, Metric): 
+            self._metric = symbols # Only property which lives at this level
+            components = self.from_metric(symbols)
+            basis = symbols.basis
+
+        elif isinstance(symbols, Connection): 
+            self.components = self.from_connection(symbols)
+            basis = symbols
+
+        elif isinstance(symbols, SymbolArray): 
+            components = self.from_components(symbols)
+
         else: raise ArgumentException('The argument entered was invalid.')
-        super().__init__(indices, components, basis)
+
+        super().__init__(indices=indices, components=components, basis=basis)
+
+    @property
+    def metric(self): return self._metric if self._metric != None else None
+
+    @metric.setter
+    def metric(self, metric: Metric) -> None: self._metric = metric
 
     def from_metric(self, metric: Metric): pass
     def from_connection(self, connection: Connection): pass

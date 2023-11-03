@@ -12,3 +12,9 @@ RicciSymbol := Ric
 RiemannSymbol := R # Hello
 
 Ric_{a}_{b}
+
+Ric_{a}_{b}
+# Ric_{c}_{b} # <--- Initiate new instance
+# Ric_{b}_{a} # <--- Call cached value of G_{a}_{b} then revert components locations.
+# Ric_{a}^{b} # <--- Call Ric_{a}_{b}[Ric_{a}^{b}] and let the metric do the work
+# Ric_{c}^{d} # <--- If Ric_{a}^{b} is cached, just return new instace with new indices as params, else build tensor from scratch.

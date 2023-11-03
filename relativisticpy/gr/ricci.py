@@ -13,6 +13,9 @@ from relativisticpy.gr.riemann import Riemann
 
 class Ricci(GeometricObject):
 
+    SYMBOL = "RicciSymbol"
+    NAME = "Ricci"
+
     def __init__(self, indices : Indices, arg, basis: SymbolArray = None):
         super().__init__(indices = indices, symbols = arg, basis = basis)
 

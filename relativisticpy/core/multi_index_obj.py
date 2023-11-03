@@ -1,5 +1,6 @@
 # Standard Library
 from typing import List
+from relativisticpy.core.tensor_equality_types import RankEquality, TensorEqualityType
 
 # External Modules
 from relativisticpy.providers import SymbolArray, IMultiIndexArray, tensor_trace_product
@@ -16,12 +17,23 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
     _cls_idx = Idx # Descerialization of index strings into which type
     _cls_idcs = Indices  # Descerialization of indices strings into which type
 
+
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components
-        self.indices = indices
         self.basis = basis
+        self._subcomponents = None
+        self.indices = indices
+
         if self.indices.basis == None:
             self.indices.basis = basis
+
+        if indices.anyrunnig:
+            if basis != None:
+                indices.basis = basis
+                self._subcomponents = self.get_subcomponents(indices)
+                self.indices = indices.get_non_running()
+            else:
+                raise ValueError(f'Basis parameter must be provided to initialize {self} with non-running indices.')
     
     @property
     def rank(self): return self.indices.rank
@@ -32,10 +44,18 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
     @property
     def dimention(self): return len(self.basis)
 
+    @property
+    def subcomponents(self): return self._subcomponents
+
+    @subcomponents.setter
+    def subcomponents(self, value: SymbolArray): self._subcomponents = value
+
     # Dunders
     def __post_init__(self) -> None: self.__set_self_summed() # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
-    def __getitem__(self, indices: Indices): return self.components[indices.__index__()]
     def __neg__(self): return MultiIndexObject(self.indices, -self.components, self.basis)
+    def get_subcomponents(self, indices: Indices):
+        self._subcomponents = self.components[indices.__index__()]
+        return self._subcomponents
 
     def __add__(self, other: IMultiIndexArray) -> IMultiIndexArray:
         operation = lambda a, b : a + b
@@ -74,4 +94,9 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
             self.components = result.components
             self.indices = result.indices
         else:
+            pass
+
+
+    def match(equality_type: TensorEqualityType):
+        if type(equality_type) == RankEquality:
             pass

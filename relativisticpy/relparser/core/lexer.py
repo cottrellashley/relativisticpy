@@ -5,6 +5,7 @@ from relativisticpy.relparser.shared.constants import TokenType
 from relativisticpy.relparser.shared.constants import Characters
 
 
+
 class Lexer(ILexer):
     def __init__(self, token_provider: ITokenProvider):
         self.token_provider = token_provider

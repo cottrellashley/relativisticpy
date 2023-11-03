@@ -4,7 +4,7 @@ from relativisticpy.relparser import RelParser
 
 def Mathify(expression: str): 
     """Builds mathematical python object representing the string exporession enterred.""" 
-    return RelParser(MathNode(), node_configuration).parse(expression)
+    return RelParser(MathNode(), node_configuration).exe(expression)
 
 # As the RelParser object builds the python dictionary encoding the equation or expression, 
 # the MathNode object's methods will be called according the node_configuration bellow. For Example: 
@@ -105,25 +105,11 @@ class MathNode:
         expr = node.args[0]
         return smp.solve(expr)
 
-    # def numerical(self, *args):
-    #     wrt = args[1]
-    #     return smp.N(args[0], wrt)
-
     def array(self, node: Node):
         return smp.MutableDenseNDimArray(list(node.args))
 
-    # def minus(self, *args):
-    #     a = args[0]
-    #     return -a
-
     def exp(self, node: Node):
         return smp.exp(node.args[0])
-
-    # def constant(self, *args):
-    #     if args[0] == 'pi':
-    #         return smp.pi
-    #     if args[0] == 'e':
-    #         return smp.E
 
     def object(self, node: Node):
         a = ''.join(node.args)

@@ -14,7 +14,7 @@ class ParserService(IParserService):
     def __init__(self, node_configuration: ConfigurationModels):
         self.node_configuration = node_configuration
         self.parser_serice = ParserServicesProvider(
-                                                        lexer                   = Lexer, 
+                                                        lexer                   = Lexer,
                                                         parser                  = Parser, 
                                                         token_provider          = TokenProvider,
                                                         node_provider           = NodeProvider,
