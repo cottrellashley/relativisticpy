@@ -1,6 +1,5 @@
 # Standard Library
 from typing import List
-from relativisticpy.core.tensor_equality_types import RankEquality, TensorEqualityType
 
 # External Modules
 from relativisticpy.providers import SymbolArray, IMultiIndexArray, tensor_trace_product
@@ -94,9 +93,4 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
             self.components = result.components
             self.indices = result.indices
         else:
-            pass
-
-
-    def match(equality_type: TensorEqualityType):
-        if type(equality_type) == RankEquality:
             pass

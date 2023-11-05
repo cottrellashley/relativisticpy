@@ -1,12 +1,20 @@
+from enum import Enum
 
-METRIC = "Metric"
-RICCI = "Ricci"
-RIEMANN = "Riemann"
-COVDERIVATIVE = "CovariantDerivative"
-DERIVATIVE = "Derivative"
+class WorkbookConstants(Enum):
+    
+    # Standard Defs
+    COORDINATES = "Coordinates"
 
-METRICSYMBOL = "MetricSymbol"
-RICCISYMBOL = "RicciSymbol"
-RIEMANNSYMBOL = "RiemannSymbol"
-COVDERIVATIVESYMBOL = "CovariantDerivativeSymbol"
-DERIVATIVESYMBOL = "DerivativeSymbol"
+    # Tensor/Object Types
+    METRIC = "Metric"
+    RICCI = "Ricci"
+    RIEMANN = "Riemann"
+    COVDERIVATIVE = "CovariantDerivative"
+    DERIVATIVE = "Derivative"
+
+    # Symbol Setters
+    METRICSYMBOL = "MetricSymbol"
+    RICCISYMBOL = "RicciSymbol"
+    RIEMANNSYMBOL = "RiemannSymbol"
+    COVDERIVATIVESYMBOL = "CovariantDerivativeSymbol"
+    DERIVATIVESYMBOL = "DerivativeSymbol"

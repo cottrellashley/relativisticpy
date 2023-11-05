@@ -7,11 +7,9 @@ from relativisticpy.workbook.workbook import Workbook
 import re
 
 if __name__ == '__main__':
-    def add(a, b): 
-        return a + b
-
-    print(add(1, 2))
-
+    from relativisticpy import Workbook
+    wb = Workbook("/Users/ashleycottrell/code/repositories/relativisticpy/.extra-docs/black_hole.txt")
+    wb.exe()
     # wb = Workbook("/Users/ashleycottrell/code/repositories/relativisticpy/.extra-docs/black_hole.txt")
 
     # # print(wb.exe('/Users/ashleycottrell/code/repositories/relativisticpy/.example-files/black_hole.txt'))

@@ -5,6 +5,7 @@ from itertools import product, combinations
 from itertools import product
 from typing import Callable, Tuple, List, Union, Optional, Any
 from relativisticpy.core.string_to_tensor import deserialisable_indices
+from relativisticpy.core.tensor_equality_types import TensorEqualityType
 
 # External Modules
 from relativisticpy.providers import SymbolArray, transpose_list, symbols
@@ -135,6 +136,23 @@ class Indices:
     def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
     def get_non_running(self) -> 'Indices': return Indices(*[idx.non_running() for idx in self.indices])
 
+    # Types of equality
+    def order_delta(self, other: 'Indices') -> Tuple[int]: return tuple([j.order for i, j in product(self.indices, other.indices) if i.symbol == j.symbol and i.covariant == j.covariant]) if self.symbol_eq(other) else None
+    def rank_eq(self, other: 'Indices') -> bool:  return all([idx.rank_match_in_indices(other) for idx in self.indices])
+    def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices])
+    def symbol_order_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices_and_order(other) for idx in self.indices])
+    def symbol_order_rank_eq(self, other: 'Indices') -> bool:  return all([i[0] == i[1] for i in zip(self.indices, other.indices)]) if len(self.indices) == len(other.indices) else False
+
+    # Mapper for equality types
+    def get_equality_type_callback(self, equality_type: TensorEqualityType) -> Union['Indices', None]:
+        equality_map = {
+            TensorEqualityType.RankEquality : self.rank_eq,
+            TensorEqualityType.IndicesSymbolEquality : self.symbol_eq,
+            TensorEqualityType.IndicesOrderEquality : self.symbol_order_eq,
+            TensorEqualityType.RankSymbolOrderEquality : self.symbol_order_rank_eq
+        }
+        return equality_map[equality_type] if equality_type in equality_map else None
+
     def einsum_product(self, other: 'Indices') -> 'Indices':
         summed_index_locations = transpose_list(self._get_all_summed_locations(other))
         all = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(self, other)) if itemgetter(*summed_index_locations[0])(IndexA) == itemgetter(*summed_index_locations[1])(IndexB)] if len(summed_index_locations) > 0 else [(IndexA, IndexB) for (IndexA, IndexB) in list(product(self, other))]
@@ -174,14 +192,6 @@ class Indices:
         old_indices_not_self_summed = [i[0] for i in self._get_all_repeated_location(res) if len(i) > 0]
         res.generator = lambda idx : [indices for indices in all if itemgetter(*old_indices_not_self_summed)(indices) == tuple(idx)] if not res.scalar and idx != None else all
         return res
-
-
-    # Types of equality
-    def rank_eq(self, other: 'Indices') -> bool:  return all([idx.rank_match_in_indices(other) for idx in self.indices])
-    def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices])
-    def symbol_order_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices_and_order(other) for idx in self.indices])
-    def symbol_order_rank_eq(self, other: 'Indices') -> bool:  return all([i[0] == i[1] for i in zip(self.indices, other.indices)]) if len(self.indices) == len(other.indices) else False
-    def get_equality_type_callback(self, equality_type) -> Union['Indices', None]: pass 
 
     # Privates
     def _indices_iterator(self): return list(product(*[x for x in self.indices]))

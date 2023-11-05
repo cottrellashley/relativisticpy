@@ -3,6 +3,7 @@ from typing import Callable, Dict, List
 from relativisticpy.core import Indices, MultiIndexObject
 from relativisticpy.core.tensor_equality_types import TensorEqualityType
 from relativisticpy.providers.regex import extract_tensor_symbol, extract_tensor_indices
+from relativisticpy.workbook.constants import WorkbookConstants
 
 @dataclass
 class TensorReference:
@@ -29,7 +30,7 @@ class TensorReference:
     def __hash__(self) -> int: return hash(self.id)
     def __eq__(self, other) -> bool: return self.id == other.id if isinstance(other, TensorReference) else False
 
-class TensorList(list):
+class TensorList:
     """ Helper class for Cache to more easily store and retriev tensor objects. """
 
     def __init__(self, *tensors: MultiIndexObject):
@@ -52,6 +53,9 @@ class TensorList(list):
     def add(self, tensor):
         self.tensors.append(tensor)
 
+    def get(self, idx: int):
+        return self.tensors[idx]
+
     def any(self, func: Callable): 
         return any([func(tensor.indices) for tensor in self.tensors])
 
@@ -60,13 +64,20 @@ class TensorList(list):
 
 class RelPyCache:
     """ 
-        Cache specific to RelativisticPy Cache.
+        A Cache Object specific to handle RelativisticPy Workbooks.
         This class does not know how to initiate new tensors, but it does know how to manage cached tensors to return them in the most efficient manner.
     """
 
     def __init__(self):
         self.store : Dict[str, any] = {}
         self.tensors : Dict[str, TensorList] = {}
+
+        # Set Default Symbol definitions
+        self.store[WorkbookConstants.METRICSYMBOL.value] = 'G'
+        self.store[WorkbookConstants.RICCISYMBOL.value] = 'Ric'
+        self.store[WorkbookConstants.RIEMANNSYMBOL.value] = 'R'
+        self.store[WorkbookConstants.DERIVATIVESYMBOL.value] = 'd'
+        self.store[WorkbookConstants.COVDERIVATIVESYMBOL.value] = 'D'
 
     ##### OTHER CACHE METHODS #######
 
@@ -81,50 +92,34 @@ class RelPyCache:
     
     ##### TENSOR CACHE METHODS #######
 
+    def has_metric(self) -> bool:
+        return self.store[WorkbookConstants.METRICSYMBOL.value] in self.tensors
+    
+    def get_metric(self):
+        return self.tensors[self.store[WorkbookConstants.METRICSYMBOL.value]].get(0)
+
+    def set_coordinates(self, coordinates: MultiIndexObject):
+        self.coordinates = coordinates
+
     def set_tensor(self, tensor_string: TensorReference, tensor: MultiIndexObject):
-        if self.has_variable(tensor_string.id):
+        if self.has_tensor(tensor_string.id):
             self.tensors[tensor_string.id].add(tensor)
         self.tensors[tensor_string.id] = TensorList(tensor)
 
     def get_tensors(self, tensor_symbol_id: str):
         if tensor_symbol_id in self.tensors:
-            return self.tensors[tensor_symbol_id]
+            return self.tensors[tensor_symbol_id].get(0)
         return None
 
-    def has_tensor(self, tref: TensorReference):
-        tref.id in self.tensors
+    def has_tensor(self, tensor_id: str):
+        return tensor_id in self.tensors
 
-    def match_existing_tensor_with_equality_type(self, equality_type: TensorEqualityType, tref: TensorReference):
+    def match_on_cached_tensors(self, equality_type: TensorEqualityType, tref: TensorReference):
     
-        if not self.has_variable(tref.id):
+        if not self.has_tensor(tref.id):
             return None
 
         cached_tensors : TensorList[MultiIndexObject] = self.tensors[tref.id]
-        return cached_tensors.find(tref.indices.get_equality_type_callback(equality_type))
-
-
-    def get_tensor_instance(self, tref: TensorReference):
-    
-        if not self.has_variable(tref.id):
-            return None
-
-        cached_tensors : TensorList[MultiIndexObject] = self.tensors[tref.id]
-        return cached_tensors.find(tref.indices.symbol_order_rank_eq)
-
-    def get_tensor_with_eq_indices(self, tref: TensorReference):
-    
-        if not self.has_variable(tref.id):
-            return None
-
-        cached_tensors : TensorList[MultiIndexObject] = self.tensors[tref.id]
-        return cached_tensors.find(tref.indices.symbol_eq)
-
-    def get_tensor_with_eq_rank(self, tref: TensorReference):
-
-        if not self.has_variable(tref.id):
-            return None
-
-        cached_tensors : TensorList[MultiIndexObject] = self.tensors[tref.id]
-        return cached_tensors.find(tref.indices.rank_eq)
-
-        
+        callback : Callable = tref.indices.get_equality_type_callback(equality_type)
+        tensor_matched = cached_tensors.find(callback)
+        return tensor_matched

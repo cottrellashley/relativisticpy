@@ -6,7 +6,7 @@ from relativisticpy.core import Metric
 from relativisticpy.core import Mathify
 from relativisticpy.gr import Derivative, Riemann, Ricci
 from relativisticpy.workbook.cache import RelPyCache
-from relativisticpy.workbook.itensors import TensorDefinitionNode, TensorKeyNode, TensorNode
+from relativisticpy.workbook.itensors import TensorDefinitionNode, TensorKeyNode, TensorNode, TensorDiagBuilder, DefinitionNode
 from relativisticpy.workbook.matchers import match_tensors
 from relativisticpy.workbook.node import AstNode
 
@@ -18,14 +18,9 @@ class RelPyAstNodeTraverser:
     # Cache Node handlers
     def assigner(self, node: AstNode): self.cache.set_variable(str(node.args[0]), node.args[1])
     def symbol_definition(self, node: AstNode): self.cache.set_variable(node.args[0],  str(node.args[1]))
-
-    def define(self, node: AstNode):
-        if isinstance(node.args[0], str): key = node.args[0]
-        else: raise ValueError('AstNode is not a string.')
-        self.cache.set_variable(key, node.args[1])
+    def define(self, node: AstNode): DefinitionNode(self.cache).handle(node)
 
     # Basic Node handlers
-
     def variable_key(self, node: AstNode): return ''.join(node.args)
     def symbol_key(self, node: AstNode): return ''.join(node.args)
 
@@ -92,6 +87,8 @@ class RelPyAstNodeTraverser:
 
         else:
             return self.cache.get_variable(str(a))
+        
+    def diag(self, node: AstNode): return TensorDiagBuilder().handle(node)
 
     # Tensor type node handlers
     def tensor_key(self, node: AstNode): return TensorKeyNode().handle(node) # Handles Tensor identifyers G_{a}_{b} etc ...

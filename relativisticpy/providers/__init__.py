@@ -8,7 +8,7 @@ All external dependecies or generic/useful modules of relativisticpy are interfa
 # sympy has implemented the interface. This is still quite some work but it is none the less limited and simpler than the alternative.
 
 # Sympy Dependencies: By importing all the sympy functionality via this file, we can controll what it used and can also swap out implementations in future.
-from sympy import Symbol, Rational, diff, integrate, simplify, tensorproduct, symbols, zeros
+from sympy import Symbol, Rational, diff, integrate, simplify, tensorproduct, symbols, zeros, permutedims
 from sympy import MutableDenseNDimArray as SymbolArray
 
 from relativisticpy.providers.interfaces import IMultiIndexArray, IIdx, IIndices
