@@ -5,14 +5,14 @@ import sympy as smp
 from relativisticpy.core import Metric
 from relativisticpy.core import Mathify
 from relativisticpy.gr import Derivative, Riemann, Ricci
-from relativisticpy.workbook.cache import RelPyCache
+from relativisticpy.workbook.state import WorkbookState
 from relativisticpy.workbook.itensors import TensorDefinitionNode, TensorKeyNode, TensorNode, TensorDiagBuilder, DefinitionNode
 from relativisticpy.workbook.matchers import match_tensors
 from relativisticpy.workbook.node import AstNode
 
 class RelPyAstNodeTraverser:
 
-    def __init__(self, cache: RelPyCache):
+    def __init__(self, cache: WorkbookState):
         self.cache = cache
 
     # Cache Node handlers

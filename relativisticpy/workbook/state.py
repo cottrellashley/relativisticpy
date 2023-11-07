@@ -62,7 +62,7 @@ class TensorList:
     def all(self, func: Callable): 
         return all([func(tensor.indices) for tensor in self.tensors])
 
-class RelPyCache:
+class WorkbookState:
     """ 
         A Cache Object specific to handle RelativisticPy Workbooks.
         This class does not know how to initiate new tensors, but it does know how to manage cached tensors to return them in the most efficient manner.

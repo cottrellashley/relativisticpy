@@ -3,12 +3,12 @@ import json
 import os
 from relativisticpy.relparser import RelParser
 from relativisticpy.workbook.ast_traverser import RelPyAstNodeTraverser
-from relativisticpy.workbook.cache import RelPyCache
+from relativisticpy.workbook.state import WorkbookState
 
 
 class Workbook:
 
-    _cache = RelPyCache()
+    _cache = WorkbookState()
     parser = RelParser(RelPyAstNodeTraverser(_cache), RelPyAstNodeTraverser.node_configuration, RelPyAstNodeTraverser.variable_matchers)
 
     def __init__(self, file_path: str):

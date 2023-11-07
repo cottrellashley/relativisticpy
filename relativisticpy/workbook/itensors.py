@@ -5,12 +5,10 @@ from relativisticpy.core.indices import Indices
 from relativisticpy.core.metric import Metric, MetricIndices
 from relativisticpy.core import MultiIndexObject
 from relativisticpy.gr import Derivative, Ricci, Riemann
-from relativisticpy.providers.regex import tensor_index_running
 from relativisticpy.providers import permutedims, SymbolArray
-from relativisticpy.workbook.cache import RelPyCache, TensorReference
+from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.workbook.node import AstNode
 from relativisticpy.core.tensor_equality_types import TensorEqualityType
-from itertools import product
 from relativisticpy.workbook.constants import WorkbookConstants
 
 class RelPyError:
@@ -19,7 +17,7 @@ class RelPyError:
 class TensorNode:
     """ Responsible for completly handling tensor nodes, by mediating with cache to initiate or call new and existing tensors. """
 
-    def __init__(self, cache: RelPyCache):
+    def __init__(self, cache: WorkbookState):
         self.cache = cache
 
     def handle(self, node: AstNode):
@@ -101,7 +99,7 @@ class TensorKeyNode:
 
 class TensorDefinitionNode:
 
-    def __init__(self, cache: RelPyCache):
+    def __init__(self, cache: WorkbookState):
         self.cache = cache
 
     def handle(self, node: AstNode):
@@ -143,7 +141,7 @@ class TensorDiagBuilder:
     
 class DefinitionNode:
 
-    def __init__(self, cache: RelPyCache):
+    def __init__(self, cache: WorkbookState):
         self.cache = cache
 
     def handle(self, node: AstNode):

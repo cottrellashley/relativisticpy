@@ -46,7 +46,6 @@ class MetricIndices(Indices):
         res.generator = generator
         return res
 
-@einstein_convention
 @deserialisable_tensor
 class Metric(MultiIndexObject):
 
@@ -127,3 +126,6 @@ class Metric(MultiIndexObject):
 
     def new_metric(self, indices: MetricIndices):
         return self[indices]
+    
+    def __getitem__(self: IMultiIndexArray, idcs: Indices):
+        return self._.components if idcs.rank == (0,2) else self.inv.components
