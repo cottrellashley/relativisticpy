@@ -3,7 +3,7 @@ from typing import Union
 from abc import ABC, abstractmethod
 from relativisticpy.core.exceptions import ArgumentException
 from relativisticpy.gr.connection import Connection
-from relativisticpy.providers import SymbolArray
+from relativisticpy.utils import SymbolArray
 
 class GeometricObject(MultiIndexObject):
     """

@@ -4,14 +4,18 @@ from itertools import product
 from operator import itemgetter
 
 # External Modules
-from relativisticpy.core import MultiIndexObject, einstein_convention, deserialisable_tensor, Indices, Idx
-from relativisticpy.core.string_to_tensor import deserialisable_indices
-from relativisticpy.providers import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray, tensor_trace_product
+from relativisticpy.core import MultiIndexObject, Indices, Idx
+from relativisticpy.deserializers import indices_from_string
+from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
+from relativisticpy.utils import IMultiIndexArray, tensor_trace_product, transpose_list
 
-@deserialisable_indices
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
-    _cls_idx = Idx
+
+    @classmethod
+    def from_string(cls, indices_string):
+        return indices_from_string(Idx, MetricIndices, indices_string)
+
     def __init__(self, *args: Idx): super().__init__(*args)
 
     def _get_einsum_metric_result(self: 'MetricIndices', other: Union['Indices', 'MetricIndices']) -> 'Indices': # G_{a}_{b} * T^{c}^{d}^{a}^{f} => T^{c}^{d}_{b}^{f} (metric indices) != T_{b}^{c}^{d}^{f} (base indices)
@@ -46,13 +50,15 @@ class MetricIndices(Indices):
         res.generator = generator
         return res
 
-@deserialisable_tensor
 class Metric(MultiIndexObject):
 
     SYMBOL = "DerivativeSymbol"
     NAME = "Derivative"
     cron_delta = (1,1); contravariant = (0,2); covariant = (2,0)
-    _cls_idcs = MetricIndices
+
+    @classmethod
+    def from_string(cls, indices_str, comp_str, basis_str):
+        return tensor_from_string(Idx, MetricIndices, Metric, indices_str, comp_str, basis_str)
 
     def __init__(self, indices: MetricIndices, components: IMultiIndexArray, basis: IMultiIndexArray):
         super().__init__(indices = indices, components = components, basis = basis)

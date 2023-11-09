@@ -5,7 +5,8 @@ from operator import itemgetter
 from typing import Union
 
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray, transpose_list
+from relativisticpy.utils import IMultiIndexArray, transpose_list
+from relativisticpy.symengine import SymbolArray
 
 # This Module
 from relativisticpy.core.indices import Indices

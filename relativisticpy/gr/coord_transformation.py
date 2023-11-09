@@ -1,6 +1,6 @@
 # This deserializes a string into a Coordinate transformation object.
 
-from relativisticpy.providers import SymbolArray
+from relativisticpy.utils import SymbolArray
 
 # Standard
 from dataclasses import dataclass

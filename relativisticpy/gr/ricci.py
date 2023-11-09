@@ -4,7 +4,7 @@ from typing import Union
 
 # External Modules
 from relativisticpy.core import Indices, MultiIndexObject, Metric
-from relativisticpy.providers import SymbolArray, Rational, zeros, diff, simplify
+from relativisticpy.utils import SymbolArray, Rational, zeros, diff, simplify
 
 # This Module
 from relativisticpy.gr.connection import Connection

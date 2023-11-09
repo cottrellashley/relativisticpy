@@ -2,20 +2,20 @@
 from typing import List
 
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray, tensor_trace_product
+from relativisticpy.utils import SymbolArray, IMultiIndexArray, tensor_trace_product
 
 # This Module
 from relativisticpy.core.indices import Indices, Idx
 from relativisticpy.core.einsum_convention import einstein_convention
-from relativisticpy.core.string_to_tensor import deserialisable_tensor
+from relativisticpy.deserializers import tensor_from_string
 
 @einstein_convention
-@deserialisable_tensor
 class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it should not need it.
     __slots__ = "components", "indices", "basis"
-    _cls_idx = Idx # Descerialization of index strings into which type
-    _cls_idcs = Indices  # Descerialization of indices strings into which type
 
+    @classmethod
+    def from_string(cls, indices_str, comp_str, basis_str):
+        return tensor_from_string(Idx, Indices, MultiIndexObject, indices_str, comp_str, basis_str)
 
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components

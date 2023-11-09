@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import Callable, Dict, List
-from relativisticpy.core import Indices, MultiIndexObject
-from relativisticpy.core.tensor_equality_types import TensorEqualityType
-from relativisticpy.providers.regex import extract_tensor_symbol, extract_tensor_indices
+
+from relativisticpy.core import Indices, MultiIndexObject, TensorEqualityType
+from relativisticpy.utils import extract_tensor_symbol, extract_tensor_indices
+
 from relativisticpy.workbook.constants import WorkbookConstants
 
 @dataclass
@@ -79,6 +80,42 @@ class WorkbookState:
         self.store[WorkbookConstants.DERIVATIVESYMBOL.value] = 'd'
         self.store[WorkbookConstants.COVDERIVATIVESYMBOL.value] = 'D'
 
+        self.__metric_symbol = 'g'
+        self.__ricci_symbol = 'Ric'
+        self.__reimann_symbol = 'R'
+        self.__derivative_symbol = 'd'
+        self.__cov_derivative_symbol = 'D'
+
+    @property 
+    def metric_symbol(self) -> str: return self.__metric_symbol
+
+    @metric_symbol.setter
+    def metric_symbol(self, value: str) -> None: self.__metric_symbol = value
+
+    @property 
+    def ricci_symbol(self) -> str: return self.__ricci_symbol
+
+    @ricci_symbol.setter
+    def ricci_symbol(self, value: str) -> None: self.__ricci_symbol = value
+
+    @property 
+    def reimann_symbol(self) -> str: return self.__reimann_symbol
+
+    @reimann_symbol.setter
+    def reimann_symbol(self, value: str) -> None: self.__reimann_symbol = value
+
+    @property 
+    def derivative_symbol(self) -> str: return self.__derivative_symbol
+
+    @derivative_symbol.setter
+    def derivative_symbol(self, value: str) -> None: self.__derivative_symbol = value
+
+    @property 
+    def cov_derivative_symbol(self) -> str: return self.__cov_derivative_symbol
+
+    @cov_derivative_symbol.setter
+    def cov_derivative_symbol(self, value: str) -> None: self.__cov_derivative_symbol = value
+
     ##### OTHER CACHE METHODS #######
 
     def set_variable(self, name, value):
@@ -114,7 +151,7 @@ class WorkbookState:
     def has_tensor(self, tensor_id: str):
         return tensor_id in self.tensors
 
-    def match_on_cached_tensors(self, equality_type: TensorEqualityType, tref: TensorReference):
+    def match_on_tensors(self, equality_type: TensorEqualityType, tref: TensorReference):
     
         if not self.has_tensor(tref.id):
             return None

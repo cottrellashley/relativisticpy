@@ -1,6 +1,6 @@
 # External Modules
 from relativisticpy.core import MultiIndexObject, einstein_convention, Indices
-from relativisticpy.providers import IMultiIndexArray, diff, simplify
+from relativisticpy.utils import IMultiIndexArray, diff, simplify
 
 
 @einstein_convention

@@ -5,8 +5,8 @@ from operator import itemgetter
 
 # External Modules
 from relativisticpy.core import MultiIndexObject, einstein_convention, deserialisable_tensor, Indices, Idx
-from relativisticpy.providers import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray
-from relativisticpy.providers.helpers import tensor_trace_product
+from relativisticpy.utils import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray
+from relativisticpy.utils.helpers import tensor_trace_product
 
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components

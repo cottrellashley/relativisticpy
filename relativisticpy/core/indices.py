@@ -3,12 +3,13 @@ import re
 from operator import itemgetter
 from itertools import product, combinations
 from itertools import product
-from typing import Callable, Tuple, List, Union, Optional, Any
-from relativisticpy.core.string_to_tensor import deserialisable_indices
+from typing import Tuple, List, Union, Optional, Any
 from relativisticpy.core.tensor_equality_types import TensorEqualityType
 
 # External Modules
-from relativisticpy.providers import SymbolArray, transpose_list, symbols
+from relativisticpy.utils import transpose_list
+from relativisticpy.deserializers import indices_from_string
+from relativisticpy.symengine import SymbolArray, symbols
 
 class Idx:
 
@@ -75,10 +76,12 @@ class Idx:
         else:
             raise StopIteration
 
-@deserialisable_indices
 class Indices:
     """ Representation of Tensor Indices. Initialized as a list of Idx objecs. """
-    _cls_idx = Idx
+
+    @classmethod
+    def from_string(cls, indices_string):
+        return indices_from_string(Idx, Indices, indices_string)
 
     def __init__(self, *args: Idx):
         self.indices: Union[List[Idx], Tuple[Idx]] = tuple([index.set_order(order) for order, index in enumerate([*args])])

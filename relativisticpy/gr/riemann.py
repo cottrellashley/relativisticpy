@@ -4,7 +4,7 @@ from itertools import product
 
 # External Modules
 from relativisticpy.core import Indices, Metric, einstein_convention
-from relativisticpy.providers import SymbolArray, Rational, zeros, diff, simplify
+from relativisticpy.utils import SymbolArray, Rational, zeros, diff, simplify
 
 # This Module
 from relativisticpy.gr.connection import Connection
