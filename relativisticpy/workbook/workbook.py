@@ -1,8 +1,9 @@
 import re
 import json
-import os
-from relativisticpy.relparser import RelParser
-from relativisticpy.workbook.ast_traverser import RelPyAstNodeTraverser
+
+from relativisticpy.parsers import RelParser
+
+from relativisticpy.workbook.ast_visitor import RelPyAstNodeTraverser
 from relativisticpy.workbook.state import WorkbookState
 
 

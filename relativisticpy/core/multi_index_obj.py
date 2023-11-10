@@ -2,24 +2,24 @@
 from typing import List
 
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray, tensor_trace_product
+from relativisticpy.utils import tensor_trace_product
+from relativisticpy.deserializers import tensor_from_string
+from relativisticpy.symengine import SymbolArray
 
 # This Module
 from relativisticpy.core.indices import Indices, Idx
 from relativisticpy.core.einsum_convention import einstein_convention
-from relativisticpy.core.string_to_tensor import deserialisable_tensor
 
 @einstein_convention
-@deserialisable_tensor
-class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it should not need it.
-    __slots__ = "components", "indices", "basis"
-    _cls_idx = Idx # Descerialization of index strings into which type
-    _cls_idcs = Indices  # Descerialization of indices strings into which type
+class MultiIndexObject:
 
+    @classmethod
+    def from_string(cls, indices_str, comp_str, basis_str):
+        return tensor_from_string(Idx, Indices, MultiIndexObject, indices_str, comp_str, basis_str)
 
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components
-        self.basis = basis
+        self._basis = basis
         self._subcomponents = None
         self.indices = indices
 
@@ -41,13 +41,20 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
     @property
     def shape(self): return self.indices.shape
     @property
-    def dimention(self): return len(self.basis)
+    def dimention(self): return len(self._basis)
+    @property
+    def basis(self): return self._basis
 
     @property
     def subcomponents(self): return self._subcomponents
 
     @subcomponents.setter
     def subcomponents(self, value: SymbolArray): self._subcomponents = value
+
+    @basis.setter
+    def basis(self, value: SymbolArray) -> None:
+        self._basis = value
+        self.indices.basis = value
 
     # Dunders
     def __post_init__(self) -> None: self.__set_self_summed() # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
@@ -56,35 +63,35 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
         self._subcomponents = self.components[indices.__index__()]
         return self._subcomponents
 
-    def __add__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __add__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         operation = lambda a, b : a + b
         result = self.additive_operation(other, operation) # Implementation inserted by decorator
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __sub__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __sub__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         operation = lambda a, b : a - b
         result = self.additive_operation(other, operation)
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __mul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __mul__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         if isinstance(other, (float, int)): # If we're number then just multiply every component by it (assuming the SymbolArray implements the * method ... )
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         operation = lambda a, b : a * b
         result = self.einsum_operation(other, operation)
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __rmul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __rmul__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         if isinstance(other, (float, int)): # If we're number then just multiply every component by it.
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         return self * other
 
-    def __truediv__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __truediv__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         if isinstance(other, (float, int)): # If we're number then just divide every component by it.
             return MultiIndexObject(components = self.components/other, indices = self.indices, basis = self.basis)
         else:
             raise ValueError("Cannot divide with anything other than int or float.")
 
-    def comps_contraction(self, other: IMultiIndexArray, idcs: List[List[int]]): return tensor_trace_product(self.components, other.components, idcs)
+    def comps_contraction(self, other: 'MultiIndexObject', idcs: List[List[int]]): return tensor_trace_product(self.components, other.components, idcs)
 
     # Privates
     def __set_self_summed(self) -> None:
@@ -92,5 +99,6 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
             result = self.selfsum_operation()
             self.components = result.components
             self.indices = result.indices
+            self.basis = result.basis
         else:
             pass

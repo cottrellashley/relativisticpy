@@ -18,18 +18,6 @@ def match_tensors(i):
     else:
         return False
 
-def match_boolean(i):
-    '''
-    Will match on strings of form:
-
-            WORD_{LETTER:INTEGER}_{LETTER:INTEGER}_.........REPEAT
-    '''
-    string = str(i)
-    if string in ['true', 'True', 'TRUE', 'false', 'False', 'FALSE']:
-        return True
-    else:
-        return False
-
 # Notice the node type is object, but when we enter these strings, it will call the matcher method and change the node key to "TENSOR"
 variable_matchers = [
             {

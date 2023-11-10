@@ -8,7 +8,10 @@
 
 # TODO: 
 1. Einstein Tensor.
-3. Use setter functionality to have expressions: T_{a}_{b} = [enter tensor expression with same resulting indices]
+2. Use setter functionality to have expressions: T_{a}_{b} = [enter tensor expression with same resulting indices]
+3. Encode properties of tensor multiplications: Metric * Ricci -> Ricci  etc...
+4. from_string() -> needs to be a class method within each class, which uses a module methify itself.
+5. 
 
 # TD;DR - (Black Hole Solution in < 10 lines)
 #### PACKAGE NOT LIVE YET

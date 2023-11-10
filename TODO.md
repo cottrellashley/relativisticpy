@@ -1,0 +1,54 @@
+## Prioritized Features: 
+
+- **Einstein Tensor**
+- Integration of a setter function for defining tensor expressions such as T_{a}_{b} = [custom tensor expression with matching indices].
+- Integration of an intelligent well defined rules for a dynamic derivative, which uses defined coordinates or user defined.
+- Metric defined via line element: this will require big edit to the parser grammar => multiple different grammars.
+- **Covariant Derivative**
+- **Energy Momentum Tensor**
+- **Ricci Scalar**
+- **Weyl Tensor**
+- Clean up Index and Indices properties handling/lifecycle -> (basis, shape, dimention, values, etc...)
+
+### Additional Tensor Objects to Implement
+
+- **Einstein Tensor**
+- **Covariant Derivative**
+- **Weyl Tensor**
+- **Energy Momentum Tensor**
+- **Ricci Scalar**
+
+### Additional Equations to Implement
+- **Geodesic Equation**: For general metric geodesic solutions + numerical methods with it.
+- **Kerr-Newman Solution**: For charged, rotating black holes.
+- **Reissner-Nordström Solution**: For charged, non-rotating black holes.
+- **Oppenheimer-Snyder Model**: Describes gravitational collapse of a spherically symmetric body and formation of black holes.
+- **Lemaître-Tolman-Bondi Models**: Solutions for dust-filled universe models, useful in cosmology.
+
+### Additional Instances to Add
+- **Kerr Metric**: A solution of the Einstein field equations that describes the spacetime geometry in the region surrounding a rotating mass. Essential for understanding rotating black holes.
+- **Schwarzschild Metric**: Describes spacetime around a spherically symmetric, non-rotating mass. Fundamental for understanding black holes and gravitational time dilation.
+- **Friedmann-Lemaître-Robertson-Walker (FLRW) Metric**: Used in cosmology, it describes a homogeneous, isotropic expanding or contracting universe.
+
+## Additional Features (no implementation plan yet)
+- **Penrose-Carter Diagrams**: Useful for visualizing and understanding the causal structure of spacetime, especially around black holes.
+- **ADM Formalism**: Decomposes spacetime into space and time, useful in numerical relativity.
+- **Penrose Process**: Describes energy extraction from a rotating black hole, which is an interesting aspect of black hole thermodynamics.
+- **Hawking Radiation**: Code modules to model or simulate this quantum effect could be intriguing.
+
+### New Manipulations or Features
+- **Tensor Visualization Tools**: Implement ways to visually represent tensors, perhaps in a 3D space, to aid in understanding their properties.
+- **Spacetime Diagrams and Simulations**: Create modules that allow users to simulate and visualize the effects of massive bodies on spacetime, like black hole warping.
+- **Interactive Learning Modules**: Interactive tutorials or problems that guide users through complex concepts using your toolkit.
+- **Symbolic Computation**: Incorporate symbolic computation for tensor algebra, making it easier for users to perform calculations without numerical values.
+- **GR in Different Coordinate Systems**: Allow users to convert tensors between different coordinate systems, like from Cartesian to spherical coordinates.
+- **Numerical Solvers for Einstein's Field Equations**: Implement or integrate solvers that can numerically solve Einstein's field equations under different conditions.
+- **Integration with Astrophysical Data**: Provide functionality to import and use real astrophysical data (like from LIGO or other observatories) for analysis with your package.
+- **Community Contributions**: Create a platform or system where users can contribute their own solutions or modules, fostering a community around your package.
+- **Performance Optimization Tools**: Tools for users to optimize their calculations, particularly for complex simulations.
+- **Quantum Gravity Extensions**: Although speculative, modules exploring the interplay between quantum mechanics and general relativity could be fascinating.
+
+### General Suggestions
+- **Documentation and Examples**: Comprehensive documentation and real-world examples are vital for educational tools. This includes both simple introductory examples and more complex case studies.
+- **Modular Design**: Ensure that the package is modular so users can easily use only the parts they need.
+- **User Feedback Loop**: Implement a system for receiving user feedback to continuously improve the package based on actual user experience and needs.

@@ -4,8 +4,11 @@ from itertools import product
 from operator import itemgetter
 from typing import Union
 
+from relativisticpy.typing import MultiIndexArrayType
+
 # External Modules
-from relativisticpy.providers import SymbolArray, IMultiIndexArray, transpose_list
+from relativisticpy.utils import transpose_list
+from relativisticpy.symengine import SymbolArray
 
 # This Module
 from relativisticpy.core.indices import Indices
@@ -15,10 +18,10 @@ class TensorProduct:
     components: SymbolArray
     indices: Indices
 
-def einstein_convention(cls: IMultiIndexArray):
+def einstein_convention(cls: MultiIndexArrayType):
     """Class decorator. Injects the einstein summation convention implementation into class."""
 
-    def additive_operation(self: IMultiIndexArray, tensor: IMultiIndexArray, operation) -> TensorProduct:
+    def additive_operation(self: MultiIndexArrayType, tensor: MultiIndexArrayType, operation) -> TensorProduct:
         A = self.components
         B = tensor.components
         resulting_indices = self.indices.additive_product(tensor.indices)
@@ -27,7 +30,7 @@ def einstein_convention(cls: IMultiIndexArray):
             zeros[i] = sum([operation(A[idx_A], B[idx_B]) for idx_A, idx_B in resulting_indices.generator(i)])
         return TensorProduct(components=zeros, indices=resulting_indices)
 
-    def einsum_operation(self: IMultiIndexArray, tensor: IMultiIndexArray, operation) -> TensorProduct:
+    def einsum_operation(self: MultiIndexArrayType, tensor: MultiIndexArrayType, operation) -> TensorProduct:
         A = self.components
         B = tensor.components
         resulting_indices = self.indices.einsum_product(tensor.indices)
@@ -36,14 +39,14 @@ def einstein_convention(cls: IMultiIndexArray):
             zeros[i] = sum([operation(A[idx_A], B[idx_B]) for idx_A, idx_B in resulting_indices.generator(i)])
         return TensorProduct(components=zeros, indices=resulting_indices)
 
-    def selfsum_operation(self: IMultiIndexArray) -> TensorProduct:
+    def selfsum_operation(self: MultiIndexArrayType) -> TensorProduct:
         resulting_indices = self.indices.self_product()
         zeros = resulting_indices.zeros_array()
         for i in resulting_indices:
             zeros[i] = sum([self.components[Indices] for Indices in resulting_indices.generator(i)])
         return TensorProduct(components=zeros, indices=resulting_indices)
 
-    def setitem(self: IMultiIndexArray, indices: Indices, other_expr: Union[IMultiIndexArray, SymbolArray]):
+    def setitem(self: MultiIndexArrayType, indices: Indices, other_expr: Union[MultiIndexArrayType, SymbolArray]):
         if issubclass(type(self), type(other_expr)):
             summed_index_locations = transpose_list(indices._get_all_repeated_locations(other_expr.indices))
             all = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(indices, other_expr.indices)) if itemgetter(*summed_index_locations[0])(IndexA) == itemgetter(*summed_index_locations[1])(IndexB)]
@@ -63,7 +66,7 @@ def einstein_convention(cls: IMultiIndexArray):
         else:
             raise ValueError(f'The object you are trying to set and/or map to the {self} has the a shape which does not match {self.shape}.')
 
-    def getitem(self: IMultiIndexArray, idcs: Indices):
+    def getitem(self: MultiIndexArrayType, idcs: Indices):
         # This should be implemented as follows:
         # 1. If the indices cov and contravarient indices structure matches the self.indices, then just return the current components
         # 2. If the indices does not match the self.indices, we must then perform a summation with the metric tensor in order to return the components

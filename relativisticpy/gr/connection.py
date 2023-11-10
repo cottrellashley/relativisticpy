@@ -3,13 +3,16 @@ from itertools import product
 from typing import Optional
 
 # External Modules
-from relativisticpy.core import Idx, Indices, MultiIndexObject, einstein_convention, deserialisable_tensor, Metric
-from relativisticpy.providers import SymbolArray, Rational, diff, simplify
+from relativisticpy.core import Idx, Indices, MultiIndexObject, einstein_convention, Metric
+from relativisticpy.symengine import SymbolArray, Rational, diff, simplify
+from relativisticpy.deserializers import tensor_from_string
 
 @einstein_convention
-@deserialisable_tensor
 class Connection(MultiIndexObject):
-    _cls_idcs = Indices # On Descerialization, this is the class that will be __init__ for indices.
+
+    @classmethod
+    def from_string(cls, indices_str, comp_str, basis_str):
+        return tensor_from_string(Idx, Indices, Connection, indices_str, comp_str, basis_str)
 
     def from_metric(metric: Metric) -> SymbolArray:
         D = metric.dimention
