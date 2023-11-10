@@ -7,8 +7,8 @@ from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplif
 
 # This Module
 from relativisticpy.gr.connection import Connection
-from relativisticpy.gr.geometric_object import GeometricObject
-from relativisticpy.gr.riemann import Riemann
+from relativisticpy.gr.tensors.geometric import GeometricObject
+from relativisticpy.gr.tensors.riemann import Riemann
 
 class Ricci(GeometricObject):
 

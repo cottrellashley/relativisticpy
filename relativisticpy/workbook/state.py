@@ -6,26 +6,30 @@ from relativisticpy.utils import extract_tensor_symbol, extract_tensor_indices
 
 from relativisticpy.workbook.constants import WorkbookConstants
 
-@dataclass
+
 class TensorReference:
     """ Tensor Cache Helper class which represents strings representations of tensors. """
-    tstring : str
+    def __init__(self, tstring):
+        self.tstring : str = tstring
+        self.__indices_repr = extract_tensor_indices(self.tstring)
+        self.__symbol = extract_tensor_symbol(self.tstring)
+        self.__indices = Indices.from_string(self.__indices_repr)
 
     @property
-    def indices(self) -> Indices: return Indices.from_string(self.indices_repr)
+    def indices(self) -> Indices: return self.__indices
 
     @property
-    def symbol(self) -> str: return extract_tensor_symbol(self.tstring)
+    def symbol(self) -> str: self.__symbol
 
     @property
-    def indices_repr(self) -> str: return extract_tensor_indices(self.tstring)
+    def indices_repr(self) -> str: return self.__indices_repr
 
     @property
     def repr(self) -> str: return str(self)
 
     @property
     def id(self) -> str: return self._tid()
-    def _tid(self): return self.symbol
+    def _tid(self): return self.__symbol
 
     def __str__(self) -> str: return self.tstring
     def __hash__(self) -> int: return hash(self.id)
@@ -130,10 +134,10 @@ class WorkbookState:
     ##### TENSOR CACHE METHODS #######
 
     def has_metric(self) -> bool:
-        return self.store[WorkbookConstants.METRICSYMBOL.value] in self.tensors
+        return self.__metric_symbol in self.tensors
     
     def get_metric(self):
-        return self.tensors[self.store[WorkbookConstants.METRICSYMBOL.value]].get(0)
+        return self.tensors[self.__metric_symbol].get(0)
 
     def set_coordinates(self, coordinates: MultiIndexObject):
         self.coordinates = coordinates

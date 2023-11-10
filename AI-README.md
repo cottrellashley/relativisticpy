@@ -5,6 +5,9 @@
 2. Integration of a setter function for defining tensor expressions such as T_{a}_{b} = [custom tensor expression with matching indices].
 3. Integration of an intelligent well defined rules for a dynamic derivative, which uses defined coordinates or user defined.
 4. Metric defined via line element: this will require big edit to the parser grammar => multiple different grammars.
+5. Clean up Index and Indices properties handling/lifecycle -> (basis, shape, dimention, values, etc...)
+
+
 
 ## Quick Overview - (Compute Black Hole Solutions in Less Than 10 Lines)
 ### NOTE: Package is in Pre-release Stage

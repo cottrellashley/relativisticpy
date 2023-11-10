@@ -12,7 +12,6 @@ from relativisticpy.core.einsum_convention import einstein_convention
 
 @einstein_convention
 class MultiIndexObject:
-    __slots__ = "components", "indices", "basis", "_subcomponents"
 
     @classmethod
     def from_string(cls, indices_str, comp_str, basis_str):
@@ -20,7 +19,7 @@ class MultiIndexObject:
 
     def __init__(self, indices: Indices, components: SymbolArray = None, basis: SymbolArray = None):
         self.components = components
-        self.basis = basis
+        self._basis = basis
         self._subcomponents = None
         self.indices = indices
 
@@ -42,13 +41,20 @@ class MultiIndexObject:
     @property
     def shape(self): return self.indices.shape
     @property
-    def dimention(self): return len(self.basis)
+    def dimention(self): return len(self._basis)
+    @property
+    def basis(self): return self._basis
 
     @property
     def subcomponents(self): return self._subcomponents
 
     @subcomponents.setter
     def subcomponents(self, value: SymbolArray): self._subcomponents = value
+
+    @basis.setter
+    def basis(self, value: SymbolArray) -> None:
+        self._basis = value
+        self.indices.basis = value
 
     # Dunders
     def __post_init__(self) -> None: self.__set_self_summed() # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
@@ -93,5 +99,6 @@ class MultiIndexObject:
             result = self.selfsum_operation()
             self.components = result.components
             self.indices = result.indices
+            self.basis = result.basis
         else:
             pass

@@ -19,6 +19,7 @@ class TensorNode:
 
     def handle(self, node: AstNode):
         tensor_ref = TensorReference(''.join(node.args))
+        tensor_ref.indices.basis = self.state.coordinates # Error handling needed => if no coordinates defined cannot continue
 
         if not self.state.has_tensor(tensor_ref.id): # If not stated => skip to generate imediatly.
             return self.generate_tensor(tensor_ref)
@@ -104,6 +105,7 @@ class TensorDefinitionNode:
     def handle(self, node: AstNode):
         tensor_key: TensorKeyNode = node.args[0]
         tref = TensorReference(tensor_key.str_indices)
+        tref.indices.basis = self.state.coordinates # Error handling needed => if no coordinates defined cannot continue
         tensor_comps = node.args[1]
 
         # Check if the tensor being called is the metric

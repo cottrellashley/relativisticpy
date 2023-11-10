@@ -1,5 +1,8 @@
+""" 
+ Base Metric dependent Geometrical Tensors: Ricci - Riemann - 
+"""
+
 from typing import Union
-from abc import ABC, abstractmethod
 
 from relativisticpy.gr.connection import Connection
 

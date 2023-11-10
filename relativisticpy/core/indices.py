@@ -13,29 +13,27 @@ from relativisticpy.symengine import SymbolArray, symbols
 
 class Idx:
 
-    cartesian_basis_2d = SymbolArray([symbols('x'), symbols('y')])
-    polar_basis_2d = SymbolArray([symbols('t'), symbols('theta')])
-    default_basis = cartesian_basis_2d
-
-    def __init__(self, symbol: str, order: Optional[int] = None, values: Optional[Union[list, int]] = None, covariant: Optional[bool] = True):
+    def __init__(self, symbol: str, order: Optional[int] = None, values: Optional[Union[List, int]] = None, covariant: Optional[bool] = True):
         self.symbol: str = symbol
         self.order: Optional[int] = order
-        self.values: Optional[Union[list, int]] = values
+        self.values: Optional[Union[List, int]] = values
         self.covariant: Optional[bool] = covariant
-        self._basis = Idx.default_basis
+        self._basis = None
 
     @property
     def running(self) -> bool: return not isinstance(self.values, int)
     @property
-    def dimention(self) -> int: return len(self.basis)
+    def dimention(self) -> int: return None if not self._basis else len(self._basis)
     @property
     def basis(self) -> SymbolArray: return self._basis
     @basis.setter
     def basis(self, value: SymbolArray) -> None: self._basis = value
-    
-    def set_order(self, order: int) -> 'Idx': return Idx(self.symbol, order, self.values, self.covariant)
-    def non_running(self) -> 'Idx': return Idx(self.symbol, order = self.order, values = [i for i in range(self.dimention)], covariant = self.covariant) if self.dimention != None else None
 
+    def set_order(self, order: int) -> 'Idx': return Idx(self.symbol, order, self.values, self.covariant)
+    def non_running(self) -> 'Idx': 
+        self.order = [i for i in range(self.dimention)]
+        return self
+    
     # Publics (Index - Index operations)
     def is_identical_to(self, other: 'Idx') -> bool: return self == other # and id(self) != id(other) <-- Still undicided
     def is_contracted_with(self, other: 'Idx') -> bool: return self.symbol == other.symbol and self.covariant != other.covariant # and id(self) != id(other) <-- Still undicided
@@ -137,7 +135,11 @@ class Indices:
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
     def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
-    def get_non_running(self) -> 'Indices': return Indices(*[idx.non_running() for idx in self.indices])
+    def get_non_running(self) -> 'Indices':
+        for index in self.indices:
+            index.values = None
+        return self
+
 
     # Types of equality
     def order_delta(self, other: 'Indices') -> Tuple[int]: return tuple([j.order for i, j in product(self.indices, other.indices) if i.symbol == j.symbol and i.covariant == j.covariant]) if self.symbol_eq(other) else None
@@ -177,6 +179,7 @@ class Indices:
                 return all
 
         res.generator = generator
+        res.basis = self.basis
         return res
 
     def additive_product(self, other: 'Indices') -> 'Indices':

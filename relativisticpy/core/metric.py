@@ -68,9 +68,11 @@ class Metric(MultiIndexObject):
         if self.rank == Metric.contravariant:
             comp = self.components
             ind = self.indices
+            ind.basis = self.basis
         else:
             comp = SymbolArray(self.components.tomatrix().inv())
             ind = MetricIndices(*[-j for j in self.indices.indices])
+            ind.basis = self.basis
         return Metric(indices = ind, components = comp, basis = self.basis)
 
     @property     
@@ -78,9 +80,11 @@ class Metric(MultiIndexObject):
         if self.rank == Metric.covariant:
             comp = self.components
             ind = self.indices
+            ind.basis = self.basis
         else:
             comp = SymbolArray(self.components.tomatrix().inv())
             ind = MetricIndices(*[-j for j in self.indices.indices])
+            ind.basis = self.basis
         return Metric(indices = ind, components = comp, basis = self.basis)
 
     def __pow__(self, other):
