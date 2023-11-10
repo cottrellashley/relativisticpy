@@ -1,5 +1,5 @@
 from typing import Iterable
-from relativisticpy.parser.shared.interfaces.iterator import IIterator
+from relativisticpy.parsers.shared.interfaces.iterator import IIterator
 
 class Iterator(IIterator):
 

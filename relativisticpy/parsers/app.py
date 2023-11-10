@@ -1,9 +1,9 @@
-from relativisticpy.parser.parser.parser_ import ParserService
-from relativisticpy.parser.interpreter.interpreter import InterpreterService
-from relativisticpy.parser.shared.models.basic_nodes import NodeConfigurationModel
-from relativisticpy.parser.shared.models.mapper import Mappers
-from relativisticpy.parser.shared.models.node_keys import ConfigurationModels
-from relativisticpy.parser.shared.models.object_configuration import ObjectConfigurationModel
+from relativisticpy.parsers.parser.default import DefaultParserService
+from relativisticpy.parsers.interpreter.interpreter import InterpreterService
+from relativisticpy.parsers.shared.models.basic_nodes import NodeConfigurationModel
+from relativisticpy.parsers.shared.models.mapper import Mappers
+from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
+from relativisticpy.parsers.shared.models.object_configuration import ObjectConfigurationModel
 
 class RelParser:
 
@@ -13,7 +13,7 @@ class RelParser:
                                                         Mappers.map_from_list(node_configuration, NodeConfigurationModel), 
                                                         Mappers.map_from_list(object_configuration, ObjectConfigurationModel)
                                                       )
-        self.parser = ParserService(self.node_configurations)
+        self.parser = DefaultParserService(self.node_configurations)
         self.interpreter = InterpreterService(self.node_tree_walker)
 
     def exe(self, expression: str):

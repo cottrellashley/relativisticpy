@@ -1,6 +1,6 @@
-from relativisticpy.parser.interpreter.service_provider import InterpreterServiceProvider
-from relativisticpy.parser.core.interpreter import Interpreter
-from relativisticpy.parser.shared.interfaces.interpreter_service import IInterpreterService
+from relativisticpy.parsers.interpreter.service_provider import InterpreterServiceProvider
+from relativisticpy.parsers.core.interpreter import Interpreter
+from relativisticpy.parsers.shared.interfaces.interpreter_service import IInterpreterService
 
 class InterpreterService(IInterpreterService):
     """

@@ -1,6 +1,3 @@
-# Interfaces
-from relativisticpy.utils.interfaces import IMultiIndexArray, IIdx, IIndices
-
 # General Helpers
 from relativisticpy.utils.helpers import (
                         transpose_list, 

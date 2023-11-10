@@ -1,8 +1,8 @@
 from dataclasses import dataclass
 from typing import List
-from relativisticpy.parser.shared.models.basic_nodes import NodeConfigurationModel
-from relativisticpy.parser.shared.models.node_handler import NodeHandler
-from relativisticpy.parser.shared.models.object_configuration import ObjectConfigurationModel
+from relativisticpy.parsers.shared.models.basic_nodes import NodeConfigurationModel
+from relativisticpy.parsers.shared.models.node_handler import NodeHandler
+from relativisticpy.parsers.shared.models.object_configuration import ObjectConfigurationModel
 
 @dataclass
 class ConfigurationModels:

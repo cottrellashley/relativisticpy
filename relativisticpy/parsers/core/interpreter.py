@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from relativisticpy.parser.shared.constants import NodeKeys
-from relativisticpy.parser.shared.interfaces.interpreter import IInterpreter
+from relativisticpy.parsers.shared.constants import NodeKeys
+from relativisticpy.parsers.shared.interfaces.interpreter import IInterpreter
 
 @dataclass
 class Node:

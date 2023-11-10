@@ -2,16 +2,17 @@
 from typing import List
 
 # External Modules
-from relativisticpy.utils import SymbolArray, IMultiIndexArray, tensor_trace_product
+from relativisticpy.utils import tensor_trace_product
+from relativisticpy.deserializers import tensor_from_string
+from relativisticpy.symengine import SymbolArray
 
 # This Module
 from relativisticpy.core.indices import Indices, Idx
 from relativisticpy.core.einsum_convention import einstein_convention
-from relativisticpy.deserializers import tensor_from_string
 
 @einstein_convention
-class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it should not need it.
-    __slots__ = "components", "indices", "basis"
+class MultiIndexObject:
+    __slots__ = "components", "indices", "basis", "_subcomponents"
 
     @classmethod
     def from_string(cls, indices_str, comp_str, basis_str):
@@ -56,35 +57,35 @@ class MultiIndexObject(IMultiIndexArray): # Remove Basis from this class as it s
         self._subcomponents = self.components[indices.__index__()]
         return self._subcomponents
 
-    def __add__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __add__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         operation = lambda a, b : a + b
         result = self.additive_operation(other, operation) # Implementation inserted by decorator
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __sub__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __sub__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         operation = lambda a, b : a - b
         result = self.additive_operation(other, operation)
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __mul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __mul__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         if isinstance(other, (float, int)): # If we're number then just multiply every component by it (assuming the SymbolArray implements the * method ... )
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         operation = lambda a, b : a * b
         result = self.einsum_operation(other, operation)
         return MultiIndexObject(components = result.components, indices = result.indices, basis = self.basis)
 
-    def __rmul__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __rmul__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         if isinstance(other, (float, int)): # If we're number then just multiply every component by it.
             return MultiIndexObject(components = other*self.components, indices = self.indices, basis = self.basis)
         return self * other
 
-    def __truediv__(self, other: IMultiIndexArray) -> IMultiIndexArray:
+    def __truediv__(self, other: 'MultiIndexObject') -> 'MultiIndexObject':
         if isinstance(other, (float, int)): # If we're number then just divide every component by it.
             return MultiIndexObject(components = self.components/other, indices = self.indices, basis = self.basis)
         else:
             raise ValueError("Cannot divide with anything other than int or float.")
 
-    def comps_contraction(self, other: IMultiIndexArray, idcs: List[List[int]]): return tensor_trace_product(self.components, other.components, idcs)
+    def comps_contraction(self, other: 'MultiIndexObject', idcs: List[List[int]]): return tensor_trace_product(self.components, other.components, idcs)
 
     # Privates
     def __set_self_summed(self) -> None:

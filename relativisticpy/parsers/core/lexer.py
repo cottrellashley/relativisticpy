@@ -1,8 +1,8 @@
-from relativisticpy.parser.shared.interfaces.iterator import IIterator
-from relativisticpy.parser.shared.interfaces.lexer import ILexer
-from relativisticpy.parser.shared.interfaces.tokens import ITokenProvider
-from relativisticpy.parser.shared.constants import TokenType
-from relativisticpy.parser.shared.constants import Characters
+from relativisticpy.parsers.shared.interfaces.iterator import IIterator
+from relativisticpy.parsers.shared.interfaces.lexer import ILexer
+from relativisticpy.parsers.shared.interfaces.tokens import ITokenProvider
+from relativisticpy.parsers.shared.constants import TokenType
+from relativisticpy.parsers.shared.constants import Characters
 
 
 

@@ -1,10 +1,9 @@
 # Standard Library
 from itertools import product
-from typing import Union
 
 # External Modules
-from relativisticpy.core import Indices, MultiIndexObject, Metric
-from relativisticpy.utils import SymbolArray, Rational, zeros, diff, simplify
+from relativisticpy.core import Indices, Metric
+from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplify
 
 # This Module
 from relativisticpy.gr.connection import Connection

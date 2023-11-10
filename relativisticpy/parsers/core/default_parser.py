@@ -1,9 +1,9 @@
 from relativisticpy.utils.regex import str_is_tensors, is_symbol_object_key
-from relativisticpy.parser.shared.interfaces.iterator import IIterator
-from relativisticpy.parser.shared.interfaces.node_provider import INodeProvider
-from relativisticpy.parser.shared.interfaces.parser_ import IParser
-from relativisticpy.parser.shared.constants import NodeType, TokenType
-from relativisticpy.parser.shared.models.token import Token
+from relativisticpy.parsers.shared.interfaces.iterator import IIterator
+from relativisticpy.parsers.shared.interfaces.node_provider import INodeProvider
+from relativisticpy.parsers.shared.interfaces.parser_ import IParser
+from relativisticpy.parsers.shared.constants import NodeType, TokenType
+from relativisticpy.parsers.shared.models.token import Token
 
 class Parser(IParser):
 

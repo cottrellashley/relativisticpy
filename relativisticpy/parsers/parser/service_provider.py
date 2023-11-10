@@ -1,11 +1,11 @@
 from typing import List
-from relativisticpy.parser.shared.interfaces.iterator import IIterator
-from relativisticpy.parser.shared.interfaces.lexer import ILexer
-from relativisticpy.parser.shared.interfaces.node_provider import INodeProvider
-from relativisticpy.parser.shared.interfaces.parser_ import IParser
-from relativisticpy.parser.shared.interfaces.tokens import ITokenProvider
-from relativisticpy.parser.shared.models.node_keys import ConfigurationModels
-from relativisticpy.parser.shared.models.token import Token
+from relativisticpy.parsers.shared.interfaces.iterator import IIterator
+from relativisticpy.parsers.shared.interfaces.lexer import ILexer
+from relativisticpy.parsers.shared.interfaces.node_provider import INodeProvider
+from relativisticpy.parsers.shared.interfaces.parser_ import IParser
+from relativisticpy.parsers.shared.interfaces.tokens import ITokenProvider
+from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
+from relativisticpy.parsers.shared.models.token import Token
 
 class ParserServicesProvider:
 

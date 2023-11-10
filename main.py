@@ -1,8 +1,8 @@
 from relativisticpy.gr import Connection, Ricci, Riemann
 from relativisticpy.core import Indices, Idx, MultiIndexObject, Metric, Mathify
-from relativisticpy.parser.core.nodes import NodeProvider
-from relativisticpy.parser.shared.interfaces.node_provider import INodeProvider
-from relativisticpy.parser.shared.interfaces.parser_ import IParser
+from relativisticpy.parsers.core.nodes import NodeProvider
+from relativisticpy.parsers.shared.interfaces.node_provider import INodeProvider
+from relativisticpy.parsers.shared.interfaces.parser_ import IParser
 from relativisticpy.workbook.workbook import Workbook
 
 

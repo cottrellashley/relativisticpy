@@ -5,9 +5,9 @@ from operator import itemgetter
 
 # External Modules
 from relativisticpy.core import MultiIndexObject, Indices, Idx
-from relativisticpy.deserializers import indices_from_string
+from relativisticpy.deserializers import indices_from_string, tensor_from_string
 from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
-from relativisticpy.utils import IMultiIndexArray, tensor_trace_product, transpose_list
+from relativisticpy.utils import tensor_trace_product, transpose_list
 
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
@@ -60,7 +60,7 @@ class Metric(MultiIndexObject):
     def from_string(cls, indices_str, comp_str, basis_str):
         return tensor_from_string(Idx, MetricIndices, Metric, indices_str, comp_str, basis_str)
 
-    def __init__(self, indices: MetricIndices, components: IMultiIndexArray, basis: IMultiIndexArray):
+    def __init__(self, indices: MetricIndices, components: SymbolArray, basis: SymbolArray):
         super().__init__(indices = indices, components = components, basis = basis)
 
     @property
@@ -133,5 +133,5 @@ class Metric(MultiIndexObject):
     def new_metric(self, indices: MetricIndices):
         return self[indices]
     
-    def __getitem__(self: IMultiIndexArray, idcs: Indices):
+    def __getitem__(self: 'Metric', idcs: MetricIndices):
         return self._.components if idcs.rank == (0,2) else self.inv.components

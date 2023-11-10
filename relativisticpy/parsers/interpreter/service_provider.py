@@ -1,4 +1,4 @@
-from relativisticpy.parser.shared.interfaces.interpreter import IInterpreter
+from relativisticpy.parsers.shared.interfaces.interpreter import IInterpreter
 
 
 class InterpreterServiceProvider:

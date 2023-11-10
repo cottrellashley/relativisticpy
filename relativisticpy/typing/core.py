@@ -1,14 +1,14 @@
 """
-Interfaces Provider. 
+Type Provider. 
 This only exists to inprove the type hinting experience and for simplifications of what information each class it capable of returning.
 """
 
 from abc import ABC, abstractproperty, abstractmethod
 from typing import Optional, Union, Tuple
 from sympy import Symbol
-from relativisticpy.utils import SymbolArray
 
-class IIdx:
+class IdexType:
+    """ Type for the individual Index object within Indices. """
 
     @abstractproperty
     def symbol(self) -> Symbol: pass
@@ -29,25 +29,25 @@ class IIdx:
     def dimention(self) -> int: pass
 
     @abstractproperty
-    def basis(self) -> SymbolArray: pass
+    def basis(self): pass
 
     @abstractmethod
-    def zeros_array(self) -> SymbolArray: pass
+    def zeros_array(self): pass
 
     @abstractmethod
-    def find(self, key: 'IIdx') -> int: pass
+    def find(self, key: 'IdexType') -> int: pass
 
 
-class IIndices:
-
-    @abstractproperty
-    def generator(self) -> SymbolArray: pass
+class IndicesType:
 
     @abstractproperty
-    def basis(self) -> SymbolArray: pass
+    def generator(self): pass
 
     @abstractproperty
-    def indices(self) -> SymbolArray: pass
+    def basis(self): pass
+
+    @abstractproperty
+    def indices(self): pass
 
     @abstractproperty
     def dimention(self) -> int: pass
@@ -65,32 +65,24 @@ class IIndices:
     def self_summed(self) -> bool: pass
 
     @abstractmethod
-    def einsum_product(self, other: 'IIndices') -> 'IIndices': pass
+    def einsum_product(self, other: 'IndicesType') -> 'IndicesType': pass
 
     @abstractmethod
-    def self_product(self, other: 'IIndices') -> 'IIndices': pass
+    def self_product(self, other: 'IndicesType') -> 'IndicesType': pass
 
     @abstractmethod
-    def additive_product(self, other: 'IIndices') -> 'IIndices': pass
+    def additive_product(self, other: 'IndicesType') -> 'IndicesType': pass
 
-class IMultiIndexArray(ABC):
-
-    @abstractproperty
-    def components(self) -> SymbolArray: pass
+class MultiIndexArrayType(ABC):
 
     @abstractproperty
-    def indices(self) -> IIndices: pass
+    def components(self): pass
 
     @abstractproperty
-    def basis(self) -> SymbolArray: pass
+    def indices(self) -> IndicesType: pass
 
     @abstractproperty
-    def dimention(self) -> SymbolArray: pass
-
-class IMetric(IMultiIndexArray):
+    def basis(self): pass
 
     @abstractproperty
-    def _(self) -> 'IMetric': pass
-
-    @abstractproperty
-    def inv(self) -> 'IMetric': pass
+    def dimention(self): pass

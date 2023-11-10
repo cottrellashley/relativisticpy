@@ -1,6 +1,6 @@
-from relativisticpy.parser.shared.constants import TokenType
-from relativisticpy.parser.shared.interfaces.tokens import ITokenProvider
-from relativisticpy.parser.shared.models.token import Token
+from relativisticpy.parsers.shared.constants import TokenType
+from relativisticpy.parsers.shared.interfaces.tokens import ITokenProvider
+from relativisticpy.parsers.shared.models.token import Token
 
 
 class TokenProvider(ITokenProvider):

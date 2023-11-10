@@ -1,6 +1,7 @@
 # This deserializes a string into a Coordinate transformation object.
 
-from relativisticpy.utils import SymbolArray
+from relativisticpy.symengine import SymbolArray
+from relativisticpy.deserializers import Mathify
 
 # Standard
 from dataclasses import dataclass
@@ -77,4 +78,3 @@ class TransformationDeserializer:
 
     def get_symbols_from_string(self):
         return Mathify(self.basis)
-

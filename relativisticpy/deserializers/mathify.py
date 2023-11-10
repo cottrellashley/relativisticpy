@@ -1,6 +1,6 @@
 import sympy as smp
 from dataclasses import dataclass
-from relativisticpy.parser import RelParser
+from relativisticpy.parsers import RelParser
 
 def Mathify(expression: str): 
     """Builds mathematical python object representing the string exporession enterred.""" 

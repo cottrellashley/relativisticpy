@@ -1,7 +1,7 @@
-from relativisticpy.parser.shared.interfaces.node_provider import INodeProvider
-from relativisticpy.parser.shared.models.token import Token
-from relativisticpy.parser.shared.models.node_keys import ConfigurationModels
-from relativisticpy.parser.shared.constants import NodeKeys, NodeType
+from relativisticpy.parsers.shared.interfaces.node_provider import INodeProvider
+from relativisticpy.parsers.shared.models.token import Token
+from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
+from relativisticpy.parsers.shared.constants import NodeKeys, NodeType
 
 class BaseNode:
 

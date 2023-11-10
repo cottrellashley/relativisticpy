@@ -1,6 +1,6 @@
 
 from dataclasses import dataclass
-from relativisticpy.parser.shared.constants import TokenType
+from relativisticpy.parsers.shared.constants import TokenType
 
 
 @dataclass

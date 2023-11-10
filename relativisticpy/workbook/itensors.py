@@ -43,7 +43,7 @@ class TensorNode:
                 return type(tensor)(tensor_ref.indices, permutedims(components, diff_order), tensor.basis) 
                 
             
-            return tensor
+            return tensor[tensor_ref.indices] if tensor_ref.indices.anyrunnig else tensor
     
         has_same_rank = self.state.match_on_tensors(TensorEqualityType.RankEquality, tensor_ref)
         if has_same_rank != None:

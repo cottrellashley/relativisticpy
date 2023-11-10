@@ -2,13 +2,13 @@ from typing import Tuple
 from operator import itemgetter
 from itertools import product
 from typing import List
+from relativisticpy.typing import MetricType
 
 import sympy as smp
 from sympy import tensorproduct
 from sympy import diff, Rational, zeros, simplify
 from sympy import MutableDenseNDimArray as SymbolArray
 
-from relativisticpy.utils.interfaces import IMetric, IMultiIndexArray
 
 def transpose_list(l):
     """
@@ -61,7 +61,7 @@ def tensor_trace_product(a: SymbolArray, b: SymbolArray, trace: List[List[int]])
 
     return zeros
 
-def connection_components_from_metric(metric: IMetric):
+def connection_components_from_metric(metric: MetricType):
     D = metric.dimention
     empty = SymbolArray.zeros(D, D, D)
     g = metric._.components
@@ -70,7 +70,7 @@ def connection_components_from_metric(metric: IMetric):
     for (i, j, k, d) in product(range(D), range(D), range(D), range(D)): empty[i, j, k] += Rational(1, 2)*(ig[d,i])*(diff(g[k,d],wrt[j]) + diff(g[d,j],wrt[k]) - diff(g[j,k],wrt[d]))
     return simplify(empty)
 
-def riemann1000_components_from_metric(metric: IMetric):
+def riemann1000_components_from_metric(metric: MetricType):
     N = metric.dimention
     wrt = metric.basis
     C = connection_components_from_metric(metric)
@@ -79,7 +79,7 @@ def riemann1000_components_from_metric(metric: IMetric):
         A[i, j, k, p] += Rational(1, N)*(diff(C[i,p,j],wrt[k])-diff(C[i,k,j],wrt[p]))+(C[i,k,d]*C[d,p,j]-C[i,p,d]*C[d,k,j])
     return simplify(A)
 
-def riemann0000_components_from_metric(metric: IMetric):
+def riemann0000_components_from_metric(metric: MetricType):
     dim = metric.dimention
     metric_comps = metric.components
     rie_comps = riemann1000_components_from_metric(metric)
@@ -87,7 +87,7 @@ def riemann0000_components_from_metric(metric: IMetric):
     for i, j, k, p, d in product(range(dim), range(dim), range(dim), range(dim), range(dim)): A[i,j,k,p] += metric_comps[i,d]*rie_comps[d,j,k,p]
     return simplify(A)
 
-def ricci_components_from_metric(metric: IMetric):
+def ricci_components_from_metric(metric: MetricType):
     N = metric.dimention
     ig = metric.inv.components
     CR = riemann0000_components_from_metric(metric)
@@ -95,7 +95,7 @@ def ricci_components_from_metric(metric: IMetric):
     for i, j, d, s in product(range(N), range(N), range(N), range(N)): A[i,j] += ig[d,s]*CR[d,i,s,j]
     return simplify(A)
 
-def ricci_scalar(metric: IMetric):
+def ricci_scalar(metric: MetricType):
     N = metric.dimention
     R = ricci_components_from_metric(metric)
     ig = metric.inv.components
@@ -105,7 +105,7 @@ def ricci_scalar(metric: IMetric):
             A += ig[d,s]*R[d,s]
     return simplify(A)
 
-def kscalar_from_metric(metric: IMetric):
+def kscalar_from_metric(metric: MetricType):
     """
     Warning: Very Slow! Indirect claculation with too many for loops.
     """

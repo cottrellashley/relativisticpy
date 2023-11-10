@@ -4,9 +4,11 @@ from itertools import product
 from operator import itemgetter
 
 # External Modules
-from relativisticpy.core import MultiIndexObject, einstein_convention, deserialisable_tensor, Indices, Idx
-from relativisticpy.utils import SymbolArray, transpose_list, diff, simplify, tensorproduct, Symbol, IMultiIndexArray
-from relativisticpy.utils.helpers import tensor_trace_product
+from relativisticpy.core import MultiIndexObject, einstein_convention, Indices, Idx
+from relativisticpy.deserializers import deserialisable_tensor
+from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
+from relativisticpy.utils import tensor_trace_product, transpose_list
+from relativisticpy.typing import MultiIndexArrayType
 
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
@@ -56,7 +58,7 @@ class Metric(MultiIndexObject):
     _cls_idcs = MetricIndices
 
 
-    def __init__(self, indices: MetricIndices, components: IMultiIndexArray, basis: IMultiIndexArray):
+    def __init__(self, indices: MetricIndices, components: MultiIndexArrayType, basis: MultiIndexArrayType):
         super().__init__(indices = indices, components = components, basis = basis)
 
     @property
