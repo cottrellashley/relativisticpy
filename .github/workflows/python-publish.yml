@@ -6,6 +6,8 @@
 # separate terms of service, privacy policy, and support
 # documentation.
 
+# Future -> push to pip test env -> run e2e on pipeline on pip install test verison -> publish to pip if passed.
+
 name: Upload Python Package
 
 on:
@@ -27,7 +29,7 @@ jobs:
     - name: Set up Python
       uses: actions/setup-python@v3
       with:
-        python-version: '3.x'
+        python-version: '3.11'
 
     - name: Install Poetry
       run: |
