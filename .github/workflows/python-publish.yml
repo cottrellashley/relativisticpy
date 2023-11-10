@@ -41,9 +41,15 @@ jobs:
     # - name: Run tests
     #   run: poetry run pytest  # assuming you are using pytest for testing
 
+    - name: Configure Poetry
+      run: |
+        poetry config repositories.pypi https://upload.pypi.org/legacy/
+        poetry config http-basic.pypi __token__ ${{ secrets.PYPI_TOKEN }}
+        poetry config repositories.PROJECT_NAME https://pypi.org/project/relativisticpy/
+        poetry config http-basic.PROJECT_NAME __token__ ${{ secrets.PROJECT_NAME_TOKEN }}
+
     - name: Build and publish
-      env:
-        POETRY_PYPI_TOKEN: ${{ secrets.POETRY_PYPI_TOKEN }}
       run: |
         poetry build
-        poetry publish
+        poetry publish -r pypi
+        poetry publish -r PROJECT_NAME
