@@ -51,5 +51,4 @@ jobs:
     - name: Build and publish
       run: |
         poetry build
-        poetry publish -r pypi
-        poetry publish -r PROJECT_NAME
+        poetry publish
