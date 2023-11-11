@@ -4,6 +4,7 @@ version = "1.0.0"
 description = "A General Relativity package to solve symbolic General Relativistic equations."
 readme = "README.md"
 authors = ["Ashley Cottrell"]
+include = ["assets/*"]
 
 [build-system]
 requires = ["setuptools>=40.8.0", "wheel", "sympy"]
@@ -11,6 +12,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.poetry.dependencies]
 sympy = "^1.12"
-
-[tool.poetry.include]
-files = ["assets/*"]
