@@ -1,19 +1,18 @@
 
 # Define the symbol for the metric tensor
-MetricSymbol := G # Comment in line test
+MetricSymbol := g # Comment in line test
 
 # Define the corrdinate system we are working in
 Coordinates := [t, r, theta, phi] 
 
 # Define components of the metric tensor
-G_{mu}_{nu} := [[-C1 - C2/r, 1, 0, 0], [0, 1/(C1 + C2/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]
+g_{mu}_{nu} := [[-C1 - C2/r, 1, 0, 0], [0, 1/(C1 + C2/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]
 
 RicciSymbol := Ric 
 RiemannSymbol := R # Hello
 
 Ric_{a}_{b}
 
-Ric_{b}_{a}
 # Ric_{c}_{b} # <--- Initiate new instance
 # Ric_{b}_{a} # <--- Call cached value of G_{a}_{b} then revert components locations.
 # Ric_{a}^{b} # <--- Call Ric_{a}_{b}[Ric_{a}^{b}] and let the metric do the work

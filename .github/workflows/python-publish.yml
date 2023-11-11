@@ -12,8 +12,11 @@ name: Upload Python Package
 
 on:
   push:
-    tags:
-      - 'v*'  # Trigger the workflow on tag push like v1.0.0
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -35,10 +38,11 @@ jobs:
     - name: Install dependencies
       run: pip install -r requirements.txt
 
-    # - name: Run tests
-    #   run: poetry run pytest  # assuming you are using pytest for testing
+    - name: Run tests
+      run: poetry run pytest  # assuming you are using pytest for testing
 
     - name: Configure Poetry
+      if: success()
       run: |
         poetry config repositories.pypi https://upload.pypi.org/legacy/
         poetry config http-basic.pypi __token__ ${{ secrets.PYPI_TOKEN }}
@@ -46,6 +50,7 @@ jobs:
         poetry config http-basic.PROJECT_NAME __token__ ${{ secrets.PROJECT_NAME_TOKEN }}
 
     - name: Build and publish
+      if: success()
       run: |
         poetry build
         poetry publish
