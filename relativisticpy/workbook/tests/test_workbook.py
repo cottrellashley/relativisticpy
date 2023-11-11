@@ -80,9 +80,7 @@ def test_solve():
     # Simple Linear Equations
     # FAILING => need a standard way/function to call to get back same outputs
     assert solve_workbook.expr('solve(x + 2*y - 3, x)') == sp.solve(x + 2*y - 3, x) 
-    # Multiple Variables
-    # Uncomment and use if your workbook supports solving systems of equations
-    # assert solve_workbook.expr('solve([x + y - 2, x - y + 1], [x, y])') == sp.solve([x + y - 2, x - y + 1], [x, y])
+    assert solve_workbook.expr('solve([x + y - 2, x - y + 1], [x, y])') == sp.solve([x + y - 2, x - y + 1], [x, y])
 
 def test_diff():
     diff_workbook = Workbook()
@@ -130,4 +128,4 @@ def test_limit():
 
     # Simple Limits
     assert sp.simplify(limit_workbook.expr('limit((x**2 - 1)/(x - 1), x, 1)') - sp.limit((x**2 - 1)/(x - 1), x, 1)) == 0
-    assert sp.simplify(limit_workbook.expr('limit(1/x, x, 0)') - sp.limit(1/x, x, 0)) == 0
+    assert limit_workbook.expr('limit(1/x, x, 0)') == sp.limit(1/x, x, 0)

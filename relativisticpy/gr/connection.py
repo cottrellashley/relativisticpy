@@ -20,7 +20,8 @@ class Connection(MultiIndexObject):
         g = metric._.components
         ig = metric.inv.components
         wrt = metric.basis
-        for (i, j, k, d) in product(range(D), range(D), range(D), range(D)): empty[i, j, k] += Rational(1, 2)*(ig[d,i])*(diff(g[k,d],wrt[j]) + diff(g[d,j],wrt[k]) - diff(g[j,k],wrt[d]))
+        for (i, j, k, d) in product(range(D), range(D), range(D), range(D)): 
+            empty[i, j, k] += Rational(1, 2)*(ig[d,i])*(diff(g[k,d], wrt[j]) + diff(g[d,j],wrt[k]) - diff(g[j,k],wrt[d]))
         return simplify(empty)
 
     def __init__(self, indices: Indices, components: Optional[MultiIndexObject] = None, basis: Optional[MultiIndexObject] = None, metric: Metric = None):

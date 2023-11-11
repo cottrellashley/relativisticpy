@@ -52,8 +52,6 @@ class MetricIndices(Indices):
 
 class Metric(MultiIndexObject):
 
-    SYMBOL = "DerivativeSymbol"
-    NAME = "Derivative"
     cron_delta = (1,1); contravariant = (0,2); covariant = (2,0)
 
     @classmethod

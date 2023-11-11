@@ -1,6 +1,7 @@
 import sympy as smp
 from dataclasses import dataclass
 from relativisticpy.parsers import RelParser
+from relativisticpy.symengine import SymbolArray, diff, sin, cos, tan
 
 def Mathify(expression: str): 
     """Builds mathematical python object representing the string exporession enterred.""" 
@@ -46,6 +47,14 @@ node_configuration = [
             {
                 'node': 'float',
                 'handler': "float"
+            },
+            {
+                'node': 'negative',
+                'handler': "neg"
+            },
+            {
+                'node': 'positive',
+                'handler': "pos"
             }
         ]
 
@@ -56,7 +65,8 @@ class Node:
     args: any
 
 class MathNode:
-
+    def neg(self, node): return -node.args[0]
+    def pos(self, node): return +node.args[0]
     def add(self, node): return node.args[0] + node.args[1]
     def sub(self, node): return node.args[0] - node.args[1]
     def mul(self, node): return node.args[0] * node.args[1]
@@ -82,7 +92,7 @@ class MathNode:
     def expand(self, node: Node): return smp.expand(node.args[0])
     def differentiate(self, node: Node): return smp.diff(node.args[0], node.args[1])
     def integrate(self, node: Node): return smp.integrate(node.args[0], node.args[1])
-    def array(self, node: Node): return smp.MutableDenseNDimArray(list(node.args))
+    def array(self, node: Node): return SymbolArray(list(node.args))
     def object(self, node: Node): return smp.symbols('{}'.format(''.join(node.args)))
     def limit(self, node: Node): return smp.limit(node.args[0], node.args[1], node.args[2])
     def function(self, node: Node): return smp.symbols('{}'.format(node.handler), cls=smp.Function)(*node.args)
