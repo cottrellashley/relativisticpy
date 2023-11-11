@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "relativisticpy"
-version = "1.0.0"
+version = "1.1.9"
 description = "A General Relativity package to solve symbolic General Relativistic equations."
 readme = "README.md"
 authors = ["Ashley Cottrell"]
