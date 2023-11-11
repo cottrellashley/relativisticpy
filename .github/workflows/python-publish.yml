@@ -12,11 +12,8 @@ name: Upload Python Package
 
 on:
   push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+    tags:
+      - 'v*'  # Trigger the workflow on tag push like v1.0.0
 
 jobs:
   deploy:
