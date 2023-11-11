@@ -12,7 +12,7 @@ class Workbook:
     _cache = WorkbookState()
     parser = RelParser(RelPyAstNodeTraverser(_cache), RelPyAstNodeTraverser.node_configuration, RelPyAstNodeTraverser.variable_matchers)
 
-    def __init__(self, file_path: str):
+    def __init__(self, file_path: str = None):
         self.file_path = file_path
 
     def expr(self, string: str):
@@ -47,7 +47,8 @@ class Workbook:
     def tokens(self, string: str):
         return Workbook.parser.tokenize(string)
 
-    def exe(self):
+    def exe(self, file_path: str):
+        self.file_path = file_path
         with open(self.file_path, 'r') as file:
             tasks = []
             for line in file:

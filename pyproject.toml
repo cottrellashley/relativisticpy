@@ -12,3 +12,4 @@ build-backend = "setuptools.build_meta"
 
 [tool.poetry.dependencies]
 sympy = "^1.12"
+pytest = "7.4.3"
