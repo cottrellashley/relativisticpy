@@ -41,7 +41,7 @@ class RelPyAstNodeTraverser:
     def integrate(self, node: AstNode): return smp.integrate(node.args[0], node.args[1])
     def simplify(self, node: AstNode): return smp.simplify(node.args[0])
     def latex(self, node: AstNode): return smp.latex(node.args[0])
-    def solve(self, node: AstNode): return smp.solve(node.args[0])
+    def solve(self, node: AstNode): return smp.solve(*node.args)
     def numerical(self, node: AstNode): return smp.N(node.args[0], node.args[1]) if len(node.args) == 2 else smp.N(node.args[0], 15)
     def array(self, node: AstNode): return smp.MutableDenseNDimArray(list(node.args))
     def exp(self, node: AstNode): return smp.exp(node.args[0])
