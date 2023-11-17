@@ -1,8 +1,8 @@
 from typing import Iterable
 from relativisticpy.parsers.shared.interfaces.iterator import IIterator
 
-class Iterator(IIterator):
 
+class Iterator(IIterator):
     def __init__(self, object: Iterable):
         self.object = object
         if isinstance(self.object, Iterable):
@@ -14,7 +14,7 @@ class Iterator(IIterator):
         if self.current_item != None:
             self.current_item_location += 1
 
-    def peek(self, n: int = 1, default = None):
+    def peek(self, n: int = 1, default=None):
         i = self.current_item_location
         if i + n < len(self.object):
             return self.object[i + n]

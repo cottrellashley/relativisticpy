@@ -1,4 +1,4 @@
-from relativisticpy.core import MultiIndexObject, Metric, MetricIndices, Indices, Idx
+from relativisticpy.core import EinsteinArray, Metric, MetricIndices, Indices, Idx
 from relativisticpy.symengine import diff, SymbolArray, Symbol, symbols
 from relativisticpy.deserializers import tensor_from_string
 import pytest

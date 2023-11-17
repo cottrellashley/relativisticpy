@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-class IToken(ABC):
 
+class IToken(ABC):
     @property
     @abstractmethod
     def type(self):
@@ -18,7 +18,6 @@ class IToken(ABC):
 
 
 class ITokenProvider(ABC):
-
     @abstractmethod
     def new_token(self):
         pass

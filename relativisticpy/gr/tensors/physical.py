@@ -3,7 +3,7 @@
 """
 
 
-from relativisticpy.core import MultiIndexObject
+from relativisticpy.core import EinsteinArray
 
-class PhysicalObject(MultiIndexObject):
+class PhysicalObject(EinsteinArray):
     pass

@@ -3,16 +3,23 @@ from relativisticpy.parsers.interpreter.interpreter import InterpreterService
 from relativisticpy.parsers.shared.models.basic_nodes import NodeConfigurationModel
 from relativisticpy.parsers.shared.models.mapper import Mappers
 from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
-from relativisticpy.parsers.shared.models.object_configuration import ObjectConfigurationModel
+from relativisticpy.parsers.shared.models.object_configuration import (
+    ObjectConfigurationModel,
+)
+
 
 class RelParser:
-
-    def __init__(self, node_tree_walker,  node_configuration: list, object_configuration : list = []):
+    def __init__(
+        self,
+        node_tree_walker,
+        node_configuration: list,
+        object_configuration: list = [],
+    ):
         self.node_tree_walker = node_tree_walker
         self.node_configurations = ConfigurationModels(
-                                                        Mappers.map_from_list(node_configuration, NodeConfigurationModel), 
-                                                        Mappers.map_from_list(object_configuration, ObjectConfigurationModel)
-                                                      )
+            Mappers.map_from_list(node_configuration, NodeConfigurationModel),
+            Mappers.map_from_list(object_configuration, ObjectConfigurationModel),
+        )
         self.parser = DefaultParserService(self.node_configurations)
         self.interpreter = InterpreterService(self.node_tree_walker)
 

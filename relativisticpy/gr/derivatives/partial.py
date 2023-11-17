@@ -1,10 +1,10 @@
 # External Modules
-from relativisticpy.core import MultiIndexObject, einstein_convention, Indices
+from relativisticpy.core import EinsteinArray, einstein_convention, Indices
 from relativisticpy.symengine import diff, simplify
 
 
 @einstein_convention
-class Derivative(MultiIndexObject):
+class Derivative(EinsteinArray):
 
     SYMBOL = "DerivativeSymbol"
     NAME = "Derivative"
@@ -12,9 +12,9 @@ class Derivative(MultiIndexObject):
     def __init__(self, indices: Indices):
         self.indices = indices
 
-    def __mul__(self, other: MultiIndexObject) -> MultiIndexObject:
+    def __mul__(self, other: EinsteinArray) -> EinsteinArray:
         self.components = other.basis
         self.basis = other.basis
         operation = lambda a, b : diff(b, a)
         result = self.einsum_operation(other, operation)
-        return MultiIndexObject(components = simplify(result.components), indices = result.indices, basis = other.basis)
+        return EinsteinArray(components = simplify(result.components), indices = result.indices, basis = other.basis)

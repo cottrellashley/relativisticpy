@@ -145,7 +145,7 @@ core (!Rough downward dependency!)
 |
 |-- Einstein Summation Convention Decorator
 |
-|-- MultiIndexObject
+|-- EinsteinArray
 |
 |-- Metric
 |
