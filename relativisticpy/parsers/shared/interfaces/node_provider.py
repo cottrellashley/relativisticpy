@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
-class INodeProvider(ABC):
 
+class INodeProvider(ABC):
     @abstractmethod
     def new_node(self, node_type: str, *args):
         pass

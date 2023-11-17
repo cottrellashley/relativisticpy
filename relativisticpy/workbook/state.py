@@ -1,50 +1,66 @@
 from dataclasses import dataclass
 from typing import Callable, Dict, List
 
-from relativisticpy.core import Indices, MultiIndexObject, TensorEqualityType
+from relativisticpy.core import Indices, EinsteinArray, TensorEqualityType
 from relativisticpy.utils import extract_tensor_symbol, extract_tensor_indices
 
 from relativisticpy.workbook.constants import WorkbookConstants
 
 
 class TensorReference:
-    """ Tensor Cache Helper class which represents strings representations of tensors. """
+    """Tensor Cache Helper class which represents strings representations of tensors."""
+
     def __init__(self, tstring):
-        self.tstring : str = tstring
+        self.tstring: str = tstring
         self.__indices_repr = extract_tensor_indices(self.tstring)
         self.__symbol = extract_tensor_symbol(self.tstring)
         self.__indices = Indices.from_string(self.__indices_repr)
 
     @property
-    def indices(self) -> Indices: return self.__indices
+    def indices(self) -> Indices:
+        return self.__indices
 
     @property
-    def symbol(self) -> str: self.__symbol
+    def symbol(self) -> str:
+        self.__symbol
 
     @property
-    def indices_repr(self) -> str: return self.__indices_repr
+    def indices_repr(self) -> str:
+        return self.__indices_repr
 
     @property
-    def repr(self) -> str: return str(self)
+    def repr(self) -> str:
+        return str(self)
 
     @property
-    def id(self) -> str: return self._tid()
-    def _tid(self): return self.__symbol
+    def id(self) -> str:
+        return self._tid()
 
-    def __str__(self) -> str: return self.tstring
-    def __hash__(self) -> int: return hash(self.id)
-    def __eq__(self, other) -> bool: return self.id == other.id if isinstance(other, TensorReference) else False
+    def _tid(self):
+        return self.__symbol
+
+    def __str__(self) -> str:
+        return self.tstring
+
+    def __hash__(self) -> int:
+        return hash(self.id)
+
+    def __eq__(self, other) -> bool:
+        return self.id == other.id if isinstance(other, TensorReference) else False
+
 
 class TensorList:
-    """ Helper class for Cache to more easily store and retriev tensor objects. """
+    """Helper class for Cache to more easily store and retriev tensor objects."""
 
-    def __init__(self, *tensors: MultiIndexObject):
-        self.tensors : List[MultiIndexObject] = list(tensors)
+    def __init__(self, *tensors: EinsteinArray):
+        self.tensors: List[EinsteinArray] = list(tensors)
 
     def iterfind(self, *funcs: Callable):
         filtered_tensors = self.tensors
         for func in funcs:
-            filtered_tensors = [tensor for tensor in filtered_tensors if func(tensor.indices)]
+            filtered_tensors = [
+                tensor for tensor in filtered_tensors if func(tensor.indices)
+            ]
             if not filtered_tensors:
                 return None
         return filtered_tensors if filtered_tensors else None
@@ -61,64 +77,75 @@ class TensorList:
     def get(self, idx: int):
         return self.tensors[idx]
 
-    def any(self, func: Callable): 
+    def any(self, func: Callable):
         return any([func(tensor.indices) for tensor in self.tensors])
 
-    def all(self, func: Callable): 
+    def all(self, func: Callable):
         return all([func(tensor.indices) for tensor in self.tensors])
 
+
 class WorkbookState:
-    """ 
-        A Cache Object specific to handle RelativisticPy Workbooks.
-        This class does not know how to initiate new tensors, but it does know how to manage cached tensors to return them in the most efficient manner.
+    """
+    A Cache Object specific to handle RelativisticPy Workbooks.
+    This class does not know how to initiate new tensors, but it does know how to manage cached tensors to return them in the most efficient manner.
     """
 
     def __init__(self):
-        self.store : Dict[str, any] = {}
-        self.tensors : Dict[str, TensorList] = {}
+        self.store: Dict[str, any] = {}
+        self.tensors: Dict[str, TensorList] = {}
 
         # Set Default Symbol definitions
-        self.store[WorkbookConstants.METRICSYMBOL.value] = 'G'
-        self.store[WorkbookConstants.RICCISYMBOL.value] = 'Ric'
-        self.store[WorkbookConstants.RIEMANNSYMBOL.value] = 'R'
-        self.store[WorkbookConstants.DERIVATIVESYMBOL.value] = 'd'
-        self.store[WorkbookConstants.COVDERIVATIVESYMBOL.value] = 'D'
+        self.store[WorkbookConstants.METRICSYMBOL.value] = "G"
+        self.store[WorkbookConstants.RICCISYMBOL.value] = "Ric"
+        self.store[WorkbookConstants.RIEMANNSYMBOL.value] = "R"
+        self.store[WorkbookConstants.DERIVATIVESYMBOL.value] = "d"
+        self.store[WorkbookConstants.COVDERIVATIVESYMBOL.value] = "D"
 
-        self.__metric_symbol = 'g'
-        self.__ricci_symbol = 'Ric'
-        self.__reimann_symbol = 'R'
-        self.__derivative_symbol = 'd'
-        self.__cov_derivative_symbol = 'D'
+        self.__metric_symbol = "g"
+        self.__ricci_symbol = "Ric"
+        self.__reimann_symbol = "R"
+        self.__derivative_symbol = "d"
+        self.__cov_derivative_symbol = "D"
 
-    @property 
-    def metric_symbol(self) -> str: return self.__metric_symbol
+    @property
+    def metric_symbol(self) -> str:
+        return self.__metric_symbol
 
     @metric_symbol.setter
-    def metric_symbol(self, value: str) -> None: self.__metric_symbol = value
+    def metric_symbol(self, value: str) -> None:
+        self.__metric_symbol = value
 
-    @property 
-    def ricci_symbol(self) -> str: return self.__ricci_symbol
+    @property
+    def ricci_symbol(self) -> str:
+        return self.__ricci_symbol
 
     @ricci_symbol.setter
-    def ricci_symbol(self, value: str) -> None: self.__ricci_symbol = value
+    def ricci_symbol(self, value: str) -> None:
+        self.__ricci_symbol = value
 
-    @property 
-    def reimann_symbol(self) -> str: return self.__reimann_symbol
+    @property
+    def reimann_symbol(self) -> str:
+        return self.__reimann_symbol
 
     @reimann_symbol.setter
-    def reimann_symbol(self, value: str) -> None: self.__reimann_symbol = value
+    def reimann_symbol(self, value: str) -> None:
+        self.__reimann_symbol = value
 
-    @property 
-    def derivative_symbol(self) -> str: return self.__derivative_symbol
+    @property
+    def derivative_symbol(self) -> str:
+        return self.__derivative_symbol
 
     @derivative_symbol.setter
-    def derivative_symbol(self, value: str) -> None: self.__derivative_symbol = value
+    def derivative_symbol(self, value: str) -> None:
+        self.__derivative_symbol = value
 
-    @property 
-    def cov_derivative_symbol(self) -> str: return self.__cov_derivative_symbol
+    @property
+    def cov_derivative_symbol(self) -> str:
+        return self.__cov_derivative_symbol
 
     @cov_derivative_symbol.setter
-    def cov_derivative_symbol(self, value: str) -> None: self.__cov_derivative_symbol = value
+    def cov_derivative_symbol(self, value: str) -> None:
+        self.__cov_derivative_symbol = value
 
     ##### OTHER CACHE METHODS #######
 
@@ -130,19 +157,19 @@ class WorkbookState:
 
     def has_variable(self, name):
         return name in self.store
-    
+
     ##### TENSOR CACHE METHODS #######
 
     def has_metric(self) -> bool:
         return self.__metric_symbol in self.tensors
-    
+
     def get_metric(self):
         return self.tensors[self.__metric_symbol].get(0)
 
-    def set_coordinates(self, coordinates: MultiIndexObject):
+    def set_coordinates(self, coordinates: EinsteinArray):
         self.coordinates = coordinates
 
-    def set_tensor(self, tensor_string: TensorReference, tensor: MultiIndexObject):
+    def set_tensor(self, tensor_string: TensorReference, tensor: EinsteinArray):
         if self.has_tensor(tensor_string.id):
             self.tensors[tensor_string.id].add(tensor)
         self.tensors[tensor_string.id] = TensorList(tensor)
@@ -155,12 +182,13 @@ class WorkbookState:
     def has_tensor(self, tensor_id: str):
         return tensor_id in self.tensors
 
-    def match_on_tensors(self, equality_type: TensorEqualityType, tref: TensorReference):
-    
+    def match_on_tensors(
+        self, equality_type: TensorEqualityType, tref: TensorReference
+    ):
         if not self.has_tensor(tref.id):
             return None
 
-        cached_tensors : TensorList[MultiIndexObject] = self.tensors[tref.id]
-        callback : Callable = tref.indices.get_equality_type_callback(equality_type)
+        cached_tensors: TensorList[EinsteinArray] = self.tensors[tref.id]
+        callback: Callable = tref.indices.get_equality_type_callback(equality_type)
         tensor_matched = cached_tensors.find(callback)
         return tensor_matched

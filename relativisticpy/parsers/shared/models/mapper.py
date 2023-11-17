@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Type
 
-class Mappers:
 
+class Mappers:
     @staticmethod
     def map_from_list(lst: List[Dict[str, Any]], obj: Type) -> List:
         """

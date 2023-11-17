@@ -5,7 +5,6 @@ from relativisticpy.parsers.shared.constants import TokenType
 from relativisticpy.parsers.shared.constants import Characters
 
 
-
 class Lexer(ILexer):
     def __init__(self, token_provider: ITokenProvider):
         self.token_provider = token_provider
@@ -15,7 +14,6 @@ class Lexer(ILexer):
         self.characters.advance()
         # If the token is longer than a single character, we need to defined how to generate it.
         while self.characters.current() != None:
-
             if self.characters.current() in Characters.WHITESPACE.value:
                 self.characters.advance()
 
@@ -34,11 +32,14 @@ class Lexer(ILexer):
         return a
 
     def _number(self):
-        number = ''
-        while self.characters.current() != None and (self.characters.current() in Characters.DIGITS.value or self.characters.current() == '.'):
+        number = ""
+        while self.characters.current() != None and (
+            self.characters.current() in Characters.DIGITS.value
+            or self.characters.current() == "."
+        ):
             number += self.characters.current()
             self.characters.advance()
-        count = number.count('.')
+        count = number.count(".")
         if count == 0:
             self.token_provider.new_token(TokenType.INTEGER, number)
         elif count == 1:
@@ -48,30 +49,54 @@ class Lexer(ILexer):
 
     def _operation(self):
         ops = []
-        while self.characters.current() != None and self.characters.current() in Characters.OPERATIONS.value:
+        while (
+            self.characters.current() != None
+            and self.characters.current() in Characters.OPERATIONS.value
+        ):
             ops.append(self.characters.current())
             self.characters.advance()
 
         i = 0
         while i < len(ops):
-            if i + 2 < len(ops) and ops[i] in self.token_provider.tripples() and self.token_provider.tripple_match_exists(ops[i], ops[i+1], ops[i+2]):
-                self.token_provider.new_tripple_operation_token(ops[i], ops[i+1], ops[i+2])
+            if (
+                i + 2 < len(ops)
+                and ops[i] in self.token_provider.tripples()
+                and self.token_provider.tripple_match_exists(
+                    ops[i], ops[i + 1], ops[i + 2]
+                )
+            ):
+                self.token_provider.new_tripple_operation_token(
+                    ops[i], ops[i + 1], ops[i + 2]
+                )
                 i += 3
-            elif i + 1 < len(ops) and ops[i] in self.token_provider.doubles() and self.token_provider.double_match_exists(ops[i], ops[i+1]):
-                self.token_provider.new_double_operation_token(ops[i], ops[i+1])
+            elif (
+                i + 1 < len(ops)
+                and ops[i] in self.token_provider.doubles()
+                and self.token_provider.double_match_exists(ops[i], ops[i + 1])
+            ):
+                self.token_provider.new_double_operation_token(ops[i], ops[i + 1])
                 i += 2
             else:
                 self.token_provider.new_single_operation_token(ops[i])
                 i += 1
 
     def _object(self):
-        obj = ''
-        while self.characters.current() != None and self.characters.current() in Characters.OBJECTCHARACTERS.value:
-            if self.characters.current() in Characters.CHARACTERS.value and self.characters.peek(1, '') == '(':
+        obj = ""
+        while (
+            self.characters.current() != None
+            and self.characters.current() in Characters.OBJECTCHARACTERS.value
+        ):
+            if (
+                self.characters.current() in Characters.CHARACTERS.value
+                and self.characters.peek(1, "") == "("
+            ):
                 obj += self.characters.current()
                 self.characters.advance()
-                self.token_provider.new_token(TokenType.FUNCTION, obj)               
-            elif self.characters.peek(1, '') not in Characters.OBJECTCHARACTERS.value + '(':
+                self.token_provider.new_token(TokenType.FUNCTION, obj)
+            elif (
+                self.characters.peek(1, "")
+                not in Characters.OBJECTCHARACTERS.value + "("
+            ):
                 obj += self.characters.current()
                 self.characters.advance()
                 self.token_provider.new_token(TokenType.OBJECT, obj)

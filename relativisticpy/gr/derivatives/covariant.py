@@ -2,12 +2,12 @@
 from typing import Union
 
 # External Modules
-from relativisticpy.core import Indices, MultiIndexObject, Metric
+from relativisticpy.core import Indices, EinsteinArray, Metric
 
 # This Module
 from relativisticpy.gr.connection import Connection
 
-class CovDerivative(MultiIndexObject):
+class CovDerivative(EinsteinArray):
 
     @classmethod
     def from_metric(metric: Metric) -> 'CovDerivative':
@@ -23,9 +23,9 @@ class CovDerivative(MultiIndexObject):
                          basis       =   arg.basis
                         )
 
-    def __mul__(self, other : MultiIndexObject) -> MultiIndexObject:
+    def __mul__(self, other : EinsteinArray) -> EinsteinArray:
         self.__cov_derivative_object(other) # The number of connections in expression depends on indices stricture of other component
         pass
         
-    def __cov_derivative_object(self, other: MultiIndexObject) -> MultiIndexObject:
+    def __cov_derivative_object(self, other: EinsteinArray) -> EinsteinArray:
         pass

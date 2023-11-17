@@ -23,7 +23,7 @@ yes     |-- Action1
 |
 Condition2
 |
-|-- MultiIndexObject
+|-- EinsteinArray
 |
 |-- Metric
 |
