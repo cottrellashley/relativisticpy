@@ -1,5 +1,3 @@
-import sympy as smp
-
 from relativisticpy.workbook.itensors import (
     TensorDefinitionNode,
     TensorKeyNode,
@@ -10,6 +8,80 @@ from relativisticpy.workbook.itensors import (
 from relativisticpy.workbook.matchers import match_tensors
 from relativisticpy.workbook.node import AstNode
 from relativisticpy.workbook.state import WorkbookState
+
+from relativisticpy.symengine import (
+    Symbol,
+    Rational,
+    Function,
+    Interval,
+    Order,
+    Sum,
+    SymbolArray,
+    O,
+    LaplaceTransform,
+    diff,
+    integrate,
+    simplify,
+    tensorproduct,
+    symbols,
+    residue,
+    laplace_transform,
+    inverse_laplace_transform,
+    inverse_mellin_transform,
+    mellin_transform,
+    fourier_transform,
+    inverse_fourier_transform,
+    sine_transform,
+    inverse_sine_transform,
+    cosine_transform,
+    inverse_cosine_transform,
+    hankel_transform, 
+    inverse_hankel_transform,
+    zeros,
+    permutedims,
+    solve,
+    dsolve,
+    expand,
+    latex,
+    limit,
+    Limit,
+    fourier_series,
+    sequence,
+    series,
+    euler_equations,
+    sqrt,
+    exp_polar,
+    bell,
+    bernoulli,
+    binomial,
+    gamma,
+    conjugate,
+    hyper,
+    catalan,
+    euler,
+    factorial,
+    fibonacci,
+    harmonic,
+    log,
+    I,
+    oo,
+    E,
+    N,
+    pi,
+    exp,
+    sin,
+    asin,
+    sinh,
+    asinh,
+    cos,
+    acos,
+    cosh,
+    acosh,
+    tan,
+    atan,
+    tanh,
+    atanh
+)
 
 
 class RelPyAstNodeTraverser:
@@ -63,94 +135,47 @@ class RelPyAstNodeTraverser:
     # Sympy node handlers
 
     def subs(self, node: AstNode):
-        expr: smp.Symbol = node.args[0]
+        expr: Symbol = node.args[0]
         return expr.subs(node.args[1], node.args[2])
 
-    def limit(self, node: AstNode):
-        return smp.limit(node.args[0], node.args[1], node.args[2])
-
-    def expand(self, node: AstNode):
-        return smp.expand(node.args[0])
-
-    def diff(self, node: AstNode):
-        return smp.diff(node.args[0], node.args[1])
-
-    def integrate(self, node: AstNode):
-        return smp.integrate(node.args[0], node.args[1])
-
-    def simplify(self, node: AstNode):
-        return smp.simplify(node.args[0])
-
-    def latex(self, node: AstNode):
-        return smp.latex(node.args[0])
-
-    def solve(self, node: AstNode):
-        return smp.solve(*node.args)
-
-    def numerical(self, node: AstNode):
-        return (
-            smp.N(node.args[0], node.args[1])
-            if len(node.args) == 2
-            else smp.N(node.args[0], 15)
-        )
-
-    def array(self, node: AstNode):
-        return smp.MutableDenseNDimArray(list(node.args))
-
-    def exp(self, node: AstNode):
-        return smp.exp(node.args[0])
-
-    def dsolve(self, node: AstNode):
-        return smp.dsolve(node.args[0], node.args[1]).rhs
+    def limit(self, node: AstNode): return limit(*node.args)
+    def expand(self, node: AstNode): return expand(*node.args)
+    def diff(self, node: AstNode): return diff(*node.args)
+    def integrate(self, node: AstNode): return integrate(*node.args)
+    def simplify(self, node: AstNode): return simplify(*node.args)
+    def latex(self, node: AstNode): return latex(*node.args)
+    def solve(self, node: AstNode): return solve(*node.args)
+    def numerical(self, node: AstNode): return N(*node.args)
+    def exp(self, node: AstNode): return exp(*node.args)
+    def dsolve(self, node: AstNode): return dsolve(*node.args)
 
     # Sympy Trigs
-    def sin(self, node: AstNode):
-        return smp.sin(node.args[0])
+    def sin(self, node: AstNode): return sin(*node.args)
+    def cos(self, node: AstNode): return cos(*node.args)
+    def tan(self, node: AstNode): return tan(*node.args)
+    def asin(self, node: AstNode): return asin(*node.args)
+    def acos(self, node: AstNode): return acos(*node.args)
+    def atan(self, node: AstNode): return atan(*node.args)
+    def sinh(self, node: AstNode): return sinh(*node.args)
+    def cosh(self, node: AstNode): return cosh(*node.args)
+    def tanh(self, node: AstNode): return tanh(*node.args)
+    def asinh(self, node: AstNode): return asinh(*node.args)
+    def acosh(self, node: AstNode): return acosh(*node.args)
+    def atanh(self, node: AstNode): return atanh(*node.args)
 
-    def cos(self, node: AstNode):
-        return smp.cos(node.args[0])
-
-    def tan(self, node: AstNode):
-        return smp.tan(node.args[0])
-
-    def asin(self, node: AstNode):
-        return smp.asin(node.args[0])
-
-    def acos(self, node: AstNode):
-        return smp.acos(node.args[0])
-
-    def atan(self, node: AstNode):
-        return smp.atan(node.args[0])
-
-    def sinh(self, node: AstNode):
-        return smp.sinh(node.args[0])
-
-    def cosh(self, node: AstNode):
-        return smp.cosh(node.args[0])
-
-    def tanh(self, node: AstNode):
-        return smp.tanh(node.args[0])
-
-    def asinh(self, node: AstNode):
-        return smp.asinh(node.args[0])
-
-    def acosh(self, node: AstNode):
-        return smp.acosh(node.args[0])
-
-    def atanh(self, node: AstNode):
-        return smp.atanh(node.args[0])
+    def array(self, node: AstNode): return SymbolArray(list(node.args))
 
     # Sympy constants
     def constant(self, node: AstNode):
         a = "".join(node.args)
         if a == "pi":
-            return smp.pi
+            return pi
         elif a == "e":
-            return smp.E
+            return E
 
     # Sympy symbols / function initiators
     def function(self, node: AstNode):
-        return smp.symbols("{}".format(node.handler), cls=smp.Function)(*node.args)
+        return symbols("{}".format(node.handler), cls=Function)(*node.args)
 
     def object(self, node: AstNode):
         a = "".join(node.args)
@@ -159,7 +184,7 @@ class RelPyAstNodeTraverser:
             return self.constant(node)
 
         elif not self.cache.has_variable(a):
-            return smp.symbols("{}".format(a))
+            return symbols("{}".format(a))
 
         else:
             return self.cache.get_variable(str(a))

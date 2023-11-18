@@ -1,0 +1,8 @@
+
+a = diff(f(x), x) + f(x)*r**2*sin(theta)**2 
+c = subs(a, theta, y) 
+B = g(x) 
+A = h(x) 
+eq5 = ((a*B)*(r*B)) + c
+
+eq5 
