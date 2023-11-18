@@ -36,3 +36,11 @@ def test_iteration(indices_setup):
 def test_getitem(indices_setup):
     indices, idx1, _ = indices_setup
     assert indices[idx1] == [idx for idx in indices.indices if idx.symbol == idx1.symbol and idx.covariant == idx1.covariant]
+
+def test_from_string(indices_setup):
+    indices1, idx1, idx2 = indices_setup
+    indices_from_string_init = Indices.from_string('_{a}_{b}')
+
+    assert indices_from_string_init.indices[0] == idx1
+    assert indices_from_string_init.indices[1] == idx2
+    assert indices_from_string_init == indices1

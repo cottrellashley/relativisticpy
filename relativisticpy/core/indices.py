@@ -8,10 +8,13 @@ from relativisticpy.core.tensor_equality_types import TensorEqualityType
 
 # External Modules
 from relativisticpy.utils import transpose_list
-from relativisticpy.deserializers import indices_from_string
+from relativisticpy.deserializers import indices_from_string, Mathify
 from relativisticpy.symengine import SymbolArray, symbols
 
 class Idx:
+    """
+        IMPORTANT: This class is not for instantiation for use. The Indices class auto-initiates this class and sets all relevant properties.
+    """
 
     def __init__(self, symbol: str, order: Optional[int] = None, values: Optional[Union[List, int]] = None, covariant: Optional[bool] = True):
         self.symbol: str = symbol
@@ -58,12 +61,14 @@ class Idx:
     def __neg__(self) -> 'Idx': return Idx(self.symbol, self.order, self.values, not self.covariant)
     def __len__(self) -> int: return self.dimention
     def __eq__(self, other: 'Idx') -> bool: return self.covariant == other.covariant if self.symbol == other.symbol else False
-    def __repr__(self) -> str: return f"""{'_' if self.covariant else '^'}{self.symbol}  """
-    def __str__(self) -> str: return self.__repr__()
+    def __repr__(self) -> str: return f"""Indices('{self.symbol}',{self.order},{self.values},{self.covariant}) """
+    def __str__(self) -> str: return f"""{'_' if self.covariant else '^'}{{{self.symbol}}}""" # <== Note when we have multiple str representation of indices, this need to be dynamic.
 
     def __iter__(self):
-        self.first_index_value = 0 if self.running else self.values
-        self.last_index_value = self.dimention - 1 if self.running else self.values
+        start = self.values[0] if isinstance(self.values, list) else self.values
+        end = self.values[-1] if isinstance(self.values, list) else self.values
+        self.first_index_value = 0 if self.running and not isinstance(self.values, list) else start
+        self.last_index_value = self.dimention - 1 if self.running and not isinstance(self.values, list) else end
         return self
 
     def __next__(self):
@@ -78,8 +83,14 @@ class Indices:
     """ Representation of Tensor Indices. Initialized as a list of Idx objecs. """
 
     @classmethod
-    def from_string(cls, indices_string):
-        return indices_from_string(Idx, Indices, indices_string)
+    def from_string(cls, indices_string, basis = None):
+        if basis == None:
+            return indices_from_string(Idx, Indices, indices_string)
+        indices = indices_from_string(Idx, Indices, indices_string)
+        if isinstance(basis, str):
+            basis = Mathify(basis)
+        indices.basis = basis
+        return indices
 
     def __init__(self, *args: Idx):
         self.indices: Union[List[Idx], Tuple[Idx]] = tuple([index.set_order(order) for order, index in enumerate([*args])])
@@ -117,7 +128,7 @@ class Indices:
     def __sub__(self, other: 'Indices') -> 'Indices': return self.additive_product(other)
     def __getitem__(self, index: Idx) -> List[Idx]: return [idx for idx in self.indices if idx.symbol == index.symbol and idx.covariant == index.covariant]
     def __setitem__(self, key: Idx, new: Idx) -> 'Indices': return Indices(*[new if idx.symbol == key.symbol and idx.covariant == key.covariant else idx for idx in self.indices])
-
+    def __str__(self) -> str: return "".join([str(index) for index in self.indices])
     def __iter__(self):
         self.__length = int(len(self._indices_iterator()))
         self.__i = 1

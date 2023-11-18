@@ -1,0 +1,18 @@
+
+# Define the symbol for the metric tensor
+MetricSymbol := g # Comment in line test
+
+# Define the corrdinate system we are working in
+Coordinates := [t, r, theta, phi] 
+
+# Define components of the metric tensor
+g_{mu}_{nu} := [[-1 + 2*M/r, 1, 0, 0], [0, 1/(1 - 2*M/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]
+
+RicciSymbol := Ric 
+RiemannSymbol := R # Hello
+
+Ric_{a}_{b}
+
+Ric_{a:1}_{b:0}
+
+Ric_{a:0}_{b:0}
