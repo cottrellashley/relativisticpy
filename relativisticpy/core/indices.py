@@ -91,10 +91,15 @@ class Indices:
             basis = Mathify(basis)
         indices.basis = basis
         return indices
+    
+    EINSUM_GENERATOR = "EINSUM"
+    SUMMATION_GENERATOR = "SUMMATION"
+    SELFSUM_GENERATOR = "SELFSUM"
 
     def __init__(self, *args: Idx):
         self.indices: Union[List[Idx], Tuple[Idx]] = tuple([index.set_order(order) for order, index in enumerate([*args])])
         self.generator = lambda: None # mokey patch product implementations of index depending on mul or add products
+        self.generator_implementor = None # Curretly only used for unit tests => for use to know which implementation the generator is in currently.
         self._basis = None
 
     # Properties
@@ -190,6 +195,7 @@ class Indices:
                 return all
 
         res.generator = generator
+        res.generator_implementor = self.EINSUM_GENERATOR
         res.basis = self.basis
         return res
 
@@ -199,6 +205,7 @@ class Indices:
         res = self._get_additive_result()
         result_in_old = [i[0] for i in res._get_all_repeated_location(self) if len(i) > 0]
         res.generator = lambda idx : [(IndicesA, IndicesB) for (IndicesA, IndicesB) in all if itemgetter(*result_in_old)(IndicesA) == tuple(idx)] if not res.scalar and idx != None else all
+        res.generator_implementor = self.SUMMATION_GENERATOR
         return res
 
     def self_product(self):
@@ -208,6 +215,7 @@ class Indices:
         res = self._get_selfsum_result()
         old_indices_not_self_summed = [i[0] for i in self._get_all_repeated_location(res) if len(i) > 0]
         res.generator = lambda idx : [indices for indices in all if itemgetter(*old_indices_not_self_summed)(indices) == tuple(idx)] if not res.scalar and idx != None else all
+        res.generator_implementor = self.SELFSUM_GENERATOR
         return res
 
     # Privates
