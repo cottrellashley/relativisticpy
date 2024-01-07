@@ -8,7 +8,12 @@
 - **Energy Momentum Tensor**
 - **Ricci Scalar**
 - **Weyl Tensor**
+- **Symetric/Ant-Symmetric Tensors:** Define a T[_{a}_{b}] = 1/2*(T_{a}_{b} - T_{b}_{a}) and a T(_{a}_{b}) = 1/2*(T_{a}_{b} + T_{b}_{a})  
 - Clean up Index and Indices properties handling/lifecycle -> (basis, shape, dimention, values, etc...)
+
+## Grammar Syntax for RelPy
+
+- **Context-Dependent Grammers:** Currectly I only have one Lexer and one Parser (Grammar) -> I would like to have the ability to trigger different lexers via contex driven letters i.e. "G^" or "G_" trigger the tensor grammar such that we decode the tensor and can use characters which are different meaning in the context of a tensor such as G_{a:[0,1,2]}_{b:0} will grab the tensor indices which the user specified and not create an array [0, 1, 2] (which is what the current grammar would interpret this as and break.)
 
 ### Additional Tensor Objects to Implement
 
