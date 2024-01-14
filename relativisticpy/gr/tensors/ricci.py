@@ -45,17 +45,3 @@ class Ricci(GeometricObject):
                 - Gamma[i, p, d] * Gamma[d, i, j]
             )
         return simplify(A)
-
-    def RicciSimpler(self):
-        N = self.Dimention
-        C = self.Gamma()
-        A = smp.MutableDenseNDimArray(smp.zeros(N**2), (N, N))
-        for i in range(N):
-            for j in range(N):
-                for p in range(N):
-                    for d in range(N):
-                        A[j, p] += smp.Rational(1, N) * (
-                            smp.diff(C[i, p, j], self.Basis[i])
-                            - smp.diff(C[i, i, j], self.Basis[p])
-                        ) + (C[i, i, d] * C[d, p, j] - C[i, p, d] * C[d, i, j])
-        return smp.simplify(A)

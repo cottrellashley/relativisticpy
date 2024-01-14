@@ -182,6 +182,14 @@ class RelPyAstNodeTraverser:
 
         if a in ["pi", "e"]:
             return self.constant(node)
+    
+        elif a == self.cache.metric_symbol:
+            self.cache.set_metric_scalar()
+            return self.cache.metric_scalar
+        
+        elif a == self.cache.ricci_symbol:
+            self.cache.set_ricci_scalar()
+            return self.cache.ricci_scalar
 
         elif not self.cache.has_variable(a):
             return symbols("{}".format(a))

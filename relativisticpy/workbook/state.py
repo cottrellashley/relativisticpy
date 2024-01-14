@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Callable, Dict, List
 
+from relativisticpy.gr import MetricScalar, RicciScalar
 from relativisticpy.core import Indices, EinsteinArray, TensorEqualityType
 from relativisticpy.utils import extract_tensor_symbol, extract_tensor_indices
 
@@ -95,17 +96,24 @@ class WorkbookState:
         self.tensors: Dict[str, TensorList] = {}
 
         # Set Default Symbol definitions
-        self.store[WorkbookConstants.METRICSYMBOL.value] = "G"
+        self.store[WorkbookConstants.METRICSYMBOL.value] = "g"
+        self.store[WorkbookConstants.EINSTEINTENSORSYMBOL.value] = "Ein"
         self.store[WorkbookConstants.RICCISYMBOL.value] = "Ric"
         self.store[WorkbookConstants.RIEMANNSYMBOL.value] = "R"
+        self.store[WorkbookConstants.CONNECTION.value] = "C"
         self.store[WorkbookConstants.DERIVATIVESYMBOL.value] = "d"
         self.store[WorkbookConstants.COVDERIVATIVESYMBOL.value] = "D"
 
         self.__metric_symbol = "g"
+        self.einstein_tensor_symbol = 'G'
+        self.__connection_symbol = "C"
         self.__ricci_symbol = "Ric"
         self.__reimann_symbol = "R"
         self.__derivative_symbol = "d"
         self.__cov_derivative_symbol = "D"
+
+        self.ricci_scalar = None
+        self.metric_scalar = None
 
     @property
     def metric_symbol(self) -> str:
@@ -114,6 +122,14 @@ class WorkbookState:
     @metric_symbol.setter
     def metric_symbol(self, value: str) -> None:
         self.__metric_symbol = value
+
+    @property
+    def connection_symbol(self) -> str:
+        return self.__connection_symbol
+
+    @connection_symbol.setter
+    def connection_symbol(self, value: str) -> None:
+        self.__connection_symbol = value
 
     @property
     def ricci_symbol(self) -> str:
@@ -168,6 +184,14 @@ class WorkbookState:
 
     def set_coordinates(self, coordinates: EinsteinArray):
         self.coordinates = coordinates
+
+    def set_metric_scalar(self):
+        if self.has_metric():
+            self.metric_scalar = MetricScalar(self.get_metric(), self.coordinates)
+
+    def set_ricci_scalar(self):
+        if self.has_metric():
+            self.ricci_scalar = RicciScalar(self.get_metric(), self.coordinates)
 
     def set_tensor(self, tensor_string: TensorReference, tensor: EinsteinArray):
         if self.has_tensor(tensor_string.id):

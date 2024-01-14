@@ -21,6 +21,10 @@ from relativisticpy.symengine import (
 
 # Workbook.expr() => is used for one line solver function - like a "unit test" for workbook module.
 
+
+
+
+
 @pytest.fixture
 def Schwarzschild_Basis():
     x, y, z, t, r, theta, phi, G, M, c = sp.symbols("x y z t r theta phi G M c")
@@ -65,7 +69,7 @@ def Schwarzschild_Metric():
 def Schwarzschild_Connection():
     x, y, z, t, r, theta, phi, G, M, c = sp.symbols("x y z t r theta phi G M c")
 
-    Connection_Components = sp.MutableDenseNDimArray([
+    return sp.MutableDenseNDimArray([
         [
             [0, G * M / (r * (-2 * G * M + r)), 0, 0],
             [G * M / (r * (-2 * G * M + r)), 0, 0, 0],
@@ -94,10 +98,10 @@ def Schwarzschild_Connection():
 
 
 @pytest.fixture
-def Schwarzschild_Ricci():
-    ricci = sp.MutableDenseNDimArray([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
-    return ricci
+def Schwarzschild_Ricci(): return sp.MutableDenseNDimArray([[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])
 
+@pytest.fixture
+def Schwarzschild_MetricScalar(): return sp.MutableDenseNDimArray(4)
 
 @pytest.fixture
 def Schwarzschild_Riemann():

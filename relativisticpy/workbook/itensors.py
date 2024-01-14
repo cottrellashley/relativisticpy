@@ -8,7 +8,7 @@ from relativisticpy.core import (
     Indices,
     TensorEqualityType,
 )
-from relativisticpy.gr import Derivative, Ricci, Riemann
+from relativisticpy.gr import Derivative, Ricci, Riemann, Connection, EinsteinTensor
 from relativisticpy.symengine import SymbolArray, permutedims
 from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.workbook.node import AstNode
@@ -95,10 +95,36 @@ class TensorNode:
 
     def riemann(self, tensor_ref: TensorReference):
         if not self.state.has_tensor(tensor_ref.id):
-            ricci = Riemann(tensor_ref.indices, self.state.get_metric())
-            self.state.set_tensor(tensor_ref, ricci)
+            riemann = Riemann(tensor_ref.indices, self.state.get_metric())
+            self.state.set_tensor(tensor_ref, riemann)
 
-        return ricci[tensor_ref.indices] if tensor_ref.indices.anyrunnig else ricci
+        return riemann[tensor_ref.indices] if tensor_ref.indices.anyrunnig else riemann
+
+    def connection(self, tensor_ref: TensorReference):
+        if not self.state.has_tensor(tensor_ref.id):
+            connection = Connection(
+                indices=tensor_ref.indices, symbols=self.state.get_metric()
+            )
+            self.state.set_tensor(tensor_ref, connection)
+
+        return (
+            connection[tensor_ref.indices]
+            if tensor_ref.indices.anyrunnig
+            else connection
+        )
+
+    def einstein_tensor(self, tensor_ref: TensorReference):
+        if not self.state.has_tensor(tensor_ref.id):
+            tensor = EinsteinTensor(
+                tensor_ref.indices, self.state.get_metric()
+            )
+            self.state.set_tensor(tensor_ref, tensor)
+
+        return (
+            tensor[tensor_ref.indices]
+            if tensor_ref.indices.anyrunnig
+            else tensor
+        )
 
     def generate_tensor(self, tensor_ref: TensorReference):
         str_key = tensor_ref.id
@@ -110,11 +136,15 @@ class TensorNode:
         if str_key == self.state.metric_symbol:
             return self.metric(tensor_ref)
         elif str_key == self.state.derivative_symbol:
-            return Derivative(tensor_ref)
+            return Derivative(tensor_ref.indices, self.state.coordinates)
         elif str_key == self.state.reimann_symbol:
             return self.riemann(tensor_ref)
         elif str_key == self.state.ricci_symbol:
             return self.ricci(tensor_ref)
+        elif str_key == self.state.connection_symbol:
+            return self.connection(tensor_ref)
+        elif str_key == self.state.einstein_tensor_symbol:
+            return self.einstein_tensor(tensor_ref)
 
 
 class TensorKeyNode:

@@ -36,7 +36,7 @@ class GeometricObject(EinsteinArray):
             self._metric = symbols.metric
             components = self.from_connection(symbols)
             basis = symbols.basis
-
+        
         super().__init__(indices=indices, components=components, basis=basis)
 
     @property
