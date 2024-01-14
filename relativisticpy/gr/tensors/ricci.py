@@ -21,13 +21,13 @@ class Ricci(GeometricObject):
         wrt = connection.basis
         Gamma = connection.components
         A = SymbolArray(zeros(N**2), (N, N))
-        for mu, nu, lamda, sigma in product(range(N), range(N), range(N), range(N)):
-            A[mu, nu] += Rational(1, N) * (
-                diff(Gamma[lamda, mu, nu], wrt[lamda])
-                - diff(Gamma[lamda, mu, lamda], wrt[nu])
+        for j, p, i, d in product(range(N), range(N), range(N), range(N)):
+            A[j, p] += Rational(1, N) * (
+                diff(Gamma[i, p, j], wrt[i])
+                - diff(Gamma[i, i, j], wrt[p])
             ) + (
-                Gamma[lamda, mu, sigma] * Gamma[sigma, nu, lamda]
-                - Gamma[lamda, mu, nu] * Gamma[sigma, sigma, lamda]
+                Gamma[i, i, d] * Gamma[d, p, j]
+                - Gamma[i, p, d] * Gamma[d, i, j]
             )
         return simplify(A)
 
@@ -36,12 +36,12 @@ class Ricci(GeometricObject):
         wrt = metric.basis
         Gamma = Connection.from_metric(metric)
         A = SymbolArray(zeros(N**2), (N, N))
-        for mu, nu, lamda, sigma in product(range(N), range(N), range(N), range(N)):
-            A[mu, nu] += Rational(1, N) * (
-                diff(Gamma[lamda, mu, nu], wrt[lamda])
-                - diff(Gamma[lamda, mu, lamda], wrt[nu])
+        for j, p, i, d in product(range(N), range(N), range(N), range(N)):
+            A[j, p] += Rational(1, N) * (
+                diff(Gamma[i, p, j], wrt[i])
+                - diff(Gamma[i, i, j], wrt[p])
             ) + (
-                Gamma[lamda, mu, sigma] * Gamma[sigma, nu, lamda]
-                - Gamma[lamda, mu, nu] * Gamma[sigma, sigma, lamda]
+                Gamma[i, i, d] * Gamma[d, p, j]
+                - Gamma[i, p, d] * Gamma[d, i, j]
             )
         return simplify(A)

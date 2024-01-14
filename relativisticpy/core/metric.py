@@ -102,6 +102,8 @@ class MetricIndices(Indices):
                 return all
 
         res.generator = generator
+        res.generator_implementor = self.EINSUM_GENERATOR
+        res.basis = self.basis
         return res
 
 

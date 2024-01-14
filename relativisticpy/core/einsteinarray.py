@@ -85,7 +85,7 @@ class EinsteinArray:
         return self.indices.rank
 
     @property
-    def scalar(self):
+    def scalar(self) -> bool:
         return self.rank == (0, 0)
 
     @property
@@ -149,6 +149,19 @@ class EinsteinArray:
                 indices=self.indices,
                 basis=self.basis,
             )
+        if not other.scalar and self.scalar:
+            return EinsteinArray(
+                components=other.components * self.components,
+                indices=other.indices,
+                basis=other.basis,
+            )
+        if other.scalar:
+            return EinsteinArray(
+                components=other.components * self.components,
+                indices=self.indices,
+                basis=self.basis,
+            )
+
         operation = lambda a, b: a * b
         result = self.einsum_operation(other, operation)
         return EinsteinArray(
@@ -163,6 +176,18 @@ class EinsteinArray:
                 components=other * self.components,
                 indices=self.indices,
                 basis=self.basis,
+            )
+        if other.scalar and not self.scalar:
+            return EinsteinArray(
+                components=other.components * self.components,
+                indices=self.indices,
+                basis=self.basis,
+            )
+        if not other.scalar and self.scalar:
+            return EinsteinArray(
+                components=other.components * self.components,
+                indices=other.indices,
+                basis=other.basis,
             )
         return self * other
 

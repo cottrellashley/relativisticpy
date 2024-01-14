@@ -1,6 +1,7 @@
 # Standard Library
+
 from itertools import product
-from typing import Optional
+from typing import Optional, Union
 
 # External Modules
 from relativisticpy.core import Idx, Indices, EinsteinArray, einstein_convention, Metric
@@ -34,25 +35,39 @@ class Connection(EinsteinArray):
             )
         return simplify(empty)
 
+    def _from_metric(self, metric: Metric) -> SymbolArray:
+        D = metric.dimention
+        empty = SymbolArray.zeros(D, D, D)
+        g = metric._.components
+        ig = metric.inv.components
+        wrt = metric.basis
+        for i, j, k, d in product(range(D), range(D), range(D), range(D)):
+            empty[i, j, k] += (
+                Rational(1, 2)
+                * (ig[d, i])
+                * (
+                    diff(g[k, d], wrt[j])
+                    + diff(g[d, j], wrt[k])
+                    - diff(g[j, k], wrt[d])
+                )
+            )
+        return simplify(empty)
+
+
     def __init__(
         self,
         indices: Indices,
-        components: Optional[EinsteinArray] = None,
-        basis: Optional[EinsteinArray] = None,
-        metric: Metric = None,
+        symbols: Union[Metric, SymbolArray],
+        basis: SymbolArray = None,
     ):
-        self.__default_comp = indices.zeros_array()
-        self.__default_basis = Idx.default_basis
-        super().__init__(
-            indices=indices,
-            components=components
-            if components != None
-            else Connection.from_metric(metric)
-            if metric != None
-            else self.__default_comp,
-            basis=basis
-            if basis != None
-            else metric.basis
-            if metric != None
-            else self.__default_basis,
-        )
+        if symbols == None:
+            raise Exception("The argument entered was invalid.")
+
+        components = symbols
+
+        if isinstance(symbols, Metric):
+            self._metric = symbols  # Only property which lives at this level
+            components = self._from_metric(symbols)
+            basis = symbols.basis
+
+        super().__init__(indices=indices, components=components, basis=basis)

@@ -108,7 +108,7 @@ class Indices:
     @property
     def anyrunnig(self) -> bool: return any([not idx.running for idx in self.indices])
     @property
-    def dimention(self) -> int: return self.indices[0].dimention
+    def dimention(self) -> int: return len(self.basis)
     @property
     def scalar(self) -> bool: return self.rank == (0,0)
     @property
@@ -206,16 +206,34 @@ class Indices:
         result_in_old = [i[0] for i in res._get_all_repeated_location(self) if len(i) > 0]
         res.generator = lambda idx : [(IndicesA, IndicesB) for (IndicesA, IndicesB) in all if itemgetter(*result_in_old)(IndicesA) == tuple(idx)] if not res.scalar and idx != None else all
         res.generator_implementor = self.SUMMATION_GENERATOR
+        res.basis = self.basis
         return res
 
     def self_product(self):
         ne = [[i.order, j.order] for i, j in combinations(self.indices, r=2) if i.is_contracted_with(j)]
         repeated_index_locations = transpose_list(ne)
-        all = [indices for indices in list(self) if itemgetter(*repeated_index_locations[0])(indices) == itemgetter(*repeated_index_locations[1])(indices)]
+        all_ = [indices for indices in list(self) if itemgetter(*repeated_index_locations[0])(indices) == itemgetter(*repeated_index_locations[1])(indices)]
         res = self._get_selfsum_result()
         old_indices_not_self_summed = [i[0] for i in self._get_all_repeated_location(res) if len(i) > 0]
-        res.generator = lambda idx : [indices for indices in all if itemgetter(*old_indices_not_self_summed)(indices) == tuple(idx)] if not res.scalar and idx != None else all
+
+        def generator(idx = None):
+            if res.scalar or idx == None:
+                return all_
+        
+            return_list = []
+            for indices in all_:
+                item = itemgetter(*old_indices_not_self_summed)(indices)
+                item = (item,) if isinstance(item, int) else item
+                index = tuple(idx)
+                if item == index:
+                    return_list.append(indices)
+
+            return return_list
+
+        # res.generator = lambda idx : [indices for indices in all_ if itemgetter(*old_indices_not_self_summed)(indices) == tuple(idx)] if not res.scalar and idx != None else all_
         res.generator_implementor = self.SELFSUM_GENERATOR
+        res.generator = generator
+        res.basis = self.basis
         return res
 
     # Privates
