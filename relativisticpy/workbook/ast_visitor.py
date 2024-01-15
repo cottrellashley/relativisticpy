@@ -4,10 +4,12 @@ from relativisticpy.workbook.itensors import (
     TensorNode,
     TensorDiagBuilder,
     DefinitionNode,
+    TensorSetterNode
 )
 from relativisticpy.workbook.matchers import match_tensors
 from relativisticpy.workbook.node import AstNode
 from relativisticpy.workbook.state import WorkbookState
+from relativisticpy.utils import str_is_tensors
 
 from relativisticpy.symengine import (
     Symbol,
@@ -90,6 +92,12 @@ class RelPyAstNodeTraverser:
 
     # Cache Node handlers
     def assigner(self, node: AstNode):
+
+        if str_is_tensors(str(node.args[0])):# <<<<< TODO: IMPLEMENT TENSOR ASSIGNER IN BETTER STANDARDISED WAY.
+            if ':' in str(node.args[0]):
+                raise ValueError('Feature: <Assigning value to tensor sub-components> is not implemented yet.')
+            TensorSetterNode(self.cache).handle(node)
+
         self.cache.set_variable(str(node.args[0]), node.args[1])
 
     def symbol_definition(self, node: AstNode):

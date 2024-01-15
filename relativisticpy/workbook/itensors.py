@@ -19,7 +19,7 @@ class RelPyError:
     pass
 
 
-class TensorNode:
+class TensorNode: #If there is an issue with tensor in Workbook --> This is where you should begin looking.
     """Responsible for completly handling tensor nodes, by mediating with state to initiate or call new and existing tensors."""
 
     def __init__(self, state: WorkbookState):
@@ -34,7 +34,8 @@ class TensorNode:
         if not self.state.has_tensor(
             tensor_ref.id
         ):  # If not stated => skip to generate imediatly.
-            return self.generate_tensor(tensor_ref)
+            generated_tensor : EinsteinArray = self.generate_tensor(tensor_ref)
+            return generated_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else generated_tensor
 
         is_same_indices = self.state.match_on_tensors(
             TensorEqualityType.IndicesSymbolEquality, tensor_ref
@@ -54,27 +55,35 @@ class TensorNode:
                 diff_order = tensor_ref.indices.order_delta(tensor.indices)
                 if diff_order == None or len(diff_order) == 0:
                     # No order changes => just init new instance with new indices.
-                    return type(tensor)(tensor_ref.indices, components, tensor.basis)
+                    new_tensor : EinsteinArray = type(tensor)(tensor_ref.indices, components, tensor.basis)
+                    return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
 
-                return type(tensor)(
+                new_tensor : EinsteinArray =  type(tensor)(
                     tensor_ref.indices,
                     permutedims(components, diff_order),
                     tensor.basis,
                 )
+                return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
+            
+            # We need to generate the new subcomponents if user is calling new subcomponents
+            tensor = type(tensor)(tensor_ref.indices, tensor.components, tensor.basis)
+            if tensor_ref.is_calling_tensor_subcomponent and hasattr(tensor, '_subcomponents'):
+                return tensor._subcomponents
 
             return (
-                tensor[tensor_ref.indices] if tensor_ref.indices.anyrunnig else tensor
+                tensor[tensor_ref.indices] if tensor_ref.indices.anyrunnig or tensor_ref.is_calling_tensor_subcomponent else tensor
             )
+        
 
         has_same_rank = self.state.match_on_tensors(
             TensorEqualityType.RankEquality, tensor_ref
         )
         if has_same_rank != None:
-            tensor = type(has_same_rank)(
+            new_tensor : EinsteinArray = type(has_same_rank)(
                 tensor_ref.indices, has_same_rank.components, has_same_rank.basis
             )
-            self.state.set_tensor(tensor_ref, tensor)
-            return tensor
+            self.state.set_tensor(tensor_ref, new_tensor)
+            return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
 
         # last thing we do is generate a new instance of the tensor.
         return self.generate_tensor(tensor_ref)
@@ -84,6 +93,8 @@ class TensorNode:
         metric_components = metric_definition[tensor_ref.indices.get_non_running()]
         metric = Metric(tensor_ref.indices, metric_components, metric_definition.basis)
         self.state.set_tensor(tensor_ref, metric)
+        if tensor_ref.is_calling_tensor_subcomponent and hasattr(metric, '_subcomponents'):
+            return metric._subcomponents
         return metric[tensor_ref.indices] if tensor_ref.indices.anyrunnig else metric
 
     def ricci(self, tensor_ref: TensorReference):
@@ -181,6 +192,31 @@ class TensorDefinitionNode:
             )
 
         self.state.set_tensor(tref, new_tensor)
+
+class TensorSetterNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEMENTATION
+    
+    def __init__(self, state: WorkbookState):
+        self.state = state
+
+    def handle(self, node: AstNode):
+        lhs : str = node.args[0]
+        rhs : EinsteinArray = node.args[1]
+
+        tref = TensorReference(lhs)
+
+        tref.indices.basis = (
+            self.state.coordinates
+        ) # New tensor is within the same manifold and therefore coordinate patch
+
+        # Get the new components in the corret order
+
+        new_tensor = rhs.reshape_tensor_components(tref.indices)
+
+        self.state.set_tensor(tref, new_tensor)
+
+
+
+
 
 
 class TensorDiagBuilder:

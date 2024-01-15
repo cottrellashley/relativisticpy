@@ -124,7 +124,9 @@ def einstein_convention(cls: MultiIndexArrayType):
             return res
 
         if isinstance(idcs, Indices):
-            return self.components[idcs.__index__()]
+            sub_components_getter = idcs.__index__()
+            sub_components_result = self.components[sub_components_getter]
+            return sub_components_result
 
         return self.components
 

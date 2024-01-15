@@ -1,5 +1,6 @@
 # Standard Library
 from typing import List
+from itertools import product
 
 # External Modules
 from relativisticpy.utils import tensor_trace_product
@@ -70,6 +71,7 @@ class EinsteinArray:
         if self.indices.basis == None: # Need a better solution (EinArray should not know indices implementation.)
             self.indices.basis = basis
 
+        # I think this is trying to first remove an array 
         if indices.anyrunnig: # Need a better solution (EinArray should not know indices implementation.)
             if basis != None:
                 indices.basis = basis
@@ -123,6 +125,29 @@ class EinsteinArray:
     def get_subcomponents(self, indices: Indices):
         self._subcomponents = self.components[indices.__index__()]
         return self._subcomponents
+
+    def reshape_tensor_components(self, indices: Indices):
+        reshape_tuple_order = self.indices.get_reshape(indices)
+        indices.basis = self.basis
+        new_components = self.rearrange_components(reshape_tuple_order)
+        return type(self)(indices, new_components, indices.basis)
+    
+    def rearrange_components(self, new_order):
+        # Determine the shape of the new array
+        new_shape = [self.components.shape[i] for i in new_order]
+
+        # Create a new array with the same data but new shape
+        new_array = SymbolArray.zeros(*new_shape)
+
+        # Iterate over each possible index in the new array
+        for new_index in product(*[range(s) for s in new_shape]):
+            # Map the new index to the corresponding index in the original array
+            original_index = tuple(new_index[new_order.index(i)] for i in range(len(new_order)))
+            # Assign the value from the original array to the new index in the new array
+            new_array[new_index] = self.components[original_index]
+
+        return new_array
+
 
     def __add__(self, other: "EinsteinArray") -> "EinsteinArray":
         operation = lambda a, b: a + b

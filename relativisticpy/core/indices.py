@@ -149,6 +149,9 @@ class Indices:
  
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
+    
+    # [this[index][0].order for index in other.indices if index in this.indices]
+    def get_reshape(self, other: 'Indices') -> Union[Tuple, None]: return tuple([self[index][0].order for index in other.indices if index in self.indices]) if self.symbol_and_symbol_rank_eq(other) else None
     def find(self, key: Idx) -> int: return [idx.order for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant][0] if len([idx for idx in self.indices if idx.symbol == key.symbol and idx.covariant == key.covariant]) > 0 else None
     def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]: return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
     def get_non_running(self) -> 'Indices':
@@ -161,6 +164,7 @@ class Indices:
     def order_delta(self, other: 'Indices') -> Tuple[int]: return tuple([j.order for i, j in product(self.indices, other.indices) if i.symbol == j.symbol and i.covariant == j.covariant]) if self.symbol_eq(other) else None
     def rank_eq(self, other: 'Indices') -> bool:  return all([idx.rank_match_in_indices(other) for idx in self.indices])
     def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices])
+    def symbol_and_symbol_rank_eq(self, other: 'Indices') -> bool:  return all([idx in other.indices for idx in self.indices])
     def symbol_order_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices_and_order(other) for idx in self.indices])
     def symbol_order_rank_eq(self, other: 'Indices') -> bool:  return all([i[0] == i[1] for i in zip(self.indices, other.indices)]) if len(self.indices) == len(other.indices) else False
 

@@ -32,14 +32,15 @@ class Interpreter(IInterpreter):
                         [*[self.interpret(arg) for arg in arguments]],
                     )
                 )
-            elif handler in node_methods:
-                return getattr(self.node_tree_walker, handler)(
+            elif handler in node_methods: # "developer defined" implemented in ast_traverser 
+                handler_return_value = getattr(self.node_tree_walker, handler)(
                     Node(
                         node_type,
                         handler,
                         [*[self.interpret(arg) for arg in arguments]],
                     )
                 )
+                return handler_return_value
             else:
                 raise Exception(
                     f"Method '{handler}' has not been inplemented by {self.node_tree_walker}. Please implement '{handler}' within {self.node_tree_walker.__class__} and declaire it in NodeConfiguration parameter."
