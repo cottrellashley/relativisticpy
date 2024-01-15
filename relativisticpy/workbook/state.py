@@ -16,10 +16,15 @@ class TensorReference:
         self.__indices_repr = extract_tensor_indices(self.tstring)
         self.__symbol = extract_tensor_symbol(self.tstring)
         self.__indices = Indices.from_string(self.__indices_repr)
+        self.__has_subcomponents_value_getter = ':' in self.tstring # If string has ":" => user wants a sub component value
 
     @property
     def indices(self) -> Indices:
         return self.__indices
+    
+    @property
+    def is_calling_tensor_subcomponent(self) -> bool:
+        return self.__has_subcomponents_value_getter
 
     @property
     def symbol(self) -> str:
@@ -173,6 +178,10 @@ class WorkbookState:
 
     def has_variable(self, name):
         return name in self.store
+    
+    def clear_all(self):
+        self.store: Dict[str, any] = {}
+        self.tensors: Dict[str, TensorList] = {}
 
     ##### TENSOR CACHE METHODS #######
 
