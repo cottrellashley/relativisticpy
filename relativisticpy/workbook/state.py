@@ -178,6 +178,10 @@ class WorkbookState:
 
     def has_variable(self, name):
         return name in self.store
+    
+    def clear_all(self):
+        self.store: Dict[str, any] = {}
+        self.tensors: Dict[str, TensorList] = {}
 
     ##### TENSOR CACHE METHODS #######
 

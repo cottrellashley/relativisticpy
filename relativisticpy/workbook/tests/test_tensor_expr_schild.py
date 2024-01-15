@@ -67,9 +67,7 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
 @pytest.mark.skip(reason="TDD =====> Implement TODO: Multi-line-array <======== ")
 def test_workbook_new_line_components_definition(Schwarzschild_Metric):
     metric, inverse_metric = Schwarzschild_Metric
-    wb = Workbook()
-
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
 
@@ -82,16 +80,44 @@ def test_workbook_new_line_components_definition(Schwarzschild_Metric):
                 g_{mu}_{nu}
         """
     )
-
     assert equal(res[0].components, metric)
+    del res
 
+def test_ricci_generation_from_riemann_contraction_caching_correctly(Schwarzschild_Ricci, Schwarzschild_Basis):
+    ricci_components = Schwarzschild_Ricci
+    basis = Schwarzschild_Basis
+
+    wb = Workbook()
+    wb.expr(
+            """
+                    Coordinates := [t, r, theta, phi] 
+                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
+                    R^{a}_{b}_{a}_{d}
+                    R^{a}_{c}_{a}_{d}
+            """
+        )
+    wb.expr(
+        """
+                R^{a}_{b}_{a}_{d}
+        """
+    )
+    res = wb.expr(
+        """
+                R^{a}_{b}_{a}_{d}
+        """
+    )
+
+    assert equal(smp.simplify(res[0].components), ricci_components)
+    assert str(res[0].indices) == "_{b}_{d}"
+    assert equal(res[0].basis, basis)
+    del wb
+    del res
 
 def test_metric_init(Schwarzschild_Metric, Schwarzschild_Basis):
     metric, _ = Schwarzschild_Metric
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -101,6 +127,7 @@ def test_metric_init(Schwarzschild_Metric, Schwarzschild_Basis):
     assert equal(res[0].components, metric)
     assert str(res[0].indices) == "_{mu}_{nu}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_workbook_inverse_metric_components_match(
@@ -108,9 +135,8 @@ def test_workbook_inverse_metric_components_match(
 ):
     _, inverse_metric = Schwarzschild_Metric
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -120,14 +146,14 @@ def test_workbook_inverse_metric_components_match(
     assert equal(res[0].components, inverse_metric)
     assert str(res[0].indices) == "^{a}^{b}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_workbook_cron_delta_metric_result(Schwarzschild_Metric, Schwarzschild_Basis):
     cron_delta = smp.MutableDenseNDimArray(smp.diag(1, 1, 1, 1))
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -137,14 +163,14 @@ def test_workbook_cron_delta_metric_result(Schwarzschild_Metric, Schwarzschild_B
     assert equal(res[0].components, cron_delta)
     assert str(res[0].indices) == "_{a}^{c}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_workbook_metricScalar_result(Schwarzschild_MetricScalar, Schwarzschild_Basis):
     metric = Schwarzschild_MetricScalar
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -155,14 +181,14 @@ def test_workbook_metricScalar_result(Schwarzschild_MetricScalar, Schwarzschild_
     assert res[0].components == 4
     assert str(res[0].indices) == ""
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_connection_generation(Schwarzschild_Connection, Schwarzschild_Basis):
     connection = Schwarzschild_Connection
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -172,15 +198,14 @@ def test_connection_generation(Schwarzschild_Connection, Schwarzschild_Basis):
     assert equal(res[0].components, connection)
     assert str(res[0].indices) == "^{a}_{b}_{c}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_ricci_generation(Schwarzschild_Ricci, Schwarzschild_Basis):
     ricci_components = Schwarzschild_Ricci
     basis = Schwarzschild_Basis
 
-    wb = Workbook()
-
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -190,15 +215,14 @@ def test_ricci_generation(Schwarzschild_Ricci, Schwarzschild_Basis):
     assert equal(res[0].components, ricci_components)
     assert str(res[0].indices) == "_{a}_{b}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_riemann_generation(Schwarzschild_Riemann, Schwarzschild_Basis):
     riemann_components = Schwarzschild_Riemann
     basis = Schwarzschild_Basis
 
-    wb = Workbook()
-
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -208,30 +232,29 @@ def test_riemann_generation(Schwarzschild_Riemann, Schwarzschild_Basis):
     assert equal(res[0].components, riemann_components)
     assert str(res[0].indices) == "^{a}_{b}_{c}_{d}"
     assert equal(res[0].basis, basis)
+    del res
 
 def test_ricci_generation_from_riemann_contraction(Schwarzschild_Ricci, Schwarzschild_Basis):
     ricci_components = Schwarzschild_Ricci
     basis = Schwarzschild_Basis
 
-    wb = Workbook()
-
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                 R^{a}_{b}_{a}_{d}
-    """
+        """
     )
     assert equal(smp.simplify(res[0].components), ricci_components)
     assert str(res[0].indices) == "_{b}_{d}"
     assert equal(res[0].basis, basis)
+    del res
 
 def test_metric_multiplication(Schwarzschild_MetricScalar, Schwarzschild_Basis):
     metric = Schwarzschild_MetricScalar
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -241,13 +264,13 @@ def test_metric_multiplication(Schwarzschild_MetricScalar, Schwarzschild_Basis):
     assert res[0].components == metric
     assert str(res[0].indices) == ""
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_connection_formulal_equal_built_in_connection(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
-    new_wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4)
-    res = new_wb.expr(
+    res = Workbook().expr(
         """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -258,13 +281,13 @@ def test_connection_formulal_equal_built_in_connection(Schwarzschild_Basis):
     assert smp.simplify(res[0].components) == zeros
     assert str(res[0].indices) == "^{a}_{c}_{f}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_riemann_formulal_comps_equal_built_in_riemann(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
-    wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4, 4)
-    res = wb.expr(
+    res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -275,8 +298,9 @@ def test_riemann_formulal_comps_equal_built_in_riemann(Schwarzschild_Basis):
     assert smp.simplify(res[0].components) == zeros
     assert str(res[0].indices) == "^{a}_{m}_{b}_{n}"  # _{b}^{a}_{n}_{m}
     assert equal(res[0].basis, basis)
+    del res
 
-@pytest.mark.skip(reason="TDD =====> Implement TODO: User defined Arbitrary Tensor <======== ")
+
 def test_riemann_formulal_indices_equal_built_in_riemann(
     Schwarzschild_Riemann, Schwarzschild_Basis
 ):
@@ -290,9 +314,8 @@ def test_riemann_formulal_indices_equal_built_in_riemann(
     # Check that the Riemann components assigned to tensot T has been re-structure from: '_{b}^{a}_{n}_{m}' -> '^{a}_{m}_{b}_{n}'
     riemann_components = Schwarzschild_Riemann
     basis = Schwarzschild_Basis
-    wb = Workbook()
 
-    res = wb.expr(
+    res = Workbook().expr(
             """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -303,12 +326,12 @@ def test_riemann_formulal_indices_equal_built_in_riemann(
     assert equal(smp.simplify(res[0].components), riemann_components)
     assert str(res[0].indices) == "^{a}_{m}_{b}_{n}"
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_ricci_scalar(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
-    wb = Workbook()
-    res = wb.expr(
+    res = Workbook().expr(
         """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -320,13 +343,13 @@ def test_ricci_scalar(Schwarzschild_Basis):
     assert str(res[0].indices) == ""
     assert type(res[0]) == RicciScalar
     assert equal(res[0].basis, basis)
+    del res
 
 
 def test_einstein_tensor(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
-    wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(4, 4)
-    res = wb.expr(
+    res = Workbook().expr(
         """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -338,12 +361,12 @@ def test_einstein_tensor(Schwarzschild_Basis):
     assert type(res[0]) == EinsteinTensor
     assert str(res[0].indices) == "_{a}_{b}"
     assert equal(res[0].basis, basis)
+    del res
 
 def test_einstein_tensor_computed_from_equation(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
-    wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(4, 4)
-    res = wb.expr(
+    res = Workbook().expr(
         """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -365,6 +388,7 @@ def test_einstein_tensor_computed_from_equation(Schwarzschild_Basis):
     assert equal(res[0].basis, basis)
     assert equal(res[1].basis, basis)
     assert equal(res[2].basis, basis)
+    del res
 
 
 @pytest.mark.skip(reason="TDD =====> Implement TODO: Covariant Derivative <======== ")
@@ -374,10 +398,9 @@ def test_covariant_derivative_metric_equals_zero(
     # This should do the following:
     # 1. D_{a}*g_{b}_{c} == Zero
     basis = Schwarzschild_Basis
-    wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4)
 
-    res = wb.expr(
+    res = Workbook().expr(
             """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -387,3 +410,4 @@ def test_covariant_derivative_metric_equals_zero(
     assert smp.simplify(res[0].components) == zeros
     assert str(res[0].indices) == "_{a}_{b}_{c}"
     assert equal(res[0].basis, basis)
+    del res

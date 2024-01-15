@@ -81,6 +81,7 @@ class EinsteinArray:
                 raise ValueError(
                     f"Basis parameter must be provided to initialize {self} with non-running indices."
                 )
+        self.__post_init__(basis)
 
     @property
     def rank(self):
@@ -115,8 +116,8 @@ class EinsteinArray:
         self.indices.basis = value
 
     # Dunders
-    def __post_init__(self) -> None:
-        self.__set_self_summed()  # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
+    def __post_init__(self, basis = None) -> None:
+        self.__set_self_summed(basis)  # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
 
     def __neg__(self):
         self.components = -self.components
@@ -232,11 +233,10 @@ class EinsteinArray:
         return tensor_trace_product(self.components, other.components, idcs)
 
     # Privates
-    def __set_self_summed(self) -> None:
+    def __set_self_summed(self, basis = None) -> None:
         if self.indices.self_summed:
             result = self.selfsum_operation()
             self.components = result.components
             self.indices = result.indices
-            self.basis = result.basis
         else:
             pass

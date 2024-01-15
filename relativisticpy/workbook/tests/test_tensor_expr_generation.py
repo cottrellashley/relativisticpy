@@ -63,33 +63,34 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
             list_res.append(list2[i][0] == items[0] and list2[i][1] == items[1])
     return all(list_res)
 
-@pytest.mark.skip(reason="TDD =====> Implement TODO: User Can Generate Arbritary tensor from components <======== ")
 def test_basic_tensor_component_generations_zeros():
     wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(2)
 
     res = wb.expr(
             """
+                    Coordinates := [x, y]
                     T_{a} = [0, 0]
+                    T_{a}
             """
     )
     assert smp.simplify(res[0].components) == zeros
     assert str(res[0].indices) == "_{a}"
 
 
-
-@pytest.mark.skip(reason="TDD =====> Implement TODO: User Can Generate Arbritary tensor from components <======== ")
 def test_basic_tensor_component_generations_symbols():
     wb = Workbook()
     x, y, z, t, r, theta, phi, G, M, c = smp.symbols("x y z t r theta phi G M c")
 
     res = wb.expr(
             """
+                    Coordinates := [t, r, theta]
                     T_{a}_{b} = [[1, 0, 0], [0, r**2, 0], [0, 0, r**2*sin(theta)**2]]
+                    T_{a}_{b}
             """
     )
     assert smp.simplify(res[0].components) == smp.MutableDenseNDimArray([[1, 0, 0], [0, r**2, 0], [0, 0, r**2*smp.sin(theta)**2]])
-    assert str(res[0].indices) == "_{a}"
+    assert str(res[0].indices) == "_{a}_{b}"
 
 
 @pytest.mark.skip(reason="TDD =====> Implement TODO: User Can map Arbritary tensor to tensor expression <======== ")

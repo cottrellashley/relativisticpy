@@ -52,17 +52,13 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
                 components = tensor[tensor_ref.indices]
 
                 # Handling any changes in order of indices.
-                diff_order = tensor_ref.indices.order_delta(tensor.indices)
-                if diff_order == None or len(diff_order) == 0:
+                diff_order = tensor.indices.get_reshape(tensor_ref.indices)
+                if diff_order == None:
                     # No order changes => just init new instance with new indices.
                     new_tensor : EinsteinArray = type(tensor)(tensor_ref.indices, components, tensor.basis)
                     return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
 
-                new_tensor : EinsteinArray =  type(tensor)(
-                    tensor_ref.indices,
-                    permutedims(components, diff_order),
-                    tensor.basis,
-                )
+                new_tensor = tensor.reshape_tensor_components(tensor_ref.indices)
                 return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
             
             # We need to generate the new subcomponents if user is calling new subcomponents
@@ -98,25 +94,21 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
         return metric[tensor_ref.indices] if tensor_ref.indices.anyrunnig else metric
 
     def ricci(self, tensor_ref: TensorReference):
-        if not self.state.has_tensor(tensor_ref.id):
-            ricci = Ricci(tensor_ref.indices, self.state.get_metric())
-            self.state.set_tensor(tensor_ref, ricci)
-
+        ricci = Ricci(tensor_ref.indices, self.state.get_metric())
+        self.state.set_tensor(tensor_ref, ricci)
         return ricci[tensor_ref.indices] if tensor_ref.indices.anyrunnig else ricci
 
     def riemann(self, tensor_ref: TensorReference):
-        if not self.state.has_tensor(tensor_ref.id):
-            riemann = Riemann(tensor_ref.indices, self.state.get_metric())
-            self.state.set_tensor(tensor_ref, riemann)
-
+        riemann = Riemann(tensor_ref.indices, self.state.get_metric())
+        self.state.set_tensor(tensor_ref, riemann)
         return riemann[tensor_ref.indices] if tensor_ref.indices.anyrunnig else riemann
 
     def connection(self, tensor_ref: TensorReference):
-        if not self.state.has_tensor(tensor_ref.id):
-            connection = Connection(
-                indices=tensor_ref.indices, symbols=self.state.get_metric()
-            )
-            self.state.set_tensor(tensor_ref, connection)
+
+        connection = Connection(
+            indices=tensor_ref.indices, symbols=self.state.get_metric()
+        )
+        self.state.set_tensor(tensor_ref, connection)
 
         return (
             connection[tensor_ref.indices]
@@ -125,11 +117,11 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
         )
 
     def einstein_tensor(self, tensor_ref: TensorReference):
-        if not self.state.has_tensor(tensor_ref.id):
-            tensor = EinsteinTensor(
-                tensor_ref.indices, self.state.get_metric()
-            )
-            self.state.set_tensor(tensor_ref, tensor)
+
+        tensor = EinsteinTensor(
+            tensor_ref.indices, self.state.get_metric()
+        )
+        self.state.set_tensor(tensor_ref, tensor)
 
         return (
             tensor[tensor_ref.indices]
@@ -200,20 +192,29 @@ class TensorSetterNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEMENTATION
 
     def handle(self, node: AstNode):
         lhs : str = node.args[0]
-        rhs : EinsteinArray = node.args[1]
+        rhs = node.args[1]
 
-        tref = TensorReference(lhs)
+        if isinstance(rhs, (EinsteinArray, Metric, Ricci, Riemann, Connection)):
+            tref = TensorReference(lhs)
 
-        tref.indices.basis = (
-            self.state.coordinates
-        ) # New tensor is within the same manifold and therefore coordinate patch
+            tref.indices.basis = (
+                self.state.coordinates
+            ) # New tensor is within the same manifold and therefore coordinate patch
 
-        # Get the new components in the corret order
+            # Get the new components in the corret order
 
-        new_tensor = rhs.reshape_tensor_components(tref.indices)
+            new_tensor = rhs.reshape_tensor_components(tref.indices)
 
-        self.state.set_tensor(tref, new_tensor)
+            self.state.set_tensor(tref, new_tensor)
 
+        else:
+            tref = TensorReference(lhs)
+
+            tref.indices.basis = (
+                self.state.coordinates
+            ) 
+
+            self.state.set_tensor(tref, EinsteinArray(tref.indices, rhs, self.state.coordinates))
 
 
 
