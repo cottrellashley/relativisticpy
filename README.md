@@ -4,19 +4,31 @@
   <img src="./assets/logo.gif" alt="RelativisticPy" width="300">
 </p>
 
+RelativisticPy - Genaral Relativity for physicists in a hurry. Simple equation looking User Interface. Write and Go! 
+It is not the most complex, conprehensive or fast symbolic calculator, but it is a symbolic calculator.
+
 [PyPi](https://pypi.org/project/relativisticpy/)
 [Source](https://github.com/cottrellashley/relativisticpy)
 
-# TL;DR - (Black Hole Solution in < 10 lines)
-#### PACKAGE NOT LIVE YET
 
-#### `python environment`
+# TL;DR - Features & Installation: 
+
+#### `install python environment`
 ```
 pip install relativisticpy
 ```
 
-#### `Schild_solution.txt` file:
+## (Black Hole Solution in < 10 lines)
+
+
+#### `Schild_solution.py` file:
 ``` 
+import relativisticpy as rel
+
+wb = rel.Workbook()
+
+wb.expr(
+'''
 # First: Define the pre-requisites of our problem
 
 # Symbols we want Metric and Ricci to have
@@ -38,27 +50,17 @@ eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r))
 # We call the dsolve method which is a differential equation solver
 solutionB = dsolve(eq5, B(r)) # returns B(r) = C1/A(r)
 
-# We know the solution of B(r) = C1/A(r) so we substitute it in the third Ricci equation we have available to us
-eq6 = simplify(subs(eq2, B(r), C1/A(r)))
+eq6 = simplify(subs(eq2, B(r), C1/A(r))) # We know the solution of B(r) = C1/A(r) so we substitute it in the third Ricci equation we have available to us
 
-# Finally set the answers as A and B
-A = dsolve(eq6, A(r)) 
+A = dsolve(eq6, A(r)) # Finally set the answers as A and B
 
 B = 1/A
 
-# Output the answer as latex, if you wish: (remove latex method if you do not)
-latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]]) 
+latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]])  # Output the answer as latex, if you wish: (remove latex method if you do not)
+''') # Will parse string and compute the equations
 
 ```
 
-#### `main.py` file:
-```
-from relativisticpy import Workbook as wb
-
-if __name__ == '__main__':
-    wb = Workbook()
-    wb.exe('<file-path>/Schild_solution.txt')
-```
 
 This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
 
