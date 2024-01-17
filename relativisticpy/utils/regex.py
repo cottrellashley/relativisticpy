@@ -1,5 +1,5 @@
 import re
-from types import Union
+from typing import Union
 
 def tensor_key_patern() -> re.Pattern:
     return re.compile("([a-zA-Z]+)")
