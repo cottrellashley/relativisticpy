@@ -8,12 +8,24 @@ from relativisticpy.workbook.state import WorkbookState
 
 
 class Workbook:
+
     _cache = WorkbookState()
     parser = RelParser(
         RelPyAstNodeTraverser(_cache),
         RelPyAstNodeTraverser.node_configuration,
         RelPyAstNodeTraverser.variable_matchers,
     )
+
+    @classmethod
+    def reset(cls):
+        del cls._cache
+        del cls.parser
+        cls._cache = WorkbookState()
+        cls.parser = RelParser(
+        RelPyAstNodeTraverser(cls._cache),
+        RelPyAstNodeTraverser.node_configuration,
+        RelPyAstNodeTraverser.variable_matchers,
+        )
 
     def __init__(self, file_path: str = None):
         self.file_path = file_path

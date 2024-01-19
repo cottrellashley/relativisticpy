@@ -1,5 +1,5 @@
 import re
-
+from typing import Union
 
 def tensor_key_patern() -> re.Pattern:
     return re.compile("([a-zA-Z]+)")
@@ -9,7 +9,7 @@ def _r1_bare_tensor() -> re.Pattern:
     return re.compile("^((\^|\_)(\{)(\}))+$")
 
 
-def get_tensor_key(tensor_str: str) -> str | None:
+def get_tensor_key(tensor_str: str) -> Union[str, None]:
     return (
         re.findall(tensor_key_patern(), tensor_str)[0]
         if bool(re.search(tensor_key_patern(), tensor_str))
@@ -54,7 +54,7 @@ def is_symbol_object_key(string: str) -> bool:
     return bool(re.match(r"\b\w+Symbol\b", string))
 
 
-def extract_tensor_symbol(string: str) -> str | None:
+def extract_tensor_symbol(string: str) -> Union[str, None]:
     return (
         re.findall("([a-zA-Z]+)", string)[0]
         if bool(re.search("([a-zA-Z]+)", string))
@@ -62,7 +62,7 @@ def extract_tensor_symbol(string: str) -> str | None:
     )
 
 
-def extract_tensor_indices(string: str) -> str | None:
+def extract_tensor_indices(string: str) -> Union[str, None]:
     symbol = (
         extract_tensor_symbol(string) if extract_tensor_symbol(string) != None else ""
     )
