@@ -4,6 +4,11 @@
   <img src="../assets/logo.gif" alt="RelativisticPy" width="300">
 </p>
 
+- [About](About.md)
+- [Contact](Contact.md)
+- [Projects](Projects.md)
+
+
 RelativisticPy - Genaral Relativity for physicists in a hurry. Simple equation looking User Interface. Write and Go! 
 It is not the most complex, conprehensive or fast symbolic calculator, but it is a symbolic calculator.
 
