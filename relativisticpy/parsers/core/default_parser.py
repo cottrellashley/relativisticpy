@@ -6,6 +6,7 @@ from relativisticpy.parsers.shared.constants import NodeType, TokenType
 from relativisticpy.parsers.shared.models.token import Token
 
 
+
 class Parser(IParser):
     def __init__(self, node_provider: INodeProvider):
         """
