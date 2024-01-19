@@ -1,7 +1,7 @@
 
 # RelativisticPy
 <p align="center">
-  <img src="./assets/logo.gif" alt="RelativisticPy" width="300">
+  <img src="../assets/logo.gif" alt="RelativisticPy" width="300">
 </p>
 
 RelativisticPy - Genaral Relativity for physicists in a hurry. Simple equation looking User Interface. Write and Go! 
