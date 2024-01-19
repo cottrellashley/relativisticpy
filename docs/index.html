@@ -4,51 +4,91 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My GitHub Page</title>
+    <title>RelativisticPy</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 40px;
+            margin: 20px;
         }
-        header {
-            text-align: center;
+        .container {
+            width: 80%;
+            margin: 0 auto;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+        .section {
             margin-bottom: 20px;
         }
-        nav {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-        nav a {
-            margin: 0 10px;
-            text-decoration: none;
-            color: #0366d6;
-        }
-        nav a:hover {
-            text-decoration: underline;
-        }
-        footer {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.8em;
-            color: #555;
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-left: 3px solid #ccc;
+            overflow: auto;
         }
     </style>
 </head>
 <body>
-    <header>
-        <h1>Welcome to My GitHub Page</h1>
-    </header>
-    <nav>
-        <a href="About.html">About</a>
-        <a href="Projects.html">Projects</a>
-        <a href="Contact.html">Contact</a>
-    </nav>
-    <section>
-        <h2>About This Site</h2>
-        <p>This is a simple HTML page hosted on GitHub Pages. You can customize this page with your own content.</p>
-    </section>
-    <footer>
-        &copy; 2024 My GitHub Page
-    </footer>
+    <div class="container">
+        <header class="section">
+            <p align="center">
+                <img src="./assets/logo.gif" alt="RelativisticPy" width="300">
+            </p>
+            <h1>RelativisticPy</h1>
+            <p>RelativisticPy - General Relativity for physicists in a hurry. Simple equation looking User Interface. Write and Go! It is not the most complex, comprehensive or fast symbolic calculator, but it is a symbolic calculator.</p>
+            <p><a href="https://pypi.org/project/relativisticpy/">PyPi</a> | <a href="https://github.com/cottrellashley/relativisticpy">Source</a></p>
+        </header>
+
+        <section class="section">
+            <h2>TL;DR - Features & Installation</h2>
+            <h3>Install Python Environment</h3>
+            <pre>pip install relativisticpy</pre>
+            <h4>Black Hole Solution in &lt; 10 lines</h4>
+            <pre>
+                import relativisticpy as rel
+
+                wb = rel.Workbook()
+                
+                wb.expr(
+                '''
+                # First: Define the pre-requisites of our problem
+                
+                # Symbols we want Metric and Ricci to have
+                MetricSymbol := G 
+                RicciSymbol := Ric 
+                Coordinates := [t, r, theta, phi] 
+                
+                # Define the metric tensor components: we define a general spherically symmetric tensor
+                G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
+                
+                # Now we have defined the metric above, we can call any individual component of the Ricci tensor itself (as it is metric dependent)
+                eq0 = Ric_{mu:0}_{nu:0} 
+                eq1 = Ric_{mu:1}_{nu:1} 
+                eq2 = Ric_{mu:2}_{nu:2} 
+                
+                # We construct a simplified equation from the Ricci components as follows
+                eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r)) 
+                
+                # We call the dsolve method which is a differential equation solver
+                solutionB = dsolve(eq5, B(r)) # returns B(r) = C1/A(r)
+                
+                eq6 = simplify(subs(eq2, B(r), C1/A(r))) # We know the solution of B(r) = C1/A(r) so we substitute it in the third Ricci equation we have available to us
+                
+                A = dsolve(eq6, A(r)) # Finally set the answers as A and B
+                
+                B = 1/A
+                
+                latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]])  # Output the answer as latex, if you wish: (remove latex method if you do not)
+                ''') # Will parse string and compute the equations
+            </pre>
+        </section>
+
+        <!-- Repeat sections for Features, General Relativity functionality, Installation, Package Philosophy, Directory Breakdown, Package Tree-Structure, Project Dependencies, Use Examples, General Relativity Tensor Operations, Future Features, Calculator Features, User Interface Features, License, Contributing -->
+
+        <footer class="section">
+            <p>&copy; 2024 RelativisticPy. All rights reserved.</p>
+        </footer>
+    </div>
 </body>
 </html>
