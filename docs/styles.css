@@ -72,3 +72,34 @@ body pre code {
     font-size: 0.95em; /* Adjust as needed */
     display: block; /* Ensure it takes up the full width */
 }
+
+.title-home-page {
+    text-align: center;
+    font-size: 50pt;
+}
+
+.logo {
+    width: 50%; /* Adjust size as needed */
+    height: auto;
+    display: block;
+    margin: 0 auto; /* Center the logo */
+}
+.link-container {
+    display: flex;
+    justify-content: center; /* Center the links */
+    margin-top: 30px;
+}
+.link {
+    display: inline-block;
+    margin: 10px;
+    padding: 10px 15px;
+    background-color: #0366d6;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    flex: 1; /* Make all links the same size */
+    text-align: center; /* Center text in links */
+}
+.link:hover {
+    background-color: #0056b3;
+}

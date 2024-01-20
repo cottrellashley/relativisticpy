@@ -25,51 +25,16 @@
         <a href="blackHoleExample.html">Black Hole Solution</a>
     </div>
     <div class="main-content">
-        <header class="section">
-            <h1>RelativisticPy</h1>
-            <p>RelativisticPy - General Relativity for physicists in a hurry. Simple equation looking User Interface.
-                Write and Go! It is not the most complex, comprehensive or fast symbolic calculator, but it is a
-                symbolic calculator.</p>
-            <p><a href="https://pypi.org/project/relativisticpy/">PyPi</a> | <a
-                    href="https://github.com/cottrellashley/relativisticpy">Source</a></p>
-        </header>
-
-        <section class="section">
-            <h2>TL;DR - Features & Installation</h2>
-            <h3>Install Python Environment</h3>
-            <pre><code class="language-python">pip install relativisticpy</code></pre>
-            <h4>Black Hole Solution in &lt; 10 lines</h4>
-            <pre><code class="language-python">
-import relativisticpy as rel
-
-wb = rel.Workbook()
-
-wb.expr(
-'''
-MetricSymbol := G 
-RicciSymbol := Ric 
-Coordinates := [t, r, theta, phi] 
-
-G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
-
-eq0 = Ric_{mu:0}_{nu:0} 
-eq1 = Ric_{mu:1}_{nu:1} 
-eq2 = Ric_{mu:2}_{nu:2} 
-
-eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r)) 
-
-solutionB = dsolve(eq5, B(r)) # returns B(r) = C1/A(r)
-
-eq6 = simplify(subs(eq2, B(r), C1/A(r)))
-
-A = dsolve(eq6, A(r)) # Finally set the answers as A and B
-
-B = 1/A
-
-latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]])
-''')
-        </code></pre>
-        </section>
+        <div class="header">
+            <h1 class="title-home-page">RelativisticPy</h1>
+            <img src="./data/logo.png" alt="RelativisticPy Logo" class="logo">
+        </div>
+    
+        <div class="link-container">
+            <a href="https://pypi.org/project/relativisticpy/" class="link">Install Package (PyPi)</a>
+            <a href="https://github.com/cottrellashley/relativisticpy" class="link">GitHub Repository</a>
+            <a href="https://relativisticpy-playground.streamlit.app" class="link">Streamlit Interactive Playground</a>
+        </div>
 
         <!-- Repeat sections for Features, General Relativity functionality, Installation, Package Philosophy, Directory Breakdown, Package Tree-Structure, Project Dependencies, Use Examples, General Relativity Tensor Operations, Future Features, Calculator Features, User Interface Features, License, Contributing -->
 
