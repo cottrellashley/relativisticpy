@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RelativisticPy</title>
+    <link type="text/css" rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="sidebar">
+        <a href="index.html"> <!-- Change href to your home page URL -->
+            <img src="./data/logo.png" >
+        </a>
+        <h3>Menu</h3>
+        <a href="quickStartGuide.html">Quick Start Guide</a>
+        <a href="instalation.html">Installation</a>
+        <a href="functions.html">Functions</a>
+        <a href="tensorOperations.html">Tensor Operations</a>
+        <a href="comingFeatures.html">Coming Features</a>
+        <a href="contributions.html">Contributions</a>
+        <h3>Examples</h3>
+        <a href="kScalarExample.html">K-Scalar</a>
+        <a href="blackHoleExample.html">Black Hole Solution</a>
+    </div>
+    <div class="main-content">
+
+        <h1>General Relativity Tensor Operations</h1>
+        <p>The General Relativity Tensor Operations allow for performing tensor calculations on a defined metric and basis, crucial for understanding and applying the principles of General Relativity in physics.</p>
+    
+        <section id="define-metric-basis">
+            <h2>1. Define Metric and Basis</h2>
+            <p>The function to define metric and basis is essential in setting up the framework for tensor calculations in General Relativity.</p>
+            <pre><code>
+    g_{a}_{b} := [[g00, ....], [g10, ....], ... , [..., gNN]], [var1, ...., varN]
+            </code></pre>
+            <p>This syntax defines the metric components and the basis coordinates for the tensor operations.</p>
+    
+            <h3>Writing Tensor Expressions</h3>
+            <p>Once the metric and basis are defined, tensor expressions can be written using this structure:</p>
+            <pre><code>
+    G_{mu}_{nu}
+            </code></pre>
+            <p>This outputs the entered metric components:</p>
+            <pre><code>
+    [[g00, ....], [g10, ....], ... , [..., gNN]]
+            </code></pre>
+        </section>
+    
+        <section id="specific-components">
+            <h2>2. Get and Assign Specific Components from Tensors</h2>
+            <p>This functionality allows for retrieving or assigning specific components of a tensor.</p>
+            <pre><code>
+    Input: G_{mu:1}_{nu:1}
+    Output: The (1,1) component of the metric components
+            </code></pre>
+            <p>It works similarly for any tensor and its individual components:</p>
+            <pre><code>
+    R_{nu:1}_{b:2}_{mu}_{d}
+    R_{nu:1}_{b}_{mu}_{d}
+    R_{nu:1}_{b:2}_{mu:1}_{d:2}
+            </code></pre>
+            <p>To assign a specific component to a variable:</p>
+            <pre><code>
+    Comp = G_{mu:1}_{nu:1}
+            </code></pre>
+        </section>
+    
+        <section id="tensor-expressions">
+            <h2>3. Tensor Expressions Functionality</h2>
+            <p>Tensor expressions can be performed using the defined metric and basis:</p>
+            <pre><code>
+    G^{mu}^{nu}*R_{nu}_{b}_{c}_{d}
+    R^{a}_{b}_{a}_{d}
+    G^{mu}^{nu}*R_{nu}_{b}_{mu}_{d}
+            </code></pre>
+            <p>This functionality is key for solving complex equations in the field of General Relativity.</p>
+        </section>
+    
+        <section id="advanced-tensor-operations">
+            <h2>Advanced Tensor Operations</h2>
+            <p>This section delves into more advanced aspects of tensor operations, demonstrating the capabilities of the calculator in handling complex tensor equations, specifically relating to Riemann tensors.</p>
+        
+            <h3>Functionality Overview</h3>
+            <p>The advanced tensor operation functionality involves several key steps:</p>
+            <ol>
+                <li>Identification of variables and tensor types for user-defined tensors.</li>
+                <li>Computation of the right-hand side (RHS) of the tensor equation.</li>
+                <li>Verification that the indices match, focusing on the covariance of symbols.</li>
+                <li>Rearrangement of the computed tensor to match the user-defined index structure on the left-hand side (LHS) of the equation.</li>
+                <li>Storage of the computed tensor in cache, with components and indices as defined by the user.</li>
+            </ol>
+        
+            <h3>Example: Riemann Tensor Computation</h3>
+            <p>An example of such an operation is the computation of Riemann tensor components:</p>
+            <pre><code>
+        Coordinates := [t, r, theta, phi]
+        g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
+        T^{a}_{m}_{b}_{n} = d_{b}*C^{a}_{n}_{m} + C^{a}_{b}_{l}*C^{l}_{n}_{m} - d_{n}*C^{a}_{b}_{m} - C^{a}_{n}_{l}*C^{l}_{b}_{m}
+        T^{a}_{m}_{b}_{n}
+            </code></pre>
+            <p>In this example, the Riemann tensor components are computed and assigned to a tensor <em>T</em>, following the specific user-defined structure for indices.</p>
+        </section>
+        
+    
+        <footer class="section">
+            <p>&copy; 2024 RelativisticPy. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

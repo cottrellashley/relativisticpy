@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RelativisticPy</title>
+    <link type="text/css" rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="sidebar">
+        <a href="index.html"> <!-- Change href to your home page URL -->
+            <img src="./data/logo.png" >
+        </a>
+        <h3>Menu</h3>
+        <a href="quickStartGuide.html">Quick Start Guide</a>
+        <a href="instalation.html">Installation</a>
+        <a href="functions.html">Functions</a>
+        <a href="tensorOperations.html">Tensor Operations</a>
+        <a href="comingFeatures.html">Coming Features</a>
+        <a href="contributions.html">Contributions</a>
+        <h3>Examples</h3>
+        <a href="kScalarExample.html">K-Scalar</a>
+        <a href="blackHoleExample.html">Black Hole Solution</a>
+    </div>
+    <div class="main-content">
+        <header class="section">
+            <h1>RelativisticPy Build in Functions</h1>
+        </header>
+        
+        <h2>Variable Assignment</h2>
+        <p>The variable assignment function allows you to assign a value or expression to a variable and use it in subsequent calculations.</p>
+        <pre><code>y = x**2 + 5*x + 9</code></pre>
+        <p>We can now use this variable <em>y</em> at any point later in the notebook and use it as a replacement for the expression above.</p>
+        <pre><code>integrate( y , x )</code></pre>
+    
+        <h2>Integration</h2>
+        <p>The integrate function allows you to perform integration of an expression with respect to the specified variables.</p>
+        <pre><code>integrate( x**4 + x - 8 , x )</code></pre>
+    
+        <h2>Differentiation</h2>
+        <p>The diff function allows you to perform differentiation of an expression with respect to the specified variables.</p>
+        <pre><code>diff(sin(x) + exp(x**2) + x**2, x)</code></pre>
+    
+        <h2>Solve</h2>
+        <p>The solve function allows you to solve an equation or system of equations.</p>
+        <pre><code>solve(x**2 + 4*x + 4, x)</code></pre>
+    
+        <h2>Simplify</h2>
+        <p>The simplify function allows you to simplify a given expression by applying algebraic transformations.</p>
+        <pre><code>simplify( x**2 + 4*x + 4 )</code></pre>
+    
+        <h2>Expand</h2>
+        <p>The expand function allows you to expand a given expression by multiplying out parentheses and combining like terms.</p>
+        <pre><code>expand( (x + 5)**3 )</code></pre>
+    
+        <h2>Series</h2>
+        <p>The series function allows you to compute the power series expansion of a given expression.</p>
+        <pre><code>series(sin(x), x, 1, 5)</code></pre>
+    
+        <h2>Factor</h2>
+        <p>The factor function allows you to factor a given expression by finding its prime factors.</p>
+        <pre><code>factor( x**2 + 4*x + 4 )</code></pre>
+    
+        <h2>Limit</h2>
+        <p>The limit function allows you to compute the limit of a given expression as a variable approaches a specified value.</p>
+        <pre><code>limit(1/x**2, x, 10)</code></pre>
+    
+        <footer class="section">
+            <p>&copy; 2024 RelativisticPy. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

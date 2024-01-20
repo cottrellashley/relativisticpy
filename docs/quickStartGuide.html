@@ -27,18 +27,14 @@
     <div class="main-content">
         <header class="section">
             <h1>RelativisticPy</h1>
-            <p>RelativisticPy - General Relativity for physicists in a hurry. Simple equation looking User Interface.
-                Write and Go! It is not the most complex, comprehensive or fast symbolic calculator, but it is a
-                symbolic calculator.</p>
-            <p><a href="https://pypi.org/project/relativisticpy/">PyPi</a> | <a
-                    href="https://github.com/cottrellashley/relativisticpy">Source</a></p>
+            <p>RelativisticPy - General Relativity for physicists in a hurry. Simple equation looking User Interface. Write and Go! It is not the most complex, comprehensive or fast symbolic calculator, but it is a symbolic calculator.</p>
+            <p><a href="https://pypi.org/project/relativisticpy/">PyPi</a> | <a href="https://github.com/cottrellashley/relativisticpy">Source</a></p>
         </header>
 
         <section class="section">
-            <h2>TL;DR - Features & Installation</h2>
-            <h3>Install Python Environment</h3>
+            <h3>Install Package</h3>
             <pre><code class="language-python">pip install relativisticpy</code></pre>
-            <h4>Black Hole Solution in &lt; 10 lines</h4>
+            <h3>Import Package and Write Your Equations</h3>
             <pre><code class="language-python">
 import relativisticpy as rel
 
@@ -46,11 +42,12 @@ wb = rel.Workbook()
 
 wb.expr(
 '''
+
 MetricSymbol := G 
 RicciSymbol := Ric 
 Coordinates := [t, r, theta, phi] 
 
-G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
+g_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
 
 eq0 = Ric_{mu:0}_{nu:0} 
 eq1 = Ric_{mu:1}_{nu:1} 
@@ -67,11 +64,10 @@ A = dsolve(eq6, A(r)) # Finally set the answers as A and B
 B = 1/A
 
 latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]])
+
 ''')
         </code></pre>
         </section>
-
-        <!-- Repeat sections for Features, General Relativity functionality, Installation, Package Philosophy, Directory Breakdown, Package Tree-Structure, Project Dependencies, Use Examples, General Relativity Tensor Operations, Future Features, Calculator Features, User Interface Features, License, Contributing -->
 
         <footer class="section">
             <p>&copy; 2024 RelativisticPy. All rights reserved.</p>

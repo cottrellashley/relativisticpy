@@ -262,7 +262,7 @@ The define metric and basis function allows you to define a metric and basis for
 
 
 ```
-Metric([[g00, ....], [g10, ....], ... , [..., gNN]], [var1, ...., varN])
+g_{a}_{b} := [[g00, ....], [g10, ....], ... , [..., gNN]], [var1, ...., varN]
 ```
 
 Now you have defined the metric components as `[[g00, ....], [g10, ....], ... , [..., gNN]]` with the basis coordinates as `[var1, ...., varN]` and we can now write Tensor Expression!
