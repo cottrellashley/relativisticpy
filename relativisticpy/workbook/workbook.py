@@ -52,7 +52,7 @@ class Workbook:
 
                     tasks.append(line.strip())
             res = [Workbook.parser.exe(task) for task in tasks if task.strip()]
-            return [r for r in res if r != None]
+            return [r for r in res if r != None] # Make a copy - call method to trensform objects for displays.
 
         return Workbook.parser.exe(string)
 

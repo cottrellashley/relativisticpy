@@ -1,5 +1,17 @@
 ## Prioritized Features: 
 
+0. Branch off into a new branch called 'feature/semantic_analyzer'
+
+1. The assignment Context right now is being added by the relativity_parser.py
+    a. def equation(self) method should only have one Node creation not three different types -> this is decided by the Semantic_analyzer.py
+
+2. completly remove/rename the type 'object' -> this should either be 'function', 'symbol', 'tensor'
+    2.b. add an extra property to the node called 'type' - as this is important to keep consistent for the Semantic_analyzer.py layer - needs 'type (used to be node) - args - handler' 
+3. hard code some of the symbolic methods 'simplify', 'derivative', etc ...
+4. once these naming things are complete -> implement a working Semantic_analyzer.py which splits and adds all the context we need - first without a assignment_table
+5. fix and re-write the ast_traverser since now we have better control over the method names and the context.
+6. once we have t=more
+
 - **Einstein Tensor**
 - Integration of a setter function for defining tensor expressions such as T_{a}_{b} = [custom tensor expression with matching indices].
 - Integration of an intelligent well defined rules for a dynamic derivative, which uses defined coordinates or user defined.
