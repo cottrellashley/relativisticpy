@@ -1,11 +1,14 @@
+#################################################
+#########  OPERATIONS LOOKUP TABLES  ############
+#################################################
+
 # Base Types
 _int = "int"
 _float = "float"
 _string = "string"
 _bool = "bool"
 _undef = "undef"
-_symbol = "object" # TODO: This is very temporary
-_object = "object"
+_symbol = "symbol" 
 _tensor = "tensor"
 
 # Compound Types
@@ -13,16 +16,42 @@ _array = "array"
 _sym_expr = "sym_expr"
 
 # Entities which will return a type
-_funtion = "funtion"
+_function = "function"
 
 # Current
 _int = "int"
 _float = "float"
 _array = "array"
-_object = "object"
 _tensor = "tensor"
 _undef = "undef"
-_funtion = "funtion"
+_function = "function"
+
+
+## Negative operation 'f(a) -> -a' ( NOT the minus operation 'f(a, b) -> a - b' )
+negOperatorTypes = {
+    _int: _int,
+    _float: _float,
+    _string: _undef,
+    _bool: _undef, # can turn -True -> False (i.e. into not operation)
+    _array: _array,
+    _tensor: _tensor,
+    _symbol: _symbol,
+    _sym_expr: _sym_expr,
+    _function: _function,
+}
+
+## Positive operation 'f(a) -> +a' ( NOT the plus operation 'f(a, b) -> a + b' )
+posOperatorTypes = {
+    _int: _int,
+    _float: _float,
+    _string: _undef,
+    _bool: _undef,
+    _array: _undef, # TODO: Does +[array, array, ... ] make sense ?
+    _tensor: _undef,  # TODO: Does +T_{a}_{b} make sense ?
+    _symbol: _symbol,
+    _sym_expr: _sym_expr,
+    _function: _function,
+}
 
 plusOperatorTypes = {
     _int: {
@@ -34,7 +63,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _float: {
         _int: _float,
@@ -45,7 +74,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _string: {
         _int: _undef,
@@ -56,7 +85,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _bool: {
         _int: _undef,
@@ -67,7 +96,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _array: {
         _int: _undef,
@@ -78,7 +107,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _tensor: {
         _int: _undef,
@@ -89,7 +118,7 @@ plusOperatorTypes = {
         _tensor: _tensor,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _symbol: {
         _int: _sym_expr,
@@ -100,7 +129,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _sym_expr: {
         _int: _sym_expr,
@@ -111,9 +140,9 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
-    _funtion: {
+    _function: {
         _int: _sym_expr,
         _float: _sym_expr,
         _string: _undef,
@@ -122,7 +151,7 @@ plusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
 }
 
@@ -136,7 +165,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _float: {
         _int: _float,
@@ -147,7 +176,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _string: {
         _int: _undef,
@@ -158,7 +187,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _bool: {
         _int: _undef,
@@ -169,7 +198,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _array: {
         _int: _undef,
@@ -180,7 +209,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _tensor: {
         _int: _undef,
@@ -191,7 +220,7 @@ minusOperatorTypes = {
         _tensor: _tensor,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _symbol: {
         _int: _sym_expr,
@@ -202,7 +231,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _sym_expr: {
         _int: _sym_expr,
@@ -213,9 +242,9 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
-    _funtion: {
+    _function: {
         _int: _sym_expr,
         _float: _sym_expr,
         _string: _undef,
@@ -224,7 +253,7 @@ minusOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
 }
 
@@ -238,7 +267,7 @@ mulOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _float: {
         _int: _float,
@@ -249,7 +278,7 @@ mulOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _string: {
         _int: _undef,
@@ -260,7 +289,7 @@ mulOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _bool: {
         _int: _undef,
@@ -271,7 +300,7 @@ mulOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _array: {
         _int: _array,
@@ -282,7 +311,7 @@ mulOperatorTypes = {
         _tensor: _undef,
         _symbol: _array,
         _sym_expr: _array,
-        _funtion: _array,
+        _function: _array,
     },
     _tensor: {
         _int: _tensor,
@@ -293,7 +322,7 @@ mulOperatorTypes = {
         _tensor: _tensor,
         _symbol: _tensor,
         _sym_expr: _tensor,
-        _funtion: _tensor,
+        _function: _tensor,
     },
     _symbol: {
         _int: _sym_expr,
@@ -304,7 +333,7 @@ mulOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _sym_expr: {
         _int: _sym_expr,
@@ -315,9 +344,9 @@ mulOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
-    _funtion: {
+    _function: {
         _int: _sym_expr,
         _float: _sym_expr,
         _string: _undef,
@@ -326,7 +355,7 @@ mulOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
 }
 
@@ -340,7 +369,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _float: {
         _int: _float,
@@ -351,7 +380,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _string: {
         _int: _undef,
@@ -362,7 +391,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _bool: {
         _int: _undef,
@@ -373,7 +402,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _array: {
         _int: _undef,
@@ -384,7 +413,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _tensor: {
         _int: _undef,
@@ -395,7 +424,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _symbol: {
         _int: _sym_expr,
@@ -406,7 +435,7 @@ powOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _sym_expr: {
         _int: _sym_expr,
@@ -417,9 +446,9 @@ powOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
-    _funtion: {
+    _function: {
         _int: _sym_expr,
         _float: _sym_expr,
         _string: _undef,
@@ -428,7 +457,7 @@ powOperatorTypes = {
         _tensor: _tensor,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
 }
 
@@ -442,7 +471,7 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _float: {
         _int: _float,
@@ -453,7 +482,7 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _string: {
         _int: _undef,
@@ -464,7 +493,7 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _bool: {
         _int: _undef,
@@ -475,7 +504,7 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _array: {
         _int: _array,
@@ -486,7 +515,7 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _array,
         _sym_expr: _array,
-        _funtion: _array,
+        _function: _array,
     },
     _tensor: {
         _int: _tensor,
@@ -497,7 +526,7 @@ divOperatorTypes = {
         _tensor: _undef,  # if users enter T_{x:0}
         _symbol: _tensor,
         _sym_expr: _tensor,
-        _funtion: _tensor,
+        _function: _tensor,
     },
     _symbol: {
         _int: _sym_expr,
@@ -508,7 +537,7 @@ divOperatorTypes = {
         _tensor: _sym_expr,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
     _sym_expr: {
         _int: _sym_expr,
@@ -519,9 +548,9 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
-    _funtion: {
+    _function: {
         _int: _sym_expr,
         _float: _sym_expr,
         _string: _undef,
@@ -530,7 +559,7 @@ divOperatorTypes = {
         _tensor: _undef,
         _symbol: _sym_expr,
         _sym_expr: _sym_expr,
-        _funtion: _sym_expr,
+        _function: _sym_expr,
     },
 }
 
@@ -543,9 +572,12 @@ simplifyOperatorTypes = {
     _tensor: _tensor,
     _symbol: _symbol,
     _sym_expr: _sym_expr,
-    _funtion: _sym_expr,
+    _function: _sym_expr,
 }
 
+#################################################
+#########   TYPES OF ASSIGNMENTS '=' ############
+#################################################
 
 # Operations Context adding - Bellow are tables which give context to which operation we are dealing with.
 # Assigning operaiont types
@@ -566,7 +598,7 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _float: {
         _int: _undef,
@@ -577,7 +609,7 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _string: {
         _int: _undef,
@@ -588,7 +620,7 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _bool: {
         _int: _undef,
@@ -599,7 +631,7 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _array: {
         _int: _undef,
@@ -610,7 +642,7 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _tensor: {
         _int: _undef,
@@ -621,7 +653,7 @@ assigningTypes = {
         _tensor: _tensor_expr_assignment,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
     _symbol: {
         _int: _variable_assignment,
@@ -632,7 +664,7 @@ assigningTypes = {
         _tensor: _variable_assignment,
         _symbol: _variable_assignment,
         _sym_expr: _variable_assignment,
-        _funtion: _variable_assignment,
+        _function: _variable_assignment,
     },
     _sym_expr: {
         _int: _undef,
@@ -643,9 +675,9 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _undef,
         _sym_expr: _undef,
-        _funtion: _undef,
+        _function: _undef,
     },
-    _funtion: {
+    _function: {
         _int: _function_definition,
         _float: _function_definition,
         _string: _undef,
@@ -654,7 +686,125 @@ assigningTypes = {
         _tensor: _undef,
         _symbol: _function_definition,
         _sym_expr: _function_definition,
-        _funtion: _undef,
+        _function: _undef,
+    },
+}
+
+##################################################
+#########   TYPES OF DEFINITIONS ':=' ############
+##################################################
+
+# Operations Context adding - Bellow are tables which give context to which operation we are dealing with.
+# Assigning operaiont types
+
+# When the definition sign represents a user wanting to set his own tensor symbol 'g_{a}_{b} := [[a, ... ], ... ]'
+_metric_tensor_definition = "metric_tensor_definition" 
+
+# When the definition sign represents user defining something which remains set for rest of workflow. 'MetricSymbol := g' or 'Coordinates := [t, r, theta, phi]'
+_tensor_symbol_definition = "tensor_symbol_definition"
+
+# When the definition sign represents user defining something which remains set for rest of workflow. 'MetricSymbol := g' or 'Coordinates := [t, r, theta, phi]'
+_coordinate_definition = "coordinate_definition"
+
+defineTypes = {
+    _int: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _float: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _string: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _bool: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _array: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _tensor: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _metric_tensor_definition,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _metric_tensor_definition,
+        _function: _undef,
+    },
+    _symbol: { # Any of these could eventually be something different
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _coordinate_definition,
+        _tensor: _undef,
+        _symbol: _tensor_symbol_definition,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _sym_expr: {
+        _int: _undef,
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
+    },
+    _function: {
+        _int: _undef, 
+        _float: _undef,
+        _string: _undef,
+        _bool: _undef,
+        _array: _undef,
+        _tensor: _undef,
+        _symbol: _undef,
+        _sym_expr: _undef,
+        _function: _undef,
     },
 }
 

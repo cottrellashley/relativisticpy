@@ -3,9 +3,12 @@ from relativisticpy.parsers.shared.interfaces.iterator import IIterator
 from relativisticpy.parsers.shared.interfaces.lexer import ILexer
 from relativisticpy.parsers.shared.interfaces.node_provider import INodeProvider
 from relativisticpy.parsers.shared.interfaces.parser_ import IParser
+from relativisticpy.parsers.shared.interfaces.semantic_analyzer import ISemanticAnalyzer
 from relativisticpy.parsers.shared.interfaces.tokens import ITokenProvider
 from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
 from relativisticpy.parsers.shared.models.token import Token
+
+
 
 class ParserServicesProvider:
 
@@ -14,7 +17,8 @@ class ParserServicesProvider:
                     parser:                 IParser, 
                     token_provider:         ITokenProvider, 
                     node_provider:          INodeProvider, 
-                    iterator:               IIterator, 
+                    iterator:               IIterator,
+                    semantic_analyzer:      ISemanticAnalyzer,
                     configuration_models:   ConfigurationModels
                 ):
         self.token_provider         = token_provider
@@ -23,10 +27,12 @@ class ParserServicesProvider:
         self.lexer                  = lexer
         self.parser                 = parser
         self.iterator               = iterator
+        self.semantic_analyzer      = semantic_analyzer
 
     def build(self) -> IParser:
         # Instantiate provider:
         node_provider_instance  = self._build_node_provider()
+
 
         # Configure node provider to the custom, user defined, variables and functions methods.
         node_provider_instance.set_matcher(self.configuration_models if self.configuration_models != None else [])
@@ -44,12 +50,19 @@ class ParserServicesProvider:
         # Wrap the tokens around the iterable once more:
         tokens_iter_instance = self._build_iterator(tokens)
 
+        semantic_analyzer_instance = self._build_semantic_analyzer()
+
         # Build parser instance
         parser_instace = self.build()
 
         AST = parser_instace.parse(tokens_iter_instance)
 
+        AST = semantic_analyzer_instance.analyse_tree(AST)
+
         return AST
+    
+    def analyse_ast(self, ast):
+        return self.semantic_analyzer.analyse_tree(ast)
 
     def tokenize_string_service(self, string: str) -> List[Token]:
         # Instantiate providers:
@@ -80,3 +93,6 @@ class ParserServicesProvider:
     
     def _build_iterator(self, type) -> IIterator:
         return self.iterator(type)
+
+    def _build_semantic_analyzer(self) -> ISemanticAnalyzer:
+        return self.semantic_analyzer()

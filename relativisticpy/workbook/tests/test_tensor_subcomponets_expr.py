@@ -140,7 +140,7 @@ def test_riemann_sub_components(Schwarzschild_Riemann, Schwarzschild_Basis):
                 R^{a:0}_{b:0}_{c:0}_{d:0}
                 R^{a}_{b:0}_{c:0}_{d:0}
                 R^{a:0}_{b:1}_{c:0}_{d}
-                R^{a:[]}_{b}_{c}_{d}
+                R^{a:1}_{b}_{c}_{d:3}
         """
     )
     assert res[0] == riemann_components[0, 0, 0, 0]

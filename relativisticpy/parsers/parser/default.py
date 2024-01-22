@@ -1,6 +1,7 @@
 from relativisticpy.parsers.parser.service_provider import ParserServicesProvider
 from relativisticpy.parsers.core.iterator import Iterator
 from relativisticpy.parsers.core.lexer import Lexer
+from relativisticpy.parsers.core.semantic_analyser import SemanticAnalyzer
 from relativisticpy.parsers.core.default_parser import Parser
 from relativisticpy.parsers.core.token import TokenProvider
 from relativisticpy.parsers.core.nodes import NodeProvider
@@ -19,6 +20,7 @@ class DefaultParserService(IParserService):
                                                         token_provider          = TokenProvider,
                                                         node_provider           = NodeProvider,
                                                         iterator                = Iterator,
+                                                        semantic_analyzer       = SemanticAnalyzer,
                                                         configuration_models    = self.node_configuration
                                                     )
 
@@ -27,3 +29,6 @@ class DefaultParserService(IParserService):
 
     def tokenize_string(self, string: str):
         return self.parser_serice.tokenize_string_service(string)
+    
+    def analyse_ast(self, ast):
+        return self.parser_serice.analyse_ast(ast)

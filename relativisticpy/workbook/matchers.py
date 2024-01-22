@@ -1,5 +1,5 @@
 # I defined a callback method which will match on a string and return true or false. in this case I choose a tensor
-
+import re
 
 def match_tensors(i):
     """
@@ -7,7 +7,6 @@ def match_tensors(i):
 
             WORD_{LETTER:INTEGER}_{LETTER:INTEGER}_.........REPEAT
     """
-    import re
 
     string = i
     rank = string.count("_") + string.count("^")
@@ -28,6 +27,9 @@ def match_tensors(i):
     else:
         return False
 
+def match_symbol(i):
+    return bool(re.match(r"^\w+$", i))
+    
 
 # Notice the node type is object, but when we enter these strings, it will call the matcher method and change the node key to "TENSOR"
 variable_matchers = [

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.interfaces.interpreter import IInterpreter
-
+from relativisticpy.parsers.shared.models.semantic_analyzer_node import SANode
 
 @dataclass
 class Node:
@@ -15,13 +15,13 @@ class Interpreter(IInterpreter):
         self.node_tree_walker = node_tree_walker
 
     def interpret(self, mathjson):
-        if isinstance(mathjson, dict):
-            node_type = mathjson[NodeKeys.Node.value]
-            handler = mathjson[NodeKeys.Handler.value]
-            arguments = mathjson[NodeKeys.Arguments.value]
+        if isinstance(mathjson, SANode):
+            node_type = mathjson.node
+            handler = mathjson.callback
+            arguments = mathjson.args
             node_methods = dir(self.node_tree_walker)
             if (
-                (node_type in ["object", "function"])
+                (node_type in ["tensor", "symbol", "function"])
                 and (handler not in node_methods)
                 and (node_type in node_methods)
             ):

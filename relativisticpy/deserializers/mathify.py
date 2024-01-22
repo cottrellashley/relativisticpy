@@ -120,7 +120,7 @@ class MathNode:
     def array(self, node: Node):
         return SymbolArray(list(node.args))
 
-    def object(self, node: Node):
+    def symbol(self, node: Node):
         return smp.symbols("{}".format("".join(node.args)))
 
     def limit(self, node: Node):

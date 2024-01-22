@@ -9,3 +9,7 @@ class IParserService(ABC):
     @abstractmethod
     def tokenize_string(self):
         pass
+
+    @abstractmethod
+    def analyse_ast(self):
+        pass
