@@ -52,6 +52,8 @@ class NodeType(Enum):
     TENSOR_KEY = "tensor_key"
     SYMBOL_DEFINITION = "symbol_definition"
     SYMBOL_KEY = "symbol_key"
+    SYMBOL = "symbol"
+    TENSOR = "tensor"
 
 
 class TokenType(Enum):

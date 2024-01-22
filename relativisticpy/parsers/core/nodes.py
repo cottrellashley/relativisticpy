@@ -44,11 +44,20 @@ class LeafNode(BaseNode):
 
     def new(self, token: Token):
         self.token = token
-        if self.node_type == NodeType.OBJECT:
+        if self.node_type == NodeType.TENSOR:
+            return self.node(
+                "tensor", "tensor", "".join(self.token.value)
+            )
+        elif self.node_type == NodeType.SYMBOL:
+            return self.node(
+                "symbol", "symbol", "".join(self.token.value)
+            )
+        elif self.node_type == NodeType.OBJECT:
             return self.node(
                 "object", self.match_on_object_node(self.token.value), self.token.value
             )
-        return self.node(self.type, self.get_node_handler_name(), self.token.value)
+        else:
+            return self.node(self.type, self.get_node_handler_name(), self.token.value)
 
     def match_on_object_node(self, object_string: str):
         for variable_key_provider in self.node_configuration.objs_configurations:

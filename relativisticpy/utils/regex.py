@@ -30,7 +30,7 @@ def str_has_symbol(def_key: str) -> bool:
     bool(re.match(r"\b\w+Symbol\b", def_key))
 
 
-def str_is_tensors(i):
+def str_is_tensors(i : str) -> bool:
     """
     Will match on strings of form:
 
@@ -53,6 +53,8 @@ def str_is_tensors(i):
 def is_symbol_object_key(string: str) -> bool:
     return bool(re.match(r"\b\w+Symbol\b", string))
 
+def is_symbol(string: str) -> bool:
+    return bool(re.match(r"^\w+$", string))
 
 def extract_tensor_symbol(string: str) -> Union[str, None]:
     return (

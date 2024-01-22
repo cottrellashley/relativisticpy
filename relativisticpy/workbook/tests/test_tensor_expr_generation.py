@@ -113,3 +113,11 @@ def test_covariant_derivative_metric_mapping(
     assert smp.simplify(res[0].components) == zeros
     assert str(res[0].indices) == "_{b}_{a}_{c}"
     assert equal(res[0].basis, basis)
+
+
+# Test Tensor multiplication with non-int, non-float, symbol scalar
+    """
+                Coordinates := [t, r, theta, phi] 
+                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
+                g_{a}_{b}*f(x)
+    """

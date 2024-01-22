@@ -1,5 +1,5 @@
 # Standard Library
-from typing import List
+from typing import List, Callable
 from itertools import product
 
 # External Modules
@@ -228,6 +228,14 @@ class EinsteinArray:
             )
         else:
             raise ValueError("Cannot divide with anything other than int or float.")
+        
+    def components_operation(self, operation: Callable):
+        self.components = operation(self.components)
+        return self
+    
+    def index_operation(self, operation: Callable):
+        self.indices = operation(self.indices)
+        return self
 
     def comps_contraction(self, other: "EinsteinArray", idcs: List[List[int]]):
         return tensor_trace_product(self.components, other.components, idcs)

@@ -150,19 +150,12 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
             return self.einstein_tensor(tensor_ref)
 
 
-class TensorKeyNode:
-    def handle(self, node: AstNode):
-        self.str_indices = "".join(node.args)
-        return self
-
-
 class TensorDefinitionNode:
     def __init__(self, state: WorkbookState):
         self.state = state
 
     def handle(self, node: AstNode):
-        tensor_key: TensorKeyNode = node.args[0]
-        tref = TensorReference(tensor_key.str_indices)
+        tref: TensorReference = node.args[0]
         tref.indices.basis = (
             self.state.coordinates
         )  # Error handling needed => if no coordinates defined cannot continue
@@ -178,47 +171,47 @@ class TensorDefinitionNode:
             )
         else:
             new_tensor = EinsteinArray(
-                Indices.from_string(tensor_key.str_indices),
+                tref.indices,
                 tensor_comps,
                 self.state.coordinates,
             )
 
         self.state.set_tensor(tref, new_tensor)
 
-class TensorSetterNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEMENTATION
+class InitTensorFromComponentsNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEMENTATION
     
     def __init__(self, state: WorkbookState):
         self.state = state
 
     def handle(self, node: AstNode):
-        lhs : str = node.args[0]
+        tref : TensorReference = node.args[0]
         rhs = node.args[1]
 
-        if isinstance(rhs, (EinsteinArray, Metric, Ricci, Riemann, Connection)):
-            tref = TensorReference(lhs)
+        tref.indices.basis = (
+            self.state.coordinates
+        ) 
 
-            tref.indices.basis = (
-                self.state.coordinates
-            ) # New tensor is within the same manifold and therefore coordinate patch
-
-            # Get the new components in the corret order
-
-            new_tensor = rhs.reshape_tensor_components(tref.indices)
-
-            self.state.set_tensor(tref, new_tensor)
-
-        else:
-            tref = TensorReference(lhs)
-
-            tref.indices.basis = (
-                self.state.coordinates
-            ) 
-
-            self.state.set_tensor(tref, EinsteinArray(tref.indices, rhs, self.state.coordinates))
+        self.state.set_tensor(tref, EinsteinArray(tref.indices, rhs, self.state.coordinates))
 
 
 
+class InitTensorFromExpressionNode:
+    def __init__(self, state: WorkbookState):
+        self.state = state
 
+    def handle(self, node: AstNode):
+        tref : TensorReference = node.args[0]
+        rhs = node.args[1]
+
+        tref.indices.basis = (
+            self.state.coordinates
+        ) # New tensor is within the same manifold and therefore coordinate patch
+
+        # Get the new components in the corret order
+
+        new_tensor = rhs.reshape_tensor_components(tref.indices)
+
+        self.state.set_tensor(tref, new_tensor)
 
 class TensorDiagBuilder:
     def handle(self, node: AstNode):
@@ -242,8 +235,10 @@ class DefinitionNode:
     def handle(self, node: AstNode):
         if isinstance(node.args[0], str):
             key = node.args[0]
+        elif isinstance(str(node.args[0]), str):
+            key = str(node.args[0])
         else:
-            raise ValueError("AstNode is not a string.")
+            raise ValueError("AstNode is not a string and could not be converted to a string.")
 
         if key == WorkbookConstants.COORDINATES.value:
             self.state.set_coordinates(node.args[1])

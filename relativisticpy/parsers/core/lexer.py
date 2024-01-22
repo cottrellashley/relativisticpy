@@ -80,6 +80,7 @@ class Lexer(ILexer):
                 self.token_provider.new_single_operation_token(ops[i])
                 i += 1
 
+    # Here we are building: function - object - tensor
     def _object(self):
         obj = ""
         while (
@@ -100,10 +101,12 @@ class Lexer(ILexer):
                 obj += self.characters.current()
                 self.characters.advance()
                 self.token_provider.new_token(TokenType.OBJECT, obj)
+
             elif self.characters.peek(1, None) == None:
                 obj += self.characters.current()
                 self.token_provider.new_token(TokenType.OBJECT, obj)
                 self.characters.advance()
+                
             else:
                 obj += self.characters.current()
                 self.characters.advance()

@@ -1,14 +1,14 @@
 from relativisticpy.workbook.itensors import (
     TensorDefinitionNode,
-    TensorKeyNode,
     TensorNode,
     TensorDiagBuilder,
     DefinitionNode,
-    TensorSetterNode
+    InitTensorFromComponentsNode,
+    InitTensorFromExpressionNode
 )
-from relativisticpy.workbook.matchers import match_tensors
+from relativisticpy.workbook.matchers import match_tensors, match_symbol
 from relativisticpy.workbook.node import AstNode
-from relativisticpy.workbook.state import WorkbookState
+from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.utils import str_is_tensors
 
 from relativisticpy.symengine import (
@@ -91,19 +91,29 @@ class RelPyAstNodeTraverser:
         self.cache = cache
 
     # Cache Node handlers
-    def assigner(self, node: AstNode):
-
-        if str_is_tensors(str(node.args[0])):# <<<<< TODO: IMPLEMENT TENSOR ASSIGNER IN BETTER STANDARDISED WAY.
-            if ':' in str(node.args[0]):
-                raise ValueError('Feature: <Assigning value to tensor sub-components> is not implemented yet.')
-            TensorSetterNode(self.cache).handle(node)
-
+    def variable_assignment(self, node: AstNode):
         self.cache.set_variable(str(node.args[0]), node.args[1])
+
+    def tensor_component_assigning(self, node: AstNode):
+        if ':' in str(node.args[0]):
+                raise ValueError('Feature: <Assigning value to tensor sub-components> is not implemented yet.')
+        InitTensorFromComponentsNode(self.cache).handle(node)
+
+    def tensor_expr_assignment(self, node: AstNode):
+        if ':' in str(node.args[0]):
+                raise ValueError('Feature: <Assigning value to tensor sub-components> is not implemented yet.')
+        InitTensorFromExpressionNode(self.cache).handle(node)
+
+    def function_definition(self, node: AstNode):
+        pass # User can define a function which they can actually call 
 
     def symbol_definition(self, node: AstNode):
         self.cache.set_variable(node.args[0], str(node.args[1]))
 
     def define(self, node: AstNode):
+        DefinitionNode(self.cache).handle(node)
+
+    def coordinate_definition(self, node: AstNode):
         DefinitionNode(self.cache).handle(node)
 
     # Basic Node handlers
@@ -112,6 +122,13 @@ class RelPyAstNodeTraverser:
 
     def symbol_key(self, node: AstNode):
         return "".join(node.args)
+    
+    def definition_identifyer(self, node: AstNode):
+        return "".join(node.args)
+    
+    # Tensor type node handlers
+    def tensor_identifyer(self, node: AstNode):
+        return TensorReference("".join(node.args))  # Handles Tensor identifyers G_{a}_{b} etc ...
 
     def sub(self, node: AstNode):
         return node.args[0] - node.args[1]
@@ -151,6 +168,12 @@ class RelPyAstNodeTraverser:
     def diff(self, node: AstNode): return diff(*node.args)
     def integrate(self, node: AstNode): return integrate(*node.args)
     def simplify(self, node: AstNode): return simplify(*node.args)
+
+    def simplify_tensor(self, node: AstNode):
+        tensor = node.args[0]
+        tensor.components = simplify(tensor.components)
+        return tensor
+
     def latex(self, node: AstNode): return latex(*node.args)
     def solve(self, node: AstNode): return solve(*node.args)
     def numerical(self, node: AstNode): return N(*node.args)
@@ -185,7 +208,7 @@ class RelPyAstNodeTraverser:
     def function(self, node: AstNode):
         return symbols("{}".format(node.handler), cls=Function)(*node.args)
 
-    def object(self, node: AstNode):
+    def symbol(self, node: AstNode):
         a = "".join(node.args)
 
         if a in ["pi", "e"]:
@@ -208,13 +231,7 @@ class RelPyAstNodeTraverser:
     def diag(self, node: AstNode):
         return TensorDiagBuilder().handle(node)
 
-    # Tensor type node handlers
-    def tensor_key(self, node: AstNode):
-        return TensorKeyNode().handle(
-            node
-        )  # Handles Tensor identifyers G_{a}_{b} etc ...
-
-    def tensor_init(self, node: AstNode):
+    def metric_tensor_definition(self, node: AstNode):
         TensorDefinitionNode(self.cache).handle(
             node
         )  # Tensor Setter : G_{a}_{b} := [[a, b],[c,d]]
@@ -232,6 +249,11 @@ class RelPyAstNodeTraverser:
             "node": "object",
             "node_key": "tensor",
             "string_matcher_callback": match_tensors,
+        },
+        {
+            "node": "object",
+            "node_key": "symbol",
+            "string_matcher_callback": match_symbol,
         }
     ]
 
@@ -250,6 +272,8 @@ class RelPyAstNodeTraverser:
         {"node": "float", "handler": "float"},
         {"node": "negative", "handler": "neg"},
         {"node": "positive", "handler": "pos"},
+        {"node": "symbol", "handler":"symbol"},
+        {"node": "tensor", "handler":"tensor"},
         {"node": "tensor_init", "handler": "tensor_init"},
         {"node": "tensor_key", "handler": "tensor_key"},
         {"node": "variable_key", "handler": "variable_key"},
