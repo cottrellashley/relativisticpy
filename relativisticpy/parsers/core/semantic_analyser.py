@@ -45,7 +45,7 @@ from relativisticpy.parsers.core.operator_lookup_tables import (
 )
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.interfaces.semantic_analyzer import ISemanticAnalyzer
-from relativisticpy.parsers.shared.models.semantic_analyzer_node import AstNode, SANode
+from relativisticpy.parsers.shared.models.semantic_analyzer_node import SANode
 
 
 class SemanticAnalyzer(ISemanticAnalyzer):

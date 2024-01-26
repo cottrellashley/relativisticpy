@@ -75,7 +75,7 @@ def test_workbook_new_line_components_definition(Schwarzschild_Metric):
                                     [-(1 - (2 * G * M) / (r)), 0, 0, 0],
                                     [0, 1 / (1 - (2 * G * M) / (r)), 0, 0],
                                     [0, 0, r**2, 0],
-                                    [0, 0, 0, r**2 * sin(theta) ** 2],
+                                    [0, 0, 0, r**2 * sin(theta) ** 2]
                                 ]
                 g_{mu}_{nu}
         """
