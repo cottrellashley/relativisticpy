@@ -23,10 +23,10 @@ atom            :   INT|FLOAT|STRING|BOOL|ID|TENSORID|FUNCTIONID|LATEXID
                 :   func-def
                 :   tensor
 
-tensor          :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
-                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )* ((EQUAL) expr)?
-                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )* ((EQUAL) array)?
-                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )* ((COLONEQUAL) array)?
+tensor          :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )*
+                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((EQUAL) expr)?
+                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((EQUAL) array)?
+                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((COLONEQUAL) array)?
 
 array           :   LSQB (NEWLINE*)? (expr ((COMMA) (NEWLINE*)? expr*)? (NEWLINE*)? RSQB) 
 

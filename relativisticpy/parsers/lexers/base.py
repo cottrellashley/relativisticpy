@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Union, Dict
-from relativisticpy.parsers.shared.interfaces.tokens import ITokenProvider
-from relativisticpy.parsers.shared.models.error import Error
-from typing import Iterable
-from relativisticpy.parsers.shared.models.position import Position
-from relativisticpy.parsers.shared.models.token import Token
+from typing import List, Union, Dict
+from relativisticpy.parsers.shared.errors import Error
+from relativisticpy.parsers.shared.iterator import Iterator
+
 from dataclasses import dataclass
+
+from relativisticpy.parsers.types.position import Position
 
 def enum__contains(cls):
     """ Enum.has_value(value) -> True or False -> if Enum contains that value. """
@@ -133,7 +133,7 @@ class Token:
     end_position: Position = None
 
 
-class TokenProvider(ITokenProvider):
+class TokenProvider:
     def __init__(self):
         self.tokens = []
 
@@ -258,47 +258,25 @@ class TokenProvider(ITokenProvider):
             ">": {">": {"=": TokenType.RIGHTSHIFTEQUAL}}
         }
 
-
-class Iterator:
-    def __init__(self, object: Iterable):
-        self.object = object
-        if isinstance(self.object, Iterable):
-            self.iterable_object = iter(object)
-            self.current_item_location = -1
-
-    def advance(self):
-        self.current_item = next(self.iterable_object, None)
-        if self.current_item != None:
-            self.current_item_location += 1
-
-    def peek(self, n: int = 1, default=None):
-        i = self.current_item_location
-        if i + n < len(self.object):
-            return self.object[i + n]
-        else:
-            return default
-
-    def __len__(self):
-        return len(self.object)
-
-    def current(self):
-        return self.current_item
-
-
+@dataclass
+class LexerResult:
+    code: str
+    tokens: List[Token]
 
 class BaseLexer(ABC):
     "Base Lexer all lexer types within this module should inherit."
 
     def __init__(self, string: str):
+        self.raw_code = string
         self.__characters = Iterator(string)
         self.__token_provider_instance = TokenProvider()
         self.character = 0
-        self.line = 0
+        self.line = 1
         self.__characters.advance()
         
 
     @abstractmethod
-    def tokenize(): pass
+    def tokenize() -> LexerResult: pass
 
     @property
     def token_provider(self) -> TokenProvider: return self.__token_provider_instance

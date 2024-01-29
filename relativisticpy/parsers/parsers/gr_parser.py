@@ -1,6 +1,6 @@
-################################################################################ 
+################################################################################
 ##################### RELATIVITY PARSER GRAMMAR ################################
-################################################################################ 
+################################################################################
 #
 # statements      :   NEWLINE* statement (NEWLINE* statement)
 #
@@ -32,16 +32,14 @@
 # array           :   LPAR (expr ((COMMA) expr*)? RPAR)
 #
 # func-def        :   FUNCTIONID? LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE)
-#
-#
-
-from relativisticpy.parsers.parsers.base import BaseParser, NodeType
-from relativisticpy.parsers.shared.models.token import Token
-from relativisticpy.parsers.lexers.base import TokenType
 
 
+from relativisticpy.parsers.parsers.base import BaseParser, ParserResult
+from relativisticpy.parsers.lexers.base import Token, TokenType
+from relativisticpy.parsers.types.gr_nodes import Tensor, Function
 
-class RelativityParser(BaseParser):
+
+class GRParser(BaseParser):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -50,8 +48,8 @@ class RelativityParser(BaseParser):
             return None
 
         result = self.statements()
-        return result
-    
+        return ParserResult(self.raw_code, result)
+
     def statements(self):
         statements = []
         start_position = self.current_token.start_position.copy()
@@ -70,14 +68,19 @@ class RelativityParser(BaseParser):
             if self.current_token == None:
                 break
 
-            while self.current_token != None and self.current_token.type == TokenType.NEWLINE:
+            while (
+                self.current_token != None
+                and self.current_token.type == TokenType.NEWLINE
+            ):
                 self.advance_token()
                 newline_count += 1
             if newline_count == 0:
                 more_statements = False
-      
-            if not more_statements: break
-            if not self.current_token: break
+
+            if not more_statements:
+                break
+            if not self.current_token:
+                break
             statement = self.statement()
             if not statement:
                 more_statements = False
@@ -86,8 +89,6 @@ class RelativityParser(BaseParser):
 
         return statements
 
-
-    
     ####################################### STATEMENT ##############################################
     # statement       :   KEYWORD:print? expr
     ################################################################################################
@@ -97,9 +98,8 @@ class RelativityParser(BaseParser):
         if self.current_token.type == TokenType.PRINT:
             self.advance_token()
             return self.new_print_node(start_position, [self.expr()])
-        
-        return self.expr()
 
+        return self.expr()
 
     ###################################### EXPRESSIONS #############################################
     # expr            :   (ID|TENSORID) EQUAL expr
@@ -108,32 +108,51 @@ class RelativityParser(BaseParser):
     def expr(self):
         start_position = self.current_token.start_position.copy()
 
-        if self.current_token.type == TokenType.ID and self.peek(1, Token(TokenType.NONE, '')).type in (TokenType.EQUAL, TokenType.COLONEQUAL):
-            identifier = self.current_token
+        if self.current_token.type == TokenType.ID and self.peek(
+            1, Token(TokenType.NONE, "")
+        ).type in (TokenType.EQUAL, TokenType.COLONEQUAL):
+            token = self.current_token
             # Skip over as we already know Token will be EQUAL
             self.advance_token()
             if self.current_token.type == TokenType.EQUAL:
                 self.advance_token()
-                return self.new_assignment_node(start_position, [identifier, self.expr()])
+                return self.new_assignment_node(
+                    start_position,
+                    [
+                        token.value,
+                        self.expr(),
+                    ],
+                )
             elif self.current_token.type == TokenType.COLONEQUAL:
                 self.advance_token()
-                return self.new_definition_node(start_position, [identifier, self.expr()])
-        
+                return self.new_definition_node(
+                    start_position,
+                    [
+                        token.value,
+                        self.expr(),
+                    ],
+                )
+
         else:
             result = self.bool_expr()
 
-            while self.current_token != None and self.current_token.type in (TokenType.AND, TokenType.OR):
-                
+            while self.current_token != None and self.current_token.type in (
+                TokenType.AND,
+                TokenType.OR,
+            ):
                 if self.current_token.type == TokenType.AND:
                     self.advance_token()
-                    result = self.new_and_node(start_position, [result, self.bool_expr()])
-        
+                    result = self.new_and_node(
+                        start_position, [result, self.bool_expr()]
+                    )
+
                 elif self.current_token.type == TokenType.OR:
                     self.advance_token()
-                    result = self.new_and_node(start_position, [result, self.bool_expr()])
+                    result = self.new_and_node(
+                        start_position, [result, self.bool_expr()]
+                    )
 
             return result
-
 
     ############################## BOOLEAN EXPRESSION #############################################
     # bool-expr       :   NOT bool-expr
@@ -146,7 +165,6 @@ class RelativityParser(BaseParser):
             self.advance_token()
             return self.new_not_node(start_position, [self.bool_expr()])
 
-
         result = self.arith_expr()
         while self.current_token != None and self.current_token.type in (
             TokenType.EQEQUAL,
@@ -157,24 +175,31 @@ class RelativityParser(BaseParser):
         ):
             if self.current_token.type == TokenType.EQEQUAL:
                 self.advance_token()
-                result = self.new_eqequal_node(start_position, [result, self.arith_expr()])
+                result = self.new_eqequal_node(
+                    start_position, [result, self.arith_expr()]
+                )
             elif self.current_token.type == TokenType.LESS:
                 self.advance_token()
                 result = self.new_less_node(start_position, [result, self.arith_expr()])
             elif self.current_token.type == TokenType.GREATER:
                 self.advance_token()
-                result = self.new_greater_node(start_position, [result, self.arith_expr()])
+                result = self.new_greater_node(
+                    start_position, [result, self.arith_expr()]
+                )
             elif self.current_token.type == TokenType.LESSEQUAL:
                 self.advance_token()
-                result = self.new_lessequal_node(start_position, [result, self.arith_expr()])
+                result = self.new_lessequal_node(
+                    start_position, [result, self.arith_expr()]
+                )
             elif self.current_token.type == TokenType.GREATEREQUAL:
                 self.advance_token()
-                result = self.new_greaterequal_node(start_position, [result, self.arith_expr()])
+                result = self.new_greaterequal_node(
+                    start_position, [result, self.arith_expr()]
+                )
         return result
 
     # arith-expr : term ((PLUS|MINUS) term)*
     def arith_expr(self):
-
         start_position = self.current_token.start_position.copy()
         result = self.term()
 
@@ -194,7 +219,7 @@ class RelativityParser(BaseParser):
         # Look for a factor and store it in result
         start_position = self.current_token.start_position.copy()
         result = self.factor()
-        
+
         while self.current_token != None and self.current_token.type in (
             TokenType.STAR,
             TokenType.SLASH,
@@ -237,15 +262,15 @@ class RelativityParser(BaseParser):
 
         if token.type == TokenType.FLOAT:
             self.advance_token()
-            return self.new_float_node(start_position, token)
+            return self.new_float_node(start_position, [token.value])
 
         elif token.type == TokenType.INT:
             self.advance_token()
-            return self.new_int_node(start_position, token)
+            return self.new_int_node(start_position, [token.value])
 
         elif token.type == TokenType.ID:
             self.advance_token()
-            return self.new_symbol_node(start_position, token)
+            return self.new_symbol_node(start_position, [token.value])
 
         elif token.type == TokenType.TENSORID:
             self.advance_token()
@@ -261,133 +286,226 @@ class RelativityParser(BaseParser):
 
         elif token.type == TokenType.LPAR:
             self.advance_token()
-            result = self.arith_expr()  # TODO: Remeber to match on self.
+            result = self.expr()
             if self.current_token.type != TokenType.RPAR:
-                self.raise_error("Syntax Error, expecting a OPEN_BRACE token.")
+                return self.invalid_syntax_error(
+                    "Syntax Error, expecting a '(' token.",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
             self.advance_token()
             return result
 
         else:
-            self.raise_error(
-                f"Syntax Error, the type {token.value} is not recognized or supported by RelativisticPy's Parser."
+            return self.illegal_character_error(
+                f"""Syntax Error, the type {token.value} at Line: {self.current_token.end_position.copy().line}, 
+                Position: {self.current_token.end_position.copy().character} is not recognized or supported by RelativisticPy's Parser.""",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
             )
 
     def array(self, start_position):
         elements = []
         if self.current_token.type != TokenType.RSQB:
-
-            while (self.current_token != None and self.current_token.type == TokenType.NEWLINE):
+            while (
+                self.current_token != None
+                and self.current_token.type == TokenType.NEWLINE
+            ):
                 self.advance_token()
-            
+
             elements.append(self.statement())
-            while (self.current_token != None and self.current_token.type == TokenType.COMMA):
-
+            while (
+                self.current_token != None
+                and self.current_token.type == TokenType.COMMA
+            ):
                 self.advance_token()
-                while (self.current_token != None and self.current_token.type == TokenType.NEWLINE):
+                while (
+                    self.current_token != None
+                    and self.current_token.type == TokenType.NEWLINE
+                ):
                     self.advance_token()
 
                 elements.append(self.statement())
 
-                while (self.current_token != None and self.current_token.type == TokenType.NEWLINE):
+                while (
+                    self.current_token != None
+                    and self.current_token.type == TokenType.NEWLINE
+                ):
                     self.advance_token()
 
-            while (self.current_token != None and self.current_token.type == TokenType.NEWLINE):
+            while (
+                self.current_token != None
+                and self.current_token.type == TokenType.NEWLINE
+            ):
                 self.advance_token()
-    
+
         if self.current_token.type != TokenType.RSQB:
-            self.raise_error("Syntax Error, expecting a CLOSED_SQUARE_BRACE token.")
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a ']' token.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
         self.advance_token()
 
-        return self.new_array_node(
-            start_position,
-            elements
-        )
+        return self.new_array_node(start_position, elements)
 
     # tensor : TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
     def tensor(self, token: Token, start_position):
-        tensor_name = token.value
+        tensor_node = Tensor()
+        tensor_node.identifier = token.value
         tensor_covariant = True
-        indices = []
 
-        while self.current_token != None and self.current_token.type in (TokenType.UNDER, TokenType.CIRCUMFLEX):
+        while self.current_token != None and self.current_token.type in (
+            TokenType.UNDER,
+            TokenType.CIRCUMFLEX,
+        ):
             if self.current_token.type not in [TokenType.UNDER, TokenType.CIRCUMFLEX]:
-                self.raise_error(
-                    "Syntax Error, expecting a TokenType.UNDER or TokenType.CIRCUMFLEX token."
+                return self.invalid_syntax_error(
+                    "Syntax Error, expecting a '_' or '^' token. Please check documentation for tensor syntax.",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
                 )
             tensor_covariant = self.current_token.type == TokenType.UNDER
 
             self.advance_token()
-            if self.current_token.type not in [TokenType.LBRACE]:
-                self.raise_error("Syntax Error, expecting a TokenType.LBRACE.")
+            if self.current_token.type != TokenType.LBRACE:
+                return self.invalid_syntax_error(
+                    "Syntax Error, expecting a token: '{'",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
 
             self.advance_token()
-            if self.current_token.type not in [TokenType.ID]:
-                self.raise_error("Syntax Error, expecting a TokenType.ID.")
-            index = self.current_token.value
-            value  = None
+            if self.current_token.type != TokenType.ID:
+                return self.invalid_syntax_error(
+                    "Syntax Error, expecting a IDENTIFIER: i.e. some variable.",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
 
-            self.advance_token()
-            if self.current_token.type in (TokenType.EQUAL, TokenType.COLON):
-                self.advance_token()
-                value = self.atom()
-            
-            indices.append([index, tensor_covariant, value])
+            while self.current_token.type == TokenType.ID or self.peek(
+                1, Token(TokenType.NONE, "")
+            ).type in [
+                TokenType.UNDER,
+                TokenType.CIRCUMFLEX,
+            ]:  # T_{a b} => Index 'a' and Index 'b' are covariant.
+                if self.current_token.type == TokenType.ID:
+                    index = self.current_token.value
+                    value = None
 
-            if self.current_token.type not in [TokenType.RBRACE]:
-                self.raise_error("Syntax Error, expecting a TokenType.RBRACE.")
+                    self.advance_token()
+                    if self.current_token.type in (TokenType.EQUAL, TokenType.COLON):
+                        self.advance_token()
+                        value = self.atom()
 
-            self.advance_token()
+                    tensor_node.new_index(
+                        identifier=index, covariant=tensor_covariant, values=value
+                    )
+                elif self.current_token.type == TokenType.RBRACE:
+                    self.advance_token()
+                    tensor_covariant = (
+                        self.current_token.type == TokenType.UNDER
+                    )  # reset the covariance
+                    self.advance_token()
+                    if self.current_token.type != TokenType.LBRACE:
+                        return self.invalid_syntax_error(
+                            "Syntax Error, expecting a token: '{'",
+                            start_position,
+                            self.current_token.end_position.copy(),
+                            self.raw_code,
+                        )
+                    self.advance_token()
 
+        if self.current_token.type not in [
+            TokenType.RBRACE
+        ]:  # Should enforce the end of the _{a b} indices obejct.
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a token: '}'",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+
+        self.advance_token()
 
         if self.current_token == None:
-            return self.new_tensor_node( start_position, [tensor_name, indices] )
-        
+            return self.new_tensor_node(start_position, [tensor_node])
+
         if self.current_token.type == TokenType.COLONEQUAL:
-            tensor = [tensor_name, indices]
             self.advance_token()
             if self.current_token.type != TokenType.LSQB:
-                self.raise_error("Syntax Error, expecting a TokenType.LSQB.")
+                return self.invalid_syntax_error(
+                    "Syntax Error, expecting a token: '[' ",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
 
-            return self.new_tensor_comp_definition_node(start_position, [tensor, self.atom()])
-            
+            return self.new_tensor_comp_definition_node(
+                start_position,
+                [self.new_tensor_node(start_position, [tensor_node]), self.atom()],
+            )
+
         if self.current_token.type == TokenType.EQUAL:
-            tensor = [tensor_name, indices]
             self.advance_token()
             if self.current_token.type == TokenType.LSQB:
-                return self.new_tensor_comp_assignment_node(start_position, [tensor, self.atom()])
-            return self.new_tensor_expr_assignment_node(start_position, [tensor, self.expr()])
-        return self.new_tensor_node( start_position, [tensor_name, indices] )
+                return self.new_tensor_comp_assignment_node(
+                    start_position,
+                    [self.new_tensor_node(start_position, [tensor_node]), self.atom()],
+                )
+            return self.new_tensor_expr_assignment_node(
+                start_position,
+                [self.new_tensor_node(start_position, [tensor_node]), self.expr()],
+            )
+
+        return self.new_tensor_node(start_position, [tensor_node])
 
     def function(self, token: Token, start_position):
-        func_name = token.value
+        func_node = Function()
+
+        func_node.identifier = token.value
 
         if self.current_token.type != TokenType.LPAR:
-            self.raise_error("Syntax Error, expecting a OPEN_BRACE token.")
+            self.invalid_syntax_error(
+                "Syntax Error, expecting a OPEN_BRACE token: '(' .",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
 
         self.advance_token()
-        wrt_variables = self.find_variables()
 
-        if self.current_token.type != TokenType.RPAR:
-            self.raise_error("Syntax Error, expecting a CLOSE_BRACE token.")
-
-        self.advance_token()
-
-        func = [func_name, wrt_variables]
-
-        if self.current_token == None:
-            return self.new_function_node(start_position, func)
-        
-        if self.current_token.type == TokenType.EQUAL:
-            self.advance_token()
-            return self.new_function_def_node(start_position, [func, self.expr()])
-        return self.new_function_node(start_position, func)
-
-    # ===== Helper Methods ======
-
-    def find_variables(self):
-        tokens = []
-        tokens.append(self.arith_expr())  # was self.statement()
+        func_node.new_argument(
+            self.arith_expr()
+        )  # We only allow mathematical expressions as args
         while self.current_token != None and self.current_token.type == TokenType.COMMA:
             self.advance_token()
-            tokens.append(self.arith_expr())  # was self.statement()
-        return tokens
+            func_node.new_argument(self.arith_expr())
+
+        if self.current_token.type != TokenType.RPAR:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a CLOSE_BRACE token: ')' .",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+
+        self.advance_token()
+        func_node.set_position(start_position)
+
+        if self.current_token == None:
+            return func_node
+
+        # Is user defining a callable object | function ?
+        if self.current_token.type == TokenType.EQUAL:
+            self.advance_token()
+            func_node.executable = self.expr()
+            return func_node
+
+        return func_node

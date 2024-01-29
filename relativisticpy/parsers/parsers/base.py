@@ -4,139 +4,62 @@ from enum import Enum
 from typing import List, Tuple, Union
 
 from typing import Iterable
-from relativisticpy.parsers.lexers.base import Token
-from relativisticpy.parsers.shared.models.error import Error
-from relativisticpy.parsers.shared.models.position import Position
+from relativisticpy.parsers.lexers.base import LexerResult, Token
+from relativisticpy.parsers.shared.errors import IllegalCharacterError, IllegalSyntaxError
+from relativisticpy.parsers.shared.iterator import Iterator
 
-class NodeType(Enum):
-    """An enumeration of node types used by a parser."""
-
-    ADD = "+"  # Addition operator
-    SUB = "-"  # Subtraction operator
-    MUL = "*"  # Multiplication operator
-    DIV = "/"  # Division operator
-    POW = "POW"
-    INT = "int"
-    POS = "positive"  # Positive operator '+'
-    NEG = "negative"
-    NOT = "NOT"
-    FLOAT = "float"  # A floating-point number
+from relativisticpy.parsers.types.gr_nodes import AstNode, Definition, Function, NodeType
+from relativisticpy.parsers.types.position import Position
 
 
-    LESS = "<"
-    LESSEQUAL = "<="
-    GREATER = ">"
-    GREATEREQUAL = ">="
-    ASSIGNMENT = "="
-    DEFINITION = ":="
-    EQEQUAL = "=="
-    NOTEQUAL = "!="
-
-    EQUALS = "="  # The `=` symbol for assignment or comparison
-    EXPONENTIATION1 = "^"  # The `**` symbol for exponentiation
-    EXPONENTIATION2 = "**"
-    OBJECT = "object"  # A variable name
-    VARIABLEKEY = "variable_key"  # A variable name
-
-    FUNCTION = "function"  # A function name
-    FUNCTION_DEF = "FUNCTION_DEF"
-
-    ARRAY = "array"  # Array object '[elements]'
-    AND = "&"  # Positive operator '+'
-    OR = "|"  # Positive operator '+'
-
-    TENSOR_EXPR_ASSIGNMENT = "TENSOR_EXPR_ASSIGNMENT"
-    TENSOR_COMPONENT_ASSIGNMENT = "TENSOR_COMPONENT_ASSIGNMENT"
-    TENSOR_COMPONENT_DEFINITION = "TENSOR_COMPONENT_DEFINITION"
-
-    TENSOR_KEY = "tensor_key"
-    PRINT = "PRINT"
-    SYMBOL_DEFINITION = "symbol_definition"
-    SYMBOL_KEY = "symbol_key"
-    SYMBOL = "symbol"
-    TENSOR = "tensor"
-    ID = "ID"
-
+# 
 
 @dataclass
-class AstNode:
-    """ Nested Node type. The whole object represents the Abstract Syntax Tree. """
-
-    type: NodeType
-    "Type of the object in node. (This can sometimes be the same as the token type in the node.)"
-
-    position: Position
-    "Position in which the node value is within the script/code."
-
-    callback: str
-    "Name of the method to be called by interpreter object to implement node."
-
-    args: List["AstNode"] # Could be our own data structure which wraps AstNode list. I.e. so we can call node.children for example.
-    "Arguments of this node. AKA: Child nodes." 
-
-
-class Iterator:
-    def __init__(self, object: Iterable):
-        self.object = object
-        if isinstance(self.object, Iterable):
-            self.iterable_object = iter(object)
-            self.current_item_location = -1
-
-    def advance(self):
-        self.current_item = next(self.iterable_object, None)
-        if self.current_item != None:
-            self.current_item_location += 1
-
-    def peek(self, n: int = 1, default=None):
-        i = self.current_item_location
-        if i + n < len(self.object):
-            return self.object[i + n]
-        else:
-            return default
-
-    def __len__(self):
-        return len(self.object)
-
-    def current(self):
-        return self.current_item
-
-class NodeProvider :
-
-    def new_node(self, node: str, type: str, value: str, position: Tuple[Position, Position], callback: str, args:  List[AstNode]):
-        return AstNode(node, type, value, position, callback, args)
-
+class ParserResult:
+    code: str
+    ast_tree: List[AstNode]
 
 # We can add very specific methods here - for the only purpose of making the parser files more readable
 class BaseParser(ABC):
     """ Base class all parsers. """
 
-    def __init__(self, tokens: List[Token]):
-        self.__tokens = Iterator(tokens)
-        self.__node_provider_instance = NodeProvider()
+    def __init__(self, lexer_result: LexerResult):
+        self.raw_code = lexer_result.code
+        self.__tokens = Iterator(lexer_result.tokens)
         self.__tokens.advance()
 
     @property
     def iter_tokens(self) -> Iterable: return self.__tokens
     @property
     def current_token(self) -> Token: return self.__tokens.current()
-    @property
-    def node_provider(self) -> NodeProvider: return self.__node_provider_instance
 
     def peek(self, n: int, default: any = None) -> Union[Token, None]: return self.__tokens.peek(n, default)
     def advance_token(self) -> None: self.__tokens.advance()
     
     @abstractmethod
-    def parse() -> AstNode:
-        pass
+    def parse() -> ParserResult: pass
 
-    def raise_error(self, error: Error):
-        # 1. concatinate all tokens to recreate the string intup
-        # 2. generate an error message, include the section of the string in which the error was generated
-        # 3. return the error object
-        raise Exception(error.message)
+
+    def invalid_syntax_error(self, details: str, pos_start: Position, pos_end: Position, raw_code: str):
+        return IllegalSyntaxError(
+            pos_start,
+            pos_end,
+            details,
+            raw_code
+        )
     
-    ############
+    def illegal_character_error(self, details: str, pos_start: Position, pos_end: Position, raw_code: str):
+        return IllegalCharacterError(
+            pos_start,
+            pos_end,
+            details,
+            raw_code
+        )
+    
+    ########################## !!!!!!! NOTE !!!!!!! ############################
     # The following methods are only here to make the actual parser much easier to read.
+    # From a code perspective, the base class should never know the implementation of classese
+    # which inherit it. 
 
     ###################################
     ## SIMPLE ARITHMETIC NODES
@@ -146,6 +69,7 @@ class BaseParser(ABC):
             type=NodeType.ADD,
             position=position,
             callback='add',
+            inferenced_type=None,
             args=args
         )
     
@@ -154,6 +78,7 @@ class BaseParser(ABC):
             type=NodeType.SUB,
             position=position,
             callback='sub',
+            inferenced_type=None,
             args=args
         )
     
@@ -162,6 +87,7 @@ class BaseParser(ABC):
             type=NodeType.MUL,
             position=position,
             callback='mul',
+            inferenced_type=None,
             args=args
         )
     
@@ -170,6 +96,7 @@ class BaseParser(ABC):
             type=NodeType.DIV,
             position=position,
             callback='div',
+            inferenced_type=None,
             args=args
         )
     
@@ -178,6 +105,7 @@ class BaseParser(ABC):
             type=NodeType.POW,
             position=position,
             callback='pow',
+            inferenced_type=None,
             args=args
         )
     
@@ -190,6 +118,7 @@ class BaseParser(ABC):
             type=NodeType.INT,
             position=position,
             callback='int',
+            inferenced_type='int',
             args=args
         )
     
@@ -198,6 +127,7 @@ class BaseParser(ABC):
             type=NodeType.FLOAT,
             position=position,
             callback='float',
+            inferenced_type='float',
             args=args
         )
     
@@ -205,7 +135,8 @@ class BaseParser(ABC):
         return AstNode(
             type=NodeType.SYMBOL,
             position=position,
-            callback='sym',
+            callback='symbol',
+            inferenced_type='symbol',
             args=args
         )
     
@@ -214,6 +145,7 @@ class BaseParser(ABC):
             type=NodeType.NEG,
             position=position,
             callback='neg',
+            inferenced_type=None,
             args=args
         )
 
@@ -222,6 +154,7 @@ class BaseParser(ABC):
             type=NodeType.POS,
             position=position,
             callback='pos',
+            inferenced_type=None,
             args=args
         )
     
@@ -230,14 +163,7 @@ class BaseParser(ABC):
             type=NodeType.ARRAY,
             position=position,
             callback='array',
-            args=args
-        )
-    
-    def new_function_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return AstNode(
-            type=NodeType.FUNCTION,
-            position=position,
-            callback='function',
+            inferenced_type='array',
             args=args
         )
     
@@ -246,6 +172,7 @@ class BaseParser(ABC):
             type=NodeType.TENSOR,
             position=position,
             callback='tensor',
+            inferenced_type='tensor',
             args=args
         )
     
@@ -253,7 +180,8 @@ class BaseParser(ABC):
         return AstNode(
             type=NodeType.NOT,
             position=position,
-            callback='not',
+            callback='not_',
+            inferenced_type=None,
             args=args
         )
     
@@ -261,7 +189,8 @@ class BaseParser(ABC):
         return AstNode(
             type=NodeType.AND,
             position=position,
-            callback='and',
+            callback='and_',
+            inferenced_type=None,
             args=args
         )
     
@@ -270,6 +199,7 @@ class BaseParser(ABC):
             type=NodeType.OR,
             position=position,
             callback='or',
+            inferenced_type=None,
             args=args
         )
     
@@ -278,6 +208,7 @@ class BaseParser(ABC):
             type=NodeType.EQEQUAL,
             position=position,
             callback='eqequal',
+            inferenced_type=None,
             args=args
         )
     
@@ -286,6 +217,7 @@ class BaseParser(ABC):
             type=NodeType.LESS,
             position=position,
             callback='less',
+            inferenced_type=None,
             args=args
         )
     
@@ -294,6 +226,7 @@ class BaseParser(ABC):
             type=NodeType.GREATER,
             position=position,
             callback='greater',
+            inferenced_type=None,
             args=args
         )
     
@@ -302,6 +235,7 @@ class BaseParser(ABC):
             type=NodeType.LESSEQUAL,
             position=position,
             callback='lessequal',
+            inferenced_type=None,
             args=args
         )
     
@@ -310,6 +244,7 @@ class BaseParser(ABC):
             type=NodeType.GREATEREQUAL,
             position=position,
             callback='greaterequal',
+            inferenced_type=None,
             args=args
         )
     
@@ -318,14 +253,13 @@ class BaseParser(ABC):
             type=NodeType.ASSIGNMENT,
             position=position,
             callback='assignment',
+            inferenced_type=None,
             args=args
         )
     
     def new_definition_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return AstNode(
-            type=NodeType.DEFINITION,
+        return Definition(
             position=position,
-            callback='definition',
             args=args
         )
     
@@ -334,6 +268,7 @@ class BaseParser(ABC):
             type=NodeType.TENSOR_COMPONENT_ASSIGNMENT,
             position=position,
             callback='tensor_component_assignment',
+            inferenced_type=None,
             args=args
         )
     
@@ -342,6 +277,7 @@ class BaseParser(ABC):
             type=NodeType.TENSOR_EXPR_ASSIGNMENT,
             position=position,
             callback='tensor_expr_assignment',
+            inferenced_type=None,
             args=args
         )
     
@@ -350,6 +286,7 @@ class BaseParser(ABC):
             type=NodeType.FUNCTION_DEF,
             position=position,
             callback='function_def',
+            inferenced_type=None,
             args=args
         )
     
@@ -357,7 +294,8 @@ class BaseParser(ABC):
         return AstNode(
             type=NodeType.PRINT,
             position=position,
-            callback='print',
+            callback='print_',
+            inferenced_type=None,
             args=args
         )
     
@@ -366,5 +304,6 @@ class BaseParser(ABC):
             type=NodeType.TENSOR_COMPONENT_DEFINITION,
             position=position,
             callback='tensor_definition',
+            inferenced_type=None,
             args=args
         )

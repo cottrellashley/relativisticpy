@@ -1,8 +1,7 @@
 from typing import Iterable
-from relativisticpy.parsers.shared.interfaces.iterator import IIterator
 
 
-class Iterator(IIterator):
+class Iterator:
     def __init__(self, object: Iterable):
         self.object = object
         if isinstance(self.object, Iterable):
@@ -26,3 +25,10 @@ class Iterator(IIterator):
 
     def current(self):
         return self.current_item
+    
+    @property
+    def original(self) -> str: 
+        if isinstance(self.object , str):
+            return str(self.object)
+        else:
+            raise AttributeError("Cannot call this atttribute when the iterable arg is not a string type.")

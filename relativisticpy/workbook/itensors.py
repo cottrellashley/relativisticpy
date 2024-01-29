@@ -233,14 +233,9 @@ class DefinitionNode:
         self.state = state
 
     def handle(self, node: AstNode):
-        if isinstance(node.args[0], str):
-            key = node.args[0]
-        elif isinstance(str(node.args[0]), str):
-            key = str(node.args[0])
-        else:
-            raise ValueError("AstNode is not a string and could not be converted to a string.")
+        key = node.args[0]
+        coordinates = node.args[1]
 
-        if key == WorkbookConstants.COORDINATES.value:
-            self.state.set_coordinates(node.args[1])
-            self.state.set_variable(key, node.args[1])
-        self.state.set_variable(key, node.args[1])
+        self.state.set_coordinates(coordinates)
+        self.state.set_variable(key, coordinates)
+
