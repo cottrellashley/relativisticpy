@@ -13,7 +13,7 @@ def display_error_with_code(code_str, error_line, error_char, error_message):
         error_line_content = lines[error_line_idx].rstrip('\n')
         
         # Display the error message
-        message = f"Error: {error_message}\n"
+        message = f"{error_message}\n"
 
         # Display the line number and the line content
         message += f"Line {error_line}: {error_line_content}\n"

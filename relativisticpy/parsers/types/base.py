@@ -12,23 +12,23 @@ class NodeType(Enum):
     ID = "UNARY OP: Value getter | Symbol creator" # If variable not created in memory, build a symbol.
 
     # Since we never use the value of these 'constants' we give a description.
-    ADD = "BINARY OP: Addition"
-    SUB = "BINARY OP: Subtraction"
-    MUL = "BINARY OP: Multiplication"
-    DIV = "BINARY OP: Divition"
-    POW = "BINARY OP: Exponentiation"
-    AND = "BINARY OP: Boolean expression"  # Positive operator '+'
+    ADD = "+"
+    SUB = "-"
+    MUL = "*"
+    DIV = "/"
+    POW = "^"
+    AND = "and"  # Positive operator '+'
 
-    INT = "UNARY OP: Integer cast"
-    POS = "UNARY OP: Positve map"
-    NEG = "UNARY OP: Negation map"
-    NOT = "UNARY OP: Boolean NOT"
+    INT = "int"
+    POS = "+"
+    NEG = "-"
+    NOT = "not"
 
-    LESS = "BINARY OP: Comparative less than"
+    LESS = "<"
 
-    FLOAT = "UNARY OP: Float cast"  # A floating-point number
-    ARRAY = "MULTI OP: Array builder"  # Array object '[elements]'
-    EQUALS = "BINARY OP: Create assignment"  # The `=` symbol for assignment or comparison
+    FLOAT = "float"  # A floating-point number
+    ARRAY = "array"  # Array object '[elements]'
+    EQUALS = "="  # The `=` symbol for assignment or comparison
 
     LESSEQUAL = "<="
     GREATER = ">"
@@ -61,21 +61,78 @@ class NodeType(Enum):
     TENSOR_COMPONENT_DEFINITION = "TENSOR_COMPONENT_DEFINITION"
 
 
-@dataclass
 class AstNode:
     """ Nested Node type. The whole object represents the Abstract Syntax Tree. """
 
-    type: NodeType
-    "Type of the object in node. (This can sometimes be the same as the token type in the node.)"
+    def __init__(self, type: NodeType, position: Position, callback: str = None, inferenced_type: str = None, args: List["AstNode"] = None):
+        self.type = type
+        self.position = position
+        self.callback = callback
+        self.inferenced_type = inferenced_type
+        self.parent = None
+        self.args = args
+        for arg in self.args:
+            if isinstance(arg, AstNode):
+                arg.parent = self
+            
 
-    position: Position
-    "Position in which the node value is within the script/code."
+    def remove_arg(self, node_rmv):
+        self.args = [node for node in self.args if node is not node_rmv]
 
-    callback: str
-    "Name of the method to be called by interpreter object to implement node."
+    def get_level(self):
+        level = 0
+        p = self.parent
+        while p:
+            level += 1
+            p : "AstNode" = p.parent
+        return level
 
-    inferenced_type: str
-    "The type which the callback will return when executed. This is an abstraction 'type' as in (tensor, int, float, array, symbol, symbol_expr, etc... )"
+    def print_tree(self, level=-1):
+        spaces = ' ' * self.get_level() * 3
+        prefix = spaces + "|__" if self.parent else ""
+        if len(self.args) == 1:
+            print(prefix + str(self.args[0]))
+        else:
+            print(prefix + self.type.value)
+        if level != 0:
+            for child in self.args:
+                if isinstance(child, AstNode):
+                    child.print_tree(level-1)
 
-    args: List["AstNode"] # Could be our own data structure which wraps AstNode list. I.e. so we can call node.children for example.
-    "Arguments of this node. AKA: Child nodes." 
+
+
+class UnaryNode(AstNode):
+     def __init__(self, type: NodeType, position: Position, callback: str, inferenced_type: str, args: List["AstNode"]):
+          if len(args) != 1:
+               raise ValueError("UnaryNode requires exactly one arguments")
+          super().__init__(type, position, callback, inferenced_type, args)
+        
+     @property
+     def operand(self):
+          return self.args[0]
+
+class BinaryNode(AstNode):
+     
+     def __init__(self, type: NodeType, position: Position, callback: str, args: List["AstNode"]):
+        if len(args) != 2:
+             raise ValueError("BinaryNode requires exactly two arguments")
+        super().__init__(type, position, callback, None, args)
+
+     @property
+     def left_child(self) -> AstNode:
+          return self.args[0]
+     
+     @property
+     def right_child(self) -> AstNode:
+          return self.args[1]
+
+class ArrayNode(AstNode):
+
+     def __inti__(self, position: Position, callback: str, inferenced_type: str, args: List["AstNode"]):
+          super().__init__(NodeType.ARRAY, position, callback, inferenced_type, args)
+
+     @property
+     def shape(self):
+         "Compute the shape of the array"
+         pass
+     

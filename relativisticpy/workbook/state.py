@@ -2,37 +2,36 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List
 
 from relativisticpy.gr import MetricScalar, RicciScalar
-from relativisticpy.core import Indices, EinsteinArray, TensorEqualityType
+from relativisticpy.core import Indices, MetricIndices, EinsteinArray, TensorEqualityType, Idx
 from relativisticpy.utils import extract_tensor_symbol, extract_tensor_indices
 
 from relativisticpy.workbook.constants import WorkbookConstants
 
+from relativisticpy.parsers.types.gr_nodes import Tensor
 
 class TensorReference:
     """Tensor Cache Helper class which represents strings representations of tensors."""
 
-    def __init__(self, tstring):
-        self.tstring: str = tstring
-        self.__indices_repr = extract_tensor_indices(self.tstring)
-        self.__symbol = extract_tensor_symbol(self.tstring)
-        self.__indices = Indices.from_string(self.__indices_repr)
-        self.__has_subcomponents_value_getter = ':' in self.tstring # If string has ":" => user wants a sub component value
+    def __init__(self, tensor: Tensor):
+        self.__descerialized_indices = tensor.indices.indices
+        self.tensor = tensor
+        self.is_metric = False
+        self.__symbol = tensor.identifier
 
     @property
     def indices(self) -> Indices:
-        return self.__indices
-    
-    @property
-    def is_calling_tensor_subcomponent(self) -> bool:
-        return self.__has_subcomponents_value_getter
+        if self.is_metric:
+            test = MetricIndices(*[Idx(idx.identifier) if idx.covariant else -Idx(idx.identifier) for idx in self.__descerialized_indices])
+            return test
+        else:
+            test1 = Indices(*[Idx(idx.identifier) if idx.covariant else -Idx(idx.identifier) for idx in self.__descerialized_indices])
+            return test1
 
     @property
-    def symbol(self) -> str:
-        self.__symbol
+    def is_calling_tensor_subcomponent(self) -> bool: return any([idx.values != None for idx in self.__descerialized_indices])
 
     @property
-    def indices_repr(self) -> str:
-        return self.__indices_repr
+    def symbol(self) -> str: self.tensor.identifier
 
     @property
     def repr(self) -> str:
@@ -44,9 +43,6 @@ class TensorReference:
 
     def _tid(self):
         return self.__symbol
-
-    def __str__(self) -> str:
-        return self.tstring
 
     def __hash__(self) -> int:
         return hash(self.id)

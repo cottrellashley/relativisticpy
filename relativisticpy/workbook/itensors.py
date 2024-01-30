@@ -26,7 +26,7 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
         self.state = state
 
     def handle(self, node: AstNode):
-        tensor_ref = TensorReference("".join(node.args))
+        tensor_ref = TensorReference(node.args[0])
         tensor_ref.indices.basis = (
             self.state.coordinates
         )  # Error handling needed => if no coordinates defined cannot continue
@@ -164,8 +164,9 @@ class TensorDefinitionNode:
         # Check if the tensor being called is the metric
         metric_symbol = self.state.metric_symbol
         if metric_symbol == tref.id:
+            tref.is_metric = True
             new_tensor = Metric(
-                MetricIndices.from_string(tref.indices_repr),
+                tref.indices,
                 tensor_comps,
                 self.state.coordinates,
             )

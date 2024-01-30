@@ -124,20 +124,6 @@ class RelPyAstNodeTraverser:
         self.cache.set_coordinates(coordinates)
         self.cache.set_variable(key, coordinates)
 
-    def variable_key(self, node: AstNode):
-        return "".join(node.args)
-
-    def symbol_key(self, node: AstNode):
-        return "".join(node.args)
-
-    def definition_identifyer(self, node: AstNode):
-        return "".join(node.args)
-
-    def tensor_identifyer(self, node: AstNode):
-        return TensorReference(
-            "".join(node.args)
-        )  # Handles Tensor identifyers G_{a}_{b} etc ...
-
     def sub(self, node: AstNode):
         return node.args[0] - node.args[1]
 
@@ -286,10 +272,15 @@ class RelPyAstNodeTraverser:
         )  # Tensor Setter : G_{a}_{b} := [[a, b],[c,d]]
 
     def tensor(self, node: AstNode):
-        
         return TensorNode(self.cache).handle(
             node
         )  # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
+    
+    def tensor_definition(self, node: AstNode):
+        test = node
+        return TensorDefinitionNode(self.cache).handle(
+            node
+        ) 
 
     def print_(self, node: AstNode):
         return node.args

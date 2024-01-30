@@ -17,7 +17,6 @@ class ITensor(ABC):
      @abstractproperty
      def identifier(self): pass
 
-
 ##### LEAF TENSOR NODE DEFINITION
 
 @dataclass
@@ -30,7 +29,7 @@ class _Indices:
     def __init__(self, indices: List[_Index]):
         self.indices = indices
 
-class Tensor(ITensor): # This is the type which the callable handling the AstNode of type TokenType
+class Tensor(AstNode): # This is the type which the callable handling the AstNode of type TokenType
     """
         This is the object passed in as argument which the callable handling the AstNode of type TokenType.TENSOR.
             
@@ -39,9 +38,11 @@ class Tensor(ITensor): # This is the type which the callable handling the AstNod
     """
     def __init__(self):
         self.gr_node = 'LEAF'
+        self.type = NodeType.TENSOR
         self._indices = []
         self._identifier = ''
         self.callback = 'tensor'
+        self.args = []
 
     @property
     def indices(self):  return _Indices(self._indices)
@@ -82,6 +83,7 @@ class Function(AstNode): # Functions which user defines to be called again at a 
         self._arguments = []
         self.__is_called = False
         self._exe_tree = None
+
 
     @property
     def inferenced_type(self) -> str:
@@ -141,6 +143,8 @@ class Function(AstNode): # Functions which user defines to be called again at a 
          self._exe_tree = func_scoped_executable_tree
 
     def new_argument(self, arg: AstNode) -> None:
+         if isinstance(arg, AstNode):
+              arg.parent = self
          self._arguments.append(arg)
 
     def get_return_type(self, semantic_analyzer_type_traverser: Callable):
@@ -154,10 +158,7 @@ class Function(AstNode): # Functions which user defines to be called again at a 
 class Definition(AstNode):
      PRE_DEFINED = ("Coordinates","MetricSymbol")
      def __init__(self, position, args):
-          self.type = NodeType.DEFINITION
-          self.inferenced_type = None
-          self.position = position
-          self.args = args
+          super().__init__(type = NodeType.DEFINITION, position = position, args = args)
 
      @property
      def callback(self):
