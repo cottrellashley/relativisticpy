@@ -52,8 +52,8 @@ from .operator_lookup_tables import (
 )
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.errors import Error, IllegalAssignmentError, IllegalSyntaxError
-from relativisticpy.parsers.types.base import AstNode
-
+from relativisticpy.parsers.types.base import AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode
+from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
 
 @dataclass
 class ActionTree:
@@ -104,8 +104,8 @@ class SemanticAnalyzer:
             self.action_trees.append(
                 ActionTree(
                     ast_node,
-                    ast_node.inferenced_type if isinstance(ast_node, AstNode) else None,
-                    ast_node.inferenced_type
+                    ast_node.data_type if isinstance(ast_node, AstNode) else None,
+                    ast_node.data_type
                     in (
                         "tensor",
                         "int",
@@ -134,22 +134,12 @@ class SemanticAnalyzer:
             return node
 
         # Check and process child nodes if they exist
-        if hasattr(node, "args") and isinstance(node.args, list) and all([isinstance(arg, AstNode) for arg in node.args]):
-            for i, arg in enumerate(node.args):
-                # Process each child node only if it hasn't been processed yet
-                if not arg.inferenced_type:
-                    node.args[i] = self.__analyse_tree(arg)
-
-        # Execute the callback for the current node if it's not an error node
-        if not isinstance(node, (Error, IllegalSyntaxError)):
-            callback_method = getattr(self, node.callback, None)
-            if callback_method:
-                # Call the callback method with the current node
-                callback_method(node)
+        if hasattr(node, 'is_leaf'):
+            if not node.is_leaf:
+                node.execute_node(self.__analyse_tree)
 
         return node
 
-    
     def error_object_in_args_of(self, node) -> List[bool]:
         args = []
         for arg in node.args:
@@ -165,70 +155,57 @@ class SemanticAnalyzer:
     # Cache Node handlers
     def assignment(self, node: AstNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-            node.inferenced_type = assigningTypes[lhs_child_type][rhs_child_type]
+            lhs_child_type, rhs_child_type = node.args[0].data_type, node.args[1].data_type
+            node.data_type = assigningTypes[node.left_child.data_type][node.right_child.data_type]
 
     def definition(self, node: AstNode):
         if not any(self.error_object_in_args_of(node)):
-            rhs = node.args[1].inferenced_type
+            rhs = node.args[1].data_type
 
             if ID_definitionsLookup[rhs] == 'undef':
                 self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
                 self.display_error_str = self.assignment_error.as_string()
                 self.contains_error = True
 
-            node.inferenced_type = 'none'
+            node.data_type = 'none'
 
-    def tensor_component_assignment(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-
-    def tensor_expr_assignment(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-
-    def function_def(self, node: AstNode):
+    def function_def(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             self.__analyse_tree(node.args[0].executable)
 
-    def tensor_definition(self, node: AstNode):
+    def tensor_assignment(self, node: TensorNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
+            node.data_type = 'none'
 
-    def sub(self, node: AstNode):
+    def sub(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-            node.inferenced_type = minusOperatorTypes[lhs_child_type][rhs_child_type]
+            node.data_type = minusOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
-    def add(self, node: AstNode):
+    def add(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-            node.inferenced_type = plusOperatorTypes[lhs_child_type][rhs_child_type]
+            node.data_type = plusOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
-    def mul(self, node: AstNode):
+    def mul(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-            node.inferenced_type = mulOperatorTypes[lhs_child_type][rhs_child_type]
+            node.data_type = mulOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
-    def div(self, node: AstNode):
+    def div(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-            node.inferenced_type = divOperatorTypes[lhs_child_type][rhs_child_type]
+            node.data_type = divOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
-    def pow(self, node: AstNode):
+    def pow(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].inferenced_type, node.args[1].inferenced_type
-            node.inferenced_type = powOperatorTypes[lhs_child_type][rhs_child_type]
+            node.data_type = powOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
-    def neg(self, node: AstNode):
+    def neg(self, node: NegNode):
         if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].inferenced_type
-            node.inferenced_type = negOperatorTypes[node_type]
+            node_type = node.args[0].data_type
+            node.data_type = negOperatorTypes[node_type]
 
-    def pos(self, node: AstNode):
+    def pos(self, node: PosNode):
         if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].inferenced_type
-            node.inferenced_type = posOperatorTypes[node_type]
+            node_type = node.args[0].data_type
+            node.data_type = posOperatorTypes[node_type]
 
     ###### THE CALLBACK OF THE NODE HANDLERS BELLOW ARE CREATION => WE KNOW WHAT THE RETURN TYPE IS AS WE ARE CREATING THE OBJECTS
 
@@ -236,153 +213,149 @@ class SemanticAnalyzer:
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def int(self, node: AstNode):
+    def int(self, node: IntNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def float(self, node: AstNode):
+    def float(self, node: FloatNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def print_(self, node: AstNode):
+    def print_(self, node: PrintNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def tensor(self, node: AstNode):
+    def tensor(self, node: TensorNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def symbol(self, node: AstNode):
+    def symbol(self, node: SymbolNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def sym_expr(self, node: AstNode):
+    def array(self, node: ArrayNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def array(self, node: AstNode):
+    def not_(self, node: NotNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def not_(self, node: AstNode):
+    def and_(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def and_(self, node: AstNode):
+    def or_(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def or_(self, node: AstNode):
+    def eqequal_(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def eqequal_(self, node: AstNode):
+    def less(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def less(self, node: AstNode):
+    def greater(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def greater(self, node: AstNode):
+    def lessequal(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def lessequal(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
-
-    def greaterequal(self, node: AstNode):
+    def greaterequal(self, node: BinaryNode):
         if not any(self.error_object_in_args_of(node)):
             pass
 
     ##### BUILT IN FUNCTIONS TO RELATIVISTICPY (will later be implemented by sympy but we are just checking the grammar and Semantics are correct)
-    def simplify(self, node: AstNode):
+    def simplify(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].inferenced_type
-            node.inferenced_type = simplifyOperatorTypes[node_type]
+            node_type = node.args[0].data_type
+            node.data_type = simplifyOperatorTypes[node_type]
 
-    def limit(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
-
-    def expand(self, node: AstNode):
+    def limit(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def diff(self, node: AstNode):
+    def expand(self, node: Function):
+        if not any(self.error_object_in_args_of(node)):
+            pass
+
+    def diff(self, node: Function):
         test = not any(self.error_object_in_args_of(node))
         if test:
-            node_type = node.args[0].inferenced_type
-            node.inferenced_type = diffOperatorTypes[node_type]
+            node_type = node.args[0].data_type
+            node.data_type = diffOperatorTypes[node_type]
 
-    def integrate(self, node: AstNode):
+    def integrate(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].inferenced_type
-            node.inferenced_type = integrateOperatorTypes[node_type]
+            node_type = node.args[0].data_type
+            node.data_type = integrateOperatorTypes[node_type]
 
-    def latex(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
-
-    def solve(self, node: AstNode):
+    def latex(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def numerical(self, node: AstNode):
+    def solve(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def exp(self, node: AstNode):
+    def numerical(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def dsolve(self, node: AstNode):
+    def exp(self, node: Function):
+        if not any(self.error_object_in_args_of(node)):
+            pass
+
+    def dsolve(self, node: Function):
         pass
 
-    def sin(self, node: AstNode):
+    def sin(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def cos(self, node: AstNode):
+    def cos(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def tan(self, node: AstNode):
+    def tan(self, node: Function):
         pass
 
-    def asin(self, node: AstNode):
+    def asin(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def acos(self, node: AstNode):
+    def acos(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def atan(self, node: AstNode):
+    def atan(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def sinh(self, node: AstNode):
+    def sinh(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def cosh(self, node: AstNode):
+    def cosh(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def tanh(self, node: AstNode):
+    def tanh(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def asinh(self, node: AstNode):
+    def asinh(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def acosh(self, node: AstNode):
+    def acosh(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass
 
-    def atanh(self, node: AstNode):
+    def atanh(self, node: Function):
         if not any(self.error_object_in_args_of(node)):
             pass

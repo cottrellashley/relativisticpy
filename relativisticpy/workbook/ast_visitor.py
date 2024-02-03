@@ -1,15 +1,15 @@
 from relativisticpy.workbook.itensors import (
-    TensorDefinitionNode,
-    TensorNode,
+    TensorHandler,
     TensorDiagBuilder,
+    TensorAssignmentHandler,
     DefinitionNode,
     InitTensorFromComponentsNode,
-    InitTensorFromExpressionNode,
 )
 from relativisticpy.workbook.matchers import match_tensors, match_symbol
-from relativisticpy.workbook.node import AstNode
 from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.utils import str_is_tensors
+from relativisticpy.parsers.types.gr_nodes import TensorNode
+from relativisticpy.parsers.types.base import UnaryNode, BinaryNode, AstNode
 
 from relativisticpy.symengine import (
     Symbol,
@@ -85,6 +85,7 @@ from relativisticpy.symengine import (
     atanh,
 )
 
+# @node_handler_implementor(parser=RelPyParser)
 
 class RelPyAstNodeTraverser:
     def __init__(self, cache: WorkbookState):
@@ -94,19 +95,15 @@ class RelPyAstNodeTraverser:
     def variable_assignment(self, node: AstNode):
         self.cache.set_variable(str(node.args[0]), node.args[1])
 
-    def tensor_component_assigning(self, node: AstNode):
-        if ":" in str(node.args[0]):
+    def tensor_assignment(self, node: TensorNode):
+        tref = TensorReference(node)
+        if node.sub_components_called:
             raise ValueError(
                 "Feature: <Assigning value to tensor sub-components> is not implemented yet."
             )
-        InitTensorFromComponentsNode(self.cache).handle(node)
-
-    def tensor_expr_assignment(self, node: AstNode):
-        if ":" in str(node.args[0]):
-            raise ValueError(
-                "Feature: <Assigning value to tensor sub-components> is not implemented yet."
-            )
-        InitTensorFromExpressionNode(self.cache).handle(node)
+        if node.identifier == self.cache.metric_symbol:
+            tref.is_metric = True
+        TensorAssignmentHandler(self.cache).handle(tref)
 
     def function_definition(self, node: AstNode):
         pass  # User can define a function which they can actually call
@@ -224,8 +221,8 @@ class RelPyAstNodeTraverser:
     def array(self, node: AstNode):
         return SymbolArray(list(node.args))
 
-    def simplify_tensor(self, node: AstNode):
-        tensor = node.args[0]
+    def simplify_tensor(self, node: UnaryNode):
+        tensor = node.operand
         tensor.components = simplify(tensor.components)
         return tensor
 
@@ -266,21 +263,14 @@ class RelPyAstNodeTraverser:
     def diag(self, node: AstNode):
         return TensorDiagBuilder().handle(node)
 
-    def metric_tensor_definition(self, node: AstNode):
-        TensorDefinitionNode(self.cache).handle(
-            node
-        )  # Tensor Setter : G_{a}_{b} := [[a, b],[c,d]]
-
     def tensor(self, node: AstNode):
-        return TensorNode(self.cache).handle(
-            node
+        tref = TensorReference(node)
+        if tref.id == self.cache.metric_symbol:
+            tref.is_metric = True
+        return TensorHandler(self.cache).handle(
+            tref
         )  # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
-    
-    def tensor_definition(self, node: AstNode):
-        test = node
-        return TensorDefinitionNode(self.cache).handle(
-            node
-        ) 
+
 
     def print_(self, node: AstNode):
         return node.args

@@ -8,7 +8,8 @@ from relativisticpy.parsers.lexers.base import LexerResult, Token, TokenType
 from relativisticpy.parsers.shared.errors import IllegalCharacterError, IllegalSyntaxError
 from relativisticpy.parsers.shared.iterator import Iterator
 
-from relativisticpy.parsers.types.gr_nodes import AstNode, Definition, Function, NodeType, Tensor
+from relativisticpy.parsers.types.base import AstNode, AstNode, BinaryNode, ArrayNode, IntNode, FloatNode, SymbolNode, NegNode, PosNode, NotNode, PrintNode
+from relativisticpy.parsers.types.gr_nodes import Definition, Function, NodeType, TensorNode
 from relativisticpy.parsers.types.position import Position
 
 @dataclass
@@ -65,6 +66,175 @@ class BaseParser(ABC):
     # From a code perspective, the base class should never know the implementation of classese
     # which inherit it. 
 
+    def new_add_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.ADD,
+            position=position,
+            callback='add',
+            args=args
+        )
+    
+    def new_sub_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.SUB,
+            position=position,
+            callback='sub',
+            args=args
+        )
+    
+    def new_mul_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.MUL,
+            position=position,
+            callback='mul',
+            args=args
+        )
+    
+    def new_div_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.DIV,
+            position=position,
+            callback='div',
+            args=args
+        )
+    
+    def new_pow_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.POW,
+            position=position,
+            callback='pow',
+            args=args
+        )
+    
     ###################################
-    ## SIMPLE ARITHMETIC NODES
+    ### SIMPLE DATA TYPE NODES 
     ###################################
+
+    def new_int_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return IntNode(
+            position=position,
+            args=args
+        )
+    
+    def new_float_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return FloatNode(
+            position=position,
+            args=args
+        )
+    
+    def new_symbol_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        symbol_node = SymbolNode(
+            position=position,
+            args=args
+        )
+        symbol_node.data_type = 'symbol' # Technically we don't actually know if this is a symbol yet or not, as it could be a pointer to another object stored
+        return symbol_node
+    
+    def new_neg_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return NegNode(
+            position=position,
+            args=args
+        )
+
+    def new_pos_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return PosNode(
+            position=position,
+            args=args
+        )
+    
+    def new_array_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return ArrayNode(
+            position=position,
+            args=args
+        )
+
+    def new_not_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return NotNode(
+            position=position,
+            args=args
+        )
+    
+    def new_and_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.AND,
+            position=position,
+            callback='and_',
+            args=args
+        )
+    
+    def new_or_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.OR,
+            position=position,
+            callback='or',
+            args=args
+        )
+    
+    def new_eqequal_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.EQEQUAL,
+            position=position,
+            callback='eqequal',
+            args=args
+        )
+    
+    def new_less_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.LESS,
+            position=position,
+            callback='less',
+            args=args
+        )
+    
+    def new_greater_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.GREATER,
+            position=position,
+            callback='greater',
+            args=args
+        )
+    
+    def new_lessequal_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.LESSEQUAL,
+            position=position,
+            callback='lessequal',
+            args=args
+        )
+    
+    def new_greaterequal_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.GREATEREQUAL,
+            position=position,
+            callback='greaterequal',
+            args=args
+        )
+    
+    def new_assignment_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.ASSIGNMENT,
+            position=position,
+            callback='assignment',
+            args=args
+        )
+    
+    def new_definition_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return Definition(
+            position=position,
+            args=args
+        )
+    
+    def new_function_def_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return BinaryNode(
+            type=NodeType.FUNCTION_DEF,
+            position=position,
+            callback='function_def',
+            args=args
+        )
+    
+    def new_print_node(self, position: Position, args: List[AstNode]) -> AstNode:
+        return PrintNode(
+            position=position,
+            args=args
+        )
+    

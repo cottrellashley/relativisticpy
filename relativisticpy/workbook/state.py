@@ -7,15 +7,15 @@ from relativisticpy.utils import extract_tensor_symbol, extract_tensor_indices
 
 from relativisticpy.workbook.constants import WorkbookConstants
 
-from relativisticpy.parsers.types.gr_nodes import Tensor
+from relativisticpy.parsers.types.gr_nodes import TensorNode
 
 class TensorReference:
     """Tensor Cache Helper class which represents strings representations of tensors."""
 
-    def __init__(self, tensor: Tensor):
+    def __init__(self, tensor: TensorNode):
         self.__descerialized_indices = tensor.indices.indices
         self.tensor = tensor
-        self.is_metric = False
+        self.__is_metric = False
         self.__symbol = tensor.identifier
 
     @property
@@ -35,11 +35,19 @@ class TensorReference:
 
     @property
     def repr(self) -> str:
-        return str(self)
+        return str(self.tensor)
 
     @property
     def id(self) -> str:
         return self._tid()
+
+    @property
+    def is_metric(self) -> bool:
+        return self.__is_metric
+    
+    @is_metric.setter
+    def is_metric(self, value: bool) -> None:
+        self.__is_metric = value
 
     def _tid(self):
         return self.__symbol

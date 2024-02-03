@@ -1,9 +1,9 @@
 # What are these used for?
 # 1. These tables are used to simplify the logic of computing the reference typing of expressions.
-# 2. They are set in LEAFT nodes from the Parser as the 'node.inferenced_type' property.
-#    The INTERNAL nodes start off as NULL in the Parser and the Semantic Analyzer computes the reuslts and injects node.inferenced_type for these INTERNAL nodes.
-# 3. Once the node.inferenced_type surfaces up to the root node in the syntax tree, we know what the return type of the expression is.
-# 4. We use the node.inferenced_type for only two reasons:
+# 2. They are set in LEAFT nodes from the Parser as the 'node.data_type' property.
+#    The INTERNAL nodes start off as NULL in the Parser and the Semantic Analyzer computes the reuslts and injects node.data_type for these INTERNAL nodes.
+# 3. Once the node.data_type surfaces up to the root node in the syntax tree, we know what the return type of the expression is.
+# 4. We use the node.data_type for only two reasons:
 #   
 #   1 - TO FIND THE TYPE WHICH AN EXPRESSION WILL HAVE AFTER COMPUTED.
 #   2 - TO STOP AND SHOW USER ERRORS BEFORE THE TREE EVEN GETS COMPUTED.
@@ -609,7 +609,6 @@ integrateOperatorTypes = {
 ###################################################################################################################################################
 #########   TYPES OF DEFINITIONS ':=' #############################################################################################################
 ###################################################################################################################################################
-
 
 
 _pointer = "pointer"

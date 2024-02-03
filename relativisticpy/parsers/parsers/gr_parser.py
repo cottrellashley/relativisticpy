@@ -38,7 +38,7 @@ from typing import List
 from relativisticpy.parsers.parsers.base import BaseParser, ParserResult
 from relativisticpy.parsers.lexers.base import Token, TokenType
 from relativisticpy.parsers.types.base import AstNode, NodeType, UnaryNode, BinaryNode, ArrayNode
-from relativisticpy.parsers.types.gr_nodes import Tensor, Function, Definition
+from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
 from relativisticpy.parsers.shared.error_messages import braces_unmatched_errors
 from relativisticpy.parsers.types.position import Position
 
@@ -367,8 +367,9 @@ class GRParser(BaseParser):
 
     # tensor : TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
     def tensor(self, token: Token, start_position):
-        tensor_node = Tensor()
+        tensor_node = TensorNode()
         tensor_node.identifier = token.value
+        tensor_node.position = self.current_token.start_position.copy()
         tensor_covariant = True
 
         while self.current_token != None and self.current_token.type in (
@@ -448,7 +449,7 @@ class GRParser(BaseParser):
         self.advance_token()
 
         if self.current_token == None:
-            return self.new_tensor_node(start_position, [tensor_node])
+            return tensor_node
 
         if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
@@ -459,25 +460,23 @@ class GRParser(BaseParser):
                     self.current_token.end_position.copy(),
                     self.raw_code,
                 )
-
-            return self.new_tensor_comp_definition_node(
-                start_position,
-                [tensor_node, self.atom()],
-            )
+            
+            tensor_node.tensor_components_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
+            tensor_node.callback = 'tensor_assignment'
+            return tensor_node
 
         if self.current_token.type == TokenType.EQUAL:
             self.advance_token()
             if self.current_token.type == TokenType.LSQB:
-                return self.new_tensor_comp_assignment_node(
-                    start_position,
-                    [self.new_tensor_node(start_position, [tensor_node]), self.atom()],
-                )
-            return self.new_tensor_expr_assignment_node(
-                start_position,
-                [self.new_tensor_node(start_position, [tensor_node]), self.expr()],
-            )
+                tensor_node.tensor_components_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
+                tensor_node.callback = 'tensor_assignment' # TODO: This currenctly 
+                return tensor_node
 
-        return self.new_tensor_node(start_position, [tensor_node])
+            tensor_node.tensor_expr_ast = self.expr()
+            tensor_node.callback = 'tensor_assignment'
+            return tensor_node
+
+        return tensor_node
 
     def function(self, token: Token, start_position):
         func_node = Function()
@@ -522,232 +521,3 @@ class GRParser(BaseParser):
             return func_node
 
         return func_node
-
-
-    def new_add_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.ADD,
-            position=position,
-            callback='add',
-            args=args
-        )
-    
-    def new_sub_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.SUB,
-            position=position,
-            callback='sub',
-            args=args
-        )
-    
-    def new_mul_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.MUL,
-            position=position,
-            callback='mul',
-            args=args
-        )
-    
-    def new_div_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.DIV,
-            position=position,
-            callback='div',
-            args=args
-        )
-    
-    def new_pow_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.POW,
-            position=position,
-            callback='pow',
-            args=args
-        )
-    
-    ###################################
-    ### SIMPLE DATA TYPE NODES 
-    ###################################
-
-    def new_int_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.INT,
-            position=position,
-            callback='int',
-            inferenced_type='int',
-            args=args
-        )
-    
-    def new_float_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.FLOAT,
-            position=position,
-            callback='float',
-            inferenced_type='float',
-            args=args
-        )
-    
-    def new_symbol_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.SYMBOL,
-            position=position,
-            callback='symbol',
-            inferenced_type='symbol',
-            args=args
-        )
-    
-    def new_neg_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.NEG,
-            position=position,
-            callback='neg',
-            inferenced_type=None,
-            args=args
-        )
-
-    def new_pos_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.POS,
-            position=position,
-            callback='pos',
-            inferenced_type=None,
-            args=args
-        )
-    
-    def new_array_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return ArrayNode(
-            type=NodeType.ARRAY,
-            position=position,
-            callback='array',
-            inferenced_type='array',
-            args=args
-        )
-    
-    def new_tensor_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return AstNode(
-            type=NodeType.TENSOR,
-            position=position,
-            callback='tensor',
-            inferenced_type='tensor',
-            args=args
-        )
-    
-    def new_not_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.NOT,
-            position=position,
-            callback='not_',
-            inferenced_type=None,
-            args=args
-        )
-    
-    def new_and_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.AND,
-            position=position,
-            callback='and_',
-            args=args
-        )
-    
-    def new_or_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.OR,
-            position=position,
-            callback='or',
-            args=args
-        )
-    
-    def new_eqequal_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.EQEQUAL,
-            position=position,
-            callback='eqequal',
-            args=args
-        )
-    
-    def new_less_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.LESS,
-            position=position,
-            callback='less',
-            args=args
-        )
-    
-    def new_greater_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.GREATER,
-            position=position,
-            callback='greater',
-            args=args
-        )
-    
-    def new_lessequal_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.LESSEQUAL,
-            position=position,
-            callback='lessequal',
-            args=args
-        )
-    
-    def new_greaterequal_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.GREATEREQUAL,
-            position=position,
-            callback='greaterequal',
-            args=args
-        )
-    
-    def new_assignment_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.ASSIGNMENT,
-            position=position,
-            callback='assignment',
-            args=args
-        )
-    
-    def new_definition_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return Definition(
-            position=position,
-            args=args
-        )
-    
-    def new_tensor_comp_assignment_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.TENSOR_COMPONENT_ASSIGNMENT,
-            position=position,
-            callback='tensor_component_assignment',
-            args=args
-        )
-    
-    def new_tensor_expr_assignment_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.TENSOR_EXPR_ASSIGNMENT,
-            position=position,
-            callback='tensor_expr_assignment',
-            args=args
-        )
-    
-    def new_function_def_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.FUNCTION_DEF,
-            position=position,
-            callback='function_def',
-            args=args
-        )
-    
-    def new_print_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return UnaryNode(
-            type=NodeType.PRINT,
-            position=position,
-            callback='print_',
-            inferenced_type=None,
-            args=args
-        )
-    
-    def new_tensor_comp_definition_node(self, position: Position, args: List[AstNode]) -> AstNode: ## Must become a Tensor node
-        return_ = Tensor() # Should be returning this. So that when 'tensor_definition' is called, left child is this return = Tensor() object and the right child is the array expression to be set.
-        return BinaryNode(
-            type=NodeType.TENSOR_COMPONENT_DEFINITION,
-            position=position,
-            callback='tensor_definition',
-            args=args
-        )

@@ -11,22 +11,22 @@ from relativisticpy.core import (
 from relativisticpy.gr import Derivative, Ricci, Riemann, Connection, EinsteinTensor
 from relativisticpy.symengine import SymbolArray, permutedims
 from relativisticpy.workbook.state import WorkbookState, TensorReference
-from relativisticpy.workbook.node import AstNode
 from relativisticpy.workbook.constants import WorkbookConstants
 
+from relativisticpy.parsers.types.gr_nodes import TensorNode
 
 class RelPyError:
     pass
 
 
-class TensorNode: #If there is an issue with tensor in Workbook --> This is where you should begin looking.
+class TensorHandler: #If there is an issue with tensor in Workbook --> This is where you should begin looking.
     """Responsible for completly handling tensor nodes, by mediating with state to initiate or call new and existing tensors."""
 
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        tensor_ref = TensorReference(node.args[0])
+    def handle(self, tensor_ref: TensorReference):
+
         tensor_ref.indices.basis = (
             self.state.coordinates
         )  # Error handling needed => if no coordinates defined cannot continue
@@ -150,42 +150,51 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
             return self.einstein_tensor(tensor_ref)
 
 
-class TensorDefinitionNode:
+class TensorAssignmentHandler:
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        tref: TensorReference = node.args[0]
+    def handle(self, tref: TensorReference):
+
         tref.indices.basis = (
             self.state.coordinates
         )  # Error handling needed => if no coordinates defined cannot continue
-        tensor_comps = node.args[1]
 
-        # Check if the tensor being called is the metric
-        metric_symbol = self.state.metric_symbol
-        if metric_symbol == tref.id:
-            tref.is_metric = True
-            new_tensor = Metric(
-                tref.indices,
-                tensor_comps,
-                self.state.coordinates,
-            )
-        else:
-            new_tensor = EinsteinArray(
-                tref.indices,
-                tensor_comps,
-                self.state.coordinates,
-            )
+
+        if tref.is_metric and tref.tensor.defined_from_components:
+            new_tensor = self.init_metric(tref)
+        elif tref.tensor.defined_from_components:
+            new_tensor = self.init_tensor(tref)
+        elif tref.tensor.defined_from_tensor_expr:
+            einstein_array_obj : EinsteinArray = tref.tensor.computed_expr
+            new_tensor = einstein_array_obj.reshape_tensor_components(tref.indices)
 
         self.state.set_tensor(tref, new_tensor)
+
+
+    def init_metric(self, tref: TensorReference):
+        return Metric(
+            tref.indices,
+            tref.tensor.computed_comps,
+            self.state.coordinates,
+        )
+        
+
+    def init_tensor(self, tref: TensorReference):
+        return EinsteinArray(
+                tref.indices,
+                tref.tensor.computed_comps,
+                self.state.coordinates,
+            )
+        
 
 class InitTensorFromComponentsNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEMENTATION
     
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        tref : TensorReference = node.args[0]
+    def handle(self, node: TensorNode):
+        tref : TensorReference = TensorReference(node)
         rhs = node.args[1]
 
         tref.indices.basis = (
@@ -194,28 +203,8 @@ class InitTensorFromComponentsNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEM
 
         self.state.set_tensor(tref, EinsteinArray(tref.indices, rhs, self.state.coordinates))
 
-
-
-class InitTensorFromExpressionNode:
-    def __init__(self, state: WorkbookState):
-        self.state = state
-
-    def handle(self, node: AstNode):
-        tref : TensorReference = node.args[0]
-        rhs = node.args[1]
-
-        tref.indices.basis = (
-            self.state.coordinates
-        ) # New tensor is within the same manifold and therefore coordinate patch
-
-        # Get the new components in the corret order
-
-        new_tensor = rhs.reshape_tensor_components(tref.indices)
-
-        self.state.set_tensor(tref, new_tensor)
-
 class TensorDiagBuilder:
-    def handle(self, node: AstNode):
+    def handle(self, node: TensorNode):
         # Determine n from the length of diag_values
         n = len(node.args)
 
@@ -233,7 +222,7 @@ class DefinitionNode:
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
+    def handle(self, node: TensorNode):
         key = node.args[0]
         coordinates = node.args[1]
 
