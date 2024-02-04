@@ -137,7 +137,10 @@ class Function(
     # simply add name of built-in functions here.
     # At execution, it the callback function called to handle the node will be the built in insteaf of generic 'function' callback
     BUILT_INS = (
-                    "diff", "simplify", "integrate", "expand", "diag", "limit", "solve", "dsolve", "subs", "LHS", "RHS", "tsimplify",
+                    "diff", "simplify", "integrate", "expand", 
+                    "diag", "lim", "solve", "dsolve", "subs", 
+                    "LHS", "RHS", "tsimplify", "sum", "dosum",
+                    "prod", "doprod",
                     "sin", "cos", "tan", 
                     "asin", "atan", "acos", 
                     "cosh", "sinh", "tanh", 

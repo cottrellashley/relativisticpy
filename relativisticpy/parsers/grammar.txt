@@ -11,24 +11,31 @@ bool-expr       :   NOT bool-expr
 arith-expr      :   term ((PLUS|MINUS) term)*
 
 term            :   factor ((MUL|DIV) factor)*
+                :   SYMBOL (SYMBOL)*
 
 factor          :   (PLUS|MINUS) factor
                 :   power
 
 power           :   atom ((CIRCUMFLEX|DOUBLESTAR) atom)*
 
-atom            :   INT|FLOAT|STRING|BOOL|ID|TENSORID|FUNCTIONID|LATEXID
+atom            :   INT|FLOAT|STRING|BOOL|ID|SYMBOL|TENSORID|FUNCTIONID
                 :   LPAR expr RPAR
                 :   array
                 :   func-def
                 :   tensor
+                :   sum
 
 tensor          :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )*
-                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((EQUAL) expr)?
-                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((EQUAL) array)?
-                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((COLONEQUAL) array)?
+                :   tensor ((EQUAL) expr)?
+                :   tensor ((EQUAL) array)?
+                :   tensor ((COLONEQUAL) array)?
+                :   tensor tensor*
 
-array           :   LSQB (NEWLINE*)? (expr ((COMMA) (NEWLINE*)? expr*)? (NEWLINE*)? RSQB) 
+array           :   LSQB NEWLINE* (expr (COMMA NEWLINE* expr)* NEWLINE* RSQB) 
+
+matrix          :   BEGIN LBRACE ID:matrix RBRACE NEWLINE* expr ( '&' NEWLINE* expr )* NEWLINE* ('\\' NEWLINE* expr ( '&' NEWLINE* expr )* )* NEWLINE* END LBRACE ID:matrix RBRACE
+
+sum             :   SUM UNDER LBRACE expr RBRACE CIRCUMFLEX LBRACE expr RBRACE expr
 
 func-def        :   FUNCTIONID? LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE) ((EQUAL) expr)?
 
@@ -36,8 +43,5 @@ func-def        :   FUNCTIONID? LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE)
 ===========================================================
 ===========================================================
 
-Notice the difference of above and below atom.
-Why is atom called atom?
-
-Well, notice an important thing, which is that the beggining of each atom, it is a diffferent token.
-This means we can immediatly differentiate between what to build as soon as we reach the relevant token.
+Zero or More : *
+Optional     : ?

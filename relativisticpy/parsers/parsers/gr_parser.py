@@ -224,6 +224,7 @@ class GRParser(BaseParser):
         start_position = self.current_token.start_position.copy()
         result = self.factor()
 
+
         while self.current_token != None and self.current_token.type in (
             TokenType.STAR,
             TokenType.SLASH,
@@ -275,10 +276,48 @@ class GRParser(BaseParser):
         elif token.type == TokenType.ID:
             self.advance_token()
             return self.new_symbol_node(start_position, [token.value])
+        
+        elif token.type == TokenType.SYMBOL:
+            self.advance_token()
+            return self.new_symbol_node(start_position, [token.value])
 
         elif token.type == TokenType.TENSORID:
             self.advance_token()
             return self.tensor(token, start_position)
+        
+        elif token.type in [TokenType.SUM, TokenType.DOSUM, TokenType.PROD, TokenType.DOPROD]:
+            self.advance_token()
+            return self.sum(token, start_position)
+        
+        elif token.type == TokenType.FRAC:
+            self.advance_token()
+            return self.frac(start_position)
+        
+        elif token.type == TokenType.LIMIT:
+            self.advance_token()
+            return self.limit(start_position)
+        
+        elif token.type == TokenType.BEGIN: # We are beggining a new object
+            self.advance_token()
+            if self.current_token.type != TokenType.LBRACE:
+                return self.invalid_syntax_error(
+                    "Syntax Error, begin statements should always be followed by '{'",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
+            self.advance_token()
+            if self.current_token.type != TokenType.ID:
+                return self.invalid_syntax_error(
+                    "Syntax Error, begin statements need identifiers within the braces i.e. \\begin{matrix}",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
+            
+            if self.current_token.value == 'matrix':
+                return self.matrix(start_position)
+            
 
         elif token.type == TokenType.LSQB:
             self.advance_token()
@@ -313,37 +352,19 @@ class GRParser(BaseParser):
     def array(self, start_position):
         elements = []
         if self.current_token.type != TokenType.RSQB:
-            while (
-                self.current_token != None
-                and self.current_token.type == TokenType.NEWLINE
-            ):
-                self.advance_token()
 
+            self.ignore_newlines()
             elements.append(self.statement())
-            while (
-                self.current_token != None
-                and self.current_token.type == TokenType.COMMA
-            ):
-                self.advance_token()
-                while (
-                    self.current_token != None
-                    and self.current_token.type == TokenType.NEWLINE
-                ):
-                    self.advance_token()
 
+            while ( self.current_token != None and self.current_token.type == TokenType.COMMA ):
+                self.advance_token()
+
+                self.ignore_newlines()
                 elements.append(self.statement())
+                self.ignore_newlines()
 
-                while (
-                    self.current_token != None
-                    and self.current_token.type == TokenType.NEWLINE
-                ):
-                    self.advance_token()
-
-            while (
-                self.current_token != None
-                and self.current_token.type == TokenType.NEWLINE
-            ):
-                self.advance_token()
+            self.ignore_newlines()
+    
         if (
             self.current_token == None
         ):  ############################ <<<<<<<<<<<<<<<---------- PLEASE ADD THESE EVERY OTHER ERROR RAISING PLACE.
@@ -364,6 +385,99 @@ class GRParser(BaseParser):
 
 
         return self.new_array_node(start_position, elements)
+
+    def matrix(self, start_position):
+        i_elements = []
+        j_elements = []
+
+        self.advance_token()
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error: Missing a '}' at when initiating a matrix. ",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        self.advance_token()
+        
+        self.ignore_newlines()
+        i_elements.append(self.statement())
+        self.ignore_newlines()
+
+        while ( self.current_token != None and self.current_token.type == TokenType.AMPER ):
+            self.advance_token()
+
+            self.ignore_newlines()
+            i_elements.append(self.statement())
+            self.ignore_newlines()
+
+        j_elements.append(self.new_array_node(start_position, i_elements))
+
+        while ( self.current_token != None and self.current_token.type == TokenType.DOUBLEBACKSLASH ):
+            i_elements = []
+
+            self.advance_token()
+            self.ignore_newlines()
+            if self.current_token.type == TokenType.END:
+                continue
+
+            i_elements.append(self.statement())
+
+            while ( self.current_token != None and self.current_token.type == TokenType.AMPER ):
+                self.advance_token()
+
+                self.ignore_newlines()
+                i_elements.append(self.statement())
+                self.ignore_newlines()
+
+            self.ignore_newlines()
+            j_elements.append(self.new_array_node(start_position, i_elements))
+            self.ignore_newlines()
+        
+        self.ignore_newlines()
+
+        if self.current_token.type != TokenType.END:
+                return self.invalid_syntax_error(
+                    "Syntax Error, matrix object must end with an end statement.",
+                    start_position,
+                    self.current_token.end_position.copy(),
+                    self.raw_code,
+                )
+        
+        self.advance_token()
+
+        if self.current_token.type != TokenType.LBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, end statements should always be followed by '{'",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        if self.current_token.value != 'matrix':
+            return self.invalid_syntax_error(
+                "Syntax Error, matrix end statement incorrect, need to be: \\end{matrix}",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error: Missing a '}' at when ending a matrix. ",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+        return self.new_array_node(start_position, j_elements)
+        
+            
 
     # tensor : TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
     def tensor(self, token: Token, start_position):
@@ -513,3 +627,220 @@ class GRParser(BaseParser):
             return func_node
 
         return func_node
+
+
+    def sum(self, token: Token, start_position):
+        func_node = Function()
+        func_node.identifier = token.value
+
+        if self.current_token.type != TokenType.UNDER:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting underscore after sum operation.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+        
+        if self.current_token.type != TokenType.LBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting underscore left brace '{' for the sum operation.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+
+        self.advance_token()
+
+        if self.current_token.type not in [TokenType.ID, TokenType.SYMBOL]:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a variable definition to start sumation i.e. \\sum_{x}^{10} expr",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+
+        var = self.new_symbol_node(self.current_token.start_position, [self.current_token.value])
+
+        self.advance_token()
+
+        if self.current_token.type != TokenType.EQUAL:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a equals sign for assignment definition for sumation i.e. \\sum_{x=0}^{10} expr",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        start = self.arith_expr()
+
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a right brace to close \\sum expression.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        if self.current_token.type != TokenType.CIRCUMFLEX:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a ^ in \\sum expression to represent end of sum expression.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        if self.current_token.type != TokenType.LBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting underscore left brace '{' for the sum operation.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+        
+        end = self.arith_expr()
+
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a right brace to close \\sum expression.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+        
+        expression = self.arith_expr()
+
+        func_node.new_argument(expression)
+        func_node.new_argument(var)
+        func_node.new_argument(start)
+        func_node.new_argument(end)
+
+        return func_node
+    
+    def limit(self, start_position):
+        func_node = Function()
+
+        func_node.identifier = TokenType.LIMIT.value
+
+        if self.current_token.type != TokenType.UNDER:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting underscore after limit operation.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+        
+        if self.current_token.type != TokenType.LBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting underscore left brace '{' for the limt operation.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+
+        self.advance_token()
+
+        if self.current_token.type not in [TokenType.ID, TokenType.SYMBOL]:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a variable definition to start limit i.e. \\limit_{x -> 0} expr",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+
+        var = self.new_symbol_node(self.current_token.start_position, [self.current_token.value])
+
+        self.advance_token()
+
+        if self.current_token.type != TokenType.RARROW:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a equals sign for assignment definition for limit i.e. \\limit_{x -> 0} expr",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        to_expr = self.arith_expr()
+
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, expecting a right brace to close \\limit expression.",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        expression = self.arith_expr()
+
+        func_node.new_argument(expression)
+        func_node.new_argument(var)
+        func_node.new_argument(to_expr)
+
+        return func_node
+
+
+    
+    def frac(self, start_position):
+
+        pos = self.current_token.start_position
+
+        if self.current_token.type != TokenType.LBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, fraction object requires open brace to start numerator '{' ",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        numerator = self.arith_expr()
+
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, fraction object requires closing brace to finish numerator '}' ",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        if self.current_token.type != TokenType.LBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, fraction object requires open brace to start denominator expression '{' ",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        self.advance_token()
+
+        denominator = self.arith_expr()
+
+        if self.current_token.type != TokenType.RBRACE:
+            return self.invalid_syntax_error(
+                "Syntax Error, fraction object requires closing brace to finish denominator expression '}' ",
+                start_position,
+                self.current_token.end_position.copy(),
+                self.raw_code,
+            )
+        
+        return self.new_div_node(pos, [numerator, denominator])

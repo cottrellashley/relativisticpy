@@ -6,6 +6,7 @@ from sympy import (
     Interval,
     Order,
     Sum,
+    Product,
     O,
     LaplaceTransform,
     diff,

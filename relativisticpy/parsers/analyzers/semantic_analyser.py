@@ -257,7 +257,7 @@ class SemanticAnalyzer:
     def tsimplify(self, node: Function):
         node.data_type = 'array'
 
-    def limit(self, node: Function):
+    def lim(self, node: Function):
         node.data_type = 'sym_expr'
 
     def diag(self, node: Function):
@@ -281,6 +281,18 @@ class SemanticAnalyzer:
         node.data_type = 'sym_expr'
 
     def solve(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def sum(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def dosum(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def prod(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def doprod(self, node: Function):
         node.data_type = 'sym_expr'
 
     def numerical(self, node: Function):

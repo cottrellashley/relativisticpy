@@ -44,6 +44,10 @@ class BaseParser(ABC):
     @abstractmethod
     def parse() -> ParserResult: pass
 
+    def ignore_newlines(self):
+        while ( self.current_token != None and self.current_token.type == TokenType.NEWLINE ): 
+            self.advance_token()
+
 
     def invalid_syntax_error(self, details: str, pos_start: Position, pos_end: Position, raw_code: str):
         return IllegalSyntaxError(
