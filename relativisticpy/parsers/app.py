@@ -47,42 +47,51 @@
 # language grammar are fixed and integral to the interpreter, the actual execution logic can vary 
 # depending on the implementation of the injected class. This separation allows for flexibility in 
 # how language features are implemented and executed.
+from enum import Enum
 
+from relativisticpy.parsers.analyzers.semantic_analyser import SemanticAnalyzer
+from relativisticpy.parsers.parsers.gr_parser import GRParser
+from relativisticpy.parsers.lexers.gr_lexer import GRLexer
+from relativisticpy.parsers.interpreter import Interpreter
 
-from relativisticpy.parsers.parser.default import DefaultParserService
-from relativisticpy.parsers.interpreter.interpreter import InterpreterService
-from relativisticpy.parsers.shared.models.basic_nodes import NodeConfigurationModel
-from relativisticpy.parsers.shared.models.mapper import Mappers
-from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
-from relativisticpy.parsers.shared.models.object_configuration import (
-    ObjectConfigurationModel,
-)
-
+class Languages:
+    GR = {
+            'lexer' :  GRLexer,
+            'parser' : GRParser,
+            'analyzer': SemanticAnalyzer
+        }
+    # The GR grammar is very Domain Specific Language (DSL) which means, we made precise syntax UI decitions.
+    # If there reaches a point where we need other domain Specific syntax which is incompatible, we simple create new Language bundle (lexer, parser, analyzer)
 
 class RelParser:
     def __init__(
         self,
-        node_tree_walker,
-        node_configuration: list,
-        object_configuration: list = [],
+        node_tree_walker
     ):
         self.node_tree_walker = node_tree_walker
-        self.node_configurations = ConfigurationModels(
-            Mappers.map_from_list(node_configuration, NodeConfigurationModel),
-            Mappers.map_from_list(object_configuration, ObjectConfigurationModel),
-        )
-        self.parser = DefaultParserService(self.node_configurations)
-        self.interpreter = InterpreterService(self.node_tree_walker)
+        self.node_configurations = None
+        self.parser = None
+        self.interpreter = None
 
     def exe(self, expression: str):
-        _ast = self.parser.parse_string(expression)
-        return self.interpreter.interpret_ast(_ast)
+        tokens = GRLexer(expression).tokenize()
+        ast = GRParser(tokens).parse()
+        action_trees = SemanticAnalyzer().analyse(ast)
+        return Interpreter(action_trees).exe_script(self.node_tree_walker)
 
-    def parse(self, string: str):
-        return self.parser.parse_string(string)
+    def tokens(self, expression: str):
+        tokens = GRLexer(expression).tokenize()
+        return tokens
 
-    def tokenize(self, string: str):
-        return self.parser.tokenize_string(string)
+    def abstracy_syntax_tree(self, expression: str):
+        tokens = GRLexer(expression).tokenize()
+        ast = GRParser(tokens).parse()
+        return ast
 
-    def iterpret(self, ast: dict):
-        return self.interpreter.interpret_ast(ast)
+    def action_tree(self, expression: str):
+        tokens = GRLexer(expression).tokenize()
+        ast = GRParser(tokens).parse()
+        action_trees = SemanticAnalyzer().analyse(ast)
+        return action_trees
+    
+    def registered_languages(self) -> Languages: return Languages

@@ -1,15 +1,14 @@
 from relativisticpy.workbook.itensors import (
-    TensorDefinitionNode,
-    TensorNode,
-    TensorDiagBuilder,
+    TensorHandler,
+    TensorAssignmentHandler,
     DefinitionNode,
     InitTensorFromComponentsNode,
-    InitTensorFromExpressionNode
 )
 from relativisticpy.workbook.matchers import match_tensors, match_symbol
-from relativisticpy.workbook.node import AstNode
 from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.utils import str_is_tensors
+from relativisticpy.parsers.types.gr_nodes import TensorNode
+from relativisticpy.parsers.types.base import UnaryNode, BinaryNode, AstNode
 
 from relativisticpy.symengine import (
     Symbol,
@@ -37,7 +36,7 @@ from relativisticpy.symengine import (
     inverse_sine_transform,
     cosine_transform,
     inverse_cosine_transform,
-    hankel_transform, 
+    hankel_transform,
     inverse_hankel_transform,
     zeros,
     permutedims,
@@ -82,30 +81,31 @@ from relativisticpy.symengine import (
     tan,
     atan,
     tanh,
-    atanh
+    atanh,
 )
 
+# @node_handler_implementor(parser=RelPyParser)
 
 class RelPyAstNodeTraverser:
     def __init__(self, cache: WorkbookState):
         self.cache = cache
 
     # Cache Node handlers
-    def variable_assignment(self, node: AstNode):
+    def assignment(self, node: AstNode):
         self.cache.set_variable(str(node.args[0]), node.args[1])
 
-    def tensor_component_assigning(self, node: AstNode):
-        if ':' in str(node.args[0]):
-                raise ValueError('Feature: <Assigning value to tensor sub-components> is not implemented yet.')
-        InitTensorFromComponentsNode(self.cache).handle(node)
-
-    def tensor_expr_assignment(self, node: AstNode):
-        if ':' in str(node.args[0]):
-                raise ValueError('Feature: <Assigning value to tensor sub-components> is not implemented yet.')
-        InitTensorFromExpressionNode(self.cache).handle(node)
+    def tensor_assignment(self, node: TensorNode):
+        tref = TensorReference(node)
+        if node.sub_components_called:
+            raise ValueError(
+                "Feature: <Assigning value to tensor sub-components> is not implemented yet."
+            )
+        if node.identifier == self.cache.metric_symbol:
+            tref.is_metric = True
+        TensorAssignmentHandler(self.cache).handle(tref)
 
     def function_definition(self, node: AstNode):
-        pass # User can define a function which they can actually call 
+        pass  # User can define a function which they can actually call
 
     def symbol_definition(self, node: AstNode):
         self.cache.set_variable(node.args[0], str(node.args[1]))
@@ -114,21 +114,11 @@ class RelPyAstNodeTraverser:
         DefinitionNode(self.cache).handle(node)
 
     def coordinate_definition(self, node: AstNode):
-        DefinitionNode(self.cache).handle(node)
+        key = node.args[0]
+        coordinates = node.args[1]
 
-    # Basic Node handlers
-    def variable_key(self, node: AstNode):
-        return "".join(node.args)
-
-    def symbol_key(self, node: AstNode):
-        return "".join(node.args)
-    
-    def definition_identifyer(self, node: AstNode):
-        return "".join(node.args)
-    
-    # Tensor type node handlers
-    def tensor_identifyer(self, node: AstNode):
-        return TensorReference("".join(node.args))  # Handles Tensor identifyers G_{a}_{b} etc ...
+        self.cache.set_coordinates(coordinates)
+        self.cache.set_variable(key, coordinates)
 
     def sub(self, node: AstNode):
         return node.args[0] - node.args[1]
@@ -157,28 +147,38 @@ class RelPyAstNodeTraverser:
     def float(self, node: AstNode):
         return float("".join(node.args))
 
-    # Sympy node handlers
-
     def subs(self, node: AstNode):
-        expr: Symbol = node.args[0]
-        return expr.subs(node.args[1], node.args[2])
+        return node.args[0].subs(node.args[1], node.args[2])
 
-    def limit(self, node: AstNode): return limit(*node.args)
-    def expand(self, node: AstNode): return expand(*node.args)
-    def diff(self, node: AstNode): return diff(*node.args)
-    def integrate(self, node: AstNode): return integrate(*node.args)
-    def simplify(self, node: AstNode): return simplify(*node.args)
+    def limit(self, node: AstNode):
+        return limit(*node.args)
 
-    def simplify_tensor(self, node: AstNode):
-        tensor = node.args[0]
-        tensor.components = simplify(tensor.components)
-        return tensor
+    def expand(self, node: AstNode):
+        return expand(*node.args)
 
-    def latex(self, node: AstNode): return latex(*node.args)
-    def solve(self, node: AstNode): return solve(*node.args)
-    def numerical(self, node: AstNode): return N(*node.args)
-    def exp(self, node: AstNode): return exp(*node.args)
-    def dsolve(self, node: AstNode): return dsolve(*node.args)
+    def diff(self, node: AstNode):
+        return diff(*node.args)
+
+    def integrate(self, node: AstNode):
+        return integrate(*node.args)
+
+    def simplify(self, node: AstNode):
+        return simplify(*node.args)
+
+    def latex(self, node: AstNode):
+        return latex(*node.args)
+
+    def solve(self, node: AstNode):
+        return solve(*node.args)
+
+    def numerical(self, node: AstNode):
+        return N(*node.args)
+
+    def exp(self, node: AstNode):
+        return exp(*node.args)
+
+    def dsolve(self, node: AstNode):
+        return dsolve(*node.args)
 
     # Sympy Trigs
     def sin(self, node: AstNode): return sin(*node.args)
@@ -194,7 +194,13 @@ class RelPyAstNodeTraverser:
     def acosh(self, node: AstNode): return acosh(*node.args)
     def atanh(self, node: AstNode): return atanh(*node.args)
 
-    def array(self, node: AstNode): return SymbolArray(list(node.args))
+    def array(self, node: AstNode):
+        return SymbolArray(list(node.args))
+
+    def tsimplify(self, node: UnaryNode):
+        tensor = node.args[0]
+        tensor.components = simplify(list(tensor.components)[0]) # ??????? Why do we need to call list ? can we standardise ?
+        return tensor
 
     # Sympy constants
     def constant(self, node: AstNode):
@@ -203,21 +209,25 @@ class RelPyAstNodeTraverser:
             return pi
         elif a == "e":
             return E
+        elif a == "oo":
+            return oo
 
     # Sympy symbols / function initiators
     def function(self, node: AstNode):
-        return symbols("{}".format(node.handler), cls=Function)(*node.args)
+        func_id = node.identifier
+        func = symbols("{}".format(func_id), cls=Function)(*node.args)
+        return func
 
     def symbol(self, node: AstNode):
         a = "".join(node.args)
 
-        if a in ["pi", "e"]:
+        if a in ["pi", "e", "oo"]:
             return self.constant(node)
-    
+
         elif a == self.cache.metric_symbol:
             self.cache.set_metric_scalar()
             return self.cache.metric_scalar
-        
+
         elif a == self.cache.ricci_symbol:
             self.cache.set_ricci_scalar()
             return self.cache.ricci_scalar
@@ -229,54 +239,31 @@ class RelPyAstNodeTraverser:
             return self.cache.get_variable(str(a))
 
     def diag(self, node: AstNode):
-        return TensorDiagBuilder().handle(node)
+        # Determine n from the length of diag_values
+        n = len(node.args)
 
-    def metric_tensor_definition(self, node: AstNode):
-        TensorDefinitionNode(self.cache).handle(
-            node
-        )  # Tensor Setter : G_{a}_{b} := [[a, b],[c,d]]
+        # Create an NxN MutableDenseNDimArray with zeros
+        ndarray = SymbolArray.zeros(n, n)
+
+        # Set the diagonal values
+        for i in range(n):
+            ndarray[i, i] = node.args[i]
+
+        return ndarray
 
     def tensor(self, node: AstNode):
-        return TensorNode(self.cache).handle(
-            node
+        tref = TensorReference(node)
+        if tref.id == self.cache.metric_symbol:
+            tref.is_metric = True
+        return TensorHandler(self.cache).handle(
+            tref
         )  # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
 
-    # Node Traverser Configuration
+    def print_(self, node: AstNode):
+        return node.args
 
-    """ For Ast traverser to be able to match on objects and create user defined object nodes with their own node handlers. """
-    variable_matchers = [
-        {
-            "node": "object",
-            "node_key": "tensor",
-            "string_matcher_callback": match_tensors,
-        },
-        {
-            "node": "object",
-            "node_key": "symbol",
-            "string_matcher_callback": match_symbol,
-        }
-    ]
+    def RHS(self, node: AstNode):
+        return node.args[0].rhs
 
-    """ For Ast traverser to know which function handles each node type. """
-    node_configuration = [
-        {"node": "+", "handler": "add"},
-        {"node": "=", "handler": "assigner"},
-        {"node": ":=", "handler": "define"},
-        {"node": "-", "handler": "sub"},
-        {"node": "*", "handler": "mul"},
-        {"node": "^", "handler": "pow"},
-        {"node": "**", "handler": "pow"},
-        {"node": "/", "handler": "div"},
-        {"node": "array", "handler": "array"},
-        {"node": "integer", "handler": "int"},
-        {"node": "float", "handler": "float"},
-        {"node": "negative", "handler": "neg"},
-        {"node": "positive", "handler": "pos"},
-        {"node": "symbol", "handler":"symbol"},
-        {"node": "tensor", "handler":"tensor"},
-        {"node": "tensor_init", "handler": "tensor_init"},
-        {"node": "tensor_key", "handler": "tensor_key"},
-        {"node": "variable_key", "handler": "variable_key"},
-        {"node": "symbol_definition", "handler": "symbol_definition"},
-        {"node": "symbol_key", "handler": "symbol_key"},
-    ]
+    def LHS(self, node: AstNode):
+        return node.args[0].lhs

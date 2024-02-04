@@ -54,6 +54,7 @@ class NodeType(Enum):
     SYMBOL_KEY = "symbol_key"
     SYMBOL = "symbol"
     TENSOR = "tensor"
+    ID = "ID"
 
 
 class TokenType(Enum):
@@ -125,11 +126,15 @@ class TokenType(Enum):
     FUNCTION = "FUNCTION"
     ARRAY = "ARRAY"
 
+    @classmethod
+    def has_value(cls, value):
+        return any(value == item.value for item in cls)
+
 
 class Characters(Enum):
     """An object containing the set of supported characters, keyd on a set name."""
 
-    WHITESPACE = " \n\t"
+    WHITESPACE = " \t"
     DIGITS = "0987654321"
     LOWERCASECHARACTERS = "abcdefghijklmnopqrstuvwxyz"
     UPPERCASECHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

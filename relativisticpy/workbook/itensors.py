@@ -11,22 +11,22 @@ from relativisticpy.core import (
 from relativisticpy.gr import Derivative, Ricci, Riemann, Connection, EinsteinTensor
 from relativisticpy.symengine import SymbolArray, permutedims
 from relativisticpy.workbook.state import WorkbookState, TensorReference
-from relativisticpy.workbook.node import AstNode
 from relativisticpy.workbook.constants import WorkbookConstants
 
+from relativisticpy.parsers.types.gr_nodes import TensorNode
 
 class RelPyError:
     pass
 
 
-class TensorNode: #If there is an issue with tensor in Workbook --> This is where you should begin looking.
+class TensorHandler: #If there is an issue with tensor in Workbook --> This is where you should begin looking.
     """Responsible for completly handling tensor nodes, by mediating with state to initiate or call new and existing tensors."""
 
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        tensor_ref = TensorReference("".join(node.args))
+    def handle(self, tensor_ref: TensorReference):
+
         tensor_ref.indices.basis = (
             self.state.coordinates
         )  # Error handling needed => if no coordinates defined cannot continue
@@ -35,7 +35,7 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
             tensor_ref.id
         ):  # If not stated => skip to generate imediatly.
             generated_tensor : EinsteinArray = self.generate_tensor(tensor_ref)
-            return generated_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else generated_tensor
+            return generated_tensor.subcomponents if tensor_ref.is_calling_tensor_subcomponent else generated_tensor
 
         is_same_indices = self.state.match_on_tensors(
             TensorEqualityType.IndicesSymbolEquality, tensor_ref
@@ -56,15 +56,15 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
                 if diff_order == None:
                     # No order changes => just init new instance with new indices.
                     new_tensor : EinsteinArray = type(tensor)(tensor_ref.indices, components, tensor.basis)
-                    return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
+                    return new_tensor.subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
 
                 new_tensor = tensor.reshape_tensor_components(tensor_ref.indices)
-                return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
+                return new_tensor.subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
             
             # We need to generate the new subcomponents if user is calling new subcomponents
             tensor = type(tensor)(tensor_ref.indices, tensor.components, tensor.basis)
-            if tensor_ref.is_calling_tensor_subcomponent and hasattr(tensor, '_subcomponents'):
-                return tensor._subcomponents
+            if tensor_ref.is_calling_tensor_subcomponent and tensor_ref.indices.anyrunnig:
+                return tensor.subcomponents
 
             return (
                 tensor[tensor_ref.indices] if tensor_ref.indices.anyrunnig or tensor_ref.is_calling_tensor_subcomponent else tensor
@@ -79,7 +79,7 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
                 tensor_ref.indices, has_same_rank.components, has_same_rank.basis
             )
             self.state.set_tensor(tensor_ref, new_tensor)
-            return new_tensor._subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
+            return new_tensor.subcomponents if tensor_ref.is_calling_tensor_subcomponent else new_tensor
 
         # last thing we do is generate a new instance of the tensor.
         return self.generate_tensor(tensor_ref)
@@ -89,45 +89,27 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
         metric_components = metric_definition[tensor_ref.indices.get_non_running()]
         metric = Metric(tensor_ref.indices, metric_components, metric_definition.basis)
         self.state.set_tensor(tensor_ref, metric)
-        if tensor_ref.is_calling_tensor_subcomponent and hasattr(metric, '_subcomponents'):
-            return metric._subcomponents
-        return metric[tensor_ref.indices] if tensor_ref.indices.anyrunnig else metric
+        return metric
 
     def ricci(self, tensor_ref: TensorReference):
         ricci = Ricci(tensor_ref.indices, self.state.get_metric())
         self.state.set_tensor(tensor_ref, ricci)
-        return ricci[tensor_ref.indices] if tensor_ref.indices.anyrunnig else ricci
+        return ricci
 
     def riemann(self, tensor_ref: TensorReference):
         riemann = Riemann(tensor_ref.indices, self.state.get_metric())
         self.state.set_tensor(tensor_ref, riemann)
-        return riemann[tensor_ref.indices] if tensor_ref.indices.anyrunnig else riemann
+        return riemann
 
     def connection(self, tensor_ref: TensorReference):
-
-        connection = Connection(
-            indices=tensor_ref.indices, symbols=self.state.get_metric()
-        )
+        connection = Connection(indices=tensor_ref.indices, symbols=self.state.get_metric())
         self.state.set_tensor(tensor_ref, connection)
-
-        return (
-            connection[tensor_ref.indices]
-            if tensor_ref.indices.anyrunnig
-            else connection
-        )
+        return connection
 
     def einstein_tensor(self, tensor_ref: TensorReference):
-
-        tensor = EinsteinTensor(
-            tensor_ref.indices, self.state.get_metric()
-        )
+        tensor = EinsteinTensor(tensor_ref.indices, self.state.get_metric())
         self.state.set_tensor(tensor_ref, tensor)
-
-        return (
-            tensor[tensor_ref.indices]
-            if tensor_ref.indices.anyrunnig
-            else tensor
-        )
+        return tensor
 
     def generate_tensor(self, tensor_ref: TensorReference):
         str_key = tensor_ref.id
@@ -149,42 +131,51 @@ class TensorNode: #If there is an issue with tensor in Workbook --> This is wher
         elif str_key == self.state.einstein_tensor_symbol:
             return self.einstein_tensor(tensor_ref)
 
-
-class TensorDefinitionNode:
+class TensorAssignmentHandler:
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        tref: TensorReference = node.args[0]
+    def handle(self, tref: TensorReference):
+
         tref.indices.basis = (
             self.state.coordinates
         )  # Error handling needed => if no coordinates defined cannot continue
-        tensor_comps = node.args[1]
 
-        # Check if the tensor being called is the metric
-        metric_symbol = self.state.metric_symbol
-        if metric_symbol == tref.id:
-            new_tensor = Metric(
-                MetricIndices.from_string(tref.indices_repr),
-                tensor_comps,
-                self.state.coordinates,
-            )
-        else:
-            new_tensor = EinsteinArray(
-                tref.indices,
-                tensor_comps,
-                self.state.coordinates,
-            )
+
+        if tref.is_metric and tref.tensor.components_definition_type == 'array':
+            new_tensor = self.init_metric(tref)
+        elif tref.tensor.components_definition_type == 'array':
+            new_tensor = self.init_tensor(tref)
+        elif tref.tensor.components_definition_type == 'tensor':
+            einstein_array_obj : EinsteinArray = tref.tensor.component_ast_result
+            new_tensor = einstein_array_obj.reshape_tensor_components(tref.indices)
 
         self.state.set_tensor(tref, new_tensor)
+
+
+    def init_metric(self, tref: TensorReference):
+        return Metric(
+            tref.indices,
+            tref.tensor.component_ast_result,
+            self.state.coordinates,
+        )
+        
+
+    def init_tensor(self, tref: TensorReference):
+        return EinsteinArray(
+                tref.indices,
+                tref.tensor.component_ast_result,
+                self.state.coordinates,
+            )
+        
 
 class InitTensorFromComponentsNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEMENTATION
     
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        tref : TensorReference = node.args[0]
+    def handle(self, node: TensorNode):
+        tref : TensorReference = TensorReference(node)
         rhs = node.args[1]
 
         tref.indices.basis = (
@@ -194,53 +185,14 @@ class InitTensorFromComponentsNode: # TODO: NEEEDS CAREFUL THOUGHT AND RE-IMPLEM
         self.state.set_tensor(tref, EinsteinArray(tref.indices, rhs, self.state.coordinates))
 
 
-
-class InitTensorFromExpressionNode:
-    def __init__(self, state: WorkbookState):
-        self.state = state
-
-    def handle(self, node: AstNode):
-        tref : TensorReference = node.args[0]
-        rhs = node.args[1]
-
-        tref.indices.basis = (
-            self.state.coordinates
-        ) # New tensor is within the same manifold and therefore coordinate patch
-
-        # Get the new components in the corret order
-
-        new_tensor = rhs.reshape_tensor_components(tref.indices)
-
-        self.state.set_tensor(tref, new_tensor)
-
-class TensorDiagBuilder:
-    def handle(self, node: AstNode):
-        # Determine n from the length of diag_values
-        n = len(node.args)
-
-        # Create an NxN MutableDenseNDimArray with zeros
-        ndarray = SymbolArray.zeros(n, n)
-
-        # Set the diagonal values
-        for i in range(n):
-            ndarray[i, i] = node.args[i]
-
-        return ndarray
-
-
 class DefinitionNode:
     def __init__(self, state: WorkbookState):
         self.state = state
 
-    def handle(self, node: AstNode):
-        if isinstance(node.args[0], str):
-            key = node.args[0]
-        elif isinstance(str(node.args[0]), str):
-            key = str(node.args[0])
-        else:
-            raise ValueError("AstNode is not a string and could not be converted to a string.")
+    def handle(self, node: TensorNode):
+        key = node.args[0]
+        coordinates = node.args[1]
 
-        if key == WorkbookConstants.COORDINATES.value:
-            self.state.set_coordinates(node.args[1])
-            self.state.set_variable(key, node.args[1])
-        self.state.set_variable(key, node.args[1])
+        self.state.set_coordinates(coordinates)
+        self.state.set_variable(key, coordinates)
+

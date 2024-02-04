@@ -1,7 +1,14 @@
-Parser Module:
+# Lexer
 
-- Parses strings into python dict/lists representation of the Abstract Syntax Tree.
-- Workbook module will traverse the tree, injecting the methods which handle relevant operations / computation / object descerialization / etc...
+The lexer (for simplicity reasons) is very slightly different than normal lexer when it comes to the IDENTIFIER token. Namely, we distinguish at the tokenizer level:
 
-TODO: CURRENTLY IN THE PROCESS OF COVERTTING THE WHOLE MODULE TO C AND NOT PYTHON. STILL QUITE A BIT TO GO, BUT GETTING THERE!!
+- IDENTIFIER = ID
+- TENSORID = ID followed by ("_" or "^") followed by "{"
+- FUNCTIONID = ID followed by "("
+
+# Parser
+
+# Semantic Analyzer
+
+# Interpreter (actually just a traverser)
 

@@ -1,13 +1,26 @@
+# What are these used for?
+# 1. These tables are used to simplify the logic of computing the reference typing of expressions.
+# 2. They are set in LEAFT nodes from the Parser as the 'node.data_type' property.
+#    The INTERNAL nodes start off as NULL in the Parser and the Semantic Analyzer computes the reuslts and injects node.data_type for these INTERNAL nodes.
+# 3. Once the node.data_type surfaces up to the root node in the syntax tree, we know what the return type of the expression is.
+# 4. We use the node.data_type for only two reasons:
+#   
+#   1 - TO FIND THE TYPE WHICH AN EXPRESSION WILL HAVE AFTER COMPUTED.
+#   2 - TO STOP AND SHOW USER ERRORS BEFORE THE TREE EVEN GETS COMPUTED.
+
+
 #################################################
 #########  OPERATIONS LOOKUP TABLES  ############
 #################################################
+
+_undef = "undef"
+_none = "none"
 
 # Base Types
 _int = "int"
 _float = "float"
 _string = "string"
 _bool = "bool"
-_undef = "undef"
 _symbol = "symbol" 
 _tensor = "tensor"
 
@@ -17,14 +30,7 @@ _sym_expr = "sym_expr"
 
 # Entities which will return a type
 _function = "function"
-
-# Current
-_int = "int"
-_float = "float"
-_array = "array"
-_tensor = "tensor"
-_undef = "undef"
-_function = "function"
+_equality = "equality"
 
 
 ## Negative operation 'f(a) -> -a' ( NOT the minus operation 'f(a, b) -> a - b' )
@@ -51,6 +57,18 @@ posOperatorTypes = {
     _symbol: _symbol,
     _sym_expr: _sym_expr,
     _function: _function,
+}
+
+trigFunctionFunctionType = {
+    _int: _float,
+    _float: _float,
+    _string: _undef,
+    _bool: _undef,
+    _array: _undef, # TODO: Does +[array, array, ... ] make sense ?
+    _tensor: _undef,  # TODO: Does +T_{a}_{b} make sense ?
+    _symbol: _sym_expr,
+    _sym_expr: _sym_expr,
+    _function: _sym_expr,
 }
 
 plusOperatorTypes = {
@@ -575,20 +593,57 @@ simplifyOperatorTypes = {
     _function: _sym_expr,
 }
 
-#################################################
-#########   TYPES OF ASSIGNMENTS '=' ############
-#################################################
+diffOperatorTypes = {
+    _int: _int, # zero
+    _float: _int, # zero
+    _string: _undef,
+    _bool: _undef,
+    _array: _array,
+    _tensor: _undef,
+    _symbol: _symbol,
+    _sym_expr: _sym_expr,
+    _function: _sym_expr,
+}
 
-# Operations Context adding - Bellow are tables which give context to which operation we are dealing with.
-# Assigning operaiont types
-_tensor_expr_assignment = "tensor_expr_assignment" # When the equals sign represents 'T_{a}_{b} = D_{a}*A_{b} - D_{b}*A_{a}'
-_tensor_component_assigning = "tensor_component_assigning" # When the equals sign represents ' T_{a}_{b} = [[1, 0], [0, r**2]] ' i.e. the an arbitrary tensor is being initiated and the components are being assigned
-_variable_assignment = "variable_assignment" # when we have something like ' x = efewfgwef + 1' then we are initializing a variable 'x' which holds the value of 'efewfgwef + 1'
+integrateOperatorTypes = {
+    _int: _sym_expr,
+    _float: _sym_expr,
+    _string: _undef,
+    _bool: _undef,
+    _array: _undef,
+    _tensor: _undef, # TODO : Is there a clean way to defined a Tesor integral ?
+    _symbol: _symbol,
+    _sym_expr: _sym_expr,
+    _function: _sym_expr,
+}
 
-# TODO: This still needs implementing
-_function_definition = 'function_definition' # When we have something like 'f(x) = x**2 + y' then what I am after is a callable function to be defined where I can pass paramater x and the result is to saquare it and add y to that param.
+###################################################################################################################################################
+#########   TYPES OF ASSIGNMENTS '='  #############################################################################################################
+###################################################################################################################################################
+#########   TYPES OF DEFINITIONS ':=' #############################################################################################################
+###################################################################################################################################################
+
+
+_pointer = "pointer"
+_callable = "callable"
+
+_definition_id = "definition_id"
+_assignment_id = "assignment_id"
+_tensor_id = "tensor_id"
+
 
 assigningTypes = {
+    _assignment_id : {
+        _int: _pointer,
+        _float: _pointer,
+        _string: _pointer,
+        _bool: _pointer,
+        _array: _pointer,
+        _tensor: _pointer,
+        _symbol: _pointer,
+        _sym_expr: _pointer,
+        _function: _pointer,
+    },
     _int: {
         _int: _undef,
         _float: _undef,
@@ -649,138 +704,9 @@ assigningTypes = {
         _float: _undef,
         _string: _undef,
         _bool: _undef,
-        _array: _tensor_component_assigning,
-        _tensor: _tensor_expr_assignment,
+        _array: _pointer, # i.e. well defined but returns nothing
+        _tensor: _pointer, # i.e. well defined but returns nothing
         _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _symbol: {
-        _int: _variable_assignment,
-        _float: _variable_assignment,
-        _string: _variable_assignment,
-        _bool: _variable_assignment,
-        _array: _variable_assignment,
-        _tensor: _variable_assignment,
-        _symbol: _variable_assignment,
-        _sym_expr: _variable_assignment,
-        _function: _variable_assignment,
-    },
-    _sym_expr: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _function: {
-        _int: _function_definition,
-        _float: _function_definition,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _function_definition,
-        _sym_expr: _function_definition,
-        _function: _undef,
-    },
-}
-
-##################################################
-#########   TYPES OF DEFINITIONS ':=' ############
-##################################################
-
-# Operations Context adding - Bellow are tables which give context to which operation we are dealing with.
-# Assigning operaiont types
-
-# When the definition sign represents a user wanting to set his own tensor symbol 'g_{a}_{b} := [[a, ... ], ... ]'
-_metric_tensor_definition = "metric_tensor_definition" 
-
-# When the definition sign represents user defining something which remains set for rest of workflow. 'MetricSymbol := g' or 'Coordinates := [t, r, theta, phi]'
-_tensor_symbol_definition = "tensor_symbol_definition"
-
-# When the definition sign represents user defining something which remains set for rest of workflow. 'MetricSymbol := g' or 'Coordinates := [t, r, theta, phi]'
-_coordinate_definition = "coordinate_definition"
-
-defineTypes = {
-    _int: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _float: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _string: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _bool: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _array: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
-        _function: _undef,
-    },
-    _tensor: {
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _metric_tensor_definition,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _metric_tensor_definition,
-        _function: _undef,
-    },
-    _symbol: { # Any of these could eventually be something different
-        _int: _undef,
-        _float: _undef,
-        _string: _undef,
-        _bool: _undef,
-        _array: _coordinate_definition,
-        _tensor: _undef,
-        _symbol: _tensor_symbol_definition,
         _sym_expr: _undef,
         _function: _undef,
     },
@@ -796,16 +722,30 @@ defineTypes = {
         _function: _undef,
     },
     _function: {
-        _int: _undef, 
-        _float: _undef,
-        _string: _undef,
+        _int: _callable, # i.e. well defined but returns nothing
+        _float: _callable, # i.e. well defined but returns nothing
+        _string: _undef, 
         _bool: _undef,
-        _array: _undef,
-        _tensor: _undef,
-        _symbol: _undef,
-        _sym_expr: _undef,
+        _array: _callable,
+        _tensor: _callable,
+        _symbol: _callable, # i.e. well defined but returns nothing
+        _sym_expr: _callable, # i.e. well defined but returns nothing
         _function: _undef,
     },
 }
+
+
+ID_definitionsLookup = {
+    _int: _undef,
+    _float: _undef,
+    _string: _undef,
+    _bool: _undef,
+    _array: _none,
+    _tensor: _undef,
+    _symbol: _none,
+    _sym_expr: _undef,
+    _function: _undef,
+}
+
 
 

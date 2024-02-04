@@ -1,0 +1,43 @@
+statements      :   NEWLINE* statement (NEWLINE* statement)
+
+statement       :   KEYWORD:print? expr
+
+expr            :   (ID) EQUAL expr
+                :   bool-expr ((KEYWORD:and|KEYWORD:or) bool-expr)*
+
+bool-expr       :   NOT bool-expr
+                :   arith-expr ((EQEQUAL|LESS|GREATER|LESSEQUAL|GREATEREQUAL) arith-expr)*
+
+arith-expr      :   term ((PLUS|MINUS) term)*
+
+term            :   factor ((MUL|DIV) factor)*
+
+factor          :   (PLUS|MINUS) factor
+                :   power
+
+power           :   atom ((CIRCUMFLEX|DOUBLESTAR) atom)*
+
+atom            :   INT|FLOAT|STRING|BOOL|ID|TENSORID|FUNCTIONID|LATEXID
+                :   LPAR expr RPAR
+                :   array
+                :   func-def
+                :   tensor
+
+tensor          :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )*
+                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((EQUAL) expr)?
+                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((EQUAL) array)?
+                :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )* ((COLONEQUAL) array)?
+
+array           :   LSQB (NEWLINE*)? (expr ((COMMA) (NEWLINE*)? expr*)? (NEWLINE*)? RSQB) 
+
+func-def        :   FUNCTIONID? LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE) ((EQUAL) expr)?
+
+
+===========================================================
+===========================================================
+
+Notice the difference of above and below atom.
+Why is atom called atom?
+
+Well, notice an important thing, which is that the beggining of each atom, it is a diffferent token.
+This means we can immediatly differentiate between what to build as soon as we reach the relevant token.

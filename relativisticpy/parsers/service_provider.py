@@ -1,32 +1,17 @@
 from typing import List
-from relativisticpy.parsers.shared.interfaces.iterator import IIterator
-from relativisticpy.parsers.shared.interfaces.lexer import ILexer
-from relativisticpy.parsers.shared.interfaces.node_provider import INodeProvider
-from relativisticpy.parsers.shared.interfaces.parser_ import IParser
-from relativisticpy.parsers.shared.interfaces.semantic_analyzer import ISemanticAnalyzer
-from relativisticpy.parsers.shared.interfaces.tokens import ITokenProvider
-from relativisticpy.parsers.shared.models.node_keys import ConfigurationModels
-from relativisticpy.parsers.shared.models.token import Token
+from relativisticpy.parsers.lexers.base import BaseLexer
+from relativisticpy.parsers.parsers.base import BaseParser
 
 
-
-class ParserServicesProvider:
+class TreeBuilder:
 
     def __init__(self, 
-                    lexer:                  ILexer, 
-                    parser:                 IParser, 
-                    token_provider:         ITokenProvider, 
-                    node_provider:          INodeProvider, 
-                    iterator:               IIterator,
-                    semantic_analyzer:      ISemanticAnalyzer,
-                    configuration_models:   ConfigurationModels
+                    lexer:                  BaseLexer, 
+                    parser:                 BaseParser, 
+                    semantic_analyzer:      BaseSemanticAnalyzer,
                 ):
-        self.token_provider         = token_provider
-        self.node_provider          = node_provider
-        self.configuration_models   = configuration_models
         self.lexer                  = lexer
         self.parser                 = parser
-        self.iterator               = iterator
         self.semantic_analyzer      = semantic_analyzer
 
     def build(self) -> IParser:
