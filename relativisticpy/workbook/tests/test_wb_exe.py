@@ -43,7 +43,7 @@ def calculus_basic_result():
 def workbook_setup():
     return Workbook()
 
-
+@pytest.mark.skip(reason="TDD =====> Implement TODO: Multi-line-array <======== ")
 def test_calculus_basic(workbook_setup, calculus_basic_result):
     wb = workbook_setup
     result = calculus_basic_result

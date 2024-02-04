@@ -146,7 +146,7 @@ class UnaryNode(AstNode):
         return self.args[0]
     
     def execute_node(self, executor: Callable):
-        self.args[0] = executor(self)
+        self.args[0] = executor(self.args[0])
 
 
 class BinaryNode(AstNode):
@@ -200,6 +200,29 @@ class ArrayNode(AstNode):
     def execute_node(self, executor: Callable): 
         for i, arg in enumerate(self.args):
             self.args[i] = executor(arg)
+
+
+class AssignmentNode(BinaryNode):
+    def __init__(
+        self,
+        position: Position,
+        args: List["AstNode"],
+    ):
+        super().__init__(type=NodeType.ASSIGNMENT, position=position, callback='assignment', args=args)
+        self.data_type = 'none'
+
+    @property
+    def is_leaf(self) -> bool: return False
+
+    @property
+    def callback(self): return "assignment"
+
+
+    def execute_node(self, executor: Callable): 
+        self.args[1] = executor(self.args[1])
+
+
+
 
 
 class IntNode(UnaryNode):

@@ -6,26 +6,7 @@ from relativisticpy.symengine import SymbolArray, diff, sin, cos, tan
 
 def Mathify(expression: str):
     """Builds mathematical python object representing the string exporession enterred."""
-    return RelParser(MathNode(), node_configuration).exe(expression)
-
-
-# As the RelParser object builds the python dictionary encoding the equation or expression,
-# the MathNode object's methods will be called according the node_configuration bellow. For Example:
-# when '+' string is there, the RelParser will call a method called 'add' from the MathNode class to perform the opperation.
-# If the method is already a method in string, the RelParser module will simply call the method named as a string.
-node_configuration = [
-    {"node": "+", "handler": "add"},
-    {"node": "-", "handler": "sub"},
-    {"node": "*", "handler": "mul"},
-    {"node": "^", "handler": "pow"},
-    {"node": "**", "handler": "pow"},
-    {"node": "/", "handler": "div"},
-    {"node": "array", "handler": "array"},
-    {"node": "integer", "handler": "int"},
-    {"node": "float", "handler": "float"},
-    {"node": "negative", "handler": "neg"},
-    {"node": "positive", "handler": "pos"},
-]
+    return RelParser(MathNode()).exe(expression)[0].value
 
 
 @dataclass
@@ -111,7 +92,7 @@ class MathNode:
     def expand(self, node: Node):
         return smp.expand(node.args[0])
 
-    def differentiate(self, node: Node):
+    def diff(self, node: Node):
         return smp.diff(node.args[0], node.args[1])
 
     def integrate(self, node: Node):

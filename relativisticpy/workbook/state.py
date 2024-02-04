@@ -21,10 +21,10 @@ class TensorReference:
     @property
     def indices(self) -> Indices:
         if self.is_metric:
-            test = MetricIndices(*[Idx(idx.identifier) if idx.covariant else -Idx(idx.identifier) for idx in self.__descerialized_indices])
+            test = MetricIndices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in self.__descerialized_indices])
             return test
         else:
-            test1 = Indices(*[Idx(idx.identifier) if idx.covariant else -Idx(idx.identifier) for idx in self.__descerialized_indices])
+            test1 = Indices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in self.__descerialized_indices])
             return test1
 
     @property

@@ -32,21 +32,6 @@ class Interpreter:
                 self.executor(action_tree.ast)
         return self.return_list
 
-    def exe(self, ast_node: AstNode):
-
-        # Check if the node has arguments and process them if necessary.
-        # This step ensures that each child node is processed before the current node is passed to the callback.
-        if hasattr(ast_node, "args"):
-            for i, arg in enumerate(ast_node.args):
-                if hasattr(arg, "args"):  # If the argument is an AstNode, process it recursively.
-                    ast_node.args[i] = self.exe(arg)
-                # Note: If the argument is not an AstNode, it's left as is.
-
-        # Use getattr to retrieve the callback method from the exe_object using the node's callback name.
-        # Call this method with the full ast_node, which includes its children within node.args.
-        callback_method = getattr(self.exe_object, ast_node.callback)
-        return callback_method(ast_node)
-
     def executor(self, ast_node: AstNode):
 
         # Check if the node has arguments and process them if necessary.

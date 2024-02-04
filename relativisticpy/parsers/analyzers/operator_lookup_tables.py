@@ -30,6 +30,7 @@ _sym_expr = "sym_expr"
 
 # Entities which will return a type
 _function = "function"
+_equality = "equality"
 
 
 ## Negative operation 'f(a) -> -a' ( NOT the minus operation 'f(a, b) -> a - b' )
@@ -56,6 +57,18 @@ posOperatorTypes = {
     _symbol: _symbol,
     _sym_expr: _sym_expr,
     _function: _function,
+}
+
+trigFunctionFunctionType = {
+    _int: _float,
+    _float: _float,
+    _string: _undef,
+    _bool: _undef,
+    _array: _undef, # TODO: Does +[array, array, ... ] make sense ?
+    _tensor: _undef,  # TODO: Does +T_{a}_{b} make sense ?
+    _symbol: _sym_expr,
+    _sym_expr: _sym_expr,
+    _function: _sym_expr,
 }
 
 plusOperatorTypes = {

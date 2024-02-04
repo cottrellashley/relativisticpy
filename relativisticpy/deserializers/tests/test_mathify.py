@@ -33,9 +33,9 @@ def schild_setup():
 
 def test_mathify_diff(polar_coordinates_setup):
     t, r, theta, phi = polar_coordinates_setup
-    assert Mathify('differentiate(r + t, t)') == diff(r + t, t)
-    assert Mathify('differentiate(r**2 + t, t)') == diff(r**2 + t, t)
-    assert Mathify('differentiate(sin(r)*t + cos(t), t)') == diff(sin(r)*t + cos(t), t)
+    assert Mathify('diff(r + t, t)') == diff(r + t, t)
+    assert Mathify('diff(r**2 + t, t)') == diff(r**2 + t, t)
+    assert Mathify('diff(sin(r)*t + cos(t), t)') == diff(sin(r)*t + cos(t), t)
 
 def test_mathify_array_building(schild_setup):
     schilc_array = schild_setup

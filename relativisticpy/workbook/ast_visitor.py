@@ -1,6 +1,5 @@
 from relativisticpy.workbook.itensors import (
     TensorHandler,
-    TensorDiagBuilder,
     TensorAssignmentHandler,
     DefinitionNode,
     InitTensorFromComponentsNode,
@@ -92,7 +91,7 @@ class RelPyAstNodeTraverser:
         self.cache = cache
 
     # Cache Node handlers
-    def variable_assignment(self, node: AstNode):
+    def assignment(self, node: AstNode):
         self.cache.set_variable(str(node.args[0]), node.args[1])
 
     def tensor_assignment(self, node: TensorNode):
@@ -182,48 +181,25 @@ class RelPyAstNodeTraverser:
         return dsolve(*node.args)
 
     # Sympy Trigs
-    def sin(self, node: AstNode):
-        return sin(*node.args)
-
-    def cos(self, node: AstNode):
-        return cos(*node.args)
-
-    def tan(self, node: AstNode):
-        return tan(*node.args)
-
-    def asin(self, node: AstNode):
-        return asin(*node.args)
-
-    def acos(self, node: AstNode):
-        return acos(*node.args)
-
-    def atan(self, node: AstNode):
-        return atan(*node.args)
-
-    def sinh(self, node: AstNode):
-        return sinh(*node.args)
-
-    def cosh(self, node: AstNode):
-        return cosh(*node.args)
-
-    def tanh(self, node: AstNode):
-        return tanh(*node.args)
-
-    def asinh(self, node: AstNode):
-        return asinh(*node.args)
-
-    def acosh(self, node: AstNode):
-        return acosh(*node.args)
-
-    def atanh(self, node: AstNode):
-        return atanh(*node.args)
+    def sin(self, node: AstNode): return sin(*node.args)
+    def cos(self, node: AstNode): return cos(*node.args)
+    def tan(self, node: AstNode): return tan(*node.args)
+    def asin(self, node: AstNode): return asin(*node.args)
+    def acos(self, node: AstNode): return acos(*node.args)
+    def atan(self, node: AstNode): return atan(*node.args)
+    def sinh(self, node: AstNode): return sinh(*node.args)
+    def cosh(self, node: AstNode): return cosh(*node.args)
+    def tanh(self, node: AstNode): return tanh(*node.args)
+    def asinh(self, node: AstNode): return asinh(*node.args)
+    def acosh(self, node: AstNode): return acosh(*node.args)
+    def atanh(self, node: AstNode): return atanh(*node.args)
 
     def array(self, node: AstNode):
         return SymbolArray(list(node.args))
 
-    def simplify_tensor(self, node: UnaryNode):
-        tensor = node.operand
-        tensor.components = simplify(tensor.components)
+    def tsimplify(self, node: UnaryNode):
+        tensor = node.args[0]
+        tensor.components = simplify(list(tensor.components)[0]) # ??????? Why do we need to call list ? can we standardise ?
         return tensor
 
     # Sympy constants
@@ -233,6 +209,8 @@ class RelPyAstNodeTraverser:
             return pi
         elif a == "e":
             return E
+        elif a == "oo":
+            return oo
 
     # Sympy symbols / function initiators
     def function(self, node: AstNode):
@@ -243,7 +221,7 @@ class RelPyAstNodeTraverser:
     def symbol(self, node: AstNode):
         a = "".join(node.args)
 
-        if a in ["pi", "e"]:
+        if a in ["pi", "e", "oo"]:
             return self.constant(node)
 
         elif a == self.cache.metric_symbol:
@@ -261,7 +239,17 @@ class RelPyAstNodeTraverser:
             return self.cache.get_variable(str(a))
 
     def diag(self, node: AstNode):
-        return TensorDiagBuilder().handle(node)
+        # Determine n from the length of diag_values
+        n = len(node.args)
+
+        # Create an NxN MutableDenseNDimArray with zeros
+        ndarray = SymbolArray.zeros(n, n)
+
+        # Set the diagonal values
+        for i in range(n):
+            ndarray[i, i] = node.args[i]
+
+        return ndarray
 
     def tensor(self, node: AstNode):
         tref = TensorReference(node)
@@ -271,6 +259,11 @@ class RelPyAstNodeTraverser:
             tref
         )  # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
 
-
     def print_(self, node: AstNode):
         return node.args
+
+    def RHS(self, node: AstNode):
+        return node.args[0].rhs
+
+    def LHS(self, node: AstNode):
+        return node.args[0].lhs

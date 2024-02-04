@@ -42,41 +42,50 @@ class TensorNode(
     """
     This is the object passed in as argument which the callable handling the AstNode of type TokenType.TENSOR.
 
-    >    def tensor(args: Tensor):
-    >        code to handle the Tensor object.
+    Object representing the Tensor Node.
+
+    When executed, the tensor node should represent a Tensor object. 
+    The components for the tensor can be soured from three different places, and we need to track this:
+        1. Derived from metric (this assumed the metric is already defined in the cache of the Executor Object.)
+            We can then compute the components from knowing the object being called 
+            (Riemann, Connection, Metric, Ricci, etc... All Metric dependent can be computed without the user expliciply defining the components.)
+        2. User defines the components in Array/Matrix form. This looks like:
+            T_{mu nu} := [ [1, 0, ...], [0, 1, ...], ... ]
+        3. User defines the components from a tensor expression. (The tensor expression must then all be defined, but thats not for this node to need to know.)
+            T_{mu nu} := A_{mu nu} - A_{nu mu}
     """
 
-    def __init__(self):
-        self.gr_node = "LEAF"
-        self.type = NodeType.TENSOR
+    def __init__(self, position: Position):
+        super().__init__(NodeType.TENSOR, position, args=[])
+        self._data_type = 'none'
         self._indices = []
-        self._identifier = ""
-        self.args = []
+        self.identifier = ""
+
+        # The following are all set during build of object.
         self.start_position = None
         self.end_position = None
-        self.computed_expr = None
-        self.computed_comps = None
 
+        # Used for user defining components. Whether its defined as array/matrix or tensor expression will be determined later and will set the comp_type.
+        self.component_ast : AstNode = None
+        self.component_ast_result = None
 
     ######### Standard Node Getter Setter Definitions #########
         
     @property
     def callback(self) -> str:
-        if not hasattr(self, "_callback"):
-            return "tensor"
-        return self._callback
-    
-    @callback.setter
-    def callback(self, value):
-        self._callback = value
+        return "tensor" if self.component_ast == None else 'tensor_assignment'
 
     @property
     def data_type(self) -> str:
-        return "tensor"
+        return "tensor" if self.component_ast == None else "none"
     
+    @data_type.setter
+    def data_type(self, value) -> None:
+        self._data_type = value
+
     @property
     def is_leaf(self) -> bool:
-        return not (self.defined_from_components or self.defined_from_tensor_expr)
+        return self.component_ast == None and all([idx.values == None for idx in self.indices.indices])
 
     ######### Specific Tensor Node Property definitions #########
 
@@ -89,53 +98,25 @@ class TensorNode(
 
     def new_index(self, identifier: str, covariant: bool, values=None):
         self._indices.append(_Index(identifier, covariant, values))
-
-    @property
-    def defined_from_tensor_expr(self) -> bool:
-        return self.__tensor_expr_ast != None
-
-    @property
-    def defined_from_components(self) -> bool:
-        return self.__tensor_components_ast != None
     
     @property
     def sub_components_called(self) -> bool:
+        if self._indices == []:
+            return False
         return any([idx.values != None for idx in self.indices.indices])
 
     @property
-    def tensor_expr_ast(self) -> Union[AstNode, None]:
-        if hasattr(self, "__tensor_expr_ast"):
-            return None
-        return self.__tensor_expr_ast
+    def components_definition_type(self):
+        if self.component_ast == None:
+            return 'none'
+        return 'array' if self.component_ast.data_type == 'array' else 'tensor'
 
-    @tensor_expr_ast.setter
-    def tensor_expr_ast(self, tensor_expr_ast) -> None:
-        self.__tensor_expr_ast = tensor_expr_ast
-
-    @property
-    def tensor_components_ast(self) -> Union[AstNode, None]:
-        if hasattr(self, "__tensor_components_ast"):
-            return None
-        return self.__tensor_components_ast
-
-    @tensor_components_ast.setter
-    def tensor_components_ast(self, array_ast) -> None:
-        self.__tensor_components_ast = array_ast
-
-    @property
-    def identifier(self) -> str:
-        return self._identifier
-
-    @identifier.setter
-    def identifier(self, tensor_identifier_value: str) -> None:
-        self._identifier = tensor_identifier_value
-
-
-    def execute_node(self, executor: Callable):
-        if self.defined_from_components:
-            self.computed_comps = executor(self.tensor_components_ast)
-        elif self.defined_from_tensor_expr:
-            self.computed_expr = executor(self.tensor_expr_ast)
+    def execute_node(self, executor: Callable) -> None:
+        for idx in self.indices.indices:
+            if idx.values != None:
+                idx.values = executor(idx.values)
+        if self.component_ast != None:
+            self.component_ast_result = executor(self.component_ast)
 
 
 class Function(
@@ -153,51 +134,62 @@ class Function(
     >        --- > code to handle the Function object. <----
     """
 
-    BUILT_INS = ("diff", "simplify", "integrate")
+    # simply add name of built-in functions here.
+    # At execution, it the callback function called to handle the node will be the built in insteaf of generic 'function' callback
+    BUILT_INS = (
+                    "diff", "simplify", "integrate", "expand", "diag", "limit", "solve", "dsolve", "subs", "LHS", "RHS", "tsimplify",
+                    "sin", "cos", "tan", 
+                    "asin", "atan", "acos", 
+                    "cosh", "sinh", "tanh", 
+                    "acosh", "asinh", "atanh"
+                 )
 
     def __init__(self):
-        self.gr_node = "LEAF"  # Either a call, a symbol object or definiton object.... all of which are leaf nodes.
         self._identifier = ""
         self.type = (NodeType.FUNCTION,)
         self.data_type = "function"
-        self.__data_type = None
+        self._data_type = None
 
         self._arguments = []
-        self.__is_called = False
+        self._is_called = False
         self._exe_tree = None
+
+    def execute_node(self, executor: Callable) -> None:
+        for i, arg in enumerate(self.args):
+            self.args[i] = executor(arg)
 
     @property
     def data_type(self) -> str:
         if (
             self.callback == "function"
         ):  # WE KNOW THIS NODE IS ONLY CONVERTER TO FUNCTION SYMBOL IF CALLBACK IS 'function'
-            self.__data_type = "function"
-            return self.__data_type
+            self._data_type = "function"
+            return self._data_type
         elif (
-            self.__data_type != None
+            self._data_type != None
         ):  # We have infered data type of the return value of the function at the Semantic Analyzer phase.
-            return self.__data_type
+            return self._data_type
         return None
 
     @data_type.setter
     def data_type(self, value: str) -> None:
-        self.__data_type = value
+        self._data_type = value
 
     @property
     def is_called(self) -> bool:
-        return self.__is_called
+        return self._is_called
     
     @property
     def is_leaf(self):
-        return self._exe_tree == None
+        return self._exe_tree == None and self.args == None
 
     @is_called.setter
     def is_called(self, is_being_called: bool) -> None:
         if self._exe_tree == None and is_being_called:
             raise AttributeError(
-                f"Cannot set to call a function property {self.__is_called} when the function has no tree defined to execute."
+                f"Cannot set to call a function property {self._is_called} when the function has no tree defined to execute."
             )
-        self.__is_called = is_being_called
+        self._is_called = is_being_called
 
     @property
     def is_callable(self) -> bool:
@@ -223,7 +215,7 @@ class Function(
         if any([self.identifier == builtin_func for builtin_func in self.BUILT_INS]):
             return self.identifier
         return "function"
-
+    
     @identifier.setter
     def identifier(self, funtion_identifier_value: str) -> None:
         if self._identifier != "":
@@ -255,8 +247,6 @@ class Function(
     def set_position(self, position):
         self.position = position
 
-    def execute_node(self, executor: Callable):
-        pass
 
 
 # ID := EXPR | ARRAY

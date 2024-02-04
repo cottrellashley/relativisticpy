@@ -142,6 +142,30 @@ class GRLexer(BaseLexer):
                     end_pos=self.current_pos(),
                 )
 
+            # ID with _
+            elif (
+                self.current_char() in Characters.IDENTIFIERCHARS.value
+                and self.peek_char(1, "") in ["_"]
+                and self.peek_char(2, "") in Characters.IDENTIFIERCHARS.value
+            ):
+                obj += self.current_char()
+                obj += "_"
+                self.advance_char() # now at _
+                self.advance_char() # now at first char in Characters.IDENTIFIERCHARS group
+                while ( self.current_char() != None and self.current_char() in Characters.IDENTIFIERCHARS.value ):
+                    if self.peek_char(1, "") not in Characters.IDENTIFIERCHARS.value:
+                        obj += self.current_char()
+                        self.advance_char()
+                        self.token_provider.new_token(
+                            TokenType.ID,
+                            obj,
+                            start_pos=start_pos,
+                            end_pos=self.current_pos() )
+                    else:
+                        obj += self.current_char()
+                        self.advance_char()
+                        
+
             # ID
             elif self.peek_char(1, "") not in Characters.IDENTIFIERCHARS.value + "(":
                 obj += self.current_char()

@@ -29,34 +29,61 @@ wb = rel.Workbook()
 
 wb.expr(
 '''
-# First: Define the pre-requisites of our problem
+Coordinates := [t, r, theta, phi]
 
-# Symbols we want Metric and Ricci to have
-MetricSymbol := G 
-RicciSymbol := Ric 
-Coordinates := [t, r, theta, phi] 
+g_{mu}_{nu} := [ 
+                 [-A(r),0,0,0], 
+                 [0,B(r),0,0], 
+                 [0,0,r**2,0], 
+                 [0,0,0,r**2*sin(theta)**2]
+               ]
 
-# Define the metric tensor components: we define a general spherically symmetric tensor
-G_{mu}_{nu} := [[-A(r),0,0,0], [0,B(r),0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]] 
 
 # Now we have defined the metric above, we can call any individual component of the Ricci tensor itself (as it is metric dependent)
-eq0 = Ric_{mu:0}_{nu:0} 
-eq1 = Ric_{mu:1}_{nu:1} 
-eq2 = Ric_{mu:2}_{nu:2} 
+eq0 = Ric_{mu:0}_{nu:0}
+eq1 = Ric_{mu:1}_{nu:1}
+eq2 = Ric_{mu:2}_{nu:2}
 
-# We construct a simplified equation from the Ricci components as follows
-eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r)) 
+eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r))
 
-# We call the dsolve method which is a differential equation solver
-solutionB = dsolve(eq5, B(r)) # returns B(r) = C1/A(r)
+B = RHS( dsolve(eq5, B(r)) )
 
-eq6 = simplify(subs(eq2, B(r), C1/A(r))) # We know the solution of B(r) = C1/A(r) so we substitute it in the third Ricci equation we have available to us
+eq6 = simplify( subs(eq2, B(r), B) )
 
-A = dsolve(eq6, A(r)) # Finally set the answers as A and B
+A = RHS( dsolve(eq6, A(r)) )
 
-B = 1/A
+g_{mu}_{nu} := [
+                 [A,0,0,0], 
+                 [0,1/A,0,0], 
+                 [0,0,r**2,0], 
+                 [0,0,0,r**2*sin(theta)**2]
+               ]
 
-latex([[-A,0,0,0], [0,B,0,0], [0,0,r**2,0], [0,0,0,r**2*sin(theta)**2]])  # Output the answer as latex, if you wish: (remove latex method if you do not)
+# Step 5: We prove that C_1 and C_2 equations are in terms of c, G, M by comparing with Newton at large radius
+
+a = C^{a:1}_{b:0 c:0}
+solve( a*c**2 + G*M/r**2 ) # This shows us what 
+
+              
+g_{mu}_{nu} := [
+                  [-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],
+                  [0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],
+                  [0, 0, r**2, 0],
+                  [0, 0, 0, r**2 * sin(theta) ** 2]
+              ]
+              
+Gamma^{a}_{c f} := (1/2)*g^{a b}*(d_{c}*g_{b f} + d_{f}*g_{b c} - d_{b}*g_{c f})
+
+Riemann^{a}_{m b n} := d_{b}*Gamma^{a}_{n m} + Gamma^{a}_{b l}*Gamma^{l}_{n m} - d_{n}*Gamma^{a}_{b m} - Gamma^{a}_{n l}*Gamma^{l}_{b m}
+
+Ricci_{m n} := Riemann^{a}_{m a n}
+
+T1^{a f h i} := g^{i d}*(g^{h c}*(g^{f b}*Riemann^{a}_{b c d}))
+T2_{a f h i} := g_{a n}*Riemann^{n}_{f h i}
+
+S =  T1^{a f h i}*T2_{a f h i}
+              
+tsimplify( S )
 ''') # Will parse string and compute the equations
 
 ```
@@ -98,52 +125,14 @@ To put it simply, keep it simple for devs and users.
 |----------------------|-------------|
 | `core`               | Core Module. Contains logic for einstein summation convention of multi-indexed array like objects and descerialisation logic of tensors. |
 | `gr`                 | Defines all the main General Relativity Tensors, such as initialization logic and interation logic. Inherits core module logic (which provides the logic of einsum tensor manipulations.) |
-| `providers`           | Contains all the external package dependencies of relativisticpy, which currently are: Sympy. Any module within RelativisticPy only imports relativisticpy.provider module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
+| `symengine`           | Interface module for symbolic engine dependencies of relativisticpy, which currently are: Sympy. Any module within RelativisticPy only imports relativisticpy.symengine module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
 | `workbook` | This modules is the module which 'brings it all together' if you will. It here to allow non-python users to use the RelativisticPy package. It handles all the parsing from strings, the object initializations, memory storage and workflow for the end-user.        |
-| `em` | Future module -> Electromagnetism   |
+| `parser` | String -> Lexer(String) = Tokens -> Parser(Tokens) = AST -> SemanticAnalyzer(AST) = ActionTree -> Interpreter(ActionTree, ImplementerClass) = Result.  ImplementerClass dependent on whole package i.e. uses all Tensor implementations + Sympy + Worrkbook State -> Computes the language and returns answer.   |
 | `ft` | Future module -> Field Theory       |
 
 ### Package Tree-Structure
 
-```
-core (!Rough downward dependency!)
-|
-|-- Indices
-|   |
-|   |-- Tuple[ Idx ]
-|
-|-- Einstein Summation Convention Decorator
-|
-|-- EinsteinArray
-|
-|-- Metric
-|
-|------ gr
-|       |
-|       |-- GeometricObject -> Metric Dependent
-|       |   |
-|       |   |-- Connection
-|       |   |
-|       |   |-- Riemann
-|       |   |
-|       |   |-- Ricci
-|       |   |
-|       |   |-- CovariantDerivative
-|       |
-|       |-- PhysicalObject -> User/State Defined
-|           |
-|           |-- StressEnergyTensor
-|           |
-|           |-- ElectromagneticTensor
-|    
-|------ em (TODO: Electromagnetism Module)
-|
-|------ ft (TODO: Field Theory Module)
-|
-|-- Descerializer
-    |
-    |-- String -> Any Tensor Objects Above
-```
+TODO
 
 ## Project Dependencies
 

@@ -49,6 +49,7 @@ from .operator_lookup_tables import (
     negOperatorTypes,
     posOperatorTypes,
     integrateOperatorTypes,
+    trigFunctionFunctionType
 )
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.errors import Error, IllegalAssignmentError, IllegalSyntaxError
@@ -138,6 +139,9 @@ class SemanticAnalyzer:
             if not node.is_leaf:
                 node.execute_node(self.__analyse_tree)
 
+        callback_method = getattr(self, node.callback)
+        if not any(self.error_object_in_args_of(node)):
+            callback_method(node)
         return node
 
     def error_object_in_args_of(self, node) -> List[bool]:
@@ -154,208 +158,178 @@ class SemanticAnalyzer:
 
     # Cache Node handlers
     def assignment(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            lhs_child_type, rhs_child_type = node.args[0].data_type, node.args[1].data_type
-            node.data_type = assigningTypes[node.left_child.data_type][node.right_child.data_type]
+        node.data_type = 'none'
 
     def definition(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            rhs = node.args[1].data_type
+        rhs = node.args[1].data_type
 
-            if ID_definitionsLookup[rhs] == 'undef':
-                self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
-                self.display_error_str = self.assignment_error.as_string()
-                self.contains_error = True
+        if ID_definitionsLookup[rhs] == 'undef':
+            self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
+            self.display_error_str = self.assignment_error.as_string()
+            self.contains_error = True
 
-            node.data_type = 'none'
+        node.data_type = 'none'
 
     def function_def(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            self.__analyse_tree(node.args[0].executable)
+        self.__analyse_tree(node.args[0].executable)
 
     def tensor_assignment(self, node: TensorNode):
-        if not any(self.error_object_in_args_of(node)):
-            node.data_type = 'none'
+        node.data_type = 'none'
 
     def sub(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            node.data_type = minusOperatorTypes[node.left_child.data_type][node.right_child.data_type]
+        node.data_type = minusOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def add(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            node.data_type = plusOperatorTypes[node.left_child.data_type][node.right_child.data_type]
+        node.data_type = plusOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def mul(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            node.data_type = mulOperatorTypes[node.left_child.data_type][node.right_child.data_type]
+        node.data_type = mulOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def div(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            node.data_type = divOperatorTypes[node.left_child.data_type][node.right_child.data_type]
+        node.data_type = divOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def pow(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            node.data_type = powOperatorTypes[node.left_child.data_type][node.right_child.data_type]
+        node.data_type = powOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def neg(self, node: NegNode):
-        if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].data_type
-            node.data_type = negOperatorTypes[node_type]
+        node_type = node.args[0].data_type
+        node.data_type = negOperatorTypes[node_type]
 
     def pos(self, node: PosNode):
-        if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].data_type
-            node.data_type = posOperatorTypes[node_type]
+        node_type = node.args[0].data_type
+        node.data_type = posOperatorTypes[node_type]
+
+    def coordinate_definition(self, node: Definition):
+        pass
 
     ###### THE CALLBACK OF THE NODE HANDLERS BELLOW ARE CREATION => WE KNOW WHAT THE RETURN TYPE IS AS WE ARE CREATING THE OBJECTS
 
     def function(self, node: AstNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def int(self, node: IntNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def float(self, node: FloatNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def print_(self, node: PrintNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def tensor(self, node: TensorNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def symbol(self, node: SymbolNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def array(self, node: ArrayNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def not_(self, node: NotNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def and_(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def or_(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def eqequal_(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def less(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def greater(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def lessequal(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     def greaterequal(self, node: BinaryNode):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        pass
 
     ##### BUILT IN FUNCTIONS TO RELATIVISTICPY (will later be implemented by sympy but we are just checking the grammar and Semantics are correct)
     def simplify(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].data_type
-            node.data_type = simplifyOperatorTypes[node_type]
+        node_type = node.args[0].data_type
+        node.data_type = simplifyOperatorTypes[node_type]
+
+    def tsimplify(self, node: Function):
+        node.data_type = 'array'
 
     def limit(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = 'sym_expr'
+
+    def diag(self, node: Function):
+        node.data_type = 'array'
 
     def expand(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = 'sym_expr'
 
     def diff(self, node: Function):
-        test = not any(self.error_object_in_args_of(node))
-        if test:
-            node_type = node.args[0].data_type
-            node.data_type = diffOperatorTypes[node_type]
+        node_type = node.args[0].data_type
+        node.data_type = diffOperatorTypes[node_type]
 
     def integrate(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            node_type = node.args[0].data_type
-            node.data_type = integrateOperatorTypes[node_type]
+        node_type = node.args[0].data_type
+        node.data_type = integrateOperatorTypes[node_type]
 
     def latex(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = 'sym_expr'
+
+    def subs(self, node: Function):
+        node.data_type = 'sym_expr'
 
     def solve(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = 'sym_expr'
 
     def numerical(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = 'sym_expr'
 
     def exp(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = 'sym_expr'
 
     def dsolve(self, node: Function):
-        pass
+        node.data_type = 'sym_expr'
+    
+    def RHS(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def LHS(self, node: Function):
+        node.data_type = 'sym_expr'
 
     def sin(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def cos(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def tan(self, node: Function):
-        pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def asin(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def acos(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def atan(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def sinh(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def cosh(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def tanh(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def asinh(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def acosh(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
     def atanh(self, node: Function):
-        if not any(self.error_object_in_args_of(node)):
-            pass
+        node.data_type = trigFunctionFunctionType[node.args[0].data_type]

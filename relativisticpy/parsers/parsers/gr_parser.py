@@ -367,9 +367,8 @@ class GRParser(BaseParser):
 
     # tensor : TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
     def tensor(self, token: Token, start_position):
-        tensor_node = TensorNode()
+        tensor_node = TensorNode(self.current_token.start_position.copy())
         tensor_node.identifier = token.value
-        tensor_node.position = self.current_token.start_position.copy()
         tensor_covariant = True
 
         while self.current_token != None and self.current_token.type in (
@@ -453,27 +452,20 @@ class GRParser(BaseParser):
 
         if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
-            if self.current_token.type != TokenType.LSQB:
-                return self.invalid_syntax_error(
-                    "Syntax Error, expecting a token: '[' ",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
-            
-            tensor_node.tensor_components_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
-            tensor_node.callback = 'tensor_assignment'
+            if self.current_token.type == TokenType.LSQB:
+                tensor_node.component_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
+                return tensor_node
+
+            tensor_node.component_ast = self.expr()
             return tensor_node
 
         if self.current_token.type == TokenType.EQUAL:
             self.advance_token()
             if self.current_token.type == TokenType.LSQB:
-                tensor_node.tensor_components_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
-                tensor_node.callback = 'tensor_assignment' # TODO: This currenctly 
+                tensor_node.component_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
                 return tensor_node
 
-            tensor_node.tensor_expr_ast = self.expr()
-            tensor_node.callback = 'tensor_assignment'
+            tensor_node.component_ast = self.expr()
             return tensor_node
 
         return tensor_node

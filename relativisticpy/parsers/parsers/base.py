@@ -8,7 +8,7 @@ from relativisticpy.parsers.lexers.base import LexerResult, Token, TokenType
 from relativisticpy.parsers.shared.errors import IllegalCharacterError, IllegalSyntaxError
 from relativisticpy.parsers.shared.iterator import Iterator
 
-from relativisticpy.parsers.types.base import AstNode, AstNode, BinaryNode, ArrayNode, IntNode, FloatNode, SymbolNode, NegNode, PosNode, NotNode, PrintNode
+from relativisticpy.parsers.types.base import AstNode, AstNode, BinaryNode, ArrayNode, IntNode, FloatNode, SymbolNode, NegNode, PosNode, NotNode, PrintNode, AssignmentNode
 from relativisticpy.parsers.types.gr_nodes import Definition, Function, NodeType, TensorNode
 from relativisticpy.parsers.types.position import Position
 
@@ -211,10 +211,8 @@ class BaseParser(ABC):
         )
     
     def new_assignment_node(self, position: Position, args: List[AstNode]) -> AstNode:
-        return BinaryNode(
-            type=NodeType.ASSIGNMENT,
+        return AssignmentNode(
             position=position,
-            callback='assignment',
             args=args
         )
     
