@@ -198,10 +198,10 @@ def test_limit(workbook_setup, var_setup):
 
     # Simple Limits
     assert (
-        wb.expr("limit((x**2 - 1)/(x - 1), x, 1)")[0].value - limit((x**2 - 1) / (x - 1), x, 1)
+        wb.expr("lim((x**2 - 1)/(x - 1), x, 1)")[0].value - limit((x**2 - 1) / (x - 1), x, 1)
         == 0
     )
-    assert wb.expr("limit(1/x, x, 0)")[0].value == limit(1 / x, x, 0)
+    assert wb.expr("lim(1/x, x, 0)")[0].value == limit(1 / x, x, 0)
 
 def test_diag(workbook_setup, var_setup):
     wb = workbook_setup

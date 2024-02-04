@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 @dataclass
-class Position:
+class Position: # TODO: Convert to object called TokenPosition which has start and end within it.
 
     "Line number."
     line: int

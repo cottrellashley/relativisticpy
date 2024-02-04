@@ -17,6 +17,7 @@ from relativisticpy.symengine import (
     Interval,
     Order,
     Sum,
+    Product,
     SymbolArray,
     O,
     LaplaceTransform,
@@ -150,7 +151,7 @@ class RelPyAstNodeTraverser:
     def subs(self, node: AstNode):
         return node.args[0].subs(node.args[1], node.args[2])
 
-    def limit(self, node: AstNode):
+    def lim(self, node: AstNode):
         return limit(*node.args)
 
     def expand(self, node: AstNode):
@@ -209,7 +210,7 @@ class RelPyAstNodeTraverser:
             return pi
         elif a == "e":
             return E
-        elif a == "oo":
+        elif a in ["oo", "infty"]:
             return oo
 
     # Sympy symbols / function initiators
@@ -221,7 +222,7 @@ class RelPyAstNodeTraverser:
     def symbol(self, node: AstNode):
         a = "".join(node.args)
 
-        if a in ["pi", "e", "oo"]:
+        if a in ["pi", "e", "oo", 'infty']:
             return self.constant(node)
 
         elif a == self.cache.metric_symbol:
@@ -267,3 +268,15 @@ class RelPyAstNodeTraverser:
 
     def LHS(self, node: AstNode):
         return node.args[0].lhs
+    
+    def sum(self, node: AstNode):
+        return Sum(node.args[0], (node.args[1], node.args[2], node.args[3]))
+    
+    def dosum(self, node: AstNode):
+        return Sum(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
+    
+    def prod(self, node: AstNode):
+        return Product(node.args[0], (node.args[1], node.args[2], node.args[3]))
+    
+    def doprod(self, node: AstNode):
+        return Product(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
