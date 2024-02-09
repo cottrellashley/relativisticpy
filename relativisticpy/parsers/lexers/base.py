@@ -28,6 +28,10 @@ class TokenType(Enum):
     BACKSLASH = "\\"
     DOUBLEBACKSLASH = "\\\\"
 
+    ##########################################
+    ############    OPERATIONS    ############ 
+    ##########################################
+
     # Single Charater Tokens
     PLUS = "+"
     MINUS = "-"
@@ -65,7 +69,7 @@ class TokenType(Enum):
     PLUSEQUAL = "+="
     MINEQUAL = "-="
     RARROW = "->"
-    LPOINT = "<-"
+    LARROW = "<-"
     DOUBLESLASH = "//"
     SLASHEQUAL = "/="
     COLONEQUAL = ":="
@@ -86,46 +90,20 @@ class TokenType(Enum):
     LEFTSHIFTEQUAL = "<<="
     RIGHTSHIFTEQUAL = ">>="
 
+    ##########################################
+    ############       TYPES      ############ 
+    ##########################################
+
     FLOAT = "FLOAT"
     INT = "INT"
-    TENSORID = "TENSORID"
-    FUNCTIONID = "FUNCTIONID"
     ID = "ID"
     STRING = "STRING"
     BOOL = "BOOL"
 
-    SYMBOL = "SYMBOL"
+    ##########################################
+    ############     KEYWORDS     ############ 
+    ##########################################
 
-    # Latex Operations
-    SUM = "sum"
-    LIMIT = "lim"
-    FRAC = "frac"
-    BEGIN = "begin"
-    END = "end"
-    DOSUM = "dosum"
-    TO = "to"
-    RIGHTARROW = "rightarrow"
-    LEFTARROW = "leftarrow"
-    PROD = "prod"
-    DOPROD = "doprod"
-
-    @classmethod
-    def LATEX_OPERATIONS(cls):
-        return {
-            "sum": cls.SUM,
-            "dosum": cls.DOSUM,
-            "prod": cls.PROD,
-            "doprod": cls.DOPROD,
-            "lim": cls.LIMIT,
-            "frac": cls.FRAC,
-            "begin": cls.BEGIN,
-            "end": cls.END,
-            "to": cls.TO,
-            'rightarrow': cls.RIGHTARROW,
-            'leftarrow': cls.LEFTARROW
-        }
-
-    # KEYWORDS
     NOT = "not"
     AND = "and"
     OR = "or"
@@ -135,6 +113,11 @@ class TokenType(Enum):
     def KEYWORDS(cls):
         return {"not": cls.NOT, "and": cls.AND, "or": cls.OR, "print": cls.PRINT}
 
+    ##########################################
+    ############   Latex Symbols  ############ 
+    ##########################################
+
+    SYMBOL = "SYMBOL"
     @classmethod
     def LATEX_SYMBOLS(cls):
         return [
@@ -190,27 +173,60 @@ class TokenType(Enum):
             "e"
         ]
 
+    ##########################################
+    ############ Latex Operations ############ 
+    ##########################################
+
+    LATEXNEWLINE = "newline"
+    SUM = "sum"
+    LIMIT = "lim"
+    FRAC = "frac"
+    BEGIN = "begin"
+    END = "end"
+    DOSUM = "dosum"
+    TO = "to"
+    RIGHTARROW = "rightarrow"
+    LEFTARROW = "leftarrow"
+    PROD = "prod"
+    DOPROD = "doprod"
+    EQUIVALENT = "equiv"
+
     @classmethod
-    def has_value(cls, value):
-        return any(value == item.value for item in cls)
+    def LATEX_OPERATIONS(cls):
+        return {
+            cls.SUM.value: cls.SUM,
+            cls.DOSUM.value: cls.DOSUM,
+            cls.PROD.value: cls.PROD,
+            cls.DOPROD.value: cls.DOPROD,
+            cls.LIMIT.value: cls.LIMIT,
+            cls.FRAC.value: cls.FRAC,
+            cls.BEGIN.value: cls.BEGIN,
+            cls.END.value: cls.END,
+            cls.TO.value: cls.RARROW,
+            cls.RIGHTARROW.value: cls.RARROW,
+            cls.LEFTARROW.value: cls.LARROW,
+            cls.LATEXNEWLINE.value: cls.NEWLINE,
+            cls.EQUIVALENT.value: cls.COLONEQUAL
+        }
 
 
 class Characters(Enum):
-    """An object containing the set of supported characters, keyd on a set name."""
+    """An object containing the sets of supported characters for RelativisticPy. Key'd on set name."""
 
     WHITESPACE = " \t"
     NEWLINE = "\n"
     DELINIMATORS = ";" + NEWLINE
     COMMENT = "#"
-    DIGITS = "0987654321"
-    LOWERCASECHARACTERS = "abcdefghijklmnopqrstuvwxyz"
-    UPPERCASECHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    NONLETTERCHARACTERS = "_{}:^;"
-    OPERATIONS = "*-+=[](){}^/|&!~><:;.,@%_"
-    LETTERS = LOWERCASECHARACTERS + UPPERCASECHARACTERS
-    CHARACTERS = LOWERCASECHARACTERS + UPPERCASECHARACTERS + NONLETTERCHARACTERS
-    IDENTIFIERCHARS = LOWERCASECHARACTERS + UPPERCASECHARACTERS + DIGITS
 
+    OPERATIONS = "*-+=[](){}^/|&!~><:;.,@%_"
+
+    DIGITS = "0987654321"
+    NUMBER = DIGITS + "."
+
+    LOWER = "abcdefghijklmnopqrstuvwxyz"
+    UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    LETTERS = LOWER + UPPER
+    IDS = LETTERS + DIGITS
 
 @dataclass
 class Token:
@@ -221,6 +237,7 @@ class Token:
 
 
 class TokenProvider:
+    """  """
 
     def __init__(self):
         self.tokens = []
@@ -335,7 +352,7 @@ class TokenProvider:
                 ">": TokenType.RARROW,
             },
             "<": {
-                "-": TokenType.LPOINT,
+                "-": TokenType.LARROW,
                 "=": TokenType.LESSEQUAL,
                 "<": TokenType.LEFTSHIFTEQUAL,
                 ">": TokenType.NOTEQUAL,

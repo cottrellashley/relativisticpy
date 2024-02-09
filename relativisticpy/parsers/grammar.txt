@@ -39,9 +39,3 @@ sum             :   SUM UNDER LBRACE expr RBRACE CIRCUMFLEX LBRACE expr RBRACE e
 
 func-def        :   FUNCTIONID? LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE) ((EQUAL) expr)?
 
-
-===========================================================
-===========================================================
-
-Zero or More : *
-Optional     : ?

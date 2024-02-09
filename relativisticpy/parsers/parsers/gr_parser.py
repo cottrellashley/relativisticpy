@@ -273,17 +273,20 @@ class GRParser(BaseParser):
             self.advance_token()
             return self.new_int_node(start_position, [token.value])
 
-        elif token.type == TokenType.ID:
-            self.advance_token()
-            return self.new_symbol_node(start_position, [token.value])
-        
-        elif token.type == TokenType.SYMBOL:
-            self.advance_token()
-            return self.new_symbol_node(start_position, [token.value])
+        elif token.type in [TokenType.ID, TokenType.SYMBOL]:
 
-        elif token.type == TokenType.TENSORID:
-            self.advance_token()
-            return self.tensor(token, start_position)
+            if self.peek(1, Token(TokenType.NONE)).type in [TokenType.UNDER, TokenType.CIRCUMFLEX] and self.peek(2, Token(TokenType.NONE)).type == TokenType.LBRACE:
+                self.advance_token()
+                return self.tensor(token, start_position)
+            elif self.peek(1, Token(TokenType.NONE)).type == TokenType.LPAR:
+                self.advance_token()
+                return self.function(token, start_position)
+            elif self.peek(1, Token(TokenType.NONE)).type == TokenType.COLON:
+                self.advance_token()
+                return self.function(token, start_position)
+            else:
+                self.advance_token()
+                return self.new_symbol_node(start_position, [token.value])
         
         elif token.type in [TokenType.SUM, TokenType.DOSUM, TokenType.PROD, TokenType.DOPROD]:
             self.advance_token()
@@ -322,10 +325,6 @@ class GRParser(BaseParser):
         elif token.type == TokenType.LSQB:
             self.advance_token()
             return self.array(start_position)
-
-        elif token.type == TokenType.FUNCTIONID:
-            self.advance_token()
-            return self.function(token, start_position)
 
         elif token.type == TokenType.LPAR:
             self.advance_token()
@@ -382,7 +381,6 @@ class GRParser(BaseParser):
                 self.raw_code,
             )
         self.advance_token()
-
 
         return self.new_array_node(start_position, elements)
 
@@ -517,7 +515,7 @@ class GRParser(BaseParser):
                 )
 
             while self.current_token.type == TokenType.ID or self.peek(
-                1, Token(TokenType.NONE, "")
+                1, Token(TokenType.NONE)
             ).type in [
                 TokenType.UNDER,
                 TokenType.CIRCUMFLEX,

@@ -23,8 +23,6 @@ from relativisticpy.symengine import (
 
 
 
-
-
 @pytest.fixture
 def Schwarzschild_Basis():
     x, y, z, t, r, theta, phi, G, M, c = sp.symbols("x y z t r theta phi G M c")
