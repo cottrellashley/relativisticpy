@@ -4,7 +4,34 @@ from ..lexers.base import LexerResult, Token, TokenType
 from typing import List
 import pytest
 
-def test_simple_token_generation():
+
+# \order{x^2}		
+# \comm{A}{B}
+# \acomm{A}{B}		
+# \grad{\Psi}
+# \div{\vb{a}}		
+# \curl{\vb{a}}
+# \laplacian{\Psi}		
+# \laplacian(\Psi+A)
+# \real		
+# \imaginary
+# \dv{f}{x}		
+# \dv[n]{f}{x}
+# \dv{x}(\frac{x}{x^{2} + 1})		
+# \pdv{f}{x}
+# \pdv[n]{f}{x}		
+# \pdv{x}(\frac{x}{x^{2} + 1})
+# \bra{\phi}\ket{\psi}		
+# \braket{a}{b}
+# \mqty(a & b \\ c & d)		
+# \mdet{a & b \\ c & d}
+# \mqty(\dmat{1,2,3})
+# \sqrt
+# \log
+# \geq == >=
+# \leq == <=
+
+def test_simple_single_token_generation():
     _int : LexerResult = GRLexer("1").tokenize()
     assert _int.code == "1"
     assert _int.tokens[0].type == TokenType.INT
@@ -15,31 +42,75 @@ def test_simple_token_generation():
     assert _float.tokens[0].type == TokenType.FLOAT
     assert _float.tokens[0].value == '31.12'
 
-    _id : LexerResult = GRLexer("hello").tokenize()
-    assert _id.code == "hello"
-    assert _id.tokens[0].type == TokenType.ID
-    assert _id.tokens[0].value == 'hello'
+    _id0 : LexerResult = GRLexer("hello").tokenize()
+    assert _id0.code == "hello"
+    assert _id0.tokens[0].type == TokenType.ID
+    assert _id0.tokens[0].value == 'hello'
 
-    _id_ : LexerResult = GRLexer("t_s").tokenize()
-    assert _id_.code == "t_s"
-    assert _id_.tokens[0].type == TokenType.ID
-    assert _id_.tokens[0].value == 't_s'
+    _id1 : LexerResult = GRLexer("h_e_Y_9_l_o").tokenize()
+    assert _id1.code == "h_e_Y_9_l_o"
+    assert _id1.tokens[0].type == TokenType.ID
+    assert _id1.tokens[0].value == 'h_e_Y_9_l_o'
 
-    _tensor_id : LexerResult = GRLexer("T_{a}").tokenize()
-    assert _tensor_id.code == "T_{a}"
-    assert _tensor_id.tokens[0].type == TokenType.TENSORID
-    assert _tensor_id.tokens[0].value == 'T'
+    _id2 : LexerResult = GRLexer("h_e_Y_932114").tokenize()
+    assert _id2.code == "h_e_Y_932114"
+    assert _id2.tokens[0].type == TokenType.ID
+    assert _id2.tokens[0].value == 'h_e_Y_932114'
 
-    _func_id : LexerResult = GRLexer("f(a)").tokenize()
-    assert _func_id.code == "f(a)"
-    assert _func_id.tokens[0].type == TokenType.FUNCTIONID
-    assert _func_id.tokens[0].value == 'f'
+    _id3 : LexerResult = GRLexer("t_s").tokenize()
+    assert _id3.code == "t_s"
+    assert _id3.tokens[0].type == TokenType.ID
+    assert _id3.tokens[0].value == 't_s'
+
+    _sym0 : LexerResult = GRLexer("\\Theta").tokenize()
+    assert _sym0.code == "\\Theta"
+    assert _sym0.tokens[0].type == TokenType.SYMBOL
+    assert _sym0.tokens[0].value == 'Theta'
+
+    _sym1 : LexerResult = GRLexer("\\Phi").tokenize()
+    assert _sym1.code == "\\Phi"
+    assert _sym1.tokens[0].type == TokenType.SYMBOL
+    assert _sym1.tokens[0].value == 'Phi'
+
+    _sym2 : LexerResult = GRLexer("\\pi").tokenize()
+    assert _sym2.code == "\\pi"
+    assert _sym2.tokens[0].type == TokenType.SYMBOL
+    assert _sym2.tokens[0].value == 'pi'
+
+    _frac : LexerResult = GRLexer("\\frac").tokenize()
+    assert _frac.code == "\\frac"
+    assert _frac.tokens[0].type == TokenType.FRAC
+    assert _frac.tokens[0].value == 'frac'
+
+    _sum : LexerResult = GRLexer("\\sum").tokenize()
+    assert _sum.code == "\\sum"
+    assert _sum.tokens[0].type == TokenType.SUM
+    assert _sum.tokens[0].value == 'sum'
+
+    _begin : LexerResult = GRLexer("\\begin").tokenize()
+    assert _begin.code == "\\begin"
+    assert _begin.tokens[0].type == TokenType.BEGIN
+    assert _begin.tokens[0].value == 'begin'
+
+    _lim : LexerResult = GRLexer("\\lim").tokenize()
+    assert _lim.code == "\\lim"
+    assert _lim.tokens[0].type == TokenType.LIMIT
+    assert _lim.tokens[0].value == 'lim'
 
     _newline : LexerResult = GRLexer("\n").tokenize()
     assert _newline.code == "\n"
     assert _newline.tokens[0].type == TokenType.NEWLINE
-    assert _newline.tokens[0].value == '\n'
+    assert _newline.tokens[0].value == TokenType.NEWLINE.value
 
+    _newline : LexerResult = GRLexer(";").tokenize()
+    assert _newline.code == ";"
+    assert _newline.tokens[0].type == TokenType.NEWLINE
+    assert _newline.tokens[0].value == TokenType.NEWLINE.value
+
+    _newline : LexerResult = GRLexer("\\newline").tokenize()
+    assert _newline.code == "\\newline"
+    assert _newline.tokens[0].type == TokenType.NEWLINE
+    assert _newline.tokens[0].value == 'newline'
     # Operations Tokens
 
     _star = GRLexer("*").tokenize()
@@ -147,11 +218,6 @@ def test_simple_token_generation():
     assert _comma.tokens[0].type == TokenType.COMMA
     assert _comma.tokens[0].value == ','
 
-    _semi : LexerResult = GRLexer(";").tokenize()
-    assert _semi.code == ";"
-    assert _semi.tokens[0].type == TokenType.SEMI
-    assert _semi.tokens[0].value == ';'
-
     _at : LexerResult = GRLexer("@").tokenize()
     assert _at.code == "@"
     assert _at.tokens[0].type == TokenType.AT
@@ -214,10 +280,10 @@ def test_simple_token_generation():
     assert _eq_equal.tokens[0].type == TokenType.EQEQUAL
     assert _eq_equal.tokens[0].value == '=='
 
-    # _vbar_vbar : LexerResult = GRLexer("||").tokenize()
-    # assert _vbar_vbar.code == "||"
-    # assert _vbar_vbar.tokens[0].type == TokenType.VBARVBAR
-    # assert _vbar_vbar.tokens[0].value == '||'
+    _vbar_vbar : LexerResult = GRLexer("||").tokenize()
+    assert _vbar_vbar.code == "||"
+    assert _vbar_vbar.tokens[0].type == TokenType.VBARVBAR
+    assert _vbar_vbar.tokens[0].value == '||'
 
     _at_equal : LexerResult = GRLexer("@=").tokenize()
     assert _at_equal.code == "@="
@@ -303,3 +369,5 @@ def test_simple_token_generation():
     assert _right_shift_equal.code == ">>="
     assert _right_shift_equal.tokens[0].type == TokenType.RIGHTSHIFTEQUAL
     assert _right_shift_equal.tokens[0].value == '>>='
+
+

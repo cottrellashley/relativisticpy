@@ -13,7 +13,7 @@ class GRLexer(BaseLexer):
             elif self.current_char() in Characters.COMMENT.value:
                 self._skip_comment()
 
-            elif self.current_char() == Characters.NEWLINE.value:
+            elif self.current_char() in Characters.DELINIMATORS.value:
                 start_pos = self.current_pos()
                 self.advance_char()
                 self.token_provider.new_token(
@@ -22,14 +22,15 @@ class GRLexer(BaseLexer):
                     start_pos=start_pos,
                     end_pos=self.current_pos(),
                 )
+
             elif self.current_char() == TokenType.BACKSLASH.value:
-                self._make_latex_keyword()
+                self._build_latex()
 
             elif self.current_char() in Characters.LETTERS.value:
                 self._identifiers()
 
             elif self.current_char() in Characters.DIGITS.value:
-                self._number()
+                self._build_number()
 
             elif self.current_char() in Characters.OPERATIONS.value:
                 self._operation()
@@ -41,11 +42,11 @@ class GRLexer(BaseLexer):
         tokens = self.token_provider.get_tokens()
         return LexerResult(self.raw_code, tokens)
 
-    def _number(self):
+    def _build_number(self):
         number = ""
         start_pos = self.current_pos()
         while self.current_char() != None and (
-            self.current_char() in Characters.DIGITS.value or self.current_char() == "."
+            self.current_char() in Characters.NUMBER.value
         ):
             number += self.current_char()
             self.advance_char()
@@ -109,108 +110,18 @@ class GRLexer(BaseLexer):
     def _identifiers(self):
         start_pos = self.current_pos()
         obj = ""
-        while (
-            self.current_char() != None
-            and self.current_char() in Characters.IDENTIFIERCHARS.value
-        ):
-            # FUNCTIONID
-            if (
-                self.current_char() in Characters.IDENTIFIERCHARS.value
-                and self.peek_char(1, "") == "("
-            ):
-                obj += self.current_char()
+        while self.current_char() != None and self.current_char() in Characters.IDS.value:
+            obj += self.current_char()
+
+            if self.peek_char(1, None) == "_" and self.peek_char(2, None) in Characters.IDS.value:
                 self.advance_char()
-                self.token_provider.new_token(
-                    TokenType.FUNCTIONID,
-                    obj,
-                    start_pos=start_pos,
-                    end_pos=self.current_pos(),
-                )
-
-            # TENSORID
-            elif (
-                self.current_char() in Characters.IDENTIFIERCHARS.value
-                and self.peek_char(1, "") in ["_", "^"]
-                and self.peek_char(2, "") == "{"
-            ):
                 obj += self.current_char()
-                self.advance_char()
-                self.token_provider.new_token(
-                    TokenType.TENSORID,
-                    obj,
-                    start_pos=start_pos,
-                    end_pos=self.current_pos(),
-                )
 
-            # ID with _
-            elif (
-                self.current_char() in Characters.IDENTIFIERCHARS.value
-                and self.peek_char(1, "") in ["_"]
-                and self.peek_char(2, "") in Characters.IDENTIFIERCHARS.value
-            ):
-                obj += self.current_char()
-                obj += "_"
-                self.advance_char()  # now at _
-                self.advance_char()  # now at first char in Characters.IDENTIFIERCHARS group
-                while (
-                    self.current_char() != None
-                    and self.current_char() in Characters.IDENTIFIERCHARS.value
-                ):
-                    if self.peek_char(1, "") not in Characters.IDENTIFIERCHARS.value:
-                        obj += self.current_char()
-                        self.advance_char()
-                        self.token_provider.new_token(
-                            TokenType.ID,
-                            obj,
-                            start_pos=start_pos,
-                            end_pos=self.current_pos(),
-                        )
-                    elif self.peek_char(1, None) == None:
-                        obj += self.current_char()
-                        self.token_provider.new_token(
-                            TokenType.ID,
-                            obj,
-                            start_pos=start_pos,
-                            end_pos=self.current_pos(),
-                        )
-                        self.advance_char()
-                    else:
-                        obj += self.current_char()
-                        self.advance_char()
+            self.advance_char()
 
-            # ID
-            elif self.peek_char(1, "") not in Characters.IDENTIFIERCHARS.value + "(":
-                obj += self.current_char()
-                self.advance_char()
-                if obj in TokenType.KEYWORDS():
-                    self.token_provider.new_token(
-                        TokenType.KEYWORDS()[obj],
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                else:
-                    self.token_provider.new_token(
-                        TokenType.ID,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
+        self.token_provider.new_token( TokenType.ID, obj, start_pos=start_pos, end_pos=self.current_pos() )
 
-            # ID
-            elif self.peek_char(1, None) == None:
-                obj += self.current_char()
-                self.token_provider.new_token(
-                    TokenType.ID, obj, start_pos=start_pos, end_pos=self.current_pos()
-                )
-                self.advance_char()
-
-            # Keep iterating untill we get one of the match one of the ID's
-            else:
-                obj += self.current_char()
-                self.advance_char()
-
-    def _make_latex_keyword(self):
+    def _build_latex(self):
         start_pos = self.current_pos()
         obj = ""
         self.advance_char()
@@ -222,163 +133,30 @@ class GRLexer(BaseLexer):
                 start_pos=start_pos,
                 end_pos=self.current_pos(),
             )
+            self.advance_char()
 
-        while (
-            self.current_char() != None
-            and self.current_char() in Characters.IDENTIFIERCHARS.value
-        ):
-            # FUNCTIONID
-            if (
-                self.current_char() in Characters.IDENTIFIERCHARS.value
-                and self.peek_char(1, "") == "("
-            ):
-                obj += self.current_char()
-                self.advance_char()
-                if obj in TokenType.LATEX_SYMBOLS():
-                    self.token_provider.new_token(
-                        TokenType.FUNCTIONID,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                else:
-                    raise ValueError(
-                        f"The Key you entered as: {obj} is not supported as a Latex Symbol."
-                    )
+        while self.current_char() != None and self.current_char() in Characters.LETTERS.value:
+            obj += self.current_char()
+            self.advance_char()
+    
+        if obj in TokenType.LATEX_OPERATIONS():
+            self.token_provider.new_token(
+                TokenType.LATEX_OPERATIONS()[obj],
+                obj,
+                start_pos=start_pos,
+                end_pos=self.current_pos(),
+            )
+        elif obj in TokenType.LATEX_SYMBOLS():
+            self.token_provider.new_token(
+                TokenType.SYMBOL,
+                obj,
+                start_pos=start_pos,
+                end_pos=self.current_pos(),
+            )
+        
 
-            # TENSORID
-            elif (
-                self.current_char() in Characters.IDENTIFIERCHARS.value
-                and self.peek_char(1, "") in ["_", "^"]
-                and self.peek_char(2, "") == "{"
-            ):
-                obj += self.current_char()
-                self.advance_char()
-                if obj in TokenType.LATEX_SYMBOLS():
-                    self.token_provider.new_token(
-                        TokenType.TENSORID,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif (
-                    obj
-                    in [
-                        TokenType.SUM.value,
-                        TokenType.DOSUM.value,
-                        TokenType.LIMIT.value,
-                        TokenType.PROD.value,
-                        TokenType.DOPROD.value
-                    ]
-                    and self.current_char() == "_"
-                ):
-                    self.token_provider.new_token(
-                        TokenType.LATEX_OPERATIONS()[obj],
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                else:
-                    raise ValueError(
-                        f"The Key you entered as: {obj} is not supported as a Latex Symbol."
-                    )
 
-            elif (
-                self.current_char() in Characters.IDENTIFIERCHARS.value
-                and self.peek_char(1, "") == "{"
-            ):
-                obj += self.current_char()
-                self.advance_char()
-                if obj == TokenType.BEGIN.value:
-                    self.token_provider.new_token(
-                        TokenType.BEGIN,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif obj == TokenType.END.value:
-                    self.token_provider.new_token(
-                        TokenType.END,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif obj == TokenType.FRAC.value:
-                    self.token_provider.new_token(
-                        TokenType.FRAC,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                else:
-                    raise ValueError(
-                        f"The Key you entered as: {obj} is not supported as a Latex Symbol."
-                    )
 
-            # ID
-            elif self.peek_char(1, "") not in Characters.IDENTIFIERCHARS.value + "(":
-                obj += self.current_char()
-                self.advance_char()
-                if obj in TokenType.LATEX_SYMBOLS():
-                    self.token_provider.new_token(
-                        TokenType.SYMBOL,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif obj in [TokenType.TO.value, TokenType.RIGHTARROW.value]:
-                    self.token_provider.new_token(
-                        TokenType.RARROW,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif obj in [TokenType.LEFTARROW.value]:
-                    self.token_provider.new_token(
-                        TokenType.LPOINT,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                else:
-                    raise ValueError(
-                        f"The Key you entered as: {obj} is not supported as a Latex Symbol."
-                    )  # TODO: Re-write Errors Pattern for Lexer/Parser/Analyzer so that caught errors are handled and known by user.
-
-            # ID
-            elif self.peek_char(1, None) == None:  # If we are at the end of the code.
-                obj += self.current_char()
-                if obj in TokenType.LATEX_SYMBOLS():
-                    self.token_provider.new_token(
-                        TokenType.SYMBOL,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif obj in [TokenType.TO.value, TokenType.RIGHTARROW.value]:
-                    self.token_provider.new_token(
-                        TokenType.RARROW,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                elif obj in [TokenType.LEFTARROW.value]:
-                    self.token_provider.new_token(
-                        TokenType.LPOINT,
-                        obj,
-                        start_pos=start_pos,
-                        end_pos=self.current_pos(),
-                    )
-                    self.advance_char()
-                else:
-                    raise ValueError(
-                        f"The Key you entered as: {obj} is not supported as a Latex Symbol."
-                    )
-
-            # Keep iterating untill we get one of the match one of the ID's
-            else:
-                obj += self.current_char()
-                self.advance_char()
 
     def _skip_comment(self):
         self.advance_char()
