@@ -32,6 +32,85 @@ class TokenType(Enum):
     ############    OPERATIONS    ############ 
     ##########################################
 
+    @classmethod
+    def SINGLES(self):
+        return {
+            "*": TokenType.STAR,
+            "-": TokenType.MINUS,
+            "+": TokenType.PLUS,
+            "=": TokenType.EQUAL,
+            "[": TokenType.LSQB,
+            "]": TokenType.RSQB,
+            "(": TokenType.LPAR,
+            ")": TokenType.RPAR,
+            "{": TokenType.LBRACE,
+            "}": TokenType.RBRACE,
+            "^": TokenType.CIRCUMFLEX,
+            "/": TokenType.SLASH,
+            "|": TokenType.VBAR,
+            "&": TokenType.AMPER,
+            "!": TokenType.EXCLAMATION,
+            "~": TokenType.TILDE,
+            ">": TokenType.GREATER,
+            "<": TokenType.LESS,
+            ":": TokenType.COLON,
+            ".": TokenType.DOT,
+            ",": TokenType.COMMA,
+            ";": TokenType.SEMI,
+            "@": TokenType.AT,
+            "%": TokenType.PERCENT,
+            ":": TokenType.COLON,
+            "_": TokenType.UNDER,
+            "{": TokenType.LBRACE,
+            "}": TokenType.RBRACE,
+        }
+    
+    @classmethod
+    def DOUBLES(self):
+        return {
+            "!": {"=": TokenType.NOTEQUAL},
+            "%": {"=": TokenType.PERCENTEQUAL},
+            "&": {"=": TokenType.AMPEREQUAL},
+            "+": {"=": TokenType.PLUSEQUAL},
+            ":": {"=": TokenType.COLONEQUAL},
+            "=": {"=": TokenType.EQEQUAL},
+            "@": {"=": TokenType.ATEQUAL},
+            "^": {"=": TokenType.CIRCUMFLEXEQUAL},
+            "|": {"=": TokenType.VBAREQUAL, "|": TokenType.VBARVBAR},
+            "*": {
+                "*": TokenType.DOUBLESTAR,
+                "=": TokenType.STAREQUAL,
+            },
+            ">": {
+                "=": TokenType.GREATEREQUAL,
+                ">": TokenType.RIGHTSHIFT,
+            },
+            "/": {
+                "/": TokenType.DOUBLESLASH,
+                "=": TokenType.SLASHEQUAL,
+            },
+            "-": {
+                "=": TokenType.MINEQUAL,
+                ">": TokenType.RARROW,
+            },
+            "<": {
+                "-": TokenType.LARROW,
+                "=": TokenType.LESSEQUAL,
+                "<": TokenType.LEFTSHIFTEQUAL,
+                ">": TokenType.NOTEQUAL,
+            },
+        }
+
+    @classmethod
+    def TRIPPLES(self):
+        return {
+            "*": {"*": {"=": TokenType.DOUBLESTAREQUAL}},
+            ".": {".": {".": TokenType.ELLIPSIS}},
+            "/": {"/": {"=": TokenType.DOUBLESLASHEQUAL}},
+            "<": {"<": {"=": TokenType.LEFTSHIFTEQUAL}},
+            ">": {">": {"=": TokenType.RIGHTSHIFTEQUAL}},
+        }
+
     # Single Charater Tokens
     PLUS = "+"
     MINUS = "-"
@@ -94,89 +173,118 @@ class TokenType(Enum):
     ############       TYPES      ############ 
     ##########################################
 
-    FLOAT = "FLOAT"
-    INT = "INT"
     ID = "ID"
-    STRING = "STRING"
+    INT = "INT"
     BOOL = "BOOL"
+    FLOAT = "FLOAT"
+    SYMBOL = "SYMBOL"
+    STRING = "STRING"
+
+    @classmethod
+    def Keywords(cls):
+        return {
+            # Keywords mappings
+            cls.NOT.value: cls.NOT, 
+            cls.AND.value: cls.AND, 
+            cls.OR.value: cls.OR, 
+            cls.PRINT.value: cls.PRINT, 
+            cls.INFINITESIMAL.value: cls.INFINITESIMAL,
+            cls.PI.value : cls.CONSTANT,
+            cls.E.value : cls.CONSTANT,
+            cls.INFTY.value : cls.CONSTANT,
+            cls.OO.value : cls.CONSTANT
+        }
 
     ##########################################
     ############     KEYWORDS     ############ 
     ##########################################
-
     NOT = "not"
     AND = "and"
     OR = "or"
     PRINT = "print"
+    INFINITESIMAL = 'd'
+    PI = 'pi'
+    E = 'e'
+    OO = 'oo'
+    INFTY = 'infty'
+    CONSTANT = 'constant'
 
     @classmethod
-    def KEYWORDS(cls):
-        return {"not": cls.NOT, "and": cls.AND, "or": cls.OR, "print": cls.PRINT}
-
-    ##########################################
-    ############   Latex Symbols  ############ 
-    ##########################################
-
-    SYMBOL = "SYMBOL"
-    @classmethod
-    def LATEX_SYMBOLS(cls):
-        return [
-            "alpha",
-            "Alpha",
-            "beta",
-            "Beta",
-            "gamma",
-            "Gamma",
-            "delta",
-            "Delta",
-            "epsilon",
-            "Epsilon",
-            "zeta",
-            "Zeta",
-            "eta",
-            "Eta",
-            "theta",
-            "Theta",
-            "iota",
-            "Iota",
-            "kappa",
-            "Kappa",
-            "lambda",
-            "Lambda",
-            "mu",
-            "Mu",
-            "nu",
-            "Nu",
-            "xi",
-            "Xi",
-            "omicron",
-            "Omicron",
-            "pi",
-            "Pi",
-            "rho",
-            "Rho",
-            "sigma",
-            "Sigma",
-            "tau",
-            "Tau",
-            "upsilon",
-            "Upsilon",
-            "phi",
-            "Phi",
-            "chi",
-            "Chi",
-            "psi",
-            "Psi",
-            "omega",
-            "Omega",
-            "infty",
-            "e"
-        ]
+    def LaTeX(cls):
+        return {
+            # LaTeX operations
+            cls.SUM.value: cls.SUM,
+            cls.DOSUM.value: cls.DOSUM,
+            cls.PROD.value: cls.PROD,
+            cls.DOPROD.value: cls.DOPROD,
+            cls.LIMIT.value: cls.LIMIT,
+            cls.FRAC.value: cls.FRAC,
+            cls.BEGIN.value: cls.BEGIN,
+            cls.END.value: cls.END,
+            cls.TO.value: cls.RARROW,
+            cls.RIGHTARROW.value: cls.RARROW,
+            cls.LEFTARROW.value: cls.LARROW,
+            cls.LATEXNEWLINE.value: cls.NEWLINE,
+            cls.EQUIVALENT.value: cls.COLONEQUAL,
+            cls.DERIVATIVE.value: cls.DERIVATIVE,
+            cls.PDERIVATIVE.value: cls.PDERIVATIVE,
+            cls.PARTIAL.value: cls.PARTIAL,
+            cls.INTEGRATE.value : cls.INTEGRATE,
+            cls.INFTY.value : cls.CONSTANT,
+            # LaTeX symbols are all mapped to cls.SYMBOL
+            cls.alpha.value: cls.SYMBOL,
+            cls.Alpha.value: cls.SYMBOL,
+            cls.beta.value: cls.SYMBOL,
+            cls.Beta.value: cls.SYMBOL,
+            cls.gamma.value: cls.SYMBOL,
+            cls.Gamma.value: cls.SYMBOL,
+            cls.delta.value: cls.SYMBOL,
+            cls.Delta.value: cls.SYMBOL,
+            cls.epsilon.value: cls.SYMBOL,
+            cls.Epsilon.value: cls.SYMBOL,
+            cls.zeta.value: cls.SYMBOL,
+            cls.Zeta.value: cls.SYMBOL,
+            cls.eta.value: cls.SYMBOL,
+            cls.Eta.value: cls.SYMBOL,
+            cls.theta.value: cls.SYMBOL,
+            cls.Theta.value: cls.SYMBOL,
+            cls.iota.value: cls.SYMBOL,
+            cls.Iota.value: cls.SYMBOL,
+            cls.kappa.value: cls.SYMBOL,
+            cls.Kappa.value: cls.SYMBOL,
+            cls.lambda_.value: cls.SYMBOL,  # Using lambda_ because 'lambda' is a reserved keyword in Python
+            cls.Lambda.value: cls.SYMBOL,
+            cls.mu.value: cls.SYMBOL,
+            cls.Mu.value: cls.SYMBOL,
+            cls.nu.value: cls.SYMBOL,
+            cls.Nu.value: cls.SYMBOL,
+            cls.xi.value: cls.SYMBOL,
+            cls.Xi.value: cls.SYMBOL,
+            cls.omicron.value: cls.SYMBOL,
+            cls.Omicron.value: cls.SYMBOL,
+            cls.pi.value: cls.SYMBOL,
+            cls.Pi.value: cls.SYMBOL,
+            cls.rho.value: cls.SYMBOL,
+            cls.Rho.value: cls.SYMBOL,
+            cls.sigma.value: cls.SYMBOL,
+            cls.Sigma.value: cls.SYMBOL,
+            cls.tau.value: cls.SYMBOL,
+            cls.Tau.value: cls.SYMBOL,
+            cls.upsilon.value: cls.SYMBOL,
+            cls.Upsilon.value: cls.SYMBOL,
+            cls.phi.value: cls.SYMBOL,
+            cls.Phi.value: cls.SYMBOL,
+            cls.chi.value: cls.SYMBOL,
+            cls.Chi.value: cls.SYMBOL,
+            cls.psi.value: cls.SYMBOL,
+            cls.Psi.value: cls.SYMBOL,
+            cls.omega.value: cls.SYMBOL,
+            cls.Omega.value: cls.SYMBOL
+            }
 
     ##########################################
     ############ Latex Operations ############ 
     ##########################################
-
     LATEXNEWLINE = "newline"
     SUM = "sum"
     LIMIT = "lim"
@@ -190,24 +298,63 @@ class TokenType(Enum):
     PROD = "prod"
     DOPROD = "doprod"
     EQUIVALENT = "equiv"
+    PDERIVATIVE = "pdv"
+    DERIVATIVE = "dv"
+    INTEGRATE = "int"
+    PARTIAL = "partial"
 
-    @classmethod
-    def LATEX_OPERATIONS(cls):
-        return {
-            cls.SUM.value: cls.SUM,
-            cls.DOSUM.value: cls.DOSUM,
-            cls.PROD.value: cls.PROD,
-            cls.DOPROD.value: cls.DOPROD,
-            cls.LIMIT.value: cls.LIMIT,
-            cls.FRAC.value: cls.FRAC,
-            cls.BEGIN.value: cls.BEGIN,
-            cls.END.value: cls.END,
-            cls.TO.value: cls.RARROW,
-            cls.RIGHTARROW.value: cls.RARROW,
-            cls.LEFTARROW.value: cls.LARROW,
-            cls.LATEXNEWLINE.value: cls.NEWLINE,
-            cls.EQUIVALENT.value: cls.COLONEQUAL
-        }
+    ##########################################
+    ############   Latex Symbols  ############ 
+    ##########################################
+    alpha = "alpha"
+    Alpha = "Alpha"
+    beta = "beta"
+    Beta = "Beta"
+    gamma = "gamma"
+    Gamma = "Gamma"
+    delta = "delta"
+    Delta = "Delta"
+    epsilon = "epsilon"
+    Epsilon = "Epsilon"
+    zeta = "zeta"
+    Zeta = "Zeta"
+    eta = "eta"
+    Eta = "Eta"
+    theta = "theta"
+    Theta = "Theta"
+    iota = "iota"
+    Iota = "Iota"
+    kappa = "kappa"
+    Kappa = "Kappa"
+    lambda_ = "lambda"  # 'lambda' is a reserved keyword in Python, so we use a trailing underscore
+    Lambda = "Lambda"
+    mu = "mu"
+    Mu = "Mu"
+    nu = "nu"
+    Nu = "Nu"
+    xi = "xi"
+    Xi = "Xi"
+    omicron = "omicron"
+    Omicron = "Omicron"
+    pi = "pi"
+    Pi = "Pi"
+    rho = "rho"
+    Rho = "Rho"
+    sigma = "sigma"
+    Sigma = "Sigma"
+    tau = "tau"
+    Tau = "Tau"
+    upsilon = "upsilon"
+    Upsilon = "Upsilon"
+    phi = "phi"
+    Phi = "Phi"
+    chi = "chi"
+    Chi = "Chi"
+    psi = "psi"
+    Psi = "Psi"
+    omega = "omega"
+    Omega = "Omega"
+    infty = "infty"
 
 
 class Characters(Enum):
@@ -236,7 +383,7 @@ class Token:
     end_position: Position = None
 
 
-class TokenProvider:
+class _TokenProvider:
     """  """
 
     def __init__(self):
@@ -254,120 +401,43 @@ class TokenProvider:
         self, c1: str, start_pos: Position, end_pos: Position
     ) -> None:
         if self.single_match_exists(c1):
-            token_type: TokenType = self.singles()[c1]
+            token_type: TokenType = TokenType.SINGLES()[c1]
             self.tokens.append(Token(token_type, token_type.value, start_pos, end_pos))
 
     def new_double_operation_token(
         self, c1: str, c2: str, start_pos: Position, end_pos: Position
     ) -> None:
         if self.double_match_exists(c1, c2):
-            token_type: TokenType = self.doubles()[c1][c2]
+            token_type: TokenType = TokenType.DOUBLES()[c1][c2]
             self.tokens.append(Token(token_type, token_type.value, start_pos, end_pos))
 
     def new_tripple_operation_token(
         self, c1: str, c2: str, c3: str, start_pos: Position, end_pos: Position
     ) -> None:
         if self.tripple_match_exists(c1, c2, c3):
-            token_type: TokenType = self.tripples()[c1][c2][c3]
+            token_type: TokenType = TokenType.TRIPPLES()[c1][c2][c3]
             self.tokens.append(Token(token_type, token_type.value, start_pos, end_pos))
 
     def single_match_exists(self, c1: str) -> bool:
         try:
-            self.singles()[c1]
+            TokenType.SINGLES()[c1]
             return True
         except:
             return False
 
     def double_match_exists(self, c1: str, c2: str) -> bool:
         try:
-            self.doubles()[c1][c2]
+            TokenType.DOUBLES()[c1][c2]
             return True
         except:
             return False
 
     def tripple_match_exists(self, c1: str, c2: str, c3: str) -> bool:
         try:
-            self.tripples()[c1][c2][c3]
+            TokenType.TRIPPLES()[c1][c2][c3]
             return True
         except:
             return False
-
-    def singles(self):
-        return {
-            "*": TokenType.STAR,
-            "-": TokenType.MINUS,
-            "+": TokenType.PLUS,
-            "=": TokenType.EQUAL,
-            "[": TokenType.LSQB,
-            "]": TokenType.RSQB,
-            "(": TokenType.LPAR,
-            ")": TokenType.RPAR,
-            "{": TokenType.LBRACE,
-            "}": TokenType.RBRACE,
-            "^": TokenType.CIRCUMFLEX,
-            "/": TokenType.SLASH,
-            "|": TokenType.VBAR,
-            "&": TokenType.AMPER,
-            "!": TokenType.EXCLAMATION,
-            "~": TokenType.TILDE,
-            ">": TokenType.GREATER,
-            "<": TokenType.LESS,
-            ":": TokenType.COLON,
-            ".": TokenType.DOT,
-            ",": TokenType.COMMA,
-            ";": TokenType.SEMI,
-            "@": TokenType.AT,
-            "%": TokenType.PERCENT,
-            ":": TokenType.COLON,
-            "_": TokenType.UNDER,
-            "{": TokenType.LBRACE,
-            "}": TokenType.RBRACE,
-        }
-
-    def doubles(self):
-        return {
-            "!": {"=": TokenType.NOTEQUAL},
-            "%": {"=": TokenType.PERCENTEQUAL},
-            "&": {"=": TokenType.AMPEREQUAL},
-            "+": {"=": TokenType.PLUSEQUAL},
-            ":": {"=": TokenType.COLONEQUAL},
-            "=": {"=": TokenType.EQEQUAL},
-            "@": {"=": TokenType.ATEQUAL},
-            "^": {"=": TokenType.CIRCUMFLEXEQUAL},
-            "|": {"=": TokenType.VBAREQUAL, "|": TokenType.VBARVBAR},
-            "*": {
-                "*": TokenType.DOUBLESTAR,
-                "=": TokenType.STAREQUAL,
-            },
-            ">": {
-                "=": TokenType.GREATEREQUAL,
-                ">": TokenType.RIGHTSHIFT,
-            },
-            "/": {
-                "/": TokenType.DOUBLESLASH,
-                "=": TokenType.SLASHEQUAL,
-            },
-            "-": {
-                "=": TokenType.MINEQUAL,
-                ">": TokenType.RARROW,
-            },
-            "<": {
-                "-": TokenType.LARROW,
-                "=": TokenType.LESSEQUAL,
-                "<": TokenType.LEFTSHIFTEQUAL,
-                ">": TokenType.NOTEQUAL,
-            },
-        }
-
-    def tripples(self):
-        return {
-            "*": {"*": {"=": TokenType.DOUBLESTAREQUAL}},
-            ".": {".": {".": TokenType.ELLIPSIS}},
-            "/": {"/": {"=": TokenType.DOUBLESLASHEQUAL}},
-            "<": {"<": {"=": TokenType.LEFTSHIFTEQUAL}},
-            ">": {">": {"=": TokenType.RIGHTSHIFTEQUAL}},
-        }
-
 
 @dataclass
 class LexerResult:
@@ -381,7 +451,7 @@ class BaseLexer(ABC):
     def __init__(self, string: str):
         self.raw_code = string
         self.__characters = Iterator(string)
-        self.__token_provider_instance = TokenProvider()
+        self.__token_provider_instance = _TokenProvider()
         self.character = 0
         self.line = 1
         self.__characters.advance()
@@ -391,7 +461,7 @@ class BaseLexer(ABC):
         pass
 
     @property
-    def token_provider(self) -> TokenProvider:
+    def token_provider(self) -> _TokenProvider:
         return self.__token_provider_instance
 
     def current_char(self) -> str:

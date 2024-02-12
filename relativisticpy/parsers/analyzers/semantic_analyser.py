@@ -53,7 +53,7 @@ from .operator_lookup_tables import (
 )
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.errors import Error, IllegalAssignmentError, IllegalSyntaxError
-from relativisticpy.parsers.types.base import AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode
+from relativisticpy.parsers.types.base import AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal
 from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
 
 @dataclass
@@ -186,7 +186,33 @@ class SemanticAnalyzer:
         node.data_type = mulOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def div(self, node: BinaryNode):
-        node.data_type = divOperatorTypes[node.left_child.data_type][node.right_child.data_type]
+        if isinstance(nominator := node.left_child, Infinitesimal) and isinstance(denominator := node.right_child, Infinitesimal):
+            # This is now no longer a divition node, but user means to defined a derivative.
+            if nominator.diff_order_as_int != denominator.diff_order_as_int:
+                # Pass Error => User defined derivative orders incorrectly non matching.
+                node = IllegalSyntaxError(
+                                            node.position,
+                                            node.position,
+                                            f"Differentiation order error: You have a missmatch in diff order \n d^{nominator.diff_order_as_int}.../d...^{denominator.diff_order_as_int}.",
+                                            self.raw_code
+                                        )
+                self.error_from_ast_node = node
+                self.contains_error = True
+                self.display_error_str = node.as_string()
+            else:
+                if denominator.expression.callback == 'div':
+                    self.analyse(denominator.expression)
+                if nominator.expression.callback == 'div':
+                    self.analyse(nominator.expression)
+                else:
+                    node.callback = 'diff'
+                    node.args = [nominator.expression, denominator.expression, nominator.diff_order]
+                if nominator.data_type == 'tensor':
+                    node.data_type = 'tensor'
+                else:
+                    node.data_type = 'sym_expr'
+        else:
+            node.data_type = divOperatorTypes[node.left_child.data_type][node.right_child.data_type]
 
     def pow(self, node: BinaryNode):
         node.data_type = powOperatorTypes[node.left_child.data_type][node.right_child.data_type]
@@ -198,6 +224,9 @@ class SemanticAnalyzer:
     def pos(self, node: PosNode):
         node_type = node.args[0].data_type
         node.data_type = posOperatorTypes[node_type]
+
+    def constant(self, node: PosNode):
+        node.data_type = 'symbol'
 
     def coordinate_definition(self, node: Definition):
         pass
@@ -249,6 +278,12 @@ class SemanticAnalyzer:
     def greaterequal(self, node: BinaryNode):
         pass
 
+    def infinitesimal(self, node: Infinitesimal):
+        if node.expression.data_type == 'tensor':
+            node.data_type = 'tensor'
+        else:
+            node.data_type = 'sym_expr'
+
     ##### BUILT IN FUNCTIONS TO RELATIVISTICPY (will later be implemented by sympy but we are just checking the grammar and Semantics are correct)
     def simplify(self, node: Function):
         node_type = node.args[0].data_type
@@ -284,6 +319,9 @@ class SemanticAnalyzer:
         node.data_type = 'sym_expr'
 
     def sum(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def subs(self, node: Function):
         node.data_type = 'sym_expr'
 
     def dosum(self, node: Function):

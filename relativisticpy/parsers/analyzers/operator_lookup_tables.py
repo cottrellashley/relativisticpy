@@ -599,7 +599,7 @@ diffOperatorTypes = {
     _string: _undef,
     _bool: _undef,
     _array: _array,
-    _tensor: _undef,
+    _tensor: _tensor,
     _symbol: _symbol,
     _sym_expr: _sym_expr,
     _function: _sym_expr,

@@ -10,6 +10,7 @@ class NodeType(Enum):
 
     OR = "BINARY OP: Boolean expression"
     ID = "UNARY OP: Value getter | Symbol creator"  # If variable not created in memory, build a symbol.
+    CONSTANT = 'constant'
 
     # Since we never use the value of these 'constants' we give a description.
     ADD = "+"
@@ -48,6 +49,7 @@ class NodeType(Enum):
 
     TENSOR = "tensor"
     FUNCTION = "function"  # A function name
+    INFINITESIMAL = "infinitesimal"
 
     FUNCTION_DEF = "FUNCTION_DEF"
 
@@ -222,9 +224,6 @@ class AssignmentNode(BinaryNode):
         self.args[1] = executor(self.args[1])
 
 
-
-
-
 class IntNode(UnaryNode):
     def __init__(
         self,
@@ -259,7 +258,6 @@ class SymbolNode(UnaryNode):
     ):
         super().__init__(NodeType.SYMBOL, position, 'symbol', args)
         self.data_type = 'symbol'
-
 
     @property
     def is_leaf(self) -> bool: return True
@@ -304,6 +302,21 @@ class PrintNode(UnaryNode):
         args: List["AstNode"],
     ):
         super().__init__(NodeType.PRINT, position, 'print_', args)
+
+    @property
+    def is_leaf(self) -> bool: return False
+
+class Infinitesimal(UnaryNode):
+    def __init__(
+        self,
+        position: Position,
+        args: List["AstNode"],
+    ):
+        super().__init__(NodeType.INFINITESIMAL, position, 'infinitesimal', args)
+        self.diff_order : int = None
+        self.expression = None
+        self.is_partial : bool = None
+        self.diff_order_as_int : int = None
 
     @property
     def is_leaf(self) -> bool: return False

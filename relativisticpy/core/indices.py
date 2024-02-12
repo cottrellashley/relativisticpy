@@ -164,7 +164,7 @@ class Indices:
     def order_delta(self, other: 'Indices') -> Tuple[int]: return tuple([j.order for i, j in product(self.indices, other.indices) if i.symbol == j.symbol and i.covariant == j.covariant]) if self.symbol_eq(other) else None
     def rank_eq(self, other: 'Indices') -> bool:  return all([idx.rank_match_in_indices(other) for idx in self.indices])
     def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices])
-    def symbol_and_symbol_rank_eq(self, other: 'Indices') -> bool:  return all([idx in other.indices for idx in self.indices])
+    def symbol_and_symbol_rank_eq(self, other: 'Indices') -> bool: return all([idx in other.indices for idx in self.indices])
     def symbol_order_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices_and_order(other) for idx in self.indices])
     def symbol_order_rank_eq(self, other: 'Indices') -> bool:  return all([i[0] == i[1] for i in zip(self.indices, other.indices)]) if len(self.indices) == len(other.indices) else False
 
@@ -205,10 +205,27 @@ class Indices:
 
     def additive_product(self, other: 'Indices') -> 'Indices':
         repeated_index_locations = transpose_list(self._get_all_repeated_locations(other))
-        all = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(self, other)) if itemgetter(*repeated_index_locations[0])(IndexA) == itemgetter(*repeated_index_locations[1])(IndexB)]
+        all_ = [(IndexA, IndexB) for (IndexA, IndexB) in list(product(self, other)) if itemgetter(*repeated_index_locations[0])(IndexA) == itemgetter(*repeated_index_locations[1])(IndexB)]
         res = self._get_additive_result()
         result_in_old = [i[0] for i in res._get_all_repeated_location(self) if len(i) > 0]
-        res.generator = lambda idx : [(IndicesA, IndicesB) for (IndicesA, IndicesB) in all if itemgetter(*result_in_old)(IndicesA) == tuple(idx)] if not res.scalar and idx != None else all
+
+        def generator(idx):
+            lst = []
+            if not res.scalar and idx != None:
+                for (IndicesA, IndicesB) in all_:
+                    test = itemgetter(*result_in_old)(IndicesA)
+                
+                    if isinstance(test, int):
+                        test = (test,)
+
+                    if test == tuple(idx):
+                        lst.append((IndicesA, IndicesB))
+            
+                return lst
+            else:
+                return all_
+
+        res.generator = generator
         res.generator_implementor = self.SUMMATION_GENERATOR
         res.basis = self.basis
         return res

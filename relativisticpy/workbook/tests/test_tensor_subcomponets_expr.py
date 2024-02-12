@@ -83,14 +83,14 @@ def test_metric_sub_vector_getter(Schwarzschild_Metric, Schwarzschild_Basis):
                 g_{a}_{b:2}
     """
     )
-    assert res[0].value == metric[0, 0]
-    assert res[1].value == metric[1, 1]
-    assert res[2].value == metric[2, 2]
-    assert res[3].value == metric[3, 3]
-    assert res[4].value == metric[1, 0]
-    assert res[5].value == metric[0, 1]
-    assert res[6].value == metric[0]
-    assert res[7].value == metric[:, 2]
+    assert res[0] == metric[0, 0]
+    assert res[1] == metric[1, 1]
+    assert res[2] == metric[2, 2]
+    assert res[3] == metric[3, 3]
+    assert res[4] == metric[1, 0]
+    assert res[5] == metric[0, 1]
+    assert res[6] == metric[0]
+    assert res[7] == metric[:, 2]
 
 
 def test_connection_sub_components(Schwarzschild_Connection, Schwarzschild_Basis):
@@ -108,10 +108,10 @@ def test_connection_sub_components(Schwarzschild_Connection, Schwarzschild_Basis
                 C^{a:0}_{b:0}_{c}
     """
     )
-    assert res[0].value == connection[0,0,0]
-    assert res[1].value == connection[:,0,0]
-    assert res[2].value == connection[0,:,0]
-    assert res[3].value == connection[0,0,:]
+    assert res[0] == connection[0,0,0]
+    assert res[1] == connection[:,0,0]
+    assert res[2] == connection[0,:,0]
+    assert res[3] == connection[0,0,:]
 
 def test_ricci_sub_components(Schwarzschild_Ricci, Schwarzschild_Basis):
     ricci_components = Schwarzschild_Ricci
@@ -126,8 +126,8 @@ def test_ricci_sub_components(Schwarzschild_Ricci, Schwarzschild_Basis):
                 Ric_{a:1}_{b}
     """
     )
-    assert res[0].value == ricci_components[0,0]
-    assert res[1].value == ricci_components[0]
+    assert res[0] == ricci_components[0,0]
+    assert res[1] == ricci_components[0]
 
 def test_riemann_sub_components(Schwarzschild_Riemann, Schwarzschild_Basis):
     riemann_components = Schwarzschild_Riemann
@@ -138,13 +138,13 @@ def test_riemann_sub_components(Schwarzschild_Riemann, Schwarzschild_Basis):
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                R^{a:0}_{b:0}_{c:0}_{d:0}
-                R^{a}_{b:0}_{c:0}_{d:0}
-                R^{a:0}_{b:1}_{c:0}_{d}
-                R^{a:1}_{b}_{c}_{d:3}
+                R^{a:0}_{b:0}_{c:0}_{n:0}
+                R^{a}_{b:0}_{c:0}_{n:0}
+                R^{a:0}_{b:1}_{c:0}_{n}
+                R^{a:1}_{b}_{c}_{n:3}
         """
     )
-    assert res[0].value == riemann_components[0, 0, 0, 0]
-    assert res[1].value == riemann_components[:, 0, 0, 0]
-    assert res[2].value == riemann_components[0, 1, 0, :]
-    assert res[3].value == riemann_components[1, :, :, 3]
+    assert res[0] == riemann_components[0, 0, 0, 0]
+    assert res[1] == riemann_components[:, 0, 0, 0]
+    assert res[2] == riemann_components[0, 1, 0, :]
+    assert res[3] == riemann_components[1, :, :, 3]

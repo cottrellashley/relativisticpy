@@ -80,7 +80,7 @@ def test_workbook_new_line_components_definition(Schwarzschild_Metric):
                 g_{mu}_{nu}
         """
     )
-    assert equal(res[0].value.components, metric)
+    assert equal(res.components, metric)
     del res
 
 def test_ricci_generation_from_riemann_contraction_caching_correctly(Schwarzschild_Ricci, Schwarzschild_Basis):
@@ -92,24 +92,24 @@ def test_ricci_generation_from_riemann_contraction_caching_correctly(Schwarzschi
             """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                    R^{a}_{b}_{a}_{d}
-                    R^{a}_{c}_{a}_{d}
+                    R^{a}_{b}_{a}_{h}
+                    R^{a}_{c}_{a}_{h}
             """
         )
     wb.expr(
         """
-                R^{a}_{b}_{a}_{d}
+                R^{a}_{b}_{a}_{h}
         """
     )
     res = wb.expr(
         """
-                R^{a}_{b}_{a}_{d}
+                R^{a}_{b}_{a}_{h}
         """
     )
 
-    assert equal(smp.simplify(res[0].value.components), ricci_components)
-    assert str(res[0].value.indices) == "_{b}_{d}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(smp.simplify(res.components), ricci_components)
+    assert str(res.indices) == "_{b}_{h}"
+    assert equal(res.basis, basis)
     del wb
     del res
 
@@ -124,9 +124,9 @@ def test_metric_init(Schwarzschild_Metric, Schwarzschild_Basis):
                 g_{mu}_{nu}
     """
     )
-    assert equal(res[0].value.components, metric)
-    assert str(res[0].value.indices) == "_{mu}_{nu}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(res.components, metric)
+    assert str(res.indices) == "_{mu}_{nu}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -143,9 +143,9 @@ def test_workbook_inverse_metric_components_match(
                 g^{a}^{b}
     """
     )
-    assert equal(res[0].value.components, inverse_metric)
-    assert str(res[0].value.indices) == "^{a}^{b}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(res.components, inverse_metric)
+    assert str(res.indices) == "^{a}^{b}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -160,9 +160,9 @@ def test_workbook_cron_delta_metric_result(Schwarzschild_Metric, Schwarzschild_B
                 g_{a}_{b}*g^{b}^{c}
     """
     )
-    assert equal(res[0].value.components, cron_delta)
-    assert str(res[0].value.indices) == "_{a}^{c}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(res.components, cron_delta)
+    assert str(res.indices) == "_{a}^{c}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -178,9 +178,9 @@ def test_workbook_metricScalar_result(Schwarzschild_MetricScalar, Schwarzschild_
     """
     )
 
-    assert res[0].value.components == 4
-    assert str(res[0].value.indices) == ""
-    assert equal(res[0].value.basis, basis)
+    assert res.components == 4
+    assert str(res.indices) == ""
+    assert equal(res.basis, basis)
     del res
 
 
@@ -195,9 +195,9 @@ def test_connection_generation(Schwarzschild_Connection, Schwarzschild_Basis):
                 C^{a}_{b}_{c}
     """
     )
-    assert equal(res[0].value.components, connection)
-    assert str(res[0].value.indices) == "^{a}_{b}_{c}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(res.components, connection)
+    assert str(res.indices) == "^{a}_{b}_{c}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -212,9 +212,9 @@ def test_ricci_generation(Schwarzschild_Ricci, Schwarzschild_Basis):
                 Ric_{a}_{b}
     """
     )
-    assert equal(res[0].value.components, ricci_components)
-    assert str(res[0].value.indices) == "_{a}_{b}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(res.components, ricci_components)
+    assert str(res.indices) == "_{a}_{b}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -226,12 +226,12 @@ def test_riemann_generation(Schwarzschild_Riemann, Schwarzschild_Basis):
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                R^{a}_{b}_{c}_{d}
+                R^{a}_{b}_{c}_{h}
     """
     )
-    assert equal(res[0].value.components, riemann_components)
-    assert str(res[0].value.indices) == "^{a}_{b}_{c}_{d}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(res.components, riemann_components)
+    assert str(res.indices) == "^{a}_{b}_{c}_{h}"
+    assert equal(res.basis, basis)
     del res
 
 def test_ricci_generation_from_riemann_contraction(Schwarzschild_Ricci, Schwarzschild_Basis):
@@ -242,12 +242,12 @@ def test_ricci_generation_from_riemann_contraction(Schwarzschild_Ricci, Schwarzs
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                R^{a}_{b}_{a}_{d}
+                R^{a}_{b}_{a}_{h}
         """
     )
-    assert equal(smp.simplify(res[0].value.components), ricci_components)
-    assert str(res[0].value.indices) == "_{b}_{d}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(smp.simplify(res.components), ricci_components)
+    assert str(res.indices) == "_{b}_{h}"
+    assert equal(res.basis, basis)
     del res
 
 def test_metric_multiplication(Schwarzschild_MetricScalar, Schwarzschild_Basis):
@@ -261,9 +261,7 @@ def test_metric_multiplication(Schwarzschild_MetricScalar, Schwarzschild_Basis):
                 g_{a}_{b}*g^{a}^{b}
     """
     )
-    assert res[0].value.components == metric
-    assert str(res[0].value.indices) == ""
-    assert equal(res[0].value.basis, basis)
+    assert res == 4
     del res
 
 
@@ -279,9 +277,9 @@ def test_connection_formulal_equal_built_in_connection(Schwarzschild_Basis):
         """
     )
 
-    assert smp.simplify(res[0].value.components) == zeros
-    assert str(res[0].value.indices) == "^{a}_{c}_{f}"
-    assert equal(res[0].value.basis, basis)
+    assert smp.simplify(res.components) == zeros
+    assert str(res.indices) == "^{a}_{c}_{f}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -296,9 +294,9 @@ def test_riemann_formulal_comps_equal_built_in_riemann(Schwarzschild_Basis):
     """
     )
 
-    assert smp.simplify(res[0].value.components) == zeros
-    assert str(res[0].value.indices) == "^{a}_{m}_{b}_{n}"  # _{b}^{a}_{n}_{m}
-    assert equal(res[0].value.basis, basis)
+    assert smp.simplify(res.components) == zeros
+    assert str(res.indices) == "^{a}_{m}_{b}_{n}"  # _{b}^{a}_{n}_{m}
+    assert equal(res.basis, basis)
     del res
 
 
@@ -324,9 +322,9 @@ def test_riemann_formulal_indices_equal_built_in_riemann(
                     T^{a}_{m}_{b}_{n}
             """
     )
-    assert equal(smp.simplify(res[0].value.components), riemann_components)
-    assert str(res[0].value.indices) == "^{a}_{m}_{b}_{n}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(smp.simplify(res.components), riemann_components)
+    assert str(res.indices) == "^{a}_{m}_{b}_{n}"
+    assert equal(res.basis, basis)
     del res
 
 
@@ -340,10 +338,10 @@ def test_ricci_scalar(Schwarzschild_Basis):
         """
     )
 
-    assert res[0].value.components == 0
-    assert str(res[0].value.indices) == ""
-    assert type(res[0].value) == RicciScalar
-    assert equal(res[0].value.basis, basis)
+    assert res.components == 0
+    assert str(res.indices) == ""
+    assert type(res) == RicciScalar
+    assert equal(res.basis, basis)
     del res
 
 
@@ -358,10 +356,10 @@ def test_einstein_tensor(Schwarzschild_Basis):
         """
     )
 
-    assert smp.simplify(res[0].value.components) == zeros
-    assert type(res[0].value) == EinsteinTensor
-    assert str(res[0].value.indices) == "_{a}_{b}"
-    assert equal(res[0].value.basis, basis)
+    assert smp.simplify(res.components) == zeros
+    assert type(res) == EinsteinTensor
+    assert str(res.indices) == "_{a}_{b}"
+    assert equal(res.basis, basis)
     del res
 
 def test_einstein_tensor_computed_from_equation(Schwarzschild_Basis):
@@ -377,18 +375,18 @@ def test_einstein_tensor_computed_from_equation(Schwarzschild_Basis):
         """
     )
 
-    assert smp.simplify(res[0].value.components) == zeros
-    assert smp.simplify(res[1].value.components) == zeros
-    assert smp.simplify(res[2].value.components) == zeros
-    assert type(res[0].value) == EinsteinArray
-    assert type(res[1].value) == EinsteinArray
-    assert type(res[2].value) == EinsteinArray
-    assert str(res[0].value.indices) == "_{a}_{b}"
-    assert str(res[1].value.indices) == "_{a}_{b}"
-    assert str(res[2].value.indices) == "_{a}_{b}"
-    assert equal(res[0].value.basis, basis)
-    assert equal(res[1].value.basis, basis)
-    assert equal(res[2].value.basis, basis)
+    assert equal(smp.simplify(res[0].components), zeros)
+    assert equal(smp.simplify(res[1].components), zeros)
+    assert equal(smp.simplify(res[2].components), zeros)
+    assert type(res[0]) == EinsteinArray
+    assert type(res[1]) == EinsteinArray
+    assert type(res[2]) == EinsteinArray
+    assert str(res[0].indices) == "_{a}_{b}"
+    assert str(res[1].indices) == "_{a}_{b}"
+    assert str(res[2].indices) == "_{a}_{b}"
+    assert equal(res[0].basis, basis)
+    assert equal(res[1].basis, basis)
+    assert equal(res[2].basis, basis)
     del res
 
 
@@ -408,7 +406,7 @@ def test_covariant_derivative_metric_equals_zero(
                     D_{a}*g_{b}_{c}
             """
     )
-    assert smp.simplify(res[0].value.components) == zeros
-    assert str(res[0].value.indices) == "_{a}_{b}_{c}"
-    assert equal(res[0].value.basis, basis)
+    assert equal(smp.simplify(res.components), zeros)
+    assert str(res.indices) == "_{a}_{b}_{c}"
+    assert equal(res.basis, basis)
     del res

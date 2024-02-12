@@ -74,8 +74,8 @@ def test_basic_tensor_component_generations_zeros():
                     T_{a}
             """
     )
-    assert smp.simplify(res[0].value.components) == zeros
-    assert str(res[0].value.indices) == "_{a}"
+    assert smp.simplify(res.components) == zeros
+    assert str(res.indices) == "_{a}"
 
 
 def test_basic_tensor_component_generations_symbols():
@@ -89,8 +89,8 @@ def test_basic_tensor_component_generations_symbols():
                     T_{a}_{b}
             """
     )
-    assert smp.simplify(res[0].value.components) == smp.MutableDenseNDimArray([[1, 0, 0], [0, r**2, 0], [0, 0, r**2*smp.sin(theta)**2]])
-    assert str(res[0].value.indices) == "_{a}_{b}"
+    assert smp.simplify(res.components) == smp.MutableDenseNDimArray([[1, 0, 0], [0, r**2, 0], [0, 0, r**2*smp.sin(theta)**2]])
+    assert str(res.indices) == "_{a}_{b}"
 
 
 @pytest.mark.skip(reason="TDD =====> Implement TODO: User Can map Arbritary tensor to tensor expression <======== ")
@@ -110,9 +110,9 @@ def test_covariant_derivative_metric_mapping(
                     T_{b}_{a}_{c} = D_{a}*g_{b}_{c}
             """
     )
-    assert smp.simplify(res[0].value.components) == zeros
-    assert str(res[0].value.indices) == "_{b}_{a}_{c}"
-    assert equal(res[0].value.basis, basis)
+    assert smp.simplify(res.components) == zeros
+    assert str(res.indices) == "_{b}_{a}_{c}"
+    assert equal(res.basis, basis)
 
 
 # Test Tensor multiplication with non-int, non-float, symbol scalar

@@ -22,9 +22,10 @@ class Interpreter:
             return self.gr_script.display_error_str
         for action_tree in self.gr_script.action_trees:
             if action_tree.returns_object:
+                callback_result = self.executor(action_tree.ast)
                 self.return_list.append(
                     ReturnObject(
-                        value=self.executor(action_tree.ast),
+                        value=callback_result,
                         _type=action_tree.return_type,
                     )
                 )

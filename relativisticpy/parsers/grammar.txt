@@ -18,14 +18,41 @@ factor          :   (PLUS|MINUS) factor
 
 power           :   atom ((CIRCUMFLEX|DOUBLESTAR) atom)*
 
-atom            :   INT|FLOAT|STRING|BOOL|ID|SYMBOL|TENSORID|FUNCTIONID
-                :   LPAR expr RPAR
-                :   array
-                :   func-def
-                :   tensor
-                :   sum
+atom            :   INT|FLOAT|STRING|BOOL
+                |   LPAR        -> LPAR expr RPAR
+                |   RSQB        -> array
 
-tensor          :   TENSORID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )*
+                |   SUM         -> sum
+                |   DV          -> dv
+                |   PDV         -> pdv
+                |   DOSUM       -> do_sum
+                |   PROD        -> product
+                |   DOPROD      -> do_product
+                |   INTEGRATE   -> integrate
+                |   FRAC        -> fraction
+                |   PROD        -> product
+                |   LIMIT       -> limit
+                |   PARTIAL     -> partial
+                |   BEGIN       -> BeginMap( array, equation, matrix, pmatrix, etc... )
+
+                |   ID          -> IF(TensorPeek = True)        -> tensor
+                                /  IF(FunctionDefPeek = True)   -> func-def
+                                /  IF(FunctionPeek = True)      -> function
+                                /  ID
+
+                |   SYMBOL      -> IF(TensorPeek = True)        -> tensor
+                                /  IF(FunctionDefPeek = True)   -> func-def
+                                /  IF(FunctionPeek = True)      -> function
+                                /  SYMBOL
+                
+                |   D           -> IF(TensoPeek = True)         -> tensor
+                                /  D                            -> derivative
+
+                |   PARTIAL     -> IF(TensoPeek = True)         -> tensor
+                                /  PARTIAL                      -> partial
+
+
+tensor          :   ID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )*
                 :   tensor ((EQUAL) expr)?
                 :   tensor ((EQUAL) array)?
                 :   tensor ((COLONEQUAL) array)?
@@ -37,5 +64,49 @@ matrix          :   BEGIN LBRACE ID:matrix RBRACE NEWLINE* expr ( '&' NEWLINE* e
 
 sum             :   SUM UNDER LBRACE expr RBRACE CIRCUMFLEX LBRACE expr RBRACE expr
 
-func-def        :   FUNCTIONID? LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE) ((EQUAL) expr)?
+func-def        :   ID LPAR (ID (COMMA ID)*)? RPAR (EQUAL expr NEWLINE) ((EQUAL) expr)?
 
+
+##### DERIVATIVES #####
+
+# Partial Derivative
+# \pdv{f}{x}
+# \pdv[n]{f}{x}		
+# \pdv{x}(\frac{x}{x^{2} + 1})
+
+pdv             :   PDV LBRACE expr RBRACE LBRACE SYMBOL RBRACE
+                |   PDV LSQB INT RSQB LBRACE expr RBRACE LBRACE SYMBOL RBRACE
+                |   PDV LBRACE SYMBOL RBRACE LPAR expr RPAR
+
+# Derivatives
+# \dv{f}{x}	
+# \dv[n]{f}{x}
+# \dv{x}(\frac{x}{x^{2} + 1})
+
+dv              :   DV LBRACE expr RBRACE LBRACE SYMBOL RBRACE
+                |   DV LSQB INT RSQB LBRACE expr RBRACE LBRACE SYMBOL RBRACE
+                |   DV LBRACE SYMBOL RBRACE LPAR expr RPAR
+
+
+# \frac{d^n{ expr }{d{x^n}}}
+# \frac{d^n expr }{d x^n}
+# \frac{d^n expr }{d\tau^n}
+# \frac{d^n{ expr }{d{x}^n}}
+
+# d^n{expr}/d{x^n}
+# d^n{expr}/d{x}^n
+# d x
+
+derivative      :   D LBRACE expr RBRACE
+                |   D CIRCUMFLEX INT LBRACE expr RBRACE
+
+# \frac{\partial^n{ expr } {\partial{x^n}}}
+# \frac{\partial^n{ expr } {\partial{x}^n}}
+# \partial^n{expr}/\partial{x^n}
+partial         :   
+
+
+# Future derivatives
+# \frac{d}{d\tau}\frac{\partial L}{\partial \frac{\partial x^{\alpha}}{\partial \tau}}
+# \frac{d}{d\tau} = Operation object
+# \frac{\partial L}{\partial \frac{\partial x^{\alpha}}{\partial \tau}} = Derivative wrt to an tensor object which itself represents a derivative.

@@ -65,8 +65,8 @@ class GRLexer(BaseLexer):
     def _operation(self):
         ops = []
         start_pos = self.current_pos()
-        doubles_dic = self.token_provider.doubles()
-        triples_dic = self.token_provider.tripples()
+        doubles_dic = TokenType.DOUBLES()
+        triples_dic = TokenType.TRIPPLES()
         while (
             self.current_char() != None
             and self.current_char() in Characters.OPERATIONS.value
@@ -118,8 +118,11 @@ class GRLexer(BaseLexer):
                 obj += self.current_char()
 
             self.advance_char()
-
-        self.token_provider.new_token( TokenType.ID, obj, start_pos=start_pos, end_pos=self.current_pos() )
+        
+        if obj in TokenType.Keywords():
+            self.token_provider.new_token(TokenType.Keywords()[obj], obj, start_pos=start_pos, end_pos=self.current_pos() )
+        else:
+            self.token_provider.new_token(TokenType.ID, obj, start_pos=start_pos, end_pos=self.current_pos() )
 
     def _build_latex(self):
         start_pos = self.current_pos()
@@ -139,23 +142,13 @@ class GRLexer(BaseLexer):
             obj += self.current_char()
             self.advance_char()
     
-        if obj in TokenType.LATEX_OPERATIONS():
+        if obj in TokenType.LaTeX():
             self.token_provider.new_token(
-                TokenType.LATEX_OPERATIONS()[obj],
+                TokenType.LaTeX()[obj],
                 obj,
                 start_pos=start_pos,
                 end_pos=self.current_pos(),
             )
-        elif obj in TokenType.LATEX_SYMBOLS():
-            self.token_provider.new_token(
-                TokenType.SYMBOL,
-                obj,
-                start_pos=start_pos,
-                end_pos=self.current_pos(),
-            )
-        
-
-
 
 
     def _skip_comment(self):
