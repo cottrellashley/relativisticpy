@@ -224,23 +224,23 @@ class GRParser(BaseParser):
             elif self.current_token.type == TokenType.MINUS:
                 self.advance_token()
                 result = self.new_sub_node(start_position, [result, self.term()])
-        
-        if self.current_token.type == TokenType.VBAR:
-            func_node = Function()
-            func_node.identifier = 'subs'
-            self.advance_token()
-            self.confirm_syntax(self.current_token.type, TokenType.UNDER)
-            self.advance_token()
-            self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
-            self.advance_token()
-            lhs = self.atom()
-            self.confirm_syntax(self.current_token.type, TokenType.EQUAL)
-            self.advance_token()
-            rhs = self.arith_expr()
-            func_node.new_argument(result)
-            func_node.new_argument(lhs)
-            func_node.new_argument(rhs)
-            return func_node
+        if self.current_token != None:
+            if self.current_token.type == TokenType.VBAR:
+                func_node = Function()
+                func_node.identifier = 'subs'
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type, TokenType.UNDER)
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
+                self.advance_token()
+                lhs = self.atom()
+                self.confirm_syntax(self.current_token.type, TokenType.EQUAL)
+                self.advance_token()
+                rhs = self.arith_expr()
+                func_node.new_argument(result)
+                func_node.new_argument(lhs)
+                func_node.new_argument(rhs)
+                return func_node
         return result
 
     def term(self):
