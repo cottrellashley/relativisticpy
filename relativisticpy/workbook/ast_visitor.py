@@ -1,3 +1,4 @@
+from relativisticpy.core import EinsteinArray
 from relativisticpy.workbook.itensors import (
     TensorHandler,
     TensorAssignmentHandler,
@@ -87,6 +88,7 @@ from relativisticpy.symengine import (
 
 # @node_handler_implementor(parser=RelPyParser)
 
+
 class RelPyAstNodeTraverser:
     def __init__(self, cache: WorkbookState):
         self.cache = cache
@@ -158,7 +160,23 @@ class RelPyAstNodeTraverser:
         return expand(*node.args)
 
     def diff(self, node: AstNode):
-        return diff(*node.args)
+        if isinstance(node.args[0], EinsteinArray):
+            old_tensor: EinsteinArray = node.args[0]
+            if len(node.args) == 3:
+                new_tensor = EinsteinArray(
+                    old_tensor.indices,
+                    diff(old_tensor.components, node.args[1], node.args[2]),
+                    old_tensor.basis,
+                )
+            else:
+                new_tensor = EinsteinArray(
+                    old_tensor.indices,
+                    diff(old_tensor.components, node.args[1]),
+                    old_tensor.basis,
+                )
+            return new_tensor
+        ans = diff(*node.args)
+        return ans
 
     def integrate(self, node: AstNode):
         return integrate(*node.args)
@@ -170,7 +188,9 @@ class RelPyAstNodeTraverser:
         return latex(*node.args)
 
     def solve(self, node: AstNode):
-        return solve(*node.args)
+        a = node.args
+        res = solve(*a)
+        return res
 
     def numerical(self, node: AstNode):
         return N(*node.args)
@@ -182,25 +202,50 @@ class RelPyAstNodeTraverser:
         return dsolve(*node.args)
 
     # Sympy Trigs
-    def sin(self, node: AstNode): return sin(*node.args)
-    def cos(self, node: AstNode): return cos(*node.args)
-    def tan(self, node: AstNode): return tan(*node.args)
-    def asin(self, node: AstNode): return asin(*node.args)
-    def acos(self, node: AstNode): return acos(*node.args)
-    def atan(self, node: AstNode): return atan(*node.args)
-    def sinh(self, node: AstNode): return sinh(*node.args)
-    def cosh(self, node: AstNode): return cosh(*node.args)
-    def tanh(self, node: AstNode): return tanh(*node.args)
-    def asinh(self, node: AstNode): return asinh(*node.args)
-    def acosh(self, node: AstNode): return acosh(*node.args)
-    def atanh(self, node: AstNode): return atanh(*node.args)
+    def sin(self, node: AstNode):
+        return sin(*node.args)
+
+    def cos(self, node: AstNode):
+        return cos(*node.args)
+
+    def tan(self, node: AstNode):
+        return tan(*node.args)
+
+    def asin(self, node: AstNode):
+        return asin(*node.args)
+
+    def acos(self, node: AstNode):
+        return acos(*node.args)
+
+    def atan(self, node: AstNode):
+        return atan(*node.args)
+
+    def sinh(self, node: AstNode):
+        return sinh(*node.args)
+
+    def cosh(self, node: AstNode):
+        return cosh(*node.args)
+
+    def tanh(self, node: AstNode):
+        return tanh(*node.args)
+
+    def asinh(self, node: AstNode):
+        return asinh(*node.args)
+
+    def acosh(self, node: AstNode):
+        return acosh(*node.args)
+
+    def atanh(self, node: AstNode):
+        return atanh(*node.args)
 
     def array(self, node: AstNode):
         return SymbolArray(list(node.args))
 
     def tsimplify(self, node: UnaryNode):
         tensor = node.args[0]
-        tensor.components = simplify(list(tensor.components)[0]) # ??????? Why do we need to call list ? can we standardise ?
+        tensor.components = simplify(
+            list(tensor.components)[0]
+        )  # ??????? Why do we need to call list ? can we standardise ?
         return tensor
 
     # Sympy constants
@@ -222,10 +267,7 @@ class RelPyAstNodeTraverser:
     def symbol(self, node: AstNode):
         a = "".join(node.args)
 
-        if a in ["pi", "e", "oo", 'infty']:
-            return self.constant(node)
-
-        elif a == self.cache.metric_symbol:
+        if a == self.cache.metric_symbol:
             self.cache.set_metric_scalar()
             return self.cache.metric_scalar
 
@@ -268,15 +310,15 @@ class RelPyAstNodeTraverser:
 
     def LHS(self, node: AstNode):
         return node.args[0].lhs
-    
+
     def sum(self, node: AstNode):
         return Sum(node.args[0], (node.args[1], node.args[2], node.args[3]))
-    
+
     def dosum(self, node: AstNode):
         return Sum(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
-    
+
     def prod(self, node: AstNode):
         return Product(node.args[0], (node.args[1], node.args[2], node.args[3]))
-    
+
     def doprod(self, node: AstNode):
         return Product(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()

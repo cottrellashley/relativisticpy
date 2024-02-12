@@ -7,7 +7,7 @@ from typing import Union
 from relativisticpy.gr.connection import Connection
 
 from relativisticpy.symengine import SymbolArray
-from relativisticpy.core import EinsteinArray, Indices, Metric, ArgumentException
+from relativisticpy.core import EinsteinArray, Indices, Metric
 
 
 class GeometricObject(EinsteinArray):
@@ -23,7 +23,7 @@ class GeometricObject(EinsteinArray):
         basis: SymbolArray = None,
     ):
         if symbols == None:
-            raise ArgumentException("The argument entered was invalid.")
+            raise ValueError("The argument entered was invalid.")
 
         components = symbols
 

@@ -15,7 +15,7 @@ from relativisticpy.core.indices import Indices
 
 
 @dataclass
-class TensorProduct:
+class _tensorproduct:
     components: SymbolArray
     indices: Indices
 
@@ -25,7 +25,7 @@ def einstein_convention(cls: MultiIndexArrayType):
 
     def additive_operation(
         self: MultiIndexArrayType, tensor: MultiIndexArrayType, operation
-    ) -> TensorProduct:
+    ) -> _tensorproduct:
         A = self.components
         B = tensor.components
         resulting_indices = self.indices.additive_product(tensor.indices)
@@ -39,11 +39,11 @@ def einstein_convention(cls: MultiIndexArrayType):
                     for idx_A, idx_B in resulting_indices.generator(i)
                 ]
             )
-        return TensorProduct(components=zeros, indices=resulting_indices)
+        return _tensorproduct(components=zeros, indices=resulting_indices)
 
     def einsum_operation(
         self: MultiIndexArrayType, tensor: MultiIndexArrayType, operation
-    ) -> TensorProduct:
+    ) -> _tensorproduct:
         A = self.components
         B = tensor.components
         resulting_indices = self.indices.einsum_product(tensor.indices)
@@ -55,16 +55,16 @@ def einstein_convention(cls: MultiIndexArrayType):
                     for idx_A, idx_B in resulting_indices.generator(i)
                 ]
             ) # Vectorization for speedup.
-        return TensorProduct(components=zeros, indices=resulting_indices)
+        return _tensorproduct(components=zeros, indices=resulting_indices)
 
-    def selfsum_operation(self: MultiIndexArrayType) -> TensorProduct:
+    def selfsum_operation(self: MultiIndexArrayType) -> _tensorproduct:
         resulting_indices = self.indices.self_product()
         zeros = resulting_indices.zeros_array()
         for i in resulting_indices:
             zeros[i] = sum(
                 [self.components[Indices] for Indices in resulting_indices.generator(i)]
             )
-        return TensorProduct(components=zeros, indices=resulting_indices)
+        return _tensorproduct(components=zeros, indices=resulting_indices)
 
     def setitem(
         self: MultiIndexArrayType,

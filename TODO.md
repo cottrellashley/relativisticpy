@@ -1,19 +1,10 @@
 ## Prioritized Features: 
 
 
-
-
-3. hard code some of the symbolic methods 'simplify', 'derivative', etc ...
-4. once these naming things are complete -> implement a working Semantic_analyzer.py which splits and adds all the context we need - first without a assignment_table
-5. fix and re-write the ast_traverser since now we have better control over the method names and the context.
-6. once we have t=more
-
-- **Einstein Tensor**
 - Integration of an intelligent well defined rules for a dynamic derivative, which uses defined coordinates or user defined.
 - Metric defined via line element: this will require big edit to the parser grammar. -> Need to write tests for the grmmar.
 - **Covariant Derivative**
 - **Energy Momentum Tensor**
-- **Ricci Scalar**
 - **Weyl Tensor**
 - **Symetric/Ant-Symmetric Tensors:** Define a T[_{a}_{b}] = 1/2*(T_{a}_{b} - T_{b}_{a}) and a T(_{a}_{b}) = 1/2*(T_{a}_{b} + T_{b}_{a})  
 - Clean up Index and Indices properties handling/lifecycle -> (basis, shape, dimention, values, etc...)

@@ -37,7 +37,14 @@
 from typing import List
 from relativisticpy.parsers.parsers.base import BaseParser, ParserResult
 from relativisticpy.parsers.lexers.base import Token, TokenType
-from relativisticpy.parsers.types.base import AstNode, NodeType, UnaryNode, BinaryNode, ArrayNode
+from relativisticpy.parsers.types.base import (
+    AstNode,
+    NodeType,
+    UnaryNode,
+    BinaryNode,
+    ArrayNode,
+    Infinitesimal,
+)
 from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
 from relativisticpy.parsers.shared.error_messages import braces_unmatched_errors
 from relativisticpy.parsers.types.position import Position
@@ -217,13 +224,29 @@ class GRParser(BaseParser):
             elif self.current_token.type == TokenType.MINUS:
                 self.advance_token()
                 result = self.new_sub_node(start_position, [result, self.term()])
+        if self.current_token != None:
+            if self.current_token.type == TokenType.VBAR:
+                func_node = Function()
+                func_node.identifier = 'subs'
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type, TokenType.UNDER)
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
+                self.advance_token()
+                lhs = self.atom()
+                self.confirm_syntax(self.current_token.type, TokenType.EQUAL)
+                self.advance_token()
+                rhs = self.arith_expr()
+                func_node.new_argument(result)
+                func_node.new_argument(lhs)
+                func_node.new_argument(rhs)
+                return func_node
         return result
 
     def term(self):
         # Look for a factor and store it in result
         start_position = self.current_token.start_position.copy()
         result = self.factor()
-
 
         while self.current_token != None and self.current_token.type in (
             TokenType.STAR,
@@ -268,59 +291,67 @@ class GRParser(BaseParser):
         if token.type == TokenType.FLOAT:
             self.advance_token()
             return self.new_float_node(start_position, [token.value])
+        
+        elif token.type == TokenType.CONSTANT:
+            self.advance_token()
+            return self.new_constant_node(start_position, [token.value])
 
         elif token.type == TokenType.INT:
             self.advance_token()
             return self.new_int_node(start_position, [token.value])
+        
+        elif token.type in [TokenType.INFINITESIMAL, TokenType.PARTIAL]:
+            if (
+                self.peek_type(1) in [TokenType.UNDER, TokenType.CIRCUMFLEX]
+                and self.peek_type(2) == TokenType.LBRACE
+            ):
+                self.advance_token()
+                return self.tensor(token)
+            self.advance_token()
+            return self.infinitesimal(token)
 
         elif token.type in [TokenType.ID, TokenType.SYMBOL]:
 
-            if self.peek(1, Token(TokenType.NONE)).type in [TokenType.UNDER, TokenType.CIRCUMFLEX] and self.peek(2, Token(TokenType.NONE)).type == TokenType.LBRACE:
+            if (
+                self.peek_type(1) in [TokenType.UNDER, TokenType.CIRCUMFLEX]
+                and self.peek_type(2) == TokenType.LBRACE
+            ):
                 self.advance_token()
-                return self.tensor(token, start_position)
-            elif self.peek(1, Token(TokenType.NONE)).type == TokenType.LPAR:
+                return self.tensor(token)
+            elif self.peek_type(1) == TokenType.LPAR:
                 self.advance_token()
                 return self.function(token, start_position)
-            elif self.peek(1, Token(TokenType.NONE)).type == TokenType.COLON:
+            elif self.peek_type(1) == TokenType.COLON:
                 self.advance_token()
                 return self.function(token, start_position)
             else:
                 self.advance_token()
                 return self.new_symbol_node(start_position, [token.value])
-        
-        elif token.type in [TokenType.SUM, TokenType.DOSUM, TokenType.PROD, TokenType.DOPROD]:
+
+        elif token.type in [
+            TokenType.SUM,
+            TokenType.DOSUM,
+            TokenType.PROD,
+            TokenType.DOPROD,
+        ]:
             self.advance_token()
             return self.sum(token, start_position)
-        
+
         elif token.type == TokenType.FRAC:
             self.advance_token()
             return self.frac(start_position)
-        
+
         elif token.type == TokenType.LIMIT:
             self.advance_token()
             return self.limit(start_position)
-        
-        elif token.type == TokenType.BEGIN: # We are beggining a new object
+
+        elif token.type == TokenType.BEGIN:  # We are beggining a new object
             self.advance_token()
-            if self.current_token.type != TokenType.LBRACE:
-                return self.invalid_syntax_error(
-                    "Syntax Error, begin statements should always be followed by '{'",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
+            self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
             self.advance_token()
-            if self.current_token.type != TokenType.ID:
-                return self.invalid_syntax_error(
-                    "Syntax Error, begin statements need identifiers within the braces i.e. \\begin{matrix}",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
-            
-            if self.current_token.value == 'matrix':
+            self.confirm_syntax(self.current_token.type, TokenType.ID)
+            if self.current_token.value == "matrix":
                 return self.matrix(start_position)
-            
 
         elif token.type == TokenType.LSQB:
             self.advance_token()
@@ -328,14 +359,8 @@ class GRParser(BaseParser):
 
         elif token.type == TokenType.LPAR:
             self.advance_token()
-            result = self.expr()
-            if self.current_token.type != TokenType.RPAR:
-                return self.invalid_syntax_error(
-                    "Syntax Error, expecting a '(' token.",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
+            result = self.bool_expr()
+            self.confirm_syntax(self.current_token.type, TokenType.RPAR)
             self.advance_token()
             return result
 
@@ -343,9 +368,6 @@ class GRParser(BaseParser):
             return self.illegal_character_error(
                 f"""Syntax Error, the type {token.value} at Line: {self.current_token.end_position.copy().line}, 
                 Position: {self.current_token.end_position.copy().character} is not recognized or supported by RelativisticPy's Parser.""",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
             )
 
     def array(self, start_position):
@@ -355,7 +377,10 @@ class GRParser(BaseParser):
             self.ignore_newlines()
             elements.append(self.statement())
 
-            while ( self.current_token != None and self.current_token.type == TokenType.COMMA ):
+            while (
+                self.current_token != None
+                and self.current_token.type == TokenType.COMMA
+            ):
                 self.advance_token()
 
                 self.ignore_newlines()
@@ -363,7 +388,7 @@ class GRParser(BaseParser):
                 self.ignore_newlines()
 
             self.ignore_newlines()
-    
+
         if (
             self.current_token == None
         ):  ############################ <<<<<<<<<<<<<<<---------- PLEASE ADD THESE EVERY OTHER ERROR RAISING PLACE.
@@ -389,20 +414,14 @@ class GRParser(BaseParser):
         j_elements = []
 
         self.advance_token()
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error: Missing a '}' at when initiating a matrix. ",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
         self.advance_token()
-        
+
         self.ignore_newlines()
         i_elements.append(self.statement())
         self.ignore_newlines()
 
-        while ( self.current_token != None and self.current_token.type == TokenType.AMPER ):
+        while self.current_token != None and self.current_token.type == TokenType.AMPER:
             self.advance_token()
 
             self.ignore_newlines()
@@ -411,7 +430,10 @@ class GRParser(BaseParser):
 
         j_elements.append(self.new_array_node(start_position, i_elements))
 
-        while ( self.current_token != None and self.current_token.type == TokenType.DOUBLEBACKSLASH ):
+        while (
+            self.current_token != None
+            and self.current_token.type == TokenType.DOUBLEBACKSLASH
+        ):
             i_elements = []
 
             self.advance_token()
@@ -421,7 +443,10 @@ class GRParser(BaseParser):
 
             i_elements.append(self.statement())
 
-            while ( self.current_token != None and self.current_token.type == TokenType.AMPER ):
+            while (
+                self.current_token != None
+                and self.current_token.type == TokenType.AMPER
+            ):
                 self.advance_token()
 
                 self.ignore_newlines()
@@ -431,54 +456,24 @@ class GRParser(BaseParser):
             self.ignore_newlines()
             j_elements.append(self.new_array_node(start_position, i_elements))
             self.ignore_newlines()
-        
+
         self.ignore_newlines()
+        self.confirm_syntax(self.current_token.type, TokenType.END)
 
-        if self.current_token.type != TokenType.END:
-                return self.invalid_syntax_error(
-                    "Syntax Error, matrix object must end with an end statement.",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
-        
         self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
 
-        if self.current_token.type != TokenType.LBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, end statements should always be followed by '{'",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
+        self.confirm_tok_value(self.current_token.value, "matrix")
 
-        if self.current_token.value != 'matrix':
-            return self.invalid_syntax_error(
-                "Syntax Error, matrix end statement incorrect, need to be: \\end{matrix}",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
 
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error: Missing a '}' at when ending a matrix. ",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
         return self.new_array_node(start_position, j_elements)
-        
-            
 
     # tensor : TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
-    def tensor(self, token: Token, start_position):
+    def tensor(self, token: Token):
         tensor_node = TensorNode(self.current_token.start_position.copy())
         tensor_node.identifier = token.value
         tensor_covariant = True
@@ -487,40 +482,27 @@ class GRParser(BaseParser):
             TokenType.UNDER,
             TokenType.CIRCUMFLEX,
         ):
-            if self.current_token.type not in [TokenType.UNDER, TokenType.CIRCUMFLEX]:
-                return self.invalid_syntax_error(
-                    "Syntax Error, expecting a '_' or '^' token. Please check documentation for tensor syntax.",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
+            self.confirm_syntax(
+                self.current_token.type, [TokenType.UNDER, TokenType.CIRCUMFLEX]
+            )
             tensor_covariant = self.current_token.type == TokenType.UNDER
 
             self.advance_token()
-            if self.current_token.type != TokenType.LBRACE:
-                return self.invalid_syntax_error(
-                    "Syntax Error, expecting a token: '{'",
-                    start_position,
-                    self.current_token.end_position.copy(),
-                    self.raw_code,
-                )
+            self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
 
             self.advance_token()
-            if self.current_token.type != TokenType.ID:
-                return self.invalid_syntax_error(
-                    "Syntax Error, expecting a IDENTIFIER: i.e. some variable.",
-                    start_position,
-                    self.current_token.start_position.copy(),
-                    self.raw_code,
-                )
+            self.confirm_syntax(
+                self.current_token.type, [TokenType.SYMBOL, TokenType.ID]
+            )
 
-            while self.current_token.type == TokenType.ID or self.peek(
-                1, Token(TokenType.NONE)
-            ).type in [
+            while self.current_token.type in [
+                TokenType.ID,
+                TokenType.SYMBOL,
+            ] or self.peek_type(1) in [
                 TokenType.UNDER,
                 TokenType.CIRCUMFLEX,
             ]:  # T_{a b} => Index 'a' and Index 'b' are covariant.
-                if self.current_token.type == TokenType.ID:
+                if self.current_token.type in [TokenType.ID, TokenType.SYMBOL]:
                     index = self.current_token.value
                     value = None
 
@@ -538,25 +520,14 @@ class GRParser(BaseParser):
                         self.current_token.type == TokenType.UNDER
                     )  # reset the covariance
                     self.advance_token()
-                    if self.current_token.type != TokenType.LBRACE:
-                        return self.invalid_syntax_error(
-                            "Syntax Error, expecting a token: '{'",
-                            start_position,
-                            self.current_token.end_position.copy(),
-                            self.raw_code,
-                        )
+                    self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
                     self.advance_token()
 
-        if self.current_token.type not in [
-            TokenType.RBRACE
-        ]:  # Should enforce the end of the _{a b} indices obejct.
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a token: '}'",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
+        if self.current_token.value in TokenType.Keywords():
+            return self.illegal_character_error(
+                f"Syntax Error with object. Cannot use keyword as an index: {self.current_token.value}"
             )
-
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
         self.advance_token()
 
         if self.current_token == None:
@@ -565,7 +536,9 @@ class GRParser(BaseParser):
         if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
             if self.current_token.type == TokenType.LSQB:
-                tensor_node.component_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
+                tensor_node.component_ast = (
+                    self.atom()
+                )  # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
                 return tensor_node
 
             tensor_node.component_ast = self.expr()
@@ -574,7 +547,9 @@ class GRParser(BaseParser):
         if self.current_token.type == TokenType.EQUAL:
             self.advance_token()
             if self.current_token.type == TokenType.LSQB:
-                tensor_node.component_ast = self.atom() # We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
+                tensor_node.component_ast = (
+                    self.atom()
+                )  # Build Eq in sympy. We do not need to perform the definiton check until the last minute -> just do if tensor.id = metric -> set metric in workbook state
                 return tensor_node
 
             tensor_node.component_ast = self.expr()
@@ -587,13 +562,7 @@ class GRParser(BaseParser):
 
         func_node.identifier = token.value
 
-        if self.current_token.type != TokenType.LPAR:
-            self.invalid_syntax_error(
-                "Syntax Error, expecting a OPEN_BRACE token: '(' .",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
+        self.confirm_syntax(self.current_token.type, TokenType.LPAR)
 
         self.advance_token()
 
@@ -604,13 +573,7 @@ class GRParser(BaseParser):
             self.advance_token()
             func_node.new_argument(self.arith_expr())
 
-        if self.current_token.type != TokenType.RPAR:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a CLOSE_BRACE token: ')' .",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
+        self.confirm_syntax(self.current_token.type, TokenType.RPAR)
 
         self.advance_token()
         func_node.set_position(start_position)
@@ -619,104 +582,46 @@ class GRParser(BaseParser):
             return func_node
 
         # Is user defining a callable object | function ?
-        if self.current_token.type == TokenType.EQUAL:
+        if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
             func_node.executable = self.expr()
             return func_node
 
         return func_node
 
-
     def sum(self, token: Token, start_position):
         func_node = Function()
         func_node.identifier = token.value
 
-        if self.current_token.type != TokenType.UNDER:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting underscore after sum operation.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
-        self.advance_token()
-        
-        if self.current_token.type != TokenType.LBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting underscore left brace '{' for the sum operation.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-
+        self.confirm_syntax(self.current_token.type, TokenType.UNDER)
         self.advance_token()
 
-        if self.current_token.type not in [TokenType.ID, TokenType.SYMBOL]:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a variable definition to start sumation i.e. \\sum_{x}^{10} expr",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-
-        var = self.new_symbol_node(self.current_token.start_position, [self.current_token.value])
-
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
         self.advance_token()
 
-        if self.current_token.type != TokenType.EQUAL:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a equals sign for assignment definition for sumation i.e. \\sum_{x=0}^{10} expr",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
-        self.advance_token()
+        self.confirm_syntax(self.current_token.type, [TokenType.ID, TokenType.SYMBOL])
+        var = self.new_symbol_node(
+            self.current_token.start_position, [self.current_token.value]
+        )
 
+        self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.EQUAL)
+
+        self.advance_token()
         start = self.arith_expr()
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
 
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a right brace to close \\sum expression.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.CIRCUMFLEX)
 
-        if self.current_token.type != TokenType.CIRCUMFLEX:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a ^ in \\sum expression to represent end of sum expression.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
 
-        if self.current_token.type != TokenType.LBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting underscore left brace '{' for the sum operation.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
-        
         end = self.arith_expr()
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
 
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a right brace to close \\sum expression.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
         self.advance_token()
-        
         expression = self.arith_expr()
 
         func_node.new_argument(expression)
@@ -725,120 +630,96 @@ class GRParser(BaseParser):
         func_node.new_argument(end)
 
         return func_node
-    
+
     def limit(self, start_position):
         func_node = Function()
 
         func_node.identifier = TokenType.LIMIT.value
 
-        if self.current_token.type != TokenType.UNDER:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting underscore after limit operation.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
-        self.advance_token()
-        
-        if self.current_token.type != TokenType.LBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting underscore left brace '{' for the limt operation.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-
+        self.confirm_syntax(self.current_token.type, TokenType.UNDER)
         self.advance_token()
 
-        if self.current_token.type not in [TokenType.ID, TokenType.SYMBOL]:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a variable definition to start limit i.e. \\limit_{x -> 0} expr",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-
-        var = self.new_symbol_node(self.current_token.start_position, [self.current_token.value])
-
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
         self.advance_token()
 
-        if self.current_token.type != TokenType.RARROW:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a equals sign for assignment definition for limit i.e. \\limit_{x -> 0} expr",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
+        self.confirm_syntax(self.current_token.type, [TokenType.ID, TokenType.SYMBOL])
+        var = self.new_symbol_node(
+            self.current_token.start_position, [self.current_token.value]
+        )
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.RARROW)
         self.advance_token()
 
         to_expr = self.arith_expr()
-
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, expecting a right brace to close \\limit expression.",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
         self.advance_token()
 
         expression = self.arith_expr()
-
         func_node.new_argument(expression)
         func_node.new_argument(var)
         func_node.new_argument(to_expr)
-
         return func_node
 
-
-    
     def frac(self, start_position):
-
+        # LBRACE arith_expr RBRACE LBRACE arith_expr RBRACE
         pos = self.current_token.start_position
-
-        if self.current_token.type != TokenType.LBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, fraction object requires open brace to start numerator '{' ",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
         self.advance_token()
-
         numerator = self.arith_expr()
-
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, fraction object requires closing brace to finish numerator '}' ",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
         self.advance_token()
-
-        if self.current_token.type != TokenType.LBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, fraction object requires open brace to start denominator expression '{' ",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
         self.advance_token()
-
         denominator = self.arith_expr()
-
-        if self.current_token.type != TokenType.RBRACE:
-            return self.invalid_syntax_error(
-                "Syntax Error, fraction object requires closing brace to finish denominator expression '}' ",
-                start_position,
-                self.current_token.end_position.copy(),
-                self.raw_code,
-            )
-        
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
+        self.advance_token()
         return self.new_div_node(pos, [numerator, denominator])
+
+    def infinitesimal(self, token):
+        diff_order = self.new_int_node(self.current_token.end_position.copy(), ['1']) # defaults to first order derivaitve
+        circumflex_tag = False
+        diff_order_as_int = 1
+
+        # d^n{expr} OR d^n(expr)
+        if self.current_token.type == TokenType.CIRCUMFLEX:
+            circumflex_tag = True
+            self.advance_token()
+            self.confirm_syntax(self.current_token.type, TokenType.INT)
+            diff_order = self.new_int_node(self.current_token.end_position.copy(), [self.current_token.value])
+            diff_order_as_int = int(self.current_token.value)
+            self.advance_token()
+        
+        # d{x} OR d{x^n} OR d{x}^n
+        if self.current_token.type == TokenType.LBRACE:
+            self.advance_token()
+            expr = self.arith_expr()
+            self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
+            
+            # d^2{x}^2 Is not valid
+            if self.peek_type(1) == TokenType.CIRCUMFLEX and circumflex_tag:
+                return self.illegal_character_error(
+                    "Syntax Error with diff object. Cannot have two '^' within one infinitesimal object i.e. d^n{ <expr> }^n is not allowed."
+                )
+            self.advance_token()
+
+            if self.current_token.type == TokenType.CIRCUMFLEX:
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type, TokenType.INT)
+                diff_order = self.new_int_node(self.current_token.end_position.copy(), [self.current_token.value])
+                diff_order_as_int = int(self.current_token.value)
+                self.advance_token()
+
+            inft = Infinitesimal(self.current_token.end_position.copy(), [expr])
+            inft.expression = expr
+            inft.diff_order = diff_order
+            inft.diff_order_as_int = diff_order_as_int
+            return inft
+
+        expr = self.arith_expr()
+        inft = Infinitesimal(self.current_token.end_position.copy(), [expr])
+        inft.expression = expr
+        self.confirm_syntax(self.current_token.type, TokenType.INT)
+        inft.diff_order = self.new_int_node(self.current_token.end_position.copy(), [self.current_token.value])
+        inft.is_partial = False
+        return inft

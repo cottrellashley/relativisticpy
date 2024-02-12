@@ -90,6 +90,13 @@ class EinsteinArray:
     @property
     def scalar(self) -> bool:
         return self.rank == (0, 0)
+    
+    @property
+    def scalar_comp_value(self):
+        if self.scalar:
+            return list(self.components)[0]
+        else:
+            return self.components
 
     @property
     def shape(self):
@@ -190,9 +197,10 @@ class EinsteinArray:
 
         operation = lambda a, b: a * b
         result = self.einsum_operation(other, operation)
-        return EinsteinArray(
+        ein_array = EinsteinArray(
             components=result.components, indices=result.indices, basis=self.basis
         )
+        return ein_array.scalar_comp_value if ein_array.scalar else ein_array
 
     def __rmul__(self, other: "EinsteinArray") -> "EinsteinArray":
         if isinstance(
@@ -227,7 +235,19 @@ class EinsteinArray:
                 basis=self.basis,
             )
         else:
-            raise ValueError("Cannot divide with anything other than int or float.")
+            raise ValueError(f"unsupported operand type(s) for / or __truediv__(): 'EinsteinArray' and {type(other)}")
+        
+    def __pow__(self, other: "EinsteinArray") -> "EinsteinArray":
+        if isinstance(
+            other, (float, int)
+        ) and self.scalar:  # If we're number then just divide every component by it.
+            return EinsteinArray(
+                components=SymbolArray([self.scalar_comp_value ** other]),
+                indices=self.indices,
+                basis=self.basis,
+            ).scalar_comp_value
+        else:
+            raise ValueError(f"unsupported operand type(s) for ** or pow() on non-scalar EinsteinArray and '{type(other)}'")
         
     def components_operation(self, operation: Callable):
         self.components = operation(self.components)

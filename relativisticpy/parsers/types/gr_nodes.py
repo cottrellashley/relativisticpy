@@ -251,7 +251,6 @@ class Function(
         self.position = position
 
 
-
 # ID := EXPR | ARRAY
 class Definition(AstNode):
     PRE_DEFINED = ("Coordinates", "MetricSymbol")

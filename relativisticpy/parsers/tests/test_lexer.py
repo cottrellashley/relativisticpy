@@ -15,21 +15,73 @@ import pytest
 # \laplacian(\Psi+A)
 # \real		
 # \imaginary
-# \dv{f}{x}		
+
+## Derivative methods
+
+# \frac{d^n{ expr }{d{x^n}}}
+# \frac{d^n expr }{d x^n}
+# \frac{d^n expr }{d\tau^n}
+# \frac{d^n{ expr }{d{x}^n}}
+# d^n{expr}/d{x^n}
+# d^n{expr}/d{x}^n
+
+# diff(f, x)
+# \dv{f}{x}	
 # \dv[n]{f}{x}
-# \dv{x}(\frac{x}{x^{2} + 1})		
+# \dv{x}(\frac{x}{x^{2} + 1})
+
+## Partial Derivative Methods
 # \pdv{f}{x}
 # \pdv[n]{f}{x}		
 # \pdv{x}(\frac{x}{x^{2} + 1})
+
+# \frac{\partial^n{ expr }{\partial{x^n}}}
+# \frac{\partial^n{ expr }{\partial{x}^n}}
+
+# \partial^n{expr}/\partial{x^n}
+# d^n{expr}/d{x}^n
+
+## Derivatives on tensors
+# Euler-Lagrange equation:
+# \frac{\partial L}{\partial x^{\alpha}} - \frac{d}{d\tau}\frac{\partial L}{\partial \frac{\partial x^{\alpha}}{\partial \tau}}
+# 
+# Geodesic Equation
+# x^{\mu} := [t(\tau), r(\tau), \theta(\tau), \phi(\tau)]
+# Geo^{\mu} := \frac{d^2{x^{\mu}}}{d{\tau^2}} + \Gamma^{\mu}_{\alpha \beta} \frac{d {x^{\alpha}}}{d\tau}\frac{d{x^{\beta}}}{d{\tau}}
+#
+# Euler-Lagrage of Geodesic
+# L := \sqrt{-g_{\mu \nu}\frac{d{x^{\mu}}}{d{\tau}}\frac{d {x^{\nu}}}{d{\tau}}} 
+#
+#
+
+
+
+## Function definition
+# f : (a) -> { a**2 + 10 }
+
+## Execution Statements
+# return expr   # The user wanys the line executed and also returned in notebook.
+# latex expr
+# text expr # text is the same as '%'
+# nonzero tensor expr # prints non zero components of the tensor.
+# \text{ Hello, my name is blablabla
+#     
+#     } 
+# # Hello c: # the hash symbol at the satrt of a statement is a code comment => user does not want executed or printed
+# % Hello c: \phi # the percentage sign at the start of a statement implies the user wants the line to be printed and not executed
+# | c := \phi  # The pipe symbol at the start of a statement implies the user wants the line to be executed and also printed
+# c: phi # The user wants the line executed and not printed
+
 # \bra{\phi}\ket{\psi}		
 # \braket{a}{b}
+
 # \mqty(a & b \\ c & d)		
 # \mdet{a & b \\ c & d}
 # \mqty(\dmat{1,2,3})
 # \sqrt
 # \log
-# \geq == >=
-# \leq == <=
+# \geq
+# \leq
 
 def test_simple_single_token_generation():
     _int : LexerResult = GRLexer("1").tokenize()
