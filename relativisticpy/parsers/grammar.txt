@@ -97,8 +97,8 @@ dv              :   DV LBRACE expr RBRACE LBRACE SYMBOL RBRACE
 # d^n{expr}/d{x}^n
 # d x
 
-derivative      :   D LBRACE expr RBRACE
-                |   D CIRCUMFLEX INT LBRACE expr RBRACE
+infinitesimal       :   D LBRACE expr RBRACE
+                    |   D CIRCUMFLEX INT LBRACE expr RBRACE
 
 # \frac{\partial^n{ expr } {\partial{x^n}}}
 # \frac{\partial^n{ expr } {\partial{x}^n}}
@@ -110,3 +110,16 @@ partial         :
 # \frac{d}{d\tau}\frac{\partial L}{\partial \frac{\partial x^{\alpha}}{\partial \tau}}
 # \frac{d}{d\tau} = Operation object
 # \frac{\partial L}{\partial \frac{\partial x^{\alpha}}{\partial \tau}} = Derivative wrt to an tensor object which itself represents a derivative.
+
+
+differential operator:
+
+d arith_expr
+
+d^n { arith_expr }
+
+d{ arith_expr }
+d( arith_expr )
+
+
+

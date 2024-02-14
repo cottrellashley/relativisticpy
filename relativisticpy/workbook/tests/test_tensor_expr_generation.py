@@ -70,7 +70,7 @@ def test_basic_tensor_component_generations_zeros():
     res = wb.expr(
             """
                     Coordinates := [x, y]
-                    T_{a} = [0, 0]
+                    T_{a} := [0, 0]
                     T_{a}
             """
     )
@@ -85,7 +85,7 @@ def test_basic_tensor_component_generations_symbols():
     res = wb.expr(
             """
                     Coordinates := [t, r, theta]
-                    T_{a}_{b} = [[1, 0, 0], [0, r**2, 0], [0, 0, r**2*sin(theta)**2]]
+                    T_{a}_{b} := [[1, 0, 0], [0, r**2, 0], [0, 0, r**2*sin(theta)**2]]
                     T_{a}_{b}
             """
     )
@@ -107,7 +107,8 @@ def test_covariant_derivative_metric_mapping(
             """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                    T_{b}_{a}_{c} = D_{a}*g_{b}_{c}
+                    T_{b}_{a}_{c} := D_{a}*g_{b}_{c}
+                    T_{b}_{a}_{c}
             """
     )
     assert smp.simplify(res.components) == zeros

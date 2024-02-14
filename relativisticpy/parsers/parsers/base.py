@@ -59,6 +59,9 @@ class BaseParser(ABC):
             )
 
     def confirm_syntax(self, current_type: TokenType, expected_type: Union[TokenType, List[TokenType]]):
+        ##### <<< NEEDS TO BE MODIFILED TO TAKE IN A TOKEN, NOT TOKENTYPE and THEN PERFORM A NULL CHECK.
+        # The TOKEN should never be null when this function is called but I've has a few errors cause because of this.
+
         if isinstance(expected_type, list):
             if current_type not in expected_type:
                 exp_str = " OR ".join([i.value for i in expected_type])

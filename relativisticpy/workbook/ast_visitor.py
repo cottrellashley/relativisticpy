@@ -13,6 +13,7 @@ from relativisticpy.parsers.types.base import UnaryNode, BinaryNode, AstNode
 
 from relativisticpy.symengine import (
     Symbol,
+    Basic,
     Rational,
     Function,
     Interval,
@@ -52,10 +53,11 @@ from relativisticpy.symengine import (
     sequence,
     series,
     euler_equations,
-    sqrt,
+    root,
     exp_polar,
     bell,
     bernoulli,
+    Pow,
     binomial,
     gamma,
     conjugate,
@@ -94,7 +96,7 @@ class RelPyAstNodeTraverser:
         self.cache = cache
 
     # Cache Node handlers
-    def assignment(self, node: AstNode):
+    def definition(self, node: AstNode):
         self.cache.set_variable(str(node.args[0]), node.args[1])
 
     def tensor_assignment(self, node: TensorNode):
@@ -155,9 +157,20 @@ class RelPyAstNodeTraverser:
 
     def lim(self, node: AstNode):
         return limit(*node.args)
+    
+    def sqrt(self, node: AstNode):
+        if isinstance(node.args[0], Basic):
+            return Pow(node.args[0], Rational(1, 2))
+        else:
+            return node.args[0] ** 0.5
 
     def expand(self, node: AstNode):
         return expand(*node.args)
+    
+    def func_derivative(self, node: AstNode):
+        if isinstance(node.args[1], Basic):
+            wrt = list(node.args[1].free_symbols)[0] if not [] == list(node.args[1].free_symbols) else None
+            return diff(node.args[0], wrt, node.args[2])
 
     def diff(self, node: AstNode):
         if isinstance(node.args[0], EinsteinArray):

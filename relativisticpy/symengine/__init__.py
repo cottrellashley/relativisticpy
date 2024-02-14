@@ -1,9 +1,11 @@
 # Sympy Dependencies: By importing all the sympy functionality via this file, we can controll what it used and can also swap out implementations in future.
 from sympy import (
     Symbol,
+    Basic,
     Rational,
     Function,
     Interval,
+    Pow,
     Order,
     Sum,
     Product,
@@ -49,7 +51,6 @@ from sympy import (
     is_monotonic,
 
     # Functions Source: https://docs.sympy.org/latest/modules/functions/elementary.html
-    sqrt,
     exp_polar,
     bell,
     bernoulli,
@@ -92,5 +93,6 @@ from sympy import (
     ifft
 )
 from sympy import MutableDenseNDimArray as SymbolArray
+from .sympy import root
 
 # Implement `function` - `constant` - `infinity`

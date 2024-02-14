@@ -140,6 +140,7 @@ class Function(
                     "diff", "simplify", "integrate", "expand", 
                     "diag", "lim", "solve", "dsolve", "subs", 
                     "LHS", "RHS", "tsimplify", "sum", "dosum",
+                    "sqrt", "func_derivative",
                     "prod", "doprod",
                     "sin", "cos", "tan", 
                     "asin", "atan", "acos", 
@@ -253,7 +254,10 @@ class Function(
 
 # ID := EXPR | ARRAY
 class Definition(AstNode):
-    PRE_DEFINED = ("Coordinates", "MetricSymbol")
+    PRE_DEFINED = {
+                        "Coordinates" : "coordinate_definition",
+                        "MetricSymbol" :  "metric_symbol_definition"
+                    }
 
     def __init__(self, position, args):
         super().__init__(type=NodeType.DEFINITION, position=position, args=args)
@@ -262,13 +266,8 @@ class Definition(AstNode):
     @property
     def is_leaf(self) -> bool: return False
 
-    def execute_node(self, executor: Callable):
-        self.args[1] = executor(self.args[1])
+    def execute_node(self, executor: Callable): self.args[1] = executor(self.args[1])
 
     @property
-    def callback(self):
-        if self.args[0] == "Coordinates":
-            return "coordinate_definition"
-        else:
-            return "definition"
+    def callback(self): return Definition.PRE_DEFINED[self.args[0]] if self.args[0] in Definition.PRE_DEFINED else "definition"
         

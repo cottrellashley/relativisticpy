@@ -228,7 +228,7 @@ def test_cache(workbook_setup, var_setup, func_setup):
     assert (
         wb.expr(
             """
-                        a = diff(f(x), x) + P(x)*f(x) - Q(x)
+                        a := diff(f(x), x) + P(x)*f(x) - Q(x)
                         dsolve(a, f(x)) 
             """
         )
@@ -238,8 +238,8 @@ def test_cache(workbook_setup, var_setup, func_setup):
     assert (
         wb.expr(
             """
-                        a = diff(f(x), x) + P(x)*f(x) - Q(x)
-                        b = f(x)
+                        a := diff(f(x), x) + P(x)*f(x) - Q(x)
+                        b := f(x)
                         diag(a, b)
             """
         )

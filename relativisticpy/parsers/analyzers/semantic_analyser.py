@@ -157,18 +157,18 @@ class SemanticAnalyzer:
         return args
 
     # Cache Node handlers
-    def assignment(self, node: AstNode):
-        node.data_type = 'none'
-
     def definition(self, node: AstNode):
-        rhs = node.args[1].data_type
-
-        if ID_definitionsLookup[rhs] == 'undef':
-            self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
-            self.display_error_str = self.assignment_error.as_string()
-            self.contains_error = True
-
         node.data_type = 'none'
+
+    # def definition(self, node: AstNode):
+    #     rhs = node.args[1].data_type
+
+    #     if ID_definitionsLookup[rhs] == 'undef':
+    #         self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
+    #         self.display_error_str = self.assignment_error.as_string()
+    #         self.contains_error = True
+
+    #     node.data_type = 'none'
 
     def function_def(self, node: Function):
         self.__analyse_tree(node.args[0].executable)
@@ -321,6 +321,9 @@ class SemanticAnalyzer:
     def sum(self, node: Function):
         node.data_type = 'sym_expr'
 
+    def sqrt(self, node: Function):
+        node.data_type = 'sym_expr'
+
     def subs(self, node: Function):
         node.data_type = 'sym_expr'
 
@@ -334,6 +337,9 @@ class SemanticAnalyzer:
         node.data_type = 'sym_expr'
 
     def numerical(self, node: Function):
+        node.data_type = 'sym_expr'
+
+    def func_derivative(self, node: Function):
         node.data_type = 'sym_expr'
 
     def exp(self, node: Function):

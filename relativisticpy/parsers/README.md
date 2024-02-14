@@ -13,6 +13,10 @@ And-predicate: &e
 Not-predicate: !e
 Group: (e)
 
+Peek: > e 
+2Peek: >> e
+3Peek: >>> e
+nPeek: >...> e
 ```
 
 # Grammar of Atoms
