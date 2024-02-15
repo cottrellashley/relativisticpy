@@ -39,7 +39,7 @@ class Interpreter:
         # This step ensures that each child node is processed before the current node is passed to the callback.
         if hasattr(ast_node, 'is_leaf'):
             if not ast_node.is_leaf:
-                ast_node.execute_node(self.executor)
+                ast_node.execute_node(self.executor, self.exe_object)
 
         # Use getattr to retrieve the callback method from the exe_object using the node's callback name.
         # Call this method with the full ast_node, which includes its children within node.args.

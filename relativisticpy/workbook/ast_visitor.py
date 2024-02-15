@@ -10,6 +10,8 @@ from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.utils import str_is_tensors
 from relativisticpy.parsers.types.gr_nodes import TensorNode
 from relativisticpy.parsers.types.base import UnaryNode, BinaryNode, AstNode
+from relativisticpy.parsers.types.gr_nodes import FuncStates
+from relativisticpy.parsers.types.gr_nodes import Function as FunctionNode
 
 from relativisticpy.symengine import (
     Symbol,
@@ -109,7 +111,7 @@ class RelPyAstNodeTraverser:
             tref.is_metric = True
         TensorAssignmentHandler(self.cache).handle(tref)
 
-    def function_definition(self, node: AstNode):
+    def function_def(self, node: AstNode):
         pass  # User can define a function which they can actually call
 
     def symbol_definition(self, node: AstNode):
@@ -272,10 +274,16 @@ class RelPyAstNodeTraverser:
             return oo
 
     # Sympy symbols / function initiators
-    def function(self, node: AstNode):
-        func_id = node.identifier
-        func = symbols("{}".format(func_id), cls=Function)(*node.args)
-        return func
+    def function(self, node: FunctionNode):
+        if node.state == FuncStates.SYMBOL:
+            if not self.cache.has_variable(node.identifier):
+                func_id = node.identifier
+                func = symbols("{}".format(func_id), cls=Function)(*node.args)
+                return func
+            else:
+                return Function(self.cache.get_variable(node.identifier))(*node.args)
+        elif node.state == FuncStates.CALL:
+            return node.call_result
 
     def symbol(self, node: AstNode):
         a = "".join(node.args)

@@ -83,9 +83,13 @@ class AstNode:
             if isinstance(arg, AstNode):
                 arg.parent = self
 
-    def execute_node(self, executor: Callable): 
+    def execute_node(self, executor: Callable, tree_walker = None): 
         for i, arg in enumerate(self.args):
             self.args[i] = executor(arg)
+
+    def analyze_node(self, analyzer: Callable): 
+        """ Defined how this node is analyzed by Semantic Analyzer. Note: For most nodes this is same implementation as execute_node. """
+        self.execute_node(analyzer)
 
     @property
     def is_root(self) -> bool:
@@ -147,7 +151,7 @@ class UnaryNode(AstNode):
     def operand(self):
         return self.args[0]
     
-    def execute_node(self, executor: Callable):
+    def execute_node(self, executor: Callable, tree_walker = None): 
         self.args[0] = executor(self.args[0])
 
 
@@ -199,7 +203,7 @@ class ArrayNode(AstNode):
         "Compute the shape of the array"
         pass
 
-    def execute_node(self, executor: Callable): 
+    def execute_node(self, executor: Callable, tree_walker = None): 
         for i, arg in enumerate(self.args):
             self.args[i] = executor(arg)
 
@@ -220,7 +224,7 @@ class AssignmentNode(BinaryNode):
     def callback(self): return "assignment"
 
 
-    def execute_node(self, executor: Callable): 
+    def execute_node(self, executor: Callable, tree_walker = None): 
         self.args[1] = executor(self.args[1])
 
 

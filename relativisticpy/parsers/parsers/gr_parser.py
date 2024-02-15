@@ -45,7 +45,7 @@ from relativisticpy.parsers.types.base import (
     ArrayNode,
     Infinitesimal,
 )
-from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
+from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition, FuncStates
 from relativisticpy.parsers.shared.error_messages import braces_unmatched_errors
 from relativisticpy.parsers.types.position import Position
 
@@ -643,6 +643,7 @@ class GRParser(BaseParser):
         if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
             func_node.executable = self.expr()
+            func_node.state = FuncStates.DEF
             return func_node
 
         return func_node

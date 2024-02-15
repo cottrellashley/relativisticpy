@@ -54,7 +54,7 @@ from .operator_lookup_tables import (
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.errors import Error, IllegalAssignmentError, IllegalSyntaxError
 from relativisticpy.parsers.types.base import AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal
-from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
+from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition, FuncStates
 
 @dataclass
 class ActionTree:
@@ -81,7 +81,9 @@ class SemanticAnalyzer:
     """
 
     def __init__(self):
-        self.function_table = set()
+        self.function_table = {}
+
+    def get_function(self, key: str) -> Function: return self.function_table[key]
 
     def analyse(self, parser_result: ParserResult) -> GrScriptTree:
         self.raw_code = parser_result.code
@@ -101,7 +103,7 @@ class SemanticAnalyzer:
 
         # Build context from tree
         for ast_node in all_nodes:
-            self.__analyse_tree(ast_node)
+            self.ast_analyzer(ast_node)
             self.action_trees.append(
                 ActionTree(
                     ast_node,
@@ -125,7 +127,7 @@ class SemanticAnalyzer:
             self.display_error_str
             )
 
-    def __analyse_tree(self, node: Union[AstNode, Error]):
+    def ast_analyzer(self, node: Union[AstNode, Error]):
 
         # Handle error nodes
         if isinstance(node, (Error, IllegalSyntaxError)):
@@ -137,7 +139,7 @@ class SemanticAnalyzer:
         # Check and process child nodes if they exist
         if hasattr(node, 'is_leaf'):
             if not node.is_leaf:
-                node.execute_node(self.__analyse_tree)
+                node.analyze_node(analyzer = self.ast_analyzer)
 
         callback_method = getattr(self, node.callback)
         if not any(self.error_object_in_args_of(node)):
@@ -171,7 +173,14 @@ class SemanticAnalyzer:
     #     node.data_type = 'none'
 
     def function_def(self, node: Function):
-        self.__analyse_tree(node.args[0].executable)
+        self.function_table[node.identifier] = node
+        node.data_type = 'none'
+
+    def function(self, node: Function):
+        if node.identifier in self.function_table:
+            node.state = FuncStates.CALL
+            node.executable = self.get_function(node.identifier).executable
+            node.definition_node = self.get_function(node.identifier)
 
     def tensor_assignment(self, node: TensorNode):
         node.data_type = 'none'
@@ -232,9 +241,6 @@ class SemanticAnalyzer:
         pass
 
     ###### THE CALLBACK OF THE NODE HANDLERS BELLOW ARE CREATION => WE KNOW WHAT THE RETURN TYPE IS AS WE ARE CREATING THE OBJECTS
-
-    def function(self, node: AstNode):
-        pass
 
     def int(self, node: IntNode):
         pass

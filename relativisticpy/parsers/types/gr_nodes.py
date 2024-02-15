@@ -2,6 +2,7 @@ from abc import ABC, abstractproperty
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, List, Union
+from relativisticpy.parsers.lexers.base import TokenType
 
 from relativisticpy.parsers.types.base import AstNode, NodeType
 from .position import Position
@@ -111,13 +112,17 @@ class TensorNode(
             return 'none'
         return 'array' if self.component_ast.data_type == 'array' else 'tensor'
 
-    def execute_node(self, executor: Callable) -> None:
+    def execute_node(self, executor: Callable, tree_walker = None) -> None:
         for idx in self.indices.indices:
             if idx.values != None:
                 idx.values = executor(idx.values)
         if self.component_ast != None:
             self.component_ast_result = executor(self.component_ast)
 
+class FuncStates(Enum):
+    DEF = 1
+    CALL = 0
+    SYMBOL = 2
 
 class Function(
     AstNode
@@ -147,20 +152,44 @@ class Function(
                     "cosh", "sinh", "tanh", 
                     "acosh", "asinh", "atanh"
                  )
-
+    
     def __init__(self):
         self._identifier = ""
         self.type = (NodeType.FUNCTION,)
         self.data_type = "function"
         self._data_type = None
-
         self._arguments = []
+        self.arg_keys = []
         self._is_called = False
         self._exe_tree = None
+        self._state = FuncStates.SYMBOL
+        self.call_result = None
+        self.definition_node : Function = None
 
-    def execute_node(self, executor: Callable) -> None:
-        for i, arg in enumerate(self.args):
-            self.args[i] = executor(arg)
+    def execute_node(self, executor: Callable, tree_walker = None) -> None:
+        if self._state == FuncStates.SYMBOL:
+            for i, arg in enumerate(self.args):
+                self.args[i] = executor(arg)
+        elif self._state == FuncStates.CALL:
+            for i, arg in enumerate(self.args):
+                res = executor(arg)
+                tree_walker.cache.set_variable(self.definition_node.arg_keys[i], res)
+            self.call_result = executor(self.executable)
+
+    def analyze_node(self, analyzer: Callable) -> None:
+        if self._state == FuncStates.SYMBOL:
+            for i, arg in enumerate(self.args):
+                self.args[i] = analyzer(arg)
+        elif self._state == FuncStates.DEF:
+            for i, arg in enumerate(self.args):
+                self.args[i] = analyzer(arg)
+            self.executable = analyzer(self.executable) # Will be execute much before the self.executable is passed into the CALLED sunction.
+
+    @property
+    def state(self) -> FuncStates: return self._state
+
+    @state.setter
+    def state(self, value: FuncStates) -> None: self._state = value
 
     @property
     def data_type(self) -> str:
@@ -214,8 +243,8 @@ class Function(
             raise AttributeError(
                 "Cannot set a callback when we do not have a function identifier yet."
             )
-        if self.is_callable:
-            return "function_call"
+        if self._state == FuncStates.DEF:
+            return "function_def"
         if any([self.identifier == builtin_func for builtin_func in self.BUILT_INS]):
             return self.identifier
         return "function"
@@ -234,16 +263,14 @@ class Function(
 
     @executable.setter
     def executable(self, func_scoped_executable_tree: str) -> None:
-        if self._exe_tree != None:
-            raise AttributeError(
-                f"Cannot change the function Executable Tree at class {type(self)}"
-            )
         self._exe_tree = func_scoped_executable_tree
 
     def new_argument(self, arg: AstNode) -> None:
         if isinstance(arg, AstNode):
             arg.parent = self
         self._arguments.append(arg)
+        if arg.type == NodeType.SYMBOL:
+            self.arg_keys.append(str(arg.args[0]))
 
     def get_return_type(self, semantic_analyzer_type_traverser: Callable):
         return semantic_analyzer_type_traverser(self.executable)
@@ -266,7 +293,7 @@ class Definition(AstNode):
     @property
     def is_leaf(self) -> bool: return False
 
-    def execute_node(self, executor: Callable): self.args[1] = executor(self.args[1])
+    def execute_node(self, executor: Callable, tree_walker = None): self.args[1] = executor(self.args[1])
 
     @property
     def callback(self): return Definition.PRE_DEFINED[self.args[0]] if self.args[0] in Definition.PRE_DEFINED else "definition"

@@ -47,6 +47,11 @@ class Workbook:
         return modified_content
 
     def expr(self, string: str):
+        result = self.__expr(string)
+        self.reset() ###    <<<<<<<<<<<<<<<<<<<<<<<<<<  ONLY TEMP UNTIL WE IMPLEMENT STACK SOLUTION TO FUNCTION AND SCOPES WITHIN A FUNCTION.
+        return result
+        
+    def __expr(self, string: str):
         result = Workbook.parser.exe(string)
         if isinstance(result, list):
             if len(result) == 1:
@@ -55,6 +60,7 @@ class Workbook:
                 return [i.value for i in result]
         elif isinstance(result, str):
             return result
+        
         
     def parse(self, string: str):
         return Workbook.parser.parse(string)
