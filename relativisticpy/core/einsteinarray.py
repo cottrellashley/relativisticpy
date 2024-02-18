@@ -4,7 +4,6 @@ from itertools import product
 
 # External Modules
 from relativisticpy.utils import tensor_trace_product
-from relativisticpy.deserializers import tensor_from_string
 from relativisticpy.symengine import SymbolArray
 
 # This Module
@@ -26,36 +25,12 @@ class EinsteinArray:
         subcomponents (SymbolArray): The subcomponents derived from the tensor components.
 
     Methods:
-        from_string: Class method to create an instance from string representations.
         scalar: Property indicating if the tensor is a scalar.
         shape: Property to get the shape of the tensor.
         dimention: Property to get the dimension of the tensor space.
         add, subtract, multiply, etc.: Methods implementing tensor operations.
 
-    Example:
-        >>> tensor = EinsteinArray.from_string("_{mu}_{nu}", "[[1, 0],[0, 1]]", "[x, y]")
-        >>> print(tensor.rank)
     """
-
-    @classmethod
-    def from_string(cls, indices_str, comp_str, basis_str):
-        """
-        Creates an EinsteinArray object from string representations of its components.
-
-        Args:
-            indices_str (str): A string representing the indices of the tensor.
-            comp_str (str): A string representing the tensor's components.
-            basis_str (str): A string representing the basis vectors.
-
-        Returns:
-            EinsteinArray: An instance of EinsteinArray.
-
-        Example:
-            >>> EinsteinArray.from_string("ij", "[[1,2],[3,4]]", "basis")
-        """
-        return tensor_from_string(
-            Idx, Indices, EinsteinArray, indices_str, comp_str, basis_str
-        )
 
     def __init__(
         self,

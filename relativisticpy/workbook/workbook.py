@@ -46,12 +46,12 @@ class Workbook:
         # Step 5: Return the modified content or write it back to the file
         return modified_content
 
-    def expr(self, string: str):
-        result = self.__expr(string)
-        self.reset() ###    <<<<<<<<<<<<<<<<<<<<<<<<<<  ONLY TEMP UNTIL WE IMPLEMENT STACK SOLUTION TO FUNCTION AND SCOPES WITHIN A FUNCTION.
-        return result
+    # def expr(self, string: str):
+    #     result = self.__expr(string)
+    #     self.reset() ###    <<<<<<<<<<<<<<<<<<<<<<<<<<  ONLY TEMP UNTIL WE IMPLEMENT STACK SOLUTION TO FUNCTION AND SCOPES WITHIN A FUNCTION.
+    #     return result
         
-    def __expr(self, string: str):
+    def expr(self, string: str):
         result = Workbook.parser.exe(string)
         if isinstance(result, list):
             if len(result) == 1:

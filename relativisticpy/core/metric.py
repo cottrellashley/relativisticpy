@@ -5,17 +5,12 @@ from operator import itemgetter
 
 # External Modules
 from relativisticpy.core import EinsteinArray, Indices, Idx
-from relativisticpy.deserializers import indices_from_string, tensor_from_string
 from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
 from relativisticpy.utils import tensor_trace_product, transpose_list
 
 
 class MetricIndices(Indices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
-
-    @classmethod
-    def from_string(cls, indices_string):
-        return indices_from_string(Idx, MetricIndices, indices_string)
 
     def __init__(self, *args: Idx):
         super().__init__(*args)
@@ -111,12 +106,6 @@ class Metric(EinsteinArray):
     cron_delta = (1, 1)
     contravariant = (0, 2)
     covariant = (2, 0)
-
-    @classmethod
-    def from_string(cls, indices_str, comp_str, basis_str):
-        return tensor_from_string(
-            Idx, MetricIndices, Metric, indices_str, comp_str, basis_str
-        )
 
     def __init__(
         self, indices: MetricIndices, components: SymbolArray, basis: SymbolArray

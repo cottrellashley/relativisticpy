@@ -16,6 +16,7 @@ from relativisticpy.symengine import (
     expand,
     limit,
     simplify,
+    sqrt,
     root,
     dsolve,
     SymbolArray,
@@ -179,7 +180,7 @@ def test_undecided_derivative_syntax(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     f, g, h = func_f_g_h
 
     # using diff built in function
-    assert wb.expr(" d f(x)/d x ") == diff(f(x), x)
+    assert wb.expr(" d(f(x))/d(x) ") == diff(f(x), x)
 
 
 def test_matrix_building(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
@@ -187,7 +188,7 @@ def test_matrix_building(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     x, y, z, t, r, theta, phi, tau = vars_x_y_z_t_r_theta_phi_tau
     f, g, h = func_f_g_h
 
-    int_matrix = (
+    int_matrix = [
         """
                         \\begin{matrix} 
                         1 &  2  & 3 \\\\
@@ -195,8 +196,8 @@ def test_matrix_building(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
                         7 &  8  & 9 \\\\
                         \\end{matrix} 
         """,
-        SymbolArray([[1, 2, 3], [4, 5, 6], [7, 8, 9]]),
-    )
+        SymbolArray([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+    ]
 
     float_matrix = (
         """
@@ -253,16 +254,16 @@ def test_matrix_building(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
         """
                         \\begin{matrix} 
                         f(x)  &  2  & 3 \\\\
-                        f(x)  &  2  & 3 
+                        f(x)  &  0  & x
                         \\end{matrix} 
         """,
         SymbolArray([[f(x), 2, 3], [f(x), 0, x]]),
     )
 
-    assert wb.expr(int_matrix[0] == int_matrix[1])
-    assert wb.expr(float_matrix[0] == float_matrix[1])
-    assert wb.expr(symbol_matrix[0] == symbol_matrix[1])
-    assert wb.expr(function_matrix[0] == function_matrix[1])
-    assert wb.expr(line_matrix[0] == line_matrix[1])
-    assert wb.expr(line2_matrix[0] == line2_matrix[1])
-    assert wb.expr(two_line_matrix[0] == two_line_matrix[1])
+    assert wb.expr(int_matrix[0]) == int_matrix[1]
+    assert wb.expr(float_matrix[0]) == float_matrix[1]
+    assert wb.expr(symbol_matrix[0]) == symbol_matrix[1]
+    assert wb.expr(function_matrix[0]) == function_matrix[1]
+    assert wb.expr(line_matrix[0]) == line_matrix[1]
+    assert wb.expr(line2_matrix[0]) == line2_matrix[1]
+    assert wb.expr(two_line_matrix[0]) == two_line_matrix[1]

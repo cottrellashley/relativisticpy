@@ -18,6 +18,7 @@ from sympy import (
     symbols,
     residue,
     laplace_transform,
+    sqrt,
     inverse_laplace_transform,
     inverse_mellin_transform,
     mellin_transform,

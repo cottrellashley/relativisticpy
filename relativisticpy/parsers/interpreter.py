@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 from relativisticpy.parsers.analyzers.base import ActionTree, GrScriptTree
 from relativisticpy.parsers.types.base import AstNode
-
+from relativisticpy.parsers.scope.state import ScopedState
 
 @dataclass
 class ReturnObject:
@@ -15,6 +15,7 @@ class Interpreter:
     def __init__(self, gr_script: GrScriptTree):
         self.gr_script = gr_script
         self.return_list = []
+        self.state = ScopedState()
 
     def exe_script(self, exe_object: any):
         self.exe_object = exe_object
@@ -39,9 +40,9 @@ class Interpreter:
         # This step ensures that each child node is processed before the current node is passed to the callback.
         if hasattr(ast_node, 'is_leaf'):
             if not ast_node.is_leaf:
-                ast_node.execute_node(self.executor, self.exe_object)
+                ast_node.execute_node(self.executor, self.state)
 
         # Use getattr to retrieve the callback method from the exe_object using the node's callback name.
         # Call this method with the full ast_node, which includes its children within node.args.
         callback_method = getattr(self.exe_object, ast_node.callback)
-        return callback_method(ast_node)
+        return callback_method(ast_node, self.state)

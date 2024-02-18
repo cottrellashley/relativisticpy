@@ -44,8 +44,11 @@ from relativisticpy.parsers.types.base import (
     BinaryNode,
     ArrayNode,
     Infinitesimal,
+    Definition, 
+    Call, 
+    Def
 )
-from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition, FuncStates
+from relativisticpy.parsers.types.gr_nodes import TensorNode
 from relativisticpy.parsers.shared.error_messages import braces_unmatched_errors
 from relativisticpy.parsers.types.position import Position
 
@@ -91,6 +94,8 @@ class GRParser(BaseParser):
             if not more_statements:
                 break
             if not self.current_token:
+                break
+            if self.current_token.type == TokenType.RBRACE:
                 break
             statement = self.statement()
             if not statement:
@@ -227,8 +232,7 @@ class GRParser(BaseParser):
                 result = self.new_sub_node(start_position, [result, self.term()])
         if self.current_token != None:
             if self.current_token.type == TokenType.VBAR:
-                func_node = Function()
-                func_node.identifier = "subs"
+
                 self.advance_token()
                 self.confirm_syntax(self.current_token.type, TokenType.UNDER)
                 self.advance_token()
@@ -238,10 +242,12 @@ class GRParser(BaseParser):
                 self.confirm_syntax(self.current_token.type, TokenType.EQUAL)
                 self.advance_token()
                 rhs = self.arith_expr()
-                func_node.new_argument(result)
-                func_node.new_argument(lhs)
-                func_node.new_argument(rhs)
-                return func_node
+
+                return Call(
+                        identifier = 'subs',
+                        position = start_position,
+                        args = [result, lhs, rhs]
+                    )
         return result
 
     def term(self):
@@ -362,7 +368,7 @@ class GRParser(BaseParser):
                 return self.function(token, start_position)
             elif self.peek_type(1) == TokenType.COLON:
                 self.advance_token()
-                return self.function(token, start_position)
+                return self.expr_function(token, start_position)
             else:
                 self.advance_token()
                 return self.new_symbol_node(start_position, [token.value])
@@ -616,44 +622,113 @@ class GRParser(BaseParser):
     #  array           :   LSQB NEWLINE* (expr (COMMA NEWLINE* expr)* NEWLINE* RSQB)
     ################################################################################################
     def function(self, token: Token, start_position):
-        func_node = Function()
 
-        func_node.identifier = token.value
+        identifier = token.value
+        arguments = []
 
         self.confirm_syntax(self.current_token.type, TokenType.LPAR)
 
         self.advance_token()
 
-        func_node.new_argument(
-            self.arith_expr()
-        )  # We only allow mathematical expressions as args
-        while self.current_token != None and self.current_token.type == TokenType.COMMA:
-            self.advance_token()
-            func_node.new_argument(self.arith_expr())
+        if not self.current_token.type == TokenType.RPAR:
+
+            arguments.append(
+                self.bool_expr()
+            )  # We only allow mathematical expressions as args
+            while self.current_token != None and self.current_token.type == TokenType.COMMA:
+                self.advance_token()
+                arguments.append(self.bool_expr())
 
         self.confirm_syntax(self.current_token.type, TokenType.RPAR)
 
         self.advance_token()
-        func_node.set_position(start_position)
 
         if self.current_token == None:
-            return func_node
+            pos = self.peek_prev_token(ignore_NEWLINE=True).end_position.copy()
+            return Call(
+                            identifier = identifier,
+                            position = pos, 
+                            args = arguments
+                        )
 
-        # Is user defining a callable object | function ?
+        # Is user defining a function ?
         if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
-            func_node.executable = self.expr()
-            func_node.state = FuncStates.DEF
-            return func_node
+            return Def(
+                        identifier = identifier,
+                        body = self.expr(),
+                        position = self.current_token.end_position.copy(),
+                        args = arguments
+                    )
 
-        return func_node
+        return Call(
+                        identifier = identifier,
+                        position = self.current_token.end_position.copy(), 
+                        args = arguments
+                    )
+
+    ############################## ARRAY ATOM   ####################################################
+    #  array           :   ID COLON LPAR ((ID|SYMBOL) COMMA)* RARROW LBRACE statements RBRACE
+    ################################################################################################
+    def expr_function(self, token: Token, start_position):
+
+        identifier = token.value
+        arguments = []
+
+        self.confirm_syntax(self.current_token.type, TokenType.COLON)
+
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.LPAR)
+
+        if not self.current_token.type == TokenType.RPAR:
+
+            self.advance_token()
+
+            self.confirm_syntax(self.current_token.type,[TokenType.SYMBOL, TokenType.ID])
+            arguments.append(
+                self.new_symbol_node(self.current_token.end_position.copy(), [self.current_token.value])
+            )  # We only allow mathematical expressions as args
+            while self.current_token != None and self.current_token.type == TokenType.COMMA:
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type,[TokenType.SYMBOL, TokenType.ID])
+                arguments.append(self.new_symbol_node(self.current_token.end_position.copy(), [self.current_token.value]))
+                self.advance_token()
+
+        self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.RPAR)
+
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.RARROW)
+
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
+
+        self.advance_token()
+
+        statements = self.statements()
+
+        self.ignore_newlines()
+
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
+
+        self.advance_token()
+
+        return Def(
+                    identifier = identifier,
+                    body = statements,
+                    position = start_position,
+                    args = arguments
+                )
+
 
     ############################## SUM ATOM   ####################################################
     #  sum             :   SUM UNDER LBRACE expr RBRACE CIRCUMFLEX LBRACE expr RBRACE expr
     ################################################################################################
     def sum(self, token: Token, start_position):
-        func_node = Function()
-        func_node.identifier = token.value
+        identifier = token.value
 
         self.confirm_syntax(self.current_token.type, TokenType.UNDER)
         self.advance_token()
@@ -686,20 +761,16 @@ class GRParser(BaseParser):
         self.advance_token()
         expression = self.arith_expr()
 
-        func_node.new_argument(expression)
-        func_node.new_argument(var)
-        func_node.new_argument(start)
-        func_node.new_argument(end)
-
-        return func_node
+        return Call(
+                        identifier = identifier,
+                        position = start_position,
+                        args = [expression, var, start, end]
+                    )
 
     ############################## LIMIT ATOM   ####################################################
     #  limit             :   LIMIT UNDER LBRACE (SYMBOL|ID) RARROW arith_expr RBRACE arith_expr
     ################################################################################################
     def limit(self, start_position):
-        func_node = Function()
-
-        func_node.identifier = TokenType.LIMIT.value
 
         self.confirm_syntax(self.current_token.type, TokenType.UNDER)
         self.advance_token()
@@ -723,10 +794,11 @@ class GRParser(BaseParser):
         expression = (
             self.arith_expr()
         )  ### <<<<<<<<<<<<<<<<<<<<<<<<<------------------- BAD CODE = INPROPER DOWNWARD DEPENDENCY. This lower level code should not need to know the order in which to place the arguments.
-        func_node.new_argument(expression)
-        func_node.new_argument(var)
-        func_node.new_argument(to_expr)
-        return func_node
+        return Call(
+                        identifier = TokenType.LIMIT.value,
+                        position = start_position,
+                        args = [expression, var, to_expr]
+                    )
 
     ############################## FRAC ATOM ######################################################
     #  frac             :   FRAC LBRACE arith_expr RBRACE LBRACE arith_expr RBRACE
@@ -749,24 +821,24 @@ class GRParser(BaseParser):
     #  sqrt             :   SQRT LBRACE arith_expr RBRACE
     ###############################################################################################
     def sqrt(self, start_position):
-        func_node = Function()
-        func_node.identifier = TokenType.SQRT.value
         pos = self.current_token.start_position
         self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
         self.advance_token()
-        func_node.new_argument(self.arith_expr())
+        argument = self.arith_expr()
         self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
         self.advance_token()
-        return func_node
+        return Call(
+                        identifier = TokenType.SQRT.value,
+                        position = pos,
+                        args = [argument]
+                    )
 
     ############################## ATOM ###########################################################
     #  1-arg-func-derivative    :   ID APOSTROPHE+ LPAR SYMBOL RPAR
     ###############################################################################################
     def single_arg_function_derivative(self, token: Token, start_position):
-        func_node = Function()
-        func_arg = Function()
-        func_arg.identifier = token.value
-        func_node.identifier = 'func_derivative'
+        identifier = token.value
+
         d_order = 1
 
         self.confirm_syntax(self.current_token.type, TokenType.APOSTROPHE)
@@ -779,16 +851,18 @@ class GRParser(BaseParser):
         self.confirm_syntax(self.current_token.type, TokenType.LPAR)
         self.advance_token()
 
-        args = self.arith_expr()
+        arguments = self.arith_expr()
 
         self.confirm_syntax(self.current_token.type, TokenType.RPAR)
         self.advance_token()
 
-        func_arg.new_argument(args)
-        func_node.new_argument(func_arg)
-        func_node.new_argument(args)
-        func_node.new_argument(self.new_int_node(start_position, [str(d_order)]))
-        return func_node
+        symbol_function = Call(identifier=identifier, position=start_position, args=[arguments])
+
+        return Call(
+                        identifier = 'func_derivative',
+                        position = start_position,
+                        args = [symbol_function, arguments, self.new_int_node(start_position, [str(d_order)])]
+                    )
 
     ############################## INFINITESSIMAL ATOM   ####################################################
     #  diff_operator        :   D ( > RBRACE | > DASH )
