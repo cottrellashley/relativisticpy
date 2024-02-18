@@ -53,8 +53,9 @@ from .operator_lookup_tables import (
 )
 from relativisticpy.parsers.shared.constants import NodeKeys
 from relativisticpy.parsers.shared.errors import Error, IllegalAssignmentError, IllegalSyntaxError
-from relativisticpy.parsers.types.base import AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal
-from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
+from relativisticpy.parsers.types.base import (AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal, Definition, Def, Call)
+from relativisticpy.parsers.types.gr_nodes import TensorNode, FuncStates
+from relativisticpy.parsers.scope.state import ScopedState
 
 @dataclass
 class ActionTree:
@@ -81,7 +82,7 @@ class SemanticAnalyzer:
     """
 
     def __init__(self):
-        self.function_table = set()
+        self.state = ScopedState()
 
     def analyse(self, parser_result: ParserResult) -> GrScriptTree:
         self.raw_code = parser_result.code
@@ -101,7 +102,7 @@ class SemanticAnalyzer:
 
         # Build context from tree
         for ast_node in all_nodes:
-            self.__analyse_tree(ast_node)
+            self.ast_analyzer(ast_node)
             self.action_trees.append(
                 ActionTree(
                     ast_node,
@@ -125,7 +126,7 @@ class SemanticAnalyzer:
             self.display_error_str
             )
 
-    def __analyse_tree(self, node: Union[AstNode, Error]):
+    def ast_analyzer(self, node: Union[AstNode, Error]):
 
         # Handle error nodes
         if isinstance(node, (Error, IllegalSyntaxError)):
@@ -137,7 +138,7 @@ class SemanticAnalyzer:
         # Check and process child nodes if they exist
         if hasattr(node, 'is_leaf'):
             if not node.is_leaf:
-                node.execute_node(self.__analyse_tree)
+                node.analyze_node(analyzer = self.ast_analyzer, state = self.state)
 
         callback_method = getattr(self, node.callback)
         if not any(self.error_object_in_args_of(node)):
@@ -157,21 +158,46 @@ class SemanticAnalyzer:
         return args
 
     # Cache Node handlers
-    def assignment(self, node: AstNode):
-        node.data_type = 'none'
-
     def definition(self, node: AstNode):
-        rhs = node.args[1].data_type
-
-        if ID_definitionsLookup[rhs] == 'undef':
-            self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
-            self.display_error_str = self.assignment_error.as_string()
-            self.contains_error = True
-
         node.data_type = 'none'
 
-    def function_def(self, node: Function):
-        self.__analyse_tree(node.args[0].executable)
+    # def definition(self, node: AstNode):
+    #     rhs = node.args[1].data_type
+
+    #     if ID_definitionsLookup[rhs] == 'undef':
+    #         self.assignment_error = IllegalAssignmentError(node.args[0].position, node.args[1].position, "The LHS and RHS of the definiton expression you've entered is not allowed, or had not yet been implemented.", self.raw_code)
+    #         self.display_error_str = self.assignment_error.as_string()
+    #         self.contains_error = True
+
+    #     node.data_type = 'none'
+
+    def function_def(self, node: Def):
+        for arg in node.args:
+            if not isinstance(arg, SymbolNode):
+                node = IllegalSyntaxError(
+                                            node.position,
+                                            node.position,
+                                            f"Incorrect function definition arguments.",
+                                            self.raw_code
+                                        )
+                self.error_from_ast_node = node
+                self.contains_error = True
+                self.display_error_str = node.as_string()
+
+            node.str_args.append("".join(arg.operand))
+        node.data_type = 'none'
+
+    def call(self, node: Call):
+        if node.call_return == None:
+            node.data_type = 'symbol'
+        else:
+            node.data_type = node.call_return.data_type
+
+    def clear(self, node: AstNode):
+        self.state.reset()
+
+    def symbolfunc(self, node: AstNode):
+        node.data_type = 'sym_expr'
 
     def tensor_assignment(self, node: TensorNode):
         node.data_type = 'none'
@@ -233,9 +259,6 @@ class SemanticAnalyzer:
 
     ###### THE CALLBACK OF THE NODE HANDLERS BELLOW ARE CREATION => WE KNOW WHAT THE RETURN TYPE IS AS WE ARE CREATING THE OBJECTS
 
-    def function(self, node: AstNode):
-        pass
-
     def int(self, node: IntNode):
         pass
 
@@ -285,101 +308,104 @@ class SemanticAnalyzer:
             node.data_type = 'sym_expr'
 
     ##### BUILT IN FUNCTIONS TO RELATIVISTICPY (will later be implemented by sympy but we are just checking the grammar and Semantics are correct)
-    def simplify(self, node: Function):
-        node_type = node.args[0].data_type
-        node.data_type = simplifyOperatorTypes[node_type]
+    def simplify(self, node: Call):
+        node.data_type = 'sym_expr'
 
-    def tsimplify(self, node: Function):
+    def tsimplify(self, node: Call):
         node.data_type = 'array'
 
-    def lim(self, node: Function):
+    def lim(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def diag(self, node: Function):
+    def diag(self, node: Call):
         node.data_type = 'array'
 
-    def expand(self, node: Function):
+    def expand(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def diff(self, node: Function):
-        node_type = node.args[0].data_type
-        node.data_type = diffOperatorTypes[node_type]
-
-    def integrate(self, node: Function):
-        node_type = node.args[0].data_type
-        node.data_type = integrateOperatorTypes[node_type]
-
-    def latex(self, node: Function):
+    def diff(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def subs(self, node: Function):
+    def integrate(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def solve(self, node: Function):
+    def latex(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def sum(self, node: Function):
+    def subs(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def subs(self, node: Function):
+    def solve(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def dosum(self, node: Function):
+    def sum(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def prod(self, node: Function):
+    def sqrt(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def doprod(self, node: Function):
+    def subs(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def numerical(self, node: Function):
+    def dosum(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def exp(self, node: Function):
+    def prod(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def dsolve(self, node: Function):
+    def doprod(self, node: Call):
+        node.data_type = 'sym_expr'
+
+    def numerical(self, node: Call):
+        node.data_type = 'sym_expr'
+
+    def func_derivative(self, node: Call):
+        node.data_type = 'sym_expr'
+
+    def exp(self, node: Call):
+        node.data_type = 'sym_expr'
+
+    def dsolve(self, node: Call):
         node.data_type = 'sym_expr'
     
-    def RHS(self, node: Function):
+    def RHS(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def LHS(self, node: Function):
+    def LHS(self, node: Call):
         node.data_type = 'sym_expr'
 
-    def sin(self, node: Function):
+    def sin(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def cos(self, node: Function):
+    def cos(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def tan(self, node: Function):
+    def tan(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def asin(self, node: Function):
+    def asin(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def acos(self, node: Function):
+    def acos(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def atan(self, node: Function):
+    def atan(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def sinh(self, node: Function):
+    def sinh(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def cosh(self, node: Function):
+    def cosh(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def tanh(self, node: Function):
+    def tanh(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def asinh(self, node: Function):
+    def asinh(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def acosh(self, node: Function):
+    def acosh(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]
 
-    def atanh(self, node: Function):
+    def atanh(self, node: Call):
         node.data_type = trigFunctionFunctionType[node.args[0].data_type]

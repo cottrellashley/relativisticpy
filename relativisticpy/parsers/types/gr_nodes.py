@@ -2,8 +2,10 @@ from abc import ABC, abstractproperty
 from dataclasses import dataclass
 from enum import Enum
 from typing import Callable, List, Union
+from relativisticpy.parsers.lexers.base import TokenType
 
 from relativisticpy.parsers.types.base import AstNode, NodeType
+from relativisticpy.parsers.scope.state import ScopedState
 from .position import Position
 
 
@@ -111,55 +113,87 @@ class TensorNode(
             return 'none'
         return 'array' if self.component_ast.data_type == 'array' else 'tensor'
 
-    def execute_node(self, executor: Callable) -> None:
+    def execute_node(self, executor: Callable, tree_walker = None) -> None:
         for idx in self.indices.indices:
             if idx.values != None:
                 idx.values = executor(idx.values)
         if self.component_ast != None:
             self.component_ast_result = executor(self.component_ast)
 
+class FuncStates(Enum):
+    DEF = 1
+    CALL = 0
+    SYMBOL = 2
 
-class Function(
-    AstNode
-):  # Functions which user defines to be called again at a later stage in computation.
-    """
-    This is the object passed in as argument which the callable handling the AstNode of type TokenType.FUNCTION or TokenType.FUNCTION_DEF.
+class SymbolFunc(AstNode):
+    """ Node for the Symbolic representation of a Function. """
 
-    >    def function(args: Function):
-    >       ---> code to handle the Function object. <----
+    def __init__(self):
+        self._identifier = ""
+        self.type = NodeType.FUNBOL
+        self.data_type = "function"
 
-    OR if the hanlder callback is the function definiton node:
+    def execute_node(self, executor: Callable, scope: ScopedState = None) -> None:
+        for i, arg in enumerate(self.args):
+            self.args[i] = executor(arg)
 
-    >    def function_def(args: Function):
-    >        --- > code to handle the Function object. <----
-    """
+    @property
+    def callback(self): return "function"
 
-    # simply add name of built-in functions here.
-    # At execution, it the callback function called to handle the node will be the built in insteaf of generic 'function' callback
+    @property
+    def is_leaf(self): return False
+
+class Def(AstNode):
+    """ Node for the definition of a Function. """
+    def __init__(self):
+        self._identifier = ""
+        self.type = NodeType.FUNBOL
+        self.data_type = "function"
+
+    def execute_node(self, executor: Callable, scope: ScopedState = None) -> None:
+        for i, arg in enumerate(self.args):
+            self.args[i] = executor(arg)
+
+    @property
+    def callback(self): return "function"
+
+    @property
+    def is_leaf(self): return False
+
+class Call(AstNode):
+    """ Node for the call of a Function. Defaults to returing a Funbol, unless user actually defines a exe expression. """
     BUILT_INS = (
                     "diff", "simplify", "integrate", "expand", 
                     "diag", "lim", "solve", "dsolve", "subs", 
                     "LHS", "RHS", "tsimplify", "sum", "dosum",
+                    "sqrt", "func_derivative",
                     "prod", "doprod",
                     "sin", "cos", "tan", 
                     "asin", "atan", "acos", 
                     "cosh", "sinh", "tanh", 
                     "acosh", "asinh", "atanh"
                  )
-
+    
     def __init__(self):
         self._identifier = ""
-        self.type = (NodeType.FUNCTION,)
+        self.type = NodeType.FUNCTION
         self.data_type = "function"
         self._data_type = None
-
         self._arguments = []
+        self.arg_keys = []
         self._is_called = False
         self._exe_tree = None
+        self._state = FuncStates.SYMBOL
+        self.call_result = None
+        self.definition_node : Function = None
 
-    def execute_node(self, executor: Callable) -> None:
+    def execute_node(self, executor: Callable, scope: ScopedState = None) -> None:
+        scope.push_scope()
         for i, arg in enumerate(self.args):
-            self.args[i] = executor(arg)
+            res = executor(arg)
+            scope.set_variable(self.definition_node.arg_keys[i], res) # i.e. f(x, t) called as -> f( n**2 + 9 , 10 ) => set: 'x' :  n**2 + 9 and 't' : 10
+        self.call_result = executor(scope.current_scope.function_variables[self.identifier].executable)
+        scope.pop_scope()
 
     @property
     def data_type(self) -> str:
@@ -213,8 +247,8 @@ class Function(
             raise AttributeError(
                 "Cannot set a callback when we do not have a function identifier yet."
             )
-        if self.is_callable:
-            return "function_call"
+        if self._state == FuncStates.DEF:
+            return "function_def"
         if any([self.identifier == builtin_func for builtin_func in self.BUILT_INS]):
             return self.identifier
         return "function"
@@ -233,42 +267,174 @@ class Function(
 
     @executable.setter
     def executable(self, func_scoped_executable_tree: str) -> None:
-        if self._exe_tree != None:
-            raise AttributeError(
-                f"Cannot change the function Executable Tree at class {type(self)}"
-            )
         self._exe_tree = func_scoped_executable_tree
 
     def new_argument(self, arg: AstNode) -> None:
         if isinstance(arg, AstNode):
             arg.parent = self
         self._arguments.append(arg)
+        if arg.type == NodeType.SYMBOL:
+            self.arg_keys.append(str(arg.args[0]))
 
     def get_return_type(self, semantic_analyzer_type_traverser: Callable):
         return semantic_analyzer_type_traverser(self.executable)
 
     def set_position(self, position):
         self.position = position
+    
 
+class Function(
+    AstNode
+):  # Functions which user defines to be called again at a later stage in computation.
+    """
+    This is the object passed in as argument which the callable handling the AstNode of type TokenType.FUNCTION or TokenType.FUNCTION_DEF.
 
-# ID := EXPR | ARRAY
-class Definition(AstNode):
-    PRE_DEFINED = ("Coordinates", "MetricSymbol")
+    >    def function(args: Function):
+    >       ---> code to handle the Function object. <----
 
-    def __init__(self, position, args):
-        super().__init__(type=NodeType.DEFINITION, position=position, args=args)
-        self.data_type = 'none'
+    OR if the hanlder callback is the function definiton node:
+
+    >    def function_def(args: Function):
+    >        --- > code to handle the Function object. <----
+    """
+
+    # simply add name of built-in functions here.
+    # At execution, it the callback function called to handle the node will be the built in insteaf of generic 'function' callback
+    BUILT_INS = (
+                    "diff", "simplify", "integrate", "expand", 
+                    "diag", "lim", "solve", "dsolve", "subs", 
+                    "LHS", "RHS", "tsimplify", "sum", "dosum", "clear"
+                    "sqrt", "func_derivative",
+                    "prod", "doprod",
+                    "sin", "cos", "tan", 
+                    "asin", "atan", "acos", 
+                    "cosh", "sinh", "tanh", 
+                    "acosh", "asinh", "atanh"
+                 )
+    
+    def __init__(self):
+        self._identifier = ""
+        self.type = NodeType.FUNCTION
+        self.data_type = "function"
+        self._data_type = None
+        self._arguments = []
+        self.arg_keys = []
+        self._is_called = False
+        self._exe_tree = None
+        self._state = FuncStates.SYMBOL
+        self.call_result = None
+        self.definition_node : Function = None
+
+    def execute_node(self, executor: Callable, scope: ScopedState = None) -> None:
+        if self._state == FuncStates.SYMBOL:
+            for i, arg in enumerate(self.args):
+                self.args[i] = executor(arg)
+        elif self._state == FuncStates.CALL:
+            scope.push_scope()
+            for i, arg in enumerate(self.args):
+                res = executor(arg)
+                scope.set_variable(self.definition_node.arg_keys[i], res) # i.e. f(x, t) called as -> f( n**2 + 9 , 10 ) => set: 'x' :  n**2 + 9 and 't' : 10
+            self.call_result = executor(scope.current_scope.function_variables[self.identifier].executable)
+            scope.pop_scope()
+
+    def analyze_node(self, analyzer: Callable) -> None:
+        if self._state == FuncStates.SYMBOL:
+            for i, arg in enumerate(self.args):
+                self.args[i] = analyzer(arg)
+        elif self._state == FuncStates.DEF:
+            for i, arg in enumerate(self.args):
+                self.args[i] = analyzer(arg)
+            self.executable = analyzer(self.executable) # Will be execute much before the self.executable is passed into the CALLED sunction.
 
     @property
-    def is_leaf(self) -> bool: return False
+    def state(self) -> FuncStates: return self._state
 
-    def execute_node(self, executor: Callable):
-        self.args[1] = executor(self.args[1])
+    @state.setter
+    def state(self, value: FuncStates) -> None: self._state = value
 
     @property
-    def callback(self):
-        if self.args[0] == "Coordinates":
-            return "coordinate_definition"
-        else:
-            return "definition"
-        
+    def data_type(self) -> str:
+        if (
+            self.callback == "function"
+        ):  # WE KNOW THIS NODE IS ONLY CONVERTER TO FUNCTION SYMBOL IF CALLBACK IS 'function'
+            self._data_type = "function"
+            return self._data_type
+        elif (
+            self._data_type != None
+        ):  # We have infered data type of the return value of the function at the Semantic Analyzer phase.
+            return self._data_type
+        return None
+
+    @data_type.setter
+    def data_type(self, value: str) -> None:
+        self._data_type = value
+
+    @property
+    def is_called(self) -> bool:
+        return self._is_called
+    
+    @property
+    def is_leaf(self):
+        return self._exe_tree == None and self.args == None
+
+    @is_called.setter
+    def is_called(self, is_being_called: bool) -> None:
+        if self._exe_tree == None and is_being_called:
+            raise AttributeError(
+                f"Cannot set to call a function property {self._is_called} when the function has no tree defined to execute."
+            )
+        self._is_called = is_being_called
+
+    @property
+    def is_callable(self) -> bool:
+        return self._exe_tree != None
+
+    @property
+    def args(self) -> List[AstNode]:
+        return self._arguments
+
+    @property
+    def identifier(self) -> str:
+        return self._identifier
+
+    # Very important property -> determines the callback i.e. what will be called from the Class implementing this node at runtime.
+    @property
+    def callback(self) -> str:
+        if self._identifier == "":
+            raise AttributeError(
+                "Cannot set a callback when we do not have a function identifier yet."
+            )
+        if self._state == FuncStates.DEF:
+            return "function_def"
+        if any([self.identifier == builtin_func for builtin_func in self.BUILT_INS]):
+            return self.identifier
+        return "function"
+    
+    @identifier.setter
+    def identifier(self, funtion_identifier_value: str) -> None:
+        if self._identifier != "":
+            raise AttributeError(
+                f"Cannot change the function Identifyer at class {type(self)}"
+            )
+        self._identifier = funtion_identifier_value
+
+    @property
+    def executable(self) -> AstNode:
+        return self._exe_tree
+
+    @executable.setter
+    def executable(self, func_scoped_executable_tree: str) -> None:
+        self._exe_tree = func_scoped_executable_tree
+
+    def new_argument(self, arg: AstNode) -> None:
+        if isinstance(arg, AstNode):
+            arg.parent = self
+        self._arguments.append(arg)
+        if arg.type == NodeType.SYMBOL:
+            self.arg_keys.append(str(arg.args[0]))
+
+    def get_return_type(self, semantic_analyzer_type_traverser: Callable):
+        return semantic_analyzer_type_traverser(self.executable)
+
+    def set_position(self, position):
+        self.position = position

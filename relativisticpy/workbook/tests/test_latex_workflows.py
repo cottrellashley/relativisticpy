@@ -80,18 +80,18 @@ def test_product_function(vars_x_y_z_t_r_theta_phi):
     assert wb.expr("\\prod_{x=0}^{10} x") == Product(x, (x, 0, 10))
     assert wb.expr("\\prod_{x=1}^{oo} 1/x**2") == Product(1/x**2, (x, 1, oo))
 
-def test_matrix_begin_function(vars_x_y_z_t_r_theta_phi, func_f_g_h):
+def test_tensor_generation_from_latex_derivative(vars_x_y_z_t_r_theta_phi, func_f_g_h):
     wb = Workbook()
     x, y, z, t, r, theta, phi = vars_x_y_z_t_r_theta_phi
     f, g, h = func_f_g_h
     assert wb.expr("""
-                        C = \\begin{matrix} 
+                        C \equiv \\begin{matrix} 
                         1 &  2  & 3 \\\\
                         0 &  0  & x \\\\
                         y & f(x) & 0 \\\\
                         \\end{matrix} 
                         \\newline
-                        C  
+                        C 
                         """) == SymbolArray([[1, 2, 3], [0, 0, x], [y, f(x), 0]])
 
 

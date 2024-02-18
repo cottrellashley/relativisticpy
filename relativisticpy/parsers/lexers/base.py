@@ -63,6 +63,7 @@ class TokenType(Enum):
             "_": TokenType.UNDER,
             "{": TokenType.LBRACE,
             "}": TokenType.RBRACE,
+            "'": TokenType.APOSTROPHE,
         }
     
     @classmethod
@@ -137,6 +138,7 @@ class TokenType(Enum):
     RBRACE = "}"
     VBAR = "|"
     TILDE = "~"
+    APOSTROPHE = "'"
 
     # Double Character Tokens
     NOTEQUAL = "!="
@@ -231,6 +233,7 @@ class TokenType(Enum):
             cls.PARTIAL.value: cls.PARTIAL,
             cls.INTEGRATE.value : cls.INTEGRATE,
             cls.INFTY.value : cls.CONSTANT,
+            cls.SQRT.value : cls.SQRT,
             # LaTeX symbols are all mapped to cls.SYMBOL
             cls.alpha.value: cls.SYMBOL,
             cls.Alpha.value: cls.SYMBOL,
@@ -302,6 +305,7 @@ class TokenType(Enum):
     DERIVATIVE = "dv"
     INTEGRATE = "int"
     PARTIAL = "partial"
+    SQRT = "sqrt"
 
     ##########################################
     ############   Latex Symbols  ############ 

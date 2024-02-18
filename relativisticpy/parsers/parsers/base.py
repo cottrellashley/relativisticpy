@@ -8,8 +8,8 @@ from relativisticpy.parsers.lexers.base import LexerResult, Token, TokenType
 from relativisticpy.parsers.shared.errors import IllegalCharacterError, IllegalSyntaxError
 from relativisticpy.parsers.shared.iterator import Iterator
 
-from relativisticpy.parsers.types.base import AstNode, UnaryNode, BinaryNode, ArrayNode, IntNode, FloatNode, SymbolNode, NegNode, PosNode, NotNode, PrintNode, AssignmentNode
-from relativisticpy.parsers.types.gr_nodes import Definition, Function, NodeType, TensorNode
+from relativisticpy.parsers.types.base import AstNode, UnaryNode, BinaryNode, ArrayNode, IntNode, FloatNode, SymbolNode, NegNode, PosNode, NotNode, PrintNode, AssignmentNode, Definition
+from relativisticpy.parsers.types.gr_nodes import NodeType
 from relativisticpy.parsers.types.position import Position
 
 @dataclass
@@ -59,6 +59,9 @@ class BaseParser(ABC):
             )
 
     def confirm_syntax(self, current_type: TokenType, expected_type: Union[TokenType, List[TokenType]]):
+        ##### <<< NEEDS TO BE MODIFILED TO TAKE IN A TOKEN, NOT TOKENTYPE and THEN PERFORM A NULL CHECK.
+        # The TOKEN should never be null when this function is called but I've has a few errors cause because of this.
+
         if isinstance(expected_type, list):
             if current_type not in expected_type:
                 exp_str = " OR ".join([i.value for i in expected_type])

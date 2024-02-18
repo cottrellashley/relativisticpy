@@ -32,7 +32,7 @@ class GRLexer(BaseLexer):
             elif self.current_char() in Characters.DIGITS.value:
                 self._build_number()
 
-            elif self.current_char() in Characters.OPERATIONS.value:
+            elif self.current_char() in TokenType.SINGLES():
                 self._operation()
 
             else:
@@ -69,7 +69,7 @@ class GRLexer(BaseLexer):
         triples_dic = TokenType.TRIPPLES()
         while (
             self.current_char() != None
-            and self.current_char() in Characters.OPERATIONS.value
+            and self.current_char() in TokenType.SINGLES()
         ):
             ops.append(self.current_char())
             self.advance_char()
@@ -129,6 +129,10 @@ class GRLexer(BaseLexer):
         obj = ""
         self.advance_char()
 
+        while self.current_char() != None and self.current_char() in Characters.LETTERS.value:
+            obj += self.current_char()
+            self.advance_char()
+
         if self.current_char() == TokenType.BACKSLASH.value:
             self.token_provider.new_token(
                 TokenType.DOUBLEBACKSLASH,
@@ -137,11 +141,9 @@ class GRLexer(BaseLexer):
                 end_pos=self.current_pos(),
             )
             self.advance_char()
-
-        while self.current_char() != None and self.current_char() in Characters.LETTERS.value:
-            obj += self.current_char()
-            self.advance_char()
-    
+        elif obj not in TokenType.LaTeX():
+            raise ValueError("TOKENIZER LEVEL ERROR: The latex keyword entered is not supported.")
+        
         if obj in TokenType.LaTeX():
             self.token_provider.new_token(
                 TokenType.LaTeX()[obj],
@@ -149,6 +151,7 @@ class GRLexer(BaseLexer):
                 start_pos=start_pos,
                 end_pos=self.current_pos(),
             )
+
 
 
     def _skip_comment(self):

@@ -10,9 +10,13 @@ from relativisticpy.workbook.state import WorkbookState, TensorReference
 from relativisticpy.utils import str_is_tensors
 from relativisticpy.parsers.types.gr_nodes import TensorNode
 from relativisticpy.parsers.types.base import UnaryNode, BinaryNode, AstNode
+from relativisticpy.parsers.types.gr_nodes import FuncStates
+from relativisticpy.parsers.types.gr_nodes import Function as FunctionNode
+from relativisticpy.parsers.scope.state import ScopedState
 
 from relativisticpy.symengine import (
     Symbol,
+    Basic,
     Rational,
     Function,
     Interval,
@@ -52,10 +56,11 @@ from relativisticpy.symengine import (
     sequence,
     series,
     euler_equations,
-    sqrt,
+    root,
     exp_polar,
     bell,
     bernoulli,
+    Pow,
     binomial,
     gamma,
     conjugate,
@@ -94,10 +99,14 @@ class RelPyAstNodeTraverser:
         self.cache = cache
 
     # Cache Node handlers
-    def assignment(self, node: AstNode):
+    def definition(self, node: AstNode, state: ScopedState):
         self.cache.set_variable(str(node.args[0]), node.args[1])
 
-    def tensor_assignment(self, node: TensorNode):
+    def clear(self, node: AstNode, state: ScopedState):
+        state.reset()
+        y = state
+
+    def tensor_assignment(self, node: TensorNode, state: ScopedState):
         tref = TensorReference(node)
         if node.sub_components_called:
             raise ValueError(
@@ -107,59 +116,70 @@ class RelPyAstNodeTraverser:
             tref.is_metric = True
         TensorAssignmentHandler(self.cache).handle(tref)
 
-    def function_definition(self, node: AstNode):
+    def function_def(self, node: AstNode, state: ScopedState):
         pass  # User can define a function which they can actually call
 
-    def symbol_definition(self, node: AstNode):
+    def symbol_definition(self, node: AstNode, state: ScopedState):
         self.cache.set_variable(node.args[0], str(node.args[1]))
 
-    def define(self, node: AstNode):
+    def define(self, node: AstNode, state: ScopedState):
         DefinitionNode(self.cache).handle(node)
 
-    def coordinate_definition(self, node: AstNode):
+    def coordinate_definition(self, node: AstNode, state: ScopedState):
         key = node.args[0]
-        coordinates = node.args[1]
+        coordinates = state.get_variable(key)
 
         self.cache.set_coordinates(coordinates)
         self.cache.set_variable(key, coordinates)
 
-    def sub(self, node: AstNode):
+    def sub(self, node: AstNode, state: ScopedState):
         return node.args[0] - node.args[1]
 
-    def add(self, node: AstNode):
+    def add(self, node: AstNode, state: ScopedState):
         return node.args[0] + node.args[1]
 
-    def neg(self, node: AstNode):
+    def neg(self, node: AstNode, state: ScopedState):
         return -node.args[0]
 
-    def pos(self, node: AstNode):
+    def pos(self, node: AstNode, state: ScopedState):
         return +node.args[0]
 
-    def mul(self, node: AstNode):
+    def mul(self, node: AstNode, state: ScopedState):
         return node.args[0] * node.args[1]
 
-    def div(self, node: AstNode):
+    def div(self, node: AstNode, state: ScopedState):
         return node.args[0] / node.args[1]
 
-    def pow(self, node: AstNode):
+    def pow(self, node: AstNode, state: ScopedState):
         return node.args[0] ** node.args[1]
 
-    def int(self, node: AstNode):
+    def int(self, node: AstNode, state: ScopedState):
         return int("".join(node.args))
 
-    def float(self, node: AstNode):
+    def float(self, node: AstNode, state: ScopedState):
         return float("".join(node.args))
 
-    def subs(self, node: AstNode):
+    def subs(self, node: AstNode, state: ScopedState):
         return node.args[0].subs(node.args[1], node.args[2])
 
-    def lim(self, node: AstNode):
+    def lim(self, node: AstNode, state: ScopedState):
         return limit(*node.args)
+    
+    def sqrt(self, node: AstNode, state: ScopedState):
+        if isinstance(node.args[0], Basic):
+            return Pow(node.args[0], Rational(1, 2))
+        else:
+            return node.args[0] ** 0.5
 
-    def expand(self, node: AstNode):
+    def expand(self, node: AstNode, state: ScopedState):
         return expand(*node.args)
+    
+    def func_derivative(self, node: AstNode, state: ScopedState):
+        if isinstance(node.args[1], Basic):
+            wrt = list(node.args[1].free_symbols)[0] if not [] == list(node.args[1].free_symbols) else None
+            return diff(node.args[0], wrt, node.args[2])
 
-    def diff(self, node: AstNode):
+    def diff(self, node: AstNode, state: ScopedState):
         if isinstance(node.args[0], EinsteinArray):
             old_tensor: EinsteinArray = node.args[0]
             if len(node.args) == 3:
@@ -178,70 +198,70 @@ class RelPyAstNodeTraverser:
         ans = diff(*node.args)
         return ans
 
-    def integrate(self, node: AstNode):
+    def integrate(self, node: AstNode, state: ScopedState):
         return integrate(*node.args)
 
-    def simplify(self, node: AstNode):
+    def simplify(self, node: AstNode, state: ScopedState):
         return simplify(*node.args)
 
-    def latex(self, node: AstNode):
+    def latex(self, node: AstNode, state: ScopedState):
         return latex(*node.args)
 
-    def solve(self, node: AstNode):
+    def solve(self, node: AstNode, state: ScopedState):
         a = node.args
         res = solve(*a)
         return res
 
-    def numerical(self, node: AstNode):
+    def numerical(self, node: AstNode, state: ScopedState):
         return N(*node.args)
 
-    def exp(self, node: AstNode):
+    def exp(self, node: AstNode, state: ScopedState):
         return exp(*node.args)
 
-    def dsolve(self, node: AstNode):
+    def dsolve(self, node: AstNode, state: ScopedState):
         return dsolve(*node.args)
 
     # Sympy Trigs
-    def sin(self, node: AstNode):
+    def sin(self, node: AstNode, state: ScopedState):
         return sin(*node.args)
 
-    def cos(self, node: AstNode):
+    def cos(self, node: AstNode, state: ScopedState):
         return cos(*node.args)
 
-    def tan(self, node: AstNode):
+    def tan(self, node: AstNode, state: ScopedState):
         return tan(*node.args)
 
-    def asin(self, node: AstNode):
+    def asin(self, node: AstNode, state: ScopedState):
         return asin(*node.args)
 
-    def acos(self, node: AstNode):
+    def acos(self, node: AstNode, state: ScopedState):
         return acos(*node.args)
 
-    def atan(self, node: AstNode):
+    def atan(self, node: AstNode, state: ScopedState):
         return atan(*node.args)
 
-    def sinh(self, node: AstNode):
+    def sinh(self, node: AstNode, state: ScopedState):
         return sinh(*node.args)
 
-    def cosh(self, node: AstNode):
+    def cosh(self, node: AstNode, state: ScopedState):
         return cosh(*node.args)
 
-    def tanh(self, node: AstNode):
+    def tanh(self, node: AstNode, state: ScopedState):
         return tanh(*node.args)
 
-    def asinh(self, node: AstNode):
+    def asinh(self, node: AstNode, state: ScopedState):
         return asinh(*node.args)
 
-    def acosh(self, node: AstNode):
+    def acosh(self, node: AstNode, state: ScopedState):
         return acosh(*node.args)
 
-    def atanh(self, node: AstNode):
+    def atanh(self, node: AstNode, state: ScopedState):
         return atanh(*node.args)
 
-    def array(self, node: AstNode):
+    def array(self, node: AstNode, state: ScopedState):
         return SymbolArray(list(node.args))
 
-    def tsimplify(self, node: UnaryNode):
+    def tsimplify(self, node: UnaryNode, state: ScopedState):
         tensor = node.args[0]
         tensor.components = simplify(
             list(tensor.components)[0]
@@ -249,7 +269,7 @@ class RelPyAstNodeTraverser:
         return tensor
 
     # Sympy constants
-    def constant(self, node: AstNode):
+    def constant(self, node: AstNode, state: ScopedState):
         a = "".join(node.args)
         if a == "pi":
             return pi
@@ -259,12 +279,18 @@ class RelPyAstNodeTraverser:
             return oo
 
     # Sympy symbols / function initiators
-    def function(self, node: AstNode):
-        func_id = node.identifier
-        func = symbols("{}".format(func_id), cls=Function)(*node.args)
-        return func
+    def call(self, node: FunctionNode, state: ScopedState):
+        return node.call_return
+        
+    def symbolfunc(self, node: FunctionNode, state: ScopedState):
+        if not self.cache.has_variable(node.identifier):
+            func_id = node.identifier
+            func = symbols("{}".format(func_id), cls=Function)(*node.args)
+            return func
+        else:
+            return Function(self.cache.get_variable(node.identifier))(*node.args)
 
-    def symbol(self, node: AstNode):
+    def symbol(self, node: AstNode, state: ScopedState):
         a = "".join(node.args)
 
         if a == self.cache.metric_symbol:
@@ -275,13 +301,13 @@ class RelPyAstNodeTraverser:
             self.cache.set_ricci_scalar()
             return self.cache.ricci_scalar
 
-        elif not self.cache.has_variable(a):
+        elif state.get_variable(a) == None:
             return symbols("{}".format(a))
 
         else:
-            return self.cache.get_variable(str(a))
+            return state.get_variable(a)
 
-    def diag(self, node: AstNode):
+    def diag(self, node: AstNode, state: ScopedState):
         # Determine n from the length of diag_values
         n = len(node.args)
 
@@ -294,7 +320,7 @@ class RelPyAstNodeTraverser:
 
         return ndarray
 
-    def tensor(self, node: AstNode):
+    def tensor(self, node: AstNode, state: ScopedState):
         tref = TensorReference(node)
         if tref.id == self.cache.metric_symbol:
             tref.is_metric = True
@@ -302,23 +328,23 @@ class RelPyAstNodeTraverser:
             tref
         )  # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
 
-    def print_(self, node: AstNode):
+    def print_(self, node: AstNode, state: ScopedState):
         return node.args
 
-    def RHS(self, node: AstNode):
+    def RHS(self, node: AstNode, state: ScopedState):
         return node.args[0].rhs
 
-    def LHS(self, node: AstNode):
+    def LHS(self, node: AstNode, state: ScopedState):
         return node.args[0].lhs
 
-    def sum(self, node: AstNode):
+    def sum(self, node: AstNode, state: ScopedState):
         return Sum(node.args[0], (node.args[1], node.args[2], node.args[3]))
 
-    def dosum(self, node: AstNode):
+    def dosum(self, node: AstNode, state: ScopedState):
         return Sum(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
 
-    def prod(self, node: AstNode):
+    def prod(self, node: AstNode, state: ScopedState):
         return Product(node.args[0], (node.args[1], node.args[2], node.args[3]))
 
-    def doprod(self, node: AstNode):
+    def doprod(self, node: AstNode, state: ScopedState):
         return Product(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()

@@ -44,8 +44,11 @@ from relativisticpy.parsers.types.base import (
     BinaryNode,
     ArrayNode,
     Infinitesimal,
+    Definition, 
+    Call, 
+    Def
 )
-from relativisticpy.parsers.types.gr_nodes import TensorNode, Function, Definition
+from relativisticpy.parsers.types.gr_nodes import TensorNode
 from relativisticpy.parsers.shared.error_messages import braces_unmatched_errors
 from relativisticpy.parsers.types.position import Position
 
@@ -92,6 +95,8 @@ class GRParser(BaseParser):
                 break
             if not self.current_token:
                 break
+            if self.current_token.type == TokenType.RBRACE:
+                break
             statement = self.statement()
             if not statement:
                 more_statements = False
@@ -119,9 +124,10 @@ class GRParser(BaseParser):
     def expr(self):
         start_position = self.current_token.start_position.copy()
 
-        if self.current_token.type == TokenType.ID and self.peek(
-            1, Token(TokenType.NONE, "")
-        ).type in (TokenType.EQUAL, TokenType.COLONEQUAL):
+        if self.current_token.type == TokenType.ID and self.peek_type(1) in (
+            TokenType.EQUAL,
+            TokenType.COLONEQUAL,
+        ):
             token = self.current_token
             # Skip over as we already know Token will be EQUAL
             self.advance_token()
@@ -226,8 +232,7 @@ class GRParser(BaseParser):
                 result = self.new_sub_node(start_position, [result, self.term()])
         if self.current_token != None:
             if self.current_token.type == TokenType.VBAR:
-                func_node = Function()
-                func_node.identifier = 'subs'
+
                 self.advance_token()
                 self.confirm_syntax(self.current_token.type, TokenType.UNDER)
                 self.advance_token()
@@ -237,10 +242,12 @@ class GRParser(BaseParser):
                 self.confirm_syntax(self.current_token.type, TokenType.EQUAL)
                 self.advance_token()
                 rhs = self.arith_expr()
-                func_node.new_argument(result)
-                func_node.new_argument(lhs)
-                func_node.new_argument(rhs)
-                return func_node
+
+                return Call(
+                        identifier = 'subs',
+                        position = start_position,
+                        args = [result, lhs, rhs]
+                    )
         return result
 
     def term(self):
@@ -284,6 +291,41 @@ class GRParser(BaseParser):
                 result = self.new_pow_node(start_position, [result, self.atom()])
         return result
 
+    ##############################  ATOM RULES  ######################################################
+    #
+    # atom            :   INT|FLOAT|STRING|BOOL
+    #                 |   LPAR        -> LPAR expr RPAR
+    #                 |   RSQB        -> array
+    #
+    #                 |   SUM         -> sum
+    #                 |   DV          -> dv
+    #                 |   PDV         -> pdv
+    #                 |   DOSUM       -> do_sum
+    #                 |   PROD        -> product
+    #                 |   DOPROD      -> do_product
+    #                 |   INTEGRATE   -> integrate
+    #                 |   FRAC        -> fraction
+    #                 |   PROD        -> product
+    #                 |   LIMIT       -> limit
+    #                 |   PARTIAL     -> partial
+    #                 |   BEGIN       -> BeginMap( array, equation, matrix, pmatrix, etc... )
+    #
+    #                 |   ID          -> IF(TensorPeek = True)        -> tensor
+    #                                 /  IF(FunctionDefPeek = True)   -> func-def
+    #                                 /  IF(FunctionPeek = True)      -> function
+    #                                 /  ID
+    #
+    #                 |   SYMBOL      -> IF(TensorPeek = True)        -> tensor
+    #                                 /  IF(FunctionDefPeek = True)   -> func-def
+    #                                 /  IF(FunctionPeek = True)      -> function
+    #                                 /  SYMBOL
+    #
+    #                 |   D           -> IF(TensoPeek = True)         -> tensor
+    #                                 /  D                            -> derivative
+    #
+    #                 |   PARTIAL     -> IF(TensoPeek = True)         -> tensor
+    #                                 /  PARTIAL                      -> partial
+    ################################################################################################
     def atom(self):
         token: Token = self.current_token
         start_position = self.current_token.start_position.copy()
@@ -291,7 +333,7 @@ class GRParser(BaseParser):
         if token.type == TokenType.FLOAT:
             self.advance_token()
             return self.new_float_node(start_position, [token.value])
-        
+
         elif token.type == TokenType.CONSTANT:
             self.advance_token()
             return self.new_constant_node(start_position, [token.value])
@@ -299,7 +341,7 @@ class GRParser(BaseParser):
         elif token.type == TokenType.INT:
             self.advance_token()
             return self.new_int_node(start_position, [token.value])
-        
+
         elif token.type in [TokenType.INFINITESIMAL, TokenType.PARTIAL]:
             if (
                 self.peek_type(1) in [TokenType.UNDER, TokenType.CIRCUMFLEX]
@@ -318,12 +360,15 @@ class GRParser(BaseParser):
             ):
                 self.advance_token()
                 return self.tensor(token)
+            elif self.peek_type(1) == TokenType.APOSTROPHE:
+                self.advance_token()
+                return self.single_arg_function_derivative(token, start_position)
             elif self.peek_type(1) == TokenType.LPAR:
                 self.advance_token()
                 return self.function(token, start_position)
             elif self.peek_type(1) == TokenType.COLON:
                 self.advance_token()
-                return self.function(token, start_position)
+                return self.expr_function(token, start_position)
             else:
                 self.advance_token()
                 return self.new_symbol_node(start_position, [token.value])
@@ -344,6 +389,10 @@ class GRParser(BaseParser):
         elif token.type == TokenType.LIMIT:
             self.advance_token()
             return self.limit(start_position)
+
+        elif token.type == TokenType.SQRT:
+            self.advance_token()
+            return self.sqrt(start_position)
 
         elif token.type == TokenType.BEGIN:  # We are beggining a new object
             self.advance_token()
@@ -370,6 +419,9 @@ class GRParser(BaseParser):
                 Position: {self.current_token.end_position.copy().character} is not recognized or supported by RelativisticPy's Parser.""",
             )
 
+    ############################## ARRAY ATOM   ####################################################
+    #  array           :   LSQB NEWLINE* (expr (COMMA NEWLINE* expr)* NEWLINE* RSQB)
+    ################################################################################################
     def array(self, start_position):
         elements = []
         if self.current_token.type != TokenType.RSQB:
@@ -409,6 +461,9 @@ class GRParser(BaseParser):
 
         return self.new_array_node(start_position, elements)
 
+    ############################## MATRIX ATOM ##########################################################################################################################################################
+    #  matrix          :   BEGIN LBRACE ID:matrix RBRACE NEWLINE* expr ( '&' NEWLINE* expr )* NEWLINE* ('\\' NEWLINE* expr ( '&' NEWLINE* expr )* )* NEWLINE* END LBRACE ID:matrix RBRACE
+    ######################################################################################################################################################################################################
     def matrix(self, start_position):
         i_elements = []
         j_elements = []
@@ -472,7 +527,13 @@ class GRParser(BaseParser):
         self.advance_token()
         return self.new_array_node(start_position, j_elements)
 
-    # tensor : TENSORID ((UNDER|CIRCUMFLEX) LBRACE ID ((EQUAL|COLON) (INT|atom))? RBRACE )*
+    ############################## TENSOT ATOM ####################################################
+    # tensor          :   ID ((UNDER|CIRCUMFLEX) LBRACE (ID ((EQUAL|COLON) (INT|atom))?)* RBRACE )*
+    #                 :   tensor ((EQUAL) expr)?
+    #                 :   tensor ((EQUAL) array)?
+    #                 :   tensor ((COLONEQUAL) array)?
+    #                 :   tensor tensor*  <- NOT IMPLEMENTED YET
+    ###############################################################################################
     def tensor(self, token: Token):
         tensor_node = TensorNode(self.current_token.start_position.copy())
         tensor_node.identifier = token.value
@@ -557,41 +618,117 @@ class GRParser(BaseParser):
 
         return tensor_node
 
+    ############################## ARRAY ATOM   ####################################################
+    #  array           :   LSQB NEWLINE* (expr (COMMA NEWLINE* expr)* NEWLINE* RSQB)
+    ################################################################################################
     def function(self, token: Token, start_position):
-        func_node = Function()
 
-        func_node.identifier = token.value
+        identifier = token.value
+        arguments = []
 
         self.confirm_syntax(self.current_token.type, TokenType.LPAR)
 
         self.advance_token()
 
-        func_node.new_argument(
-            self.arith_expr()
-        )  # We only allow mathematical expressions as args
-        while self.current_token != None and self.current_token.type == TokenType.COMMA:
-            self.advance_token()
-            func_node.new_argument(self.arith_expr())
+        if not self.current_token.type == TokenType.RPAR:
+
+            arguments.append(
+                self.bool_expr()
+            )  # We only allow mathematical expressions as args
+            while self.current_token != None and self.current_token.type == TokenType.COMMA:
+                self.advance_token()
+                arguments.append(self.bool_expr())
 
         self.confirm_syntax(self.current_token.type, TokenType.RPAR)
 
         self.advance_token()
-        func_node.set_position(start_position)
 
         if self.current_token == None:
-            return func_node
+            pos = self.peek_prev_token(ignore_NEWLINE=True).end_position.copy()
+            return Call(
+                            identifier = identifier,
+                            position = pos, 
+                            args = arguments
+                        )
 
-        # Is user defining a callable object | function ?
+        # Is user defining a function ?
         if self.current_token.type == TokenType.COLONEQUAL:
             self.advance_token()
-            func_node.executable = self.expr()
-            return func_node
+            return Def(
+                        identifier = identifier,
+                        body = self.expr(),
+                        position = self.current_token.end_position.copy(),
+                        args = arguments
+                    )
 
-        return func_node
+        return Call(
+                        identifier = identifier,
+                        position = self.current_token.end_position.copy(), 
+                        args = arguments
+                    )
 
+    ############################## ARRAY ATOM   ####################################################
+    #  array           :   ID COLON LPAR ((ID|SYMBOL) COMMA)* RARROW LBRACE statements RBRACE
+    ################################################################################################
+    def expr_function(self, token: Token, start_position):
+
+        identifier = token.value
+        arguments = []
+
+        self.confirm_syntax(self.current_token.type, TokenType.COLON)
+
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.LPAR)
+
+        if not self.current_token.type == TokenType.RPAR:
+
+            self.advance_token()
+
+            self.confirm_syntax(self.current_token.type,[TokenType.SYMBOL, TokenType.ID])
+            arguments.append(
+                self.new_symbol_node(self.current_token.end_position.copy(), [self.current_token.value])
+            )  # We only allow mathematical expressions as args
+            while self.current_token != None and self.current_token.type == TokenType.COMMA:
+                self.advance_token()
+                self.confirm_syntax(self.current_token.type,[TokenType.SYMBOL, TokenType.ID])
+                arguments.append(self.new_symbol_node(self.current_token.end_position.copy(), [self.current_token.value]))
+                self.advance_token()
+
+        self.advance_token()
+        self.confirm_syntax(self.current_token.type, TokenType.RPAR)
+
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.RARROW)
+
+        self.advance_token()
+
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
+
+        self.advance_token()
+
+        statements = self.statements()
+
+        self.ignore_newlines()
+
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
+
+        self.advance_token()
+
+        return Def(
+                    identifier = identifier,
+                    body = statements,
+                    position = start_position,
+                    args = arguments
+                )
+
+
+    ############################## SUM ATOM   ####################################################
+    #  sum             :   SUM UNDER LBRACE expr RBRACE CIRCUMFLEX LBRACE expr RBRACE expr
+    ################################################################################################
     def sum(self, token: Token, start_position):
-        func_node = Function()
-        func_node.identifier = token.value
+        identifier = token.value
 
         self.confirm_syntax(self.current_token.type, TokenType.UNDER)
         self.advance_token()
@@ -624,17 +761,16 @@ class GRParser(BaseParser):
         self.advance_token()
         expression = self.arith_expr()
 
-        func_node.new_argument(expression)
-        func_node.new_argument(var)
-        func_node.new_argument(start)
-        func_node.new_argument(end)
+        return Call(
+                        identifier = identifier,
+                        position = start_position,
+                        args = [expression, var, start, end]
+                    )
 
-        return func_node
-
+    ############################## LIMIT ATOM   ####################################################
+    #  limit             :   LIMIT UNDER LBRACE (SYMBOL|ID) RARROW arith_expr RBRACE arith_expr
+    ################################################################################################
     def limit(self, start_position):
-        func_node = Function()
-
-        func_node.identifier = TokenType.LIMIT.value
 
         self.confirm_syntax(self.current_token.type, TokenType.UNDER)
         self.advance_token()
@@ -655,14 +791,19 @@ class GRParser(BaseParser):
         self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
         self.advance_token()
 
-        expression = self.arith_expr()
-        func_node.new_argument(expression)
-        func_node.new_argument(var)
-        func_node.new_argument(to_expr)
-        return func_node
+        expression = (
+            self.arith_expr()
+        )  ### <<<<<<<<<<<<<<<<<<<<<<<<<------------------- BAD CODE = INPROPER DOWNWARD DEPENDENCY. This lower level code should not need to know the order in which to place the arguments.
+        return Call(
+                        identifier = TokenType.LIMIT.value,
+                        position = start_position,
+                        args = [expression, var, to_expr]
+                    )
 
+    ############################## FRAC ATOM ######################################################
+    #  frac             :   FRAC LBRACE arith_expr RBRACE LBRACE arith_expr RBRACE
+    ###############################################################################################
     def frac(self, start_position):
-        # LBRACE arith_expr RBRACE LBRACE arith_expr RBRACE
         pos = self.current_token.start_position
         self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
         self.advance_token()
@@ -676,8 +817,65 @@ class GRParser(BaseParser):
         self.advance_token()
         return self.new_div_node(pos, [numerator, denominator])
 
+    ############################## SQRT ATOM ######################################################
+    #  sqrt             :   SQRT LBRACE arith_expr RBRACE
+    ###############################################################################################
+    def sqrt(self, start_position):
+        pos = self.current_token.start_position
+        self.confirm_syntax(self.current_token.type, TokenType.LBRACE)
+        self.advance_token()
+        argument = self.arith_expr()
+        self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
+        self.advance_token()
+        return Call(
+                        identifier = TokenType.SQRT.value,
+                        position = pos,
+                        args = [argument]
+                    )
+
+    ############################## ATOM ###########################################################
+    #  1-arg-func-derivative    :   ID APOSTROPHE+ LPAR SYMBOL RPAR
+    ###############################################################################################
+    def single_arg_function_derivative(self, token: Token, start_position):
+        identifier = token.value
+
+        d_order = 1
+
+        self.confirm_syntax(self.current_token.type, TokenType.APOSTROPHE)
+        self.advance_token()
+
+        while self.current_token.type == TokenType.APOSTROPHE:
+            d_order += 1
+            self.advance_token()
+        
+        self.confirm_syntax(self.current_token.type, TokenType.LPAR)
+        self.advance_token()
+
+        arguments = self.arith_expr()
+
+        self.confirm_syntax(self.current_token.type, TokenType.RPAR)
+        self.advance_token()
+
+        symbol_function = Call(identifier=identifier, position=start_position, args=[arguments])
+
+        return Call(
+                        identifier = 'func_derivative',
+                        position = start_position,
+                        args = [symbol_function, arguments, self.new_int_node(start_position, [str(d_order)])]
+                    )
+
+    ############################## INFINITESSIMAL ATOM   ####################################################
+    #  diff_operator        :   D ( > RBRACE | > DASH )
+    #                       |   D arith_expr
+    #                       |   D LPAR arith_expr RPAR
+    #                       |   D LBRACE arith_expr RBRACE
+    #                       |   D CIRCUMFLEX INT LBRACE arith_expr RBRACE !(CIRCUMFLEX INT)
+    #                       |   D !(CIRCUMFLEX INT) LBRACE arith_expr RBRACE CIRCUMFLEX INT
+    ###############################################################################################
     def infinitesimal(self, token):
-        diff_order = self.new_int_node(self.current_token.end_position.copy(), ['1']) # defaults to first order derivaitve
+        diff_order = self.new_int_node(
+            self.current_token.end_position.copy(), ["1"]
+        )  # defaults to first order derivaitve
         circumflex_tag = False
         diff_order_as_int = 1
 
@@ -686,16 +884,18 @@ class GRParser(BaseParser):
             circumflex_tag = True
             self.advance_token()
             self.confirm_syntax(self.current_token.type, TokenType.INT)
-            diff_order = self.new_int_node(self.current_token.end_position.copy(), [self.current_token.value])
+            diff_order = self.new_int_node(
+                self.current_token.end_position.copy(), [self.current_token.value]
+            )
             diff_order_as_int = int(self.current_token.value)
             self.advance_token()
-        
+
         # d{x} OR d{x^n} OR d{x}^n
         if self.current_token.type == TokenType.LBRACE:
             self.advance_token()
             expr = self.arith_expr()
             self.confirm_syntax(self.current_token.type, TokenType.RBRACE)
-            
+
             # d^2{x}^2 Is not valid
             if self.peek_type(1) == TokenType.CIRCUMFLEX and circumflex_tag:
                 return self.illegal_character_error(
@@ -706,7 +906,9 @@ class GRParser(BaseParser):
             if self.current_token.type == TokenType.CIRCUMFLEX:
                 self.advance_token()
                 self.confirm_syntax(self.current_token.type, TokenType.INT)
-                diff_order = self.new_int_node(self.current_token.end_position.copy(), [self.current_token.value])
+                diff_order = self.new_int_node(
+                    self.current_token.end_position.copy(), [self.current_token.value]
+                )
                 diff_order_as_int = int(self.current_token.value)
                 self.advance_token()
 
@@ -717,9 +919,14 @@ class GRParser(BaseParser):
             return inft
 
         expr = self.arith_expr()
-        inft = Infinitesimal(self.current_token.end_position.copy(), [expr])
+        if self.current_token != None:
+            inft = Infinitesimal(self.current_token.end_position.copy(), [expr])
+        else:
+            inft = Infinitesimal(token.end_position.copy(), [expr])
         inft.expression = expr
         self.confirm_syntax(self.current_token.type, TokenType.INT)
-        inft.diff_order = self.new_int_node(self.current_token.end_position.copy(), [self.current_token.value])
+        inft.diff_order = self.new_int_node(
+            self.current_token.end_position.copy(), [self.current_token.value]
+        )
         inft.is_partial = False
         return inft

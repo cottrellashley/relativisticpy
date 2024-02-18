@@ -13,4 +13,3 @@ from relativisticpy.gr.tensors.einstein import EinsteinTensor
 from relativisticpy.gr.connection import Connection
 from relativisticpy.gr.derivatives.covariant import CovDerivative
 from relativisticpy.gr.derivatives.partial import Derivative
-from relativisticpy.gr.coord_transformation import TransformationDeserializer

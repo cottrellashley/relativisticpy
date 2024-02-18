@@ -2,7 +2,7 @@ from itertools import product
 import pytest
 from relativisticpy.core.indices import Idx, Indices
 from relativisticpy.core.metric import MetricIndices
-from relativisticpy.deserializers import Mathify
+from relativisticpy.symengine import SymbolArray, Symbol
 
 
 @pytest.fixture
@@ -12,9 +12,9 @@ def indices_setup():
     indices = Indices(idx1, idx2)
     return indices, idx1, idx2
 
-
 @pytest.fixture
 def indices_product_setup():
+
     # Init indices.
     a1_f0_c1 = Indices(-Idx("a"), Idx("f"), -Idx("c"))
     a0_b0_c0 = Indices(Idx("a"), Idx("b"), Idx("c"))
@@ -24,8 +24,12 @@ def indices_product_setup():
     metric_a0_nu0 = MetricIndices(Idx("a"), Idx("nu"))
 
     # Set basis for space.
-    basis2D = Mathify("[t, r]")
-    basis3D = Mathify("[t, r, theta]")
+    t = Symbol('t')
+    r = Symbol('r')
+    theta = Symbol('theta')
+    phi = Symbol('phi')
+    basis2D = SymbolArray([t, r])
+    basis3D = SymbolArray([t, r, theta])
 
     a1_f0_c1.basis = basis3D
     a0_b0_c0.basis = basis3D
@@ -47,8 +51,12 @@ def const_indices_product_setup():
     mu1_nu1 = Indices(-Idx("mu"), -Idx("nu", values=1))
 
     # Set basis for space.
-    basis2D = Mathify("[t, r]")
-    basis3D = Mathify("[t, r, theta]")
+    t = Symbol('t')
+    r = Symbol('r')
+    theta = Symbol('theta')
+    phi = Symbol('phi')
+    basis2D = SymbolArray([t, r])
+    basis3D = SymbolArray([t, r, theta])
 
     a1_f0_c1.basis = basis3D
     a0_b0_c0.basis = basis3D
@@ -96,23 +104,6 @@ def test_getitem(indices_setup):
         for idx in indices.indices
         if idx.symbol == idx1.symbol and idx.covariant == idx1.covariant
     ]
-
-
-def test_from_string(indices_setup):
-    a0_b0_c0, idx1, idx2 = indices_setup
-    indices_from_string_init = Indices.from_string("_{a}_{b}")
-
-    assert indices_from_string_init.indices[0] == idx1
-    assert indices_from_string_init.indices[1] == idx2
-    assert indices_from_string_init == a0_b0_c0
-
-
-# Testing Indices Product - (this is the core compute feature of index/indices object. => they were designed to around the simplification of this compute.)
-# when we perform opertations between indices, a few things happen:
-# 1. We return another index object which represents the einstein summed index as a result of the two indices that were summed.
-# 2. We inject a method implementation into the callback method "generator" => which generates the indices which are to be summed based on the resulting indices comps.
-# 1 and 2 together means we can iterate through the resulting indices object, which returns all which it needs to be iterated, and pass its own iteration in as an argument
-# to the "generator" callback, which will take those components and workout the components which are to be summed.
 
 
 def test_all_running_indices_iteration(indices_product_setup):
@@ -386,7 +377,11 @@ def test_selfsum_product_from_initiation():
     indices_a0_b0_a1 = Indices(Idx("a"), Idx("b"), -Idx("a"))
     indices_a0_a1 = Indices(Idx("a"), -Idx("a"))
 
-    basis3D = Mathify("[t, r, theta]")
+    # Set basis for space.
+    t = Symbol('t')
+    r = Symbol('r')
+    theta = Symbol('theta')
+    basis3D = SymbolArray([t, r, theta])
     indices_a0_b0_a1.basis = basis3D
     indices_a0_a1.basis = basis3D
 
@@ -429,7 +424,11 @@ def test_selfsum_product_from_metric_einsum_result():
     indices_a0_b0_c0 = Indices(Idx("a"), Idx("b"), Idx("c"))
     indices_a0_b0 = Indices(Idx("a"), Idx("b"))
     metric_a1_b1 = MetricIndices(-Idx("a"), -Idx("b"))
-    basis3D = Mathify("[t, r, theta]")
+    # Set basis for space.
+    t = Symbol('t')
+    r = Symbol('r')
+    theta = Symbol('theta')
+    basis3D = SymbolArray([t, r, theta])
 
     indices_a0_b0_c0.basis = basis3D
     indices_a0_b0.basis = basis3D

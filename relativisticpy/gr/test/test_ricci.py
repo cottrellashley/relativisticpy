@@ -1,4 +1,5 @@
 import pytest
+from relativisticpy.core.indices import Idx
 from relativisticpy.symengine import Symbol, Function, sin, cos, diff, SymbolArray
 from relativisticpy.gr.tensors.ricci import Ricci
 from relativisticpy.core import Metric, MetricIndices, Indices
@@ -14,7 +15,7 @@ def schild_setup():
     phi = Symbol("phi")
 
     # init
-    indices = MetricIndices.from_string('_{a}_{b}')
+    indices = MetricIndices([Idx('a'), Idx('b')])
     components = SymbolArray([[-(1 - M/r), 0, 0, 0], [0, 1/(1 - M/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]])
     basis = [t, r, theta, phi]
     metric = Metric(indices, components, basis)
@@ -25,7 +26,7 @@ def schild_setup():
 
 @pytest.fixture
 def indices_a_b():
-    return Indices.from_string('_{a}_{b}')
+    return Indices([Idx('a'), Idx('b')])
 
 
 @pytest.fixture

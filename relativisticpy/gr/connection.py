@@ -6,16 +6,10 @@ from typing import Optional, Union
 # External Modules
 from relativisticpy.core import Idx, Indices, EinsteinArray, einstein_convention, Metric
 from relativisticpy.symengine import SymbolArray, Rational, diff, simplify
-from relativisticpy.deserializers import tensor_from_string
 
 
 @einstein_convention
 class Connection(EinsteinArray):
-    @classmethod
-    def from_string(cls, indices_str, comp_str, basis_str):
-        return tensor_from_string(
-            Idx, Indices, Connection, indices_str, comp_str, basis_str
-        )
 
     def from_metric(metric: Metric) -> SymbolArray:
         D = metric.dimention

@@ -8,8 +8,7 @@ from relativisticpy.core.tensor_equality_types import TensorEqualityType
 
 # External Modules
 from relativisticpy.utils import transpose_list
-from relativisticpy.deserializers import indices_from_string, Mathify
-from relativisticpy.symengine import SymbolArray, symbols
+from relativisticpy.symengine import SymbolArray
 
 class Idx:
     """
@@ -81,16 +80,6 @@ class Idx:
 
 class Indices:
     """ Representation of Tensor Indices. Initialized as a list of Idx objecs. """
-
-    @classmethod
-    def from_string(cls, indices_string, basis = None):
-        if basis == None:
-            return indices_from_string(Idx, Indices, indices_string)
-        indices = indices_from_string(Idx, Indices, indices_string)
-        if isinstance(basis, str):
-            basis = Mathify(basis)
-        indices.basis = basis
-        return indices
     
     EINSUM_GENERATOR = "EINSUM"
     SUMMATION_GENERATOR = "SUMMATION"
