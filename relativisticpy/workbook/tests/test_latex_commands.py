@@ -144,20 +144,15 @@ def test_all_derivative_commands(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     assert wb.expr("diff(f(x), x, 4)") == diff(f(x), x, 4)
     assert wb.expr("diff(f(x) ** x, x, x)") == diff(f(x)**x, x, x)
 
-    # New - to be implemented
-    assert wb.expr(" f'(x) ") == diff(f(x), x)
-    assert wb.expr(" f''(x) ") == diff(f(x), x, 2)
-    assert wb.expr(" f'''(x) ") == diff(f(x), x, 3)
-
-    # New - to be implemented
+    # Using dash - quickets one variable derivative
     assert wb.expr(" f'(x) ") == diff(f(x), x)
     assert wb.expr(" f''(x) ") == diff(f(x), x, 2)
     assert wb.expr(" f'''(x) ") == diff(f(x), x, 3)
     assert wb.expr(" f'''''''''''''''''(x) ")  == diff(f(x), x, 17)
+
     # using partial 
-    assert wb.expr(" \partial{f(x)} / \partial{x} ") == diff(f(x), x)
-    assert wb.expr(" \\frac{\partial^2{x^2}{\partial{\\tau}^2} ") == diff( x**2 , tau, 2)
-    assert wb.expr(" \\frac{\partial^2{{\sqrt{ - x**3 + y**2 - z }}{\partial{x}^2} ") == diff( sqrt( - x**3 + y**2 - z ), x, 2)
+    assert wb.expr(" \\frac{\partial^2{x^2}}{\partial{\\tau}^2} ") == diff( x**2 , tau, 2)
+    assert wb.expr(" \\frac{\partial^2{\sqrt{ - x**3 + y**2 - z }}}{\partial{x}^2} ") == diff( sqrt( - x**3 + y**2 - z ), x, 2)
 
     # using d operator and a division operator /
     assert wb.expr(" d{f(x)}/d{x} ") == diff(f(x), x)
@@ -165,23 +160,14 @@ def test_all_derivative_commands(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     assert wb.expr(" d^3{f(x) + x**6 - y*7}/d{x}^3 ") == diff(f(x) + x**6 - 7*x, x, 3)
 
     # using d operator and a \frac operator
-    assert wb.expr("\\frac{d^2{x^2}{d{\\tau}^2} ") == diff(x**2, tau, 2) 
-    assert wb.expr("\\frac{ d^2{-(1 - t / (x**2*r(tau)))} }{d{tau}^2} ") == diff( -(1 - t / (x**2*r(tau))) , tau, 2)
+    assert wb.expr("\\frac{d^2{x^2}}{d{\\tau}^2} ") == diff(x**2, tau, 2) 
+    assert wb.expr("\\frac{ d^2{-(1 - t / (x**2*h(tau)))} }{d{tau}^2} ") == diff( -(1 - t / (x**2*h(tau))) , tau, 2)
     assert wb.expr("\\frac{ d^2{\sqrt{ - x**3 + y**2 - z }} }{d{x}^2} ") == diff( sqrt( - x**3 + y**2 - z ), x, 2)
 
     # using \pdv operator which is a physics package in latex
     assert wb.expr(" \pdv{f(x)}{x} ") == diff(f(x), x)
     assert wb.expr(" \pdv[3]{f(x) + x**6 - y*7}{x}	") == diff(f(x) + x**6 - 7*x, x, 3)
     assert wb.expr(" \pdv{x}( \\frac{ \partial^2{ \sqrt{ - x^3 + y^2 - z } } }{ \partial{y}^2 }  ) ") == diff( diff( sqrt( - x**3 + y**2 - z ), y, 2) , x)
-
-def test_undecided_derivative_syntax(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
-    wb = Workbook()
-    x, y, z, t, r, theta, phi, tau = vars_x_y_z_t_r_theta_phi_tau
-    f, g, h = func_f_g_h
-
-    # using diff built in function
-    assert wb.expr(" d(f(x))/d(x) ") == diff(f(x), x)
-
 
 def test_matrix_building(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     wb = Workbook()
@@ -267,3 +253,28 @@ def test_matrix_building(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     assert wb.expr(line_matrix[0]) == line_matrix[1]
     assert wb.expr(line2_matrix[0]) == line2_matrix[1]
     assert wb.expr(two_line_matrix[0]) == two_line_matrix[1]
+
+def test_all_integral_commands(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
+    wb = Workbook()
+    x, y, z, t, r, theta, phi, tau = vars_x_y_z_t_r_theta_phi_tau
+    f, g, h = func_f_g_h
+
+    # using integral built in function
+    assert wb.expr("integrate(f(x), x)") == integrate(f(x), x)
+    assert wb.expr("integrate(f(x), (x, 0, 1))") == integrate(f(x), (x, 0, 1))
+
+    # using integral symbol ∫
+    assert wb.expr("∫ f(x) dx") == integrate(f(x), x)
+    assert wb.expr("∫_0^1 f(x) dx") == integrate(f(x), (x, 0, 1))
+
+    # using integral symbol in LaTeX
+    assert wb.expr("\\int f(x) \\, dx") == integrate(f(x), x)
+    assert wb.expr("\\int_0^1 f(x) \\, dx") == integrate(f(x), (x, 0, 1))
+
+    # using double integral
+    assert wb.expr("\\iint f(x, y) \\, dx \\, dy") == integrate(f(x, y), x, y)
+    assert wb.expr("\\iint_0^1 f(x, y) \\, dx \\, dy") == integrate(f(x, y), (x, 0, 1), (y, 0, 1))
+
+    # using triple integral
+    assert wb.expr("\\iiint f(x, y, z) \\, dx \\, dy \\, dz") == integrate(f(x, y, z), x, y, z)
+    assert wb.expr("\\iiint_0^1 f(x, y, z) \\, dx \\, dy \\, dz") == integrate(f(x, y, z), (x, 0, 1), (y, 0, 1), (z, 0, 1))

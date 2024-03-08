@@ -28,7 +28,7 @@ import relativisticpy as rel
 wb = rel.Workbook()
 
 wb.expr(
-'''
+'''python
 Coordinates := [t, r, theta, phi]
 
 g_{mu}_{nu} := [ 
