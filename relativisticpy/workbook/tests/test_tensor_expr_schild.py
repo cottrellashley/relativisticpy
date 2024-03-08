@@ -272,8 +272,8 @@ def test_connection_formulal_equal_built_in_connection(Schwarzschild_Basis):
         """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                    T^{a}_{c}_{f} := (1/2)*g^{a}^{b}*(d_{c}*g_{b}_{f} + d_{f}*g_{b}_{c} - d_{b}*g_{c}_{f}) - C^{a}_{c}_{f}
-                    T^{a}_{c}_{f}
+                    T^{a}_{c f} := (1/2)*g^{a}^{b}*(d_{c}*g_{b}_{f} + d_{f}*g_{b c} - d_{b}*g_{c f}) - C^{a}_{c f}
+                    T^{a}_{c f}
         """
     )
 
@@ -290,7 +290,7 @@ def test_riemann_formulal_comps_equal_built_in_riemann(Schwarzschild_Basis):
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                R^{a}_{m}_{b}_{n} - ( d_{b}*C^{a}_{n}_{m} + C^{a}_{b}_{l}*C^{l}_{n}_{m} - d_{n}*C^{a}_{b}_{m} - C^{a}_{n}_{l}*C^{l}_{b}_{m} )
+                R^{a}_{m}_{b}_{n} - ( d_{b}*C^{a}_{n m} + C^{a}_{b l}*C^{l}_{n m} - d_{n}*C^{a}_{b m} - C^{a}_{n l}*C^{l}_{b m} )
     """
     )
 
@@ -319,7 +319,7 @@ def test_riemann_formulal_indices_equal_built_in_riemann(
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                     T^{a}_{m}_{b}_{n} := d_{b}*C^{a}_{n}_{m} + C^{a}_{b}_{l}*C^{l}_{n}_{m} - d_{n}*C^{a}_{b}_{m} - C^{a}_{n}_{l}*C^{l}_{b}_{m}
-                    T^{a}_{m}_{b}_{n}
+                    T^{a}_{m b n}
             """
     )
     assert equal(smp.simplify(res.components), riemann_components)
@@ -365,13 +365,13 @@ def test_einstein_tensor(Schwarzschild_Basis):
 def test_einstein_tensor_computed_from_equation(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
     zeros = smp.MutableDenseNDimArray().zeros(4, 4)
-    res = Workbook().expr(
+    res = Workbook().exe(
         """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                    Ric_{a}_{b} - Ric*g_{a}_{b}
-                    Ric_{a}_{b} - g_{a}_{b}*Ric
-                    Ric_{a}_{b} - Ric*g_{a}_{b}*Ric - G_{a}_{b}
+                    Ric_{a b} - Ric*g_{a b}
+                    Ric_{a b} - g_{a b}*Ric
+                    Ric_{a b} - Ric*g_{a b}*Ric - G_{a b}
         """
     )
 
@@ -399,11 +399,11 @@ def test_covariant_derivative_metric_equals_zero(
     basis = Schwarzschild_Basis
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4)
 
-    res = Workbook().expr(
+    res = Workbook().exe(
             """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                    D_{a}*g_{b}_{c}
+                    D_{a}*g_{b c}
             """
     )
     assert equal(smp.simplify(res.components), zeros)

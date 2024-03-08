@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 class TensorEqualityType(Enum):
     """All the ways in which two tensors can differ."""
 

@@ -15,7 +15,7 @@ def schild_setup():
     phi = Symbol("phi")
 
     # init
-    indices = MetricIndices([Idx('a'), Idx('b')])
+    indices = MetricIndices(Idx('a'), Idx('b'))
     components = SymbolArray([[-(1 - M/r), 0, 0, 0], [0, 1/(1 - M/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]])
     basis = [t, r, theta, phi]
     metric = Metric(indices, components, basis)
@@ -26,7 +26,7 @@ def schild_setup():
 
 @pytest.fixture
 def indices_a_b():
-    return Indices([Idx('a'), Idx('b')])
+    return Indices(Idx('a'), Idx('b'))
 
 
 @pytest.fixture
@@ -40,7 +40,7 @@ def schild_ricci_result():
 def test_ricci_init_parameters(schild_setup, indices_a_b):
     indices = indices_a_b
     metric, basis = schild_setup
-    ricci = Ricci(indices = indices, arg = metric, basis = basis)
+    ricci = Ricci(indices = indices, arg = metric)
     assert metric.components == ricci.metric.components
     assert ricci.dimention == 4
     assert ricci.basis == basis

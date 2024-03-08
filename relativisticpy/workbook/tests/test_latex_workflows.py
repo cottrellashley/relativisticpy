@@ -92,7 +92,7 @@ def test_tensor_generation_from_latex_derivative(vars_x_y_z_t_r_theta_phi, func_
                         \\end{matrix} 
                         \\newline
                         C 
-                        """) == SymbolArray([[1, 2, 3], [0, 0, x], [y, f(x), 0]])
+                    """) == SymbolArray([[1, 2, 3], [0, 0, x], [y, f(x), 0]])
 
 
 def future():

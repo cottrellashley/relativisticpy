@@ -1,81 +1,37 @@
-from relativisticpy.core import EinsteinArray
-from relativisticpy.workbook.itensors import (
-    TensorHandler,
-    TensorAssignmentHandler,
-    DefinitionNode,
-    InitTensorFromComponentsNode,
-)
-from relativisticpy.workbook.matchers import match_tensors, match_symbol
-from relativisticpy.workbook.state import WorkbookState, TensorReference
-from relativisticpy.utils import str_is_tensors
-from relativisticpy.parsers.types.gr_nodes import TensorNode
-from relativisticpy.parsers.types.base import UnaryNode, BinaryNode, AstNode
-from relativisticpy.parsers.types.gr_nodes import FuncStates
-from relativisticpy.parsers.types.gr_nodes import Function as FunctionNode
-from relativisticpy.parsers.scope.state import ScopedState
+from dataclasses import dataclass
+from typing import List
+
+from relativisticpy.core import EinsteinArray, Indices, Metric, MetricIndices, Idx
+from relativisticpy.gr import RicciScalar, MetricScalar, Ricci, Riemann, Connection, Derivative, EinsteinTensor
+
+from relativisticpy.interpreter.protocols import Implementer
+from relativisticpy.interpreter import ScopedState
 
 from relativisticpy.symengine import (
     Symbol,
     Basic,
     Rational,
     Function,
-    Interval,
-    Order,
     Sum,
     Product,
     SymbolArray,
-    O,
-    LaplaceTransform,
     diff,
     integrate,
     simplify,
-    tensorproduct,
     symbols,
-    residue,
-    laplace_transform,
-    inverse_laplace_transform,
-    inverse_mellin_transform,
-    mellin_transform,
-    fourier_transform,
-    inverse_fourier_transform,
-    sine_transform,
-    inverse_sine_transform,
-    cosine_transform,
-    inverse_cosine_transform,
-    hankel_transform,
-    inverse_hankel_transform,
-    zeros,
-    permutedims,
     solve,
     dsolve,
     expand,
     latex,
     limit,
-    Limit,
-    fourier_series,
-    sequence,
-    series,
-    euler_equations,
-    root,
-    exp_polar,
-    bell,
-    bernoulli,
     Pow,
-    binomial,
-    gamma,
-    conjugate,
-    hyper,
-    catalan,
-    euler,
-    factorial,
-    fibonacci,
-    harmonic,
-    log,
-    I,
     oo,
     E,
+    Abs,
     N,
     pi,
+    Eq,
+    ln,
     exp,
     sin,
     asin,
@@ -89,97 +45,88 @@ from relativisticpy.symengine import (
     atan,
     tanh,
     atanh,
+    factorial,
 )
+
+class RelPyError:
+    pass
+
+@dataclass
+class AstNode:
+    node: str
+    handler: str
+    args: List["AstNode"]
 
 # @node_handler_implementor(parser=RelPyParser)
 
+# @implements(Implementer) <-- This could do a iteration check that all methods from GrNodeTraverser are implemented by RelPyAstNodeTraverser
+class RelPyAstNodeTraverser(Implementer):
 
-class RelPyAstNodeTraverser:
-    def __init__(self, cache: WorkbookState):
-        self.cache = cache
-
-    # Cache Node handlers
-    def definition(self, node: AstNode, state: ScopedState):
-        self.cache.set_variable(str(node.args[0]), node.args[1])
-
-    def clear(self, node: AstNode, state: ScopedState):
-        state.reset()
-        y = state
-
-    def tensor_assignment(self, node: TensorNode, state: ScopedState):
-        tref = TensorReference(node)
-        if node.sub_components_called:
-            raise ValueError(
-                "Feature: <Assigning value to tensor sub-components> is not implemented yet."
-            )
-        if node.identifier == self.cache.metric_symbol:
-            tref.is_metric = True
-        TensorAssignmentHandler(self.cache).handle(tref)
-
-    def function_def(self, node: AstNode, state: ScopedState):
-        pass  # User can define a function which they can actually call
-
-    def symbol_definition(self, node: AstNode, state: ScopedState):
-        self.cache.set_variable(node.args[0], str(node.args[1]))
-
-    def define(self, node: AstNode, state: ScopedState):
-        DefinitionNode(self.cache).handle(node)
-
-    def coordinate_definition(self, node: AstNode, state: ScopedState):
-        key = node.args[0]
-        coordinates = state.get_variable(key)
-
-        self.cache.set_coordinates(coordinates)
-        self.cache.set_variable(key, coordinates)
-
-    def sub(self, node: AstNode, state: ScopedState):
-        return node.args[0] - node.args[1]
-
-    def add(self, node: AstNode, state: ScopedState):
-        return node.args[0] + node.args[1]
-
-    def neg(self, node: AstNode, state: ScopedState):
-        return -node.args[0]
-
-    def pos(self, node: AstNode, state: ScopedState):
-        return +node.args[0]
-
-    def mul(self, node: AstNode, state: ScopedState):
-        return node.args[0] * node.args[1]
-
-    def div(self, node: AstNode, state: ScopedState):
-        return node.args[0] / node.args[1]
-
-    def pow(self, node: AstNode, state: ScopedState):
-        return node.args[0] ** node.args[1]
-
-    def int(self, node: AstNode, state: ScopedState):
-        return int("".join(node.args))
-
-    def float(self, node: AstNode, state: ScopedState):
-        return float("".join(node.args))
-
-    def subs(self, node: AstNode, state: ScopedState):
-        return node.args[0].subs(node.args[1], node.args[2])
-
-    def lim(self, node: AstNode, state: ScopedState):
-        return limit(*node.args)
+    @property
+    def state(self) -> ScopedState:
+        return self._state
     
-    def sqrt(self, node: AstNode, state: ScopedState):
-        if isinstance(node.args[0], Basic):
-            return Pow(node.args[0], Rational(1, 2))
-        else:
-            return node.args[0] ** 0.5
+    @state.setter
+    def state(self, state: ScopedState) -> None:
+        self._state = state
 
-    def expand(self, node: AstNode, state: ScopedState):
-        return expand(*node.args)
+    def clear(self, node: AstNode): self.state.reset()
     
-    def func_derivative(self, node: AstNode, state: ScopedState):
+    # Python lib implementations
+    def sub(self, node: AstNode): return node.args[0] - node.args[1]
+    def add(self, node: AstNode): return node.args[0] + node.args[1]
+    def neg(self, node: AstNode): return -node.args[0]
+    def pos(self, node: AstNode): return +node.args[0]
+    def mul(self, node: AstNode): return node.args[0] * node.args[1]
+    def div(self, node: AstNode): return node.args[0] / node.args[1]
+    def pow(self, node: AstNode): return node.args[0] ** node.args[1]
+    def int(self, node: AstNode): return int("".join(node.args))
+    def float(self, node: AstNode): return float("".join(node.args))
+
+    # Symengine implementations
+    def subs(self, node: AstNode): return node.args[0].subs(node.args[1], node.args[2])
+    def lim(self, node: AstNode): return limit(*node.args)
+    def sqrt(self, node: AstNode): return Pow(node.args[0], Rational(1, 2)) if isinstance(node.args[0], Basic) else node.args[0] ** 0.5
+    def expand(self, node: AstNode): return expand(*node.args)
+    def integrate(self, node: AstNode): return integrate(*node.args)
+    def simplify(self, node: AstNode): return simplify(*node.args)
+    def latex(self, node: AstNode): return latex(*node.args)
+    def solve(self, node: AstNode): return solve(*node.args)
+    def numerical(self, node: AstNode): return N(*node.args)
+    def equation(self, node: AstNode): return Eq(*node.args)
+    def exp(self, node: AstNode): return exp(*node.args)
+    def ln(self, node: AstNode): return ln(*node.args)
+    def dsolve(self, node: AstNode): return dsolve(*node.args)
+    def symbol(self, node: AstNode): return symbols("{}".format(node.var_key))
+    def print_(self, node: AstNode): return node.args
+    def RHS(self, node: AstNode): return node.args[0].rhs
+    def LHS(self, node: AstNode): return node.args[0].lhs
+    def sum(self, node: AstNode): return Sum(node.args[0], (node.args[1], node.args[2], node.args[3]))
+    def dosum(self, node: AstNode): return Sum(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
+    def prod(self, node: AstNode): return Product(node.args[0], (node.args[1], node.args[2], node.args[3]))
+    def doprod(self, node: AstNode): return Product(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
+    def array(self, node: AstNode): return SymbolArray(list(node.args))
+    def sin(self, node: AstNode): return sin(*node.args)
+    def cos(self, node: AstNode): return cos(*node.args)
+    def tan(self, node: AstNode): return tan(*node.args)
+    def asin(self, node: AstNode): return asin(*node.args)
+    def acos(self, node: AstNode): return acos(*node.args)
+    def atan(self, node: AstNode): return atan(*node.args)
+    def sinh(self, node: AstNode): return sinh(*node.args)
+    def cosh(self, node: AstNode): return cosh(*node.args)
+    def tanh(self, node: AstNode): return tanh(*node.args)
+    def asinh(self, node: AstNode): return asinh(*node.args)
+    def acosh(self, node: AstNode): return acosh(*node.args)
+    def atanh(self, node: AstNode): return atanh(*node.args)
+    def factorial(self, node: AstNode): return factorial(*node.args)
+    def absolute(self, node: AstNode): return Abs(*node.args)
+
+    def func_derivative(self, node: AstNode):
         if isinstance(node.args[1], Basic):
             wrt = list(node.args[1].free_symbols)[0] if not [] == list(node.args[1].free_symbols) else None
             return diff(node.args[0], wrt, node.args[2])
 
-    def diff(self, node: AstNode, state: ScopedState):
+    def diff(self, node: AstNode):
         if isinstance(node.args[0], EinsteinArray):
             old_tensor: EinsteinArray = node.args[0]
             if len(node.args) == 3:
@@ -198,70 +145,7 @@ class RelPyAstNodeTraverser:
         ans = diff(*node.args)
         return ans
 
-    def integrate(self, node: AstNode, state: ScopedState):
-        return integrate(*node.args)
-
-    def simplify(self, node: AstNode, state: ScopedState):
-        return simplify(*node.args)
-
-    def latex(self, node: AstNode, state: ScopedState):
-        return latex(*node.args)
-
-    def solve(self, node: AstNode, state: ScopedState):
-        a = node.args
-        res = solve(*a)
-        return res
-
-    def numerical(self, node: AstNode, state: ScopedState):
-        return N(*node.args)
-
-    def exp(self, node: AstNode, state: ScopedState):
-        return exp(*node.args)
-
-    def dsolve(self, node: AstNode, state: ScopedState):
-        return dsolve(*node.args)
-
-    # Sympy Trigs
-    def sin(self, node: AstNode, state: ScopedState):
-        return sin(*node.args)
-
-    def cos(self, node: AstNode, state: ScopedState):
-        return cos(*node.args)
-
-    def tan(self, node: AstNode, state: ScopedState):
-        return tan(*node.args)
-
-    def asin(self, node: AstNode, state: ScopedState):
-        return asin(*node.args)
-
-    def acos(self, node: AstNode, state: ScopedState):
-        return acos(*node.args)
-
-    def atan(self, node: AstNode, state: ScopedState):
-        return atan(*node.args)
-
-    def sinh(self, node: AstNode, state: ScopedState):
-        return sinh(*node.args)
-
-    def cosh(self, node: AstNode, state: ScopedState):
-        return cosh(*node.args)
-
-    def tanh(self, node: AstNode, state: ScopedState):
-        return tanh(*node.args)
-
-    def asinh(self, node: AstNode, state: ScopedState):
-        return asinh(*node.args)
-
-    def acosh(self, node: AstNode, state: ScopedState):
-        return acosh(*node.args)
-
-    def atanh(self, node: AstNode, state: ScopedState):
-        return atanh(*node.args)
-
-    def array(self, node: AstNode, state: ScopedState):
-        return SymbolArray(list(node.args))
-
-    def tsimplify(self, node: UnaryNode, state: ScopedState):
+    def tsimplify(self, node: AstNode):
         tensor = node.args[0]
         tensor.components = simplify(
             list(tensor.components)[0]
@@ -269,7 +153,7 @@ class RelPyAstNodeTraverser:
         return tensor
 
     # Sympy constants
-    def constant(self, node: AstNode, state: ScopedState):
+    def constant(self, node: AstNode):
         a = "".join(node.args)
         if a == "pi":
             return pi
@@ -277,37 +161,16 @@ class RelPyAstNodeTraverser:
             return E
         elif a in ["oo", "infty"]:
             return oo
-
-    # Sympy symbols / function initiators
-    def call(self, node: FunctionNode, state: ScopedState):
-        return node.call_return
         
-    def symbolfunc(self, node: FunctionNode, state: ScopedState):
-        if not self.cache.has_variable(node.identifier):
+    def symbolfunc(self, node: AstNode):
+        if not self.state.current_scope.check_variable(node.identifier):
             func_id = node.identifier
             func = symbols("{}".format(func_id), cls=Function)(*node.args)
             return func
         else:
-            return Function(self.cache.get_variable(node.identifier))(*node.args)
+            return Function(self.state.current_scope.variables[node.identifier])(*node.args)
 
-    def symbol(self, node: AstNode, state: ScopedState):
-        a = "".join(node.args)
-
-        if a == self.cache.metric_symbol:
-            self.cache.set_metric_scalar()
-            return self.cache.metric_scalar
-
-        elif a == self.cache.ricci_symbol:
-            self.cache.set_ricci_scalar()
-            return self.cache.ricci_scalar
-
-        elif state.get_variable(a) == None:
-            return symbols("{}".format(a))
-
-        else:
-            return state.get_variable(a)
-
-    def diag(self, node: AstNode, state: ScopedState):
+    def diag(self, node: AstNode):
         # Determine n from the length of diag_values
         n = len(node.args)
 
@@ -320,31 +183,47 @@ class RelPyAstNodeTraverser:
 
         return ndarray
 
-    def tensor(self, node: AstNode, state: ScopedState):
-        tref = TensorReference(node)
-        if tref.id == self.cache.metric_symbol:
-            tref.is_metric = True
-        return TensorHandler(self.cache).handle(
-            tref
-        )  # Tensor Getter : G_{a}_{b} <-- go get me the object from cache or init new
+    # TENSOR IMPLEMENTATIONS
 
-    def print_(self, node: AstNode, state: ScopedState):
-        return node.args
+    def metric_dependent_types(self, tensor_key: str):
+        types_map = {
+            self.state.get_variable("MetricSymbol"): Metric,
+            self.state.get_variable("RicciSymbol"): Ricci,
+            self.state.get_variable("EinsteinTensorSymbol"): EinsteinTensor,
+            self.state.get_variable("ConnectionSymbol"): Connection,
+            self.state.get_variable("RiemannSymbol"): Riemann,
+            self.state.get_variable("CovariantDerivativeSymbol"): RelPyError
+        }
+        return types_map[tensor_key] if tensor_key in types_map else None
 
-    def RHS(self, node: AstNode, state: ScopedState):
-        return node.args[0].rhs
+    def init_indices(self, node: AstNode):
+        if not self.state.get_variable("MetricSymbol") == node.identifier:
+            indices = node.indices.indices
+            return Indices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in indices])
+        indices = node.indices.indices
+        return MetricIndices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in indices])
 
-    def LHS(self, node: AstNode, state: ScopedState):
-        return node.args[0].lhs
+    def init_metric_tensor(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> Metric:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        return Metric(indices, components, basis)
 
-    def sum(self, node: AstNode, state: ScopedState):
-        return Sum(node.args[0], (node.args[1], node.args[2], node.args[3]))
+    def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> EinsteinArray:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        return EinsteinArray(indices, components, basis)
 
-    def dosum(self, node: AstNode, state: ScopedState):
-        return Sum(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
+    def init_ricci_scalar(self, node: AstNode) -> RicciScalar:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        metric = self.state.metric_tensor
+        basis = self.state.get_variable("Coordinates")
+        return RicciScalar(metric, basis)
 
-    def prod(self, node: AstNode, state: ScopedState):
-        return Product(node.args[0], (node.args[1], node.args[2], node.args[3]))
-
-    def doprod(self, node: AstNode, state: ScopedState):
-        return Product(node.args[0], (node.args[1], node.args[2], node.args[3])).doit()
+    def init_metric_scalar(self, node: AstNode) -> MetricScalar:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        metric = self.state.metric_tensor
+        basis = self.state.get_variable("Coordinates")
+        return MetricScalar(metric, basis)
+    
+    def init_tensor_derivative(self, node: AstNode) -> Derivative:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        basis = self.state.get_variable("Coordinates")
+        return Derivative(self.init_indices(node), basis)

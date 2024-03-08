@@ -93,7 +93,7 @@ def test_basic_tensor_component_generations_symbols():
     assert str(res.indices) == "_{a}_{b}"
 
 
-@pytest.mark.skip(reason="TDD =====> Implement TODO: User Can map Arbritary tensor to tensor expression <======== ")
+@pytest.mark.skip(reason="TDD =====> Implement TODO: Covariant Derivative <======== ")
 def test_covariant_derivative_metric_mapping(
     Schwarzschild_Basis
 ):
@@ -116,9 +116,20 @@ def test_covariant_derivative_metric_mapping(
     assert equal(res.basis, basis)
 
 
-# Test Tensor multiplication with non-int, non-float, symbol scalar
-    """
-                Coordinates := [t, r, theta, phi] 
-                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
-                g_{a}_{b}*f(x)
-    """
+def test_tensor_multiplication_with_scalar(
+    Schwarzschild_Basis
+):
+    # This should do the following:
+    # 1. D_{a}*g_{b}_{c} == Zero
+    wb = Workbook()
+
+    res = wb.expr(
+            """
+                        Coordinates := [t, r, theta, phi] 
+                        g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
+                        g_{a}_{b}*f(x)
+            """
+    )
+    assert str(res.components) == '[[(2*G*M/r - 1)*f(x), 0, 0, 0], [0, f(x)/(-2*G*M/r + 1), 0, 0], [0, 0, r**2*f(x), 0], [0, 0, 0, r**2*f(x)*sin(theta)**2]]'
+    assert str(res.indices) == "_{a}_{b}"
+    assert str(res.basis) == '[t, r, theta, phi]'

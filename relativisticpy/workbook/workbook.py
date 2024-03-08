@@ -1,28 +1,17 @@
 import re
 import json
 
-from relativisticpy.parsers import RelParser
-
+from relativisticpy.interpreter import RelParser
 from relativisticpy.workbook.ast_visitor import RelPyAstNodeTraverser
-from relativisticpy.workbook.state import WorkbookState
 
 
 class Workbook:
 
-    _cache = WorkbookState()
-    parser = RelParser(
-        RelPyAstNodeTraverser(_cache)
-    )
 
-    @classmethod
-    def reset(cls):
-        del cls._cache
-        del cls.parser
-        cls._cache = WorkbookState()
-        cls.parser = RelParser( RelPyAstNodeTraverser(cls._cache) )
 
     def __init__(self, file_path: str = None):
         self.file_path = file_path
+        self.interpreter = RelParser( RelPyAstNodeTraverser() )
 
     def markdown(self, path: str):
         # Step 1: Read the markdown content
@@ -46,24 +35,31 @@ class Workbook:
         # Step 5: Return the modified content or write it back to the file
         return modified_content
 
-    # def expr(self, string: str):
-    #     result = self.__expr(string)
-    #     self.reset() ###    <<<<<<<<<<<<<<<<<<<<<<<<<<  ONLY TEMP UNTIL WE IMPLEMENT STACK SOLUTION TO FUNCTION AND SCOPES WITHIN A FUNCTION.
-    #     return result
-        
     def expr(self, string: str):
-        result = Workbook.parser.exe(string)
+        result = self.interpreter.exe(string)
         if isinstance(result, list):
             if len(result) == 1:
                 return result[0].value
             else:
-                return [i.value for i in result]
+                return [i.value for i in result][-1] # TODO: CAREFUL CONCIDERATION OF HOW WE RETURN VALUES TO USER.
+        elif isinstance(result, str):
+            return result
+
+    def exe(self, string: str):
+        result = self.interpreter.exe(string)
+        if isinstance(result, list):
+            if len(result) == 1:
+                return result[0].value
+            else:
+                return [i.value for i in result] # TODO: CAREFUL CONCIDERATION OF HOW WE RETURN VALUES TO USER.
         elif isinstance(result, str):
             return result
         
-        
+    def reset(self):
+        self.interpreter.node_tree_walker.state.reset()
+
     def parse(self, string: str):
-        return Workbook.parser.parse(string)
+        return self.interpreter.parse(string)
 
     def tokens(self, string: str):
-        return Workbook.parser.tokenize(string)
+        return self.interpreter.tokenize(string)

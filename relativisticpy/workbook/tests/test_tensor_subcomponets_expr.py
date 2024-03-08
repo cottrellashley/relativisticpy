@@ -69,7 +69,7 @@ def test_metric_sub_vector_getter(Schwarzschild_Metric, Schwarzschild_Basis):
     wb = Workbook()
     
 
-    res = wb.expr(
+    res = wb.exe(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -98,7 +98,7 @@ def test_connection_sub_components(Schwarzschild_Connection, Schwarzschild_Basis
     basis = Schwarzschild_Basis
     wb = Workbook()
 
-    res = wb.expr(
+    res = wb.exe(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -118,7 +118,7 @@ def test_ricci_sub_components(Schwarzschild_Ricci, Schwarzschild_Basis):
 
     wb = Workbook()
 
-    res = wb.expr(
+    res = wb.exe(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -134,7 +134,7 @@ def test_riemann_sub_components(Schwarzschild_Riemann, Schwarzschild_Basis):
 
     wb = Workbook()
 
-    res = wb.expr(
+    res = wb.exe(
         """
                 Coordinates := [t, r, theta, phi] 
                 g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
@@ -142,6 +142,38 @@ def test_riemann_sub_components(Schwarzschild_Riemann, Schwarzschild_Basis):
                 R^{a}_{b:0}_{c:0}_{n:0}
                 R^{a:0}_{b:1}_{c:0}_{n}
                 R^{a:1}_{b}_{c}_{n:3}
+        """
+    )
+    assert res[0] == riemann_components[0, 0, 0, 0]
+    assert res[1] == riemann_components[:, 0, 0, 0]
+    assert res[2] == riemann_components[0, 1, 0, :]
+    assert res[3] == riemann_components[1, :, :, 3]
+
+def test_riemann_sub_components_latex(Schwarzschild_Riemann, Schwarzschild_Basis):
+    riemann_components = Schwarzschild_Riemann
+
+    wb = Workbook()
+
+    res = wb.exe(
+        """
+                Coordinates := \\begin{bmatrix} 
+                                    t & r & theta & phi 
+                                \\end{bmatrix}
+                \\vspace{5mm}
+                g_{\\mu\\nu} := \\begin{bmatrix}
+                                                -(1 - \\frac{2 \\cdot G \\cdot M}{r}) & 0 & 0 & 0 \\
+                                                0 & \\frac{1}{1 - \\frac{2 \\cdot G \\cdot M}{r}} & 0 & 0 \\
+                                                0 & 0 & r^2 & 0 \\
+                                                0 & 0 & 0 & r^2 \sin(\\theta)^2
+                                 \\end{bmatrix}
+                \\newline
+                R^{a=0}_{b=0 c=0 n=0}
+                \\vspace{5mm}
+                R^{a}_{b:0 c=0 n=0}
+                \\linebreak[4]
+                R^{a=0}_{b=1 c=0 n}
+                \\vspace{5mm}
+                R^{a=1}_{b c n=3}
         """
     )
     assert res[0] == riemann_components[0, 0, 0, 0]
