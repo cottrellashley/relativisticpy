@@ -194,6 +194,7 @@ class TokenType(Enum):
             cls.PI.value : cls.CONSTANT,
             cls.E.value : cls.CONSTANT,
             cls.INFTY.value : cls.CONSTANT,
+            cls.IM.value : cls.CONSTANT,
             cls.OO.value : cls.CONSTANT
         }
 
@@ -206,6 +207,7 @@ class TokenType(Enum):
     PRINT = "print"
     INFINITESIMAL = 'd'
     PI = 'pi'
+    IM = 'i'
     E = 'e'
     OO = 'oo'
     INFTY = 'infty'

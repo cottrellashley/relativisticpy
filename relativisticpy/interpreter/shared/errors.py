@@ -9,7 +9,7 @@ def display_error_with_code(code_str, error_line, error_char, error_message):
     error_line_idx = error_line - 1
 
     # Ensure the error line number is within the range of the code lines
-    if 0 <= error_line_idx < len(lines):
+    if 0 <= error_line_idx and error_line_idx < len(lines):
         error_line_content = lines[error_line_idx].rstrip('\n')
         
         # Display the error message
@@ -25,13 +25,14 @@ def display_error_with_code(code_str, error_line, error_char, error_message):
 
     return message
 
-class Error:
+class Error(Exception):
     def __init__(self, pos: TokenPosition, error_name: str, details: str, source_code: str = None):
         self.pos_start = pos.start_pos
         self.pos_end = pos.end_pos
         self.error_name = error_name
         self.details = details
         self.source_code = source_code
+        super().__init__(self.as_string())
 
     def as_string(self):
         result = f'{self.error_name}: {self.details}\n '

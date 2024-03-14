@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import List
 
 from relativisticpy.core import EinsteinArray, Indices, Metric, MetricIndices, Idx
-from relativisticpy.gr import RicciScalar, MetricScalar, Ricci, Riemann, Connection, Derivative, EinsteinTensor
+from relativisticpy.gr import RicciScalar, MetricScalar, Ricci, Riemann, Connection, Derivative, EinsteinTensor, CovDerivative
 
 from relativisticpy.interpreter.protocols import Implementer
 from relativisticpy.interpreter import ScopedState
@@ -29,6 +29,7 @@ from relativisticpy.symengine import (
     E,
     Abs,
     N,
+    I,
     pi,
     Eq,
     ln,
@@ -98,6 +99,7 @@ class RelPyAstNodeTraverser(Implementer):
     def ln(self, node: AstNode): return ln(*node.args)
     def dsolve(self, node: AstNode): return dsolve(*node.args)
     def symbol(self, node: AstNode): return symbols("{}".format(node.var_key))
+    def symbol_str(self, *arg, **kwargs): return Symbol(*arg, **kwargs)
     def print_(self, node: AstNode): return node.args
     def RHS(self, node: AstNode): return node.args[0].rhs
     def LHS(self, node: AstNode): return node.args[0].lhs
@@ -159,6 +161,8 @@ class RelPyAstNodeTraverser(Implementer):
             return pi
         elif a == "e":
             return E
+        elif a == "i":
+            return I
         elif a in ["oo", "infty"]:
             return oo
         
@@ -192,7 +196,7 @@ class RelPyAstNodeTraverser(Implementer):
             self.state.get_variable("EinsteinTensorSymbol"): EinsteinTensor,
             self.state.get_variable("ConnectionSymbol"): Connection,
             self.state.get_variable("RiemannSymbol"): Riemann,
-            self.state.get_variable("CovariantDerivativeSymbol"): RelPyError
+            self.state.get_variable("CovariantDerivativeSymbol"): CovDerivative
         }
         return types_map[tensor_key] if tensor_key in types_map else None
 

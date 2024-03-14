@@ -266,6 +266,13 @@ class EinsteinArray:
         return self
 
     def __add__(self, other: "EinsteinArray") -> "EinsteinArray":
+        if not isinstance(other, EinsteinArray):
+            raise TypeError(f"Unsupported operand type(s) for +: 'EinsteinArray' and '{type(other).__name__}'")
+        if self.basis == None or other.basis == None:
+            message = "Cannot perform Operation on EinsteinArray objects without Coordinates defined. \n "
+            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
+            raise ValueError(message + fix)
+    
         operation = lambda a, b: a + b
         result = self.additive_operation(
             other, operation
@@ -275,6 +282,13 @@ class EinsteinArray:
         )
 
     def __sub__(self, other: "EinsteinArray") -> "EinsteinArray":
+        if not isinstance(other, EinsteinArray):
+            raise TypeError(f"Unsupported operand type(s) for -: 'EinsteinArray' and '{type(other).__name__}'")
+        if self.basis == None or other.basis == None:
+            message = "Cannot perform Index Summation on EinsteinArray objects without Coordinates defined. \n "
+            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
+            raise ValueError(message + fix)
+    
         operation = lambda a, b: a - b
         result = self.additive_operation(other, operation)
         return EinsteinArray(
@@ -291,6 +305,11 @@ class EinsteinArray:
                 indices=self.indices,
                 basis=self.basis,
             )
+        
+        if self.basis == None or other.basis == None:
+            message = "Cannot perform Index Summation on EinsteinArray objects without Coordinates defined. \n "
+            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
+            raise ValueError(message + fix)
 
         if self.scalar or other.scalar:
             return EinsteinArray(
@@ -306,7 +325,7 @@ class EinsteinArray:
 
     def __rmul__(self, other: "EinsteinArray") -> "EinsteinArray":
         if not isinstance(other, (float, int, Basic, EinsteinArray)):
-            raise TypeError(f"Unsupported operand type(s) for *: 'EinsteinArray' and '{type(other).__name__}'")
+            raise TypeError(f"Unsupported operand type(s) for *: '{type(self).__name__}' and '{type(other).__name__}'")
     
         if isinstance(
             other, (float, int, Basic)
@@ -316,6 +335,12 @@ class EinsteinArray:
                 indices=self.indices,
                 basis=self.basis,
             )
+    
+        if self.basis == None or other.basis == None:
+            message = "Cannot perform Index Summation on EinsteinArray objects without Coordinates defined. \n "
+            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
+            raise ValueError(message + fix)
+
         if self.scalar or other.scalar:
             return EinsteinArray(
                 components=other.components * self.components,

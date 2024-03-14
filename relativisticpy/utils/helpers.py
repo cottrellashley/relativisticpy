@@ -1,7 +1,7 @@
 from typing import Tuple
 from operator import itemgetter
 from itertools import product
-from typing import List
+from typing import List, Callable
 from relativisticpy.typing import MetricType
 
 import sympy as smp
@@ -24,11 +24,11 @@ def transpose_list(l):
     return list(map(list, zip(*[i for i in l if i != None])))
 
 
-def tensor_trace_product(a: SymbolArray, b: SymbolArray, trace: List[List[int]]):
+def tensor_trace_product(a: SymbolArray, b: SymbolArray, trace: List[List[int]], operation: Callable = lambda a, b: a * b):
     """
-    Performs the tensor product by:
-        1. Performing the tensor product.
-        2. Taking the trace.
+    trace: List of lists of indices to be summed over.
+    Example: [[0, 1], [1, 0]] => First sum: 0 index on index 1 and then sum 1 index on index 0
+    Example: [[0, 1], [1, 0], [2, 2]] => First sum: 0 index on index 1 and then sum 1 index on index 0 and then sum 2 index on index 2
     """
     if len(trace) == 0:
         return tensorproduct(a, b)
@@ -88,7 +88,7 @@ def tensor_trace_product(a: SymbolArray, b: SymbolArray, trace: List[List[int]])
         else:
             return [(IndicesA, IndicesB) for IndicesA, IndicesB in all]
 
-    func = lambda idcs: sum([a[i] * b[j] for i, j in generator(idcs)])
+    func = lambda idcs: sum([operation(a[i], b[j]) for i, j in generator(idcs)])
     zeros = SymbolArray.zeros(*new_shape)
 
     for i in list(product(*[range(i) for i in new_shape])):

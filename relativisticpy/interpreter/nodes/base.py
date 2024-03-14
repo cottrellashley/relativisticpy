@@ -323,7 +323,6 @@ class Infinitesimal(UnaryNode):
         # Execute Node
         state.set_variable("".join(self.args[0]), self.args[1].analyze_node(implementer))
 
-
 # ID :=
 class Definition(AstNode):
 
@@ -340,6 +339,22 @@ class Definition(AstNode):
         # Execute Node
         if "".join(self.args[0]) in Scope.BUILT_IN_VARS:
             state.set_variable("".join(self.args[0]), "".join(self.args[1].args))
+        elif "".join(self.args[0]) == "Constants":
+            var = self.args[1].execute_node(implementer)
+            constants = [implementer.symbol_str(str(sym), constant=True) for sym in var]
+            [state.set_variable(str(constant), constant) for constant in constants]
+        elif "".join(self.args[0]) == "Reals":
+            var = self.args[1].execute_node(implementer)
+            constants = [implementer.symbol_str(str(sym), real=True) for sym in var]
+            [state.set_variable(str(constant), constant) for constant in constants]
+        elif "".join(self.args[0]) == "Integers":
+            var = self.args[1].execute_node(implementer)
+            constants = [implementer.symbol_str(str(sym), integer=True) for sym in var]
+            [state.set_variable(str(constant), constant) for constant in constants]
+        elif "".join(self.args[0]) == "Complex":
+            var = self.args[1].execute_node(implementer)
+            constants = [implementer.symbol_str(str(sym), complex=True) for sym in var]
+            [state.set_variable(str(constant), constant) for constant in constants]
         else:
             state.set_variable("".join(self.args[0]), self.args[1].execute_node(implementer))
 
@@ -542,20 +557,6 @@ class TensorNode(
         self.component_ast_result = None
 
     ######### Standard Node Getter Setter Definitions #########
-    
-    def get_callback_from_implementor(self, implementer: Implementer) -> Callable:
-        """
-        Method retrieves and returns the callback method which will be used to execute this node.
-
-        Returns:
-            Callable: The method of the executor method, 'tensor' or 'tensor_assignment'.
-        """
-        if hasattr(implementer, Implementer.tensor.__name__) and self.component_ast == None:
-            return implementer.tensor
-        elif hasattr(implementer, Implementer.tensor_assignment.__name__):
-            return implementer.tensor_assignment
-        else:
-            raise NotImplementedError(f"The object {type(implementer).__name__} has not implemented the TensorNode methods. ")
 
     @property
     def data_type(self) -> str:
@@ -600,9 +601,16 @@ class TensorNode(
 
         # First we descerialize indices numbers if they were set.
         for idx in self.indices.indices:
+            symbol = implementer.symbol_str(idx.identifier)
+
             if idx.values != None:
                 idx.values = idx.values.execute_node(implementer)
 
+            if symbol in state.get_variable(Scope.Coordinates):
+                if isinstance(idx.values, int):
+                    raise ValueError(f"Tensor sub-component is already being called by using index as the Coordinate variable '{idx.identifier}', cannot index again with method ': <int>'")
+                idx.values = list(state.get_variable(Scope.Coordinates)).index(symbol)
+    
         if self.identifier == state.get_variable(Scope.DerivativeSymbol):
             return implementer.init_tensor_derivative(self)
         

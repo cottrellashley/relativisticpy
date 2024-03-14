@@ -64,16 +64,16 @@ class BaseParser(ABC):
         if isinstance(expected_type, list):
             if current_type not in expected_type:
                 exp_str = " OR ".join([i.value for i in expected_type])
-                return self.invalid_syntax_error(
+                raise self.invalid_syntax_error(
                     f"Syntax Error with object: {current_type.value} \n Expecting one of the following: {exp_str}",
-                    self.current_token.position.copy(),
+                    self.peek_prev_token(ignore_NEWLINE=True).position.copy(),
                     self.raw_code,
                 )
         else:
             if current_type != expected_type:
-                return self.invalid_syntax_error(
+                raise self.invalid_syntax_error(
                     f"Syntax Error with object: {current_type.value} \n Expecting object: {expected_type.value}",
-                    self.current_token.position.copy(),
+                    self.peek_prev_token(ignore_NEWLINE=True).position.copy(),
                     self.raw_code,
                 )
 

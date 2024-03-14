@@ -8,6 +8,8 @@ from sympy import (
     Pow,
     Order,
     Sum,
+    im,
+    re,
     Product,
     O,
     I,

@@ -6,9 +6,6 @@ from relativisticpy.symengine import diff, simplify
 @einstein_convention
 class Derivative(EinsteinArray):
 
-    SYMBOL = "DerivativeSymbol"
-    NAME = "Derivative"
-
     def __init__(self, indices: Indices, wrt):
         super().__init__(indices = indices, basis = wrt)
 

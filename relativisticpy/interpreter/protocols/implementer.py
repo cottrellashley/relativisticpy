@@ -229,6 +229,9 @@ class Implementer(Protocol):
         
     def symbolfunc(self, node: TreeNodes):
         ...
+    
+    def symbol_str(self, *arg, **kwargs):
+        ...
 
     def symbol(self, node: TreeNodes):
         ...
