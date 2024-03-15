@@ -12,6 +12,7 @@ from sympy import (
     re,
     Product,
     O,
+    trigsimp,
     I,
     LaplaceTransform,
     diff,

@@ -138,6 +138,10 @@ class Indices:
  
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
+    def replace(self, old: Idx, new: Idx) -> 'Indices':
+        new.basis = self.basis
+        indices = [new if index.symbol == old.symbol else index for index in self.indices]
+        return Indices(*indices)
     
     # [this[index][0].order for index in other.indices if index in this.indices]
     def get_reshape(self, other: 'Indices') -> Union[Tuple, None]: return tuple([self[index][0].order for index in other.indices if index in self.indices]) if self.symbol_and_symbol_rank_eq(other) else None

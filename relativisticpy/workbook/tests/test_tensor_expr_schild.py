@@ -390,7 +390,6 @@ def test_einstein_tensor_computed_from_equation(Schwarzschild_Basis):
     del res
 
 
-@pytest.mark.skip(reason="TDD =====> Implement TODO: Covariant Derivative <======== ")
 def test_covariant_derivative_metric_equals_zero(
     Schwarzschild_Basis
 ):

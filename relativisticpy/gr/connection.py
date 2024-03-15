@@ -42,7 +42,7 @@ class Connection(EinsteinArray):
         for i, j, k, d in product(range(D), range(D), range(D), range(D)):
             empty[i, j, k] += (
                 Rational(1, 2)
-                * (ig[d, i])
+                * (ig[i, d])
                 * (
                     diff(g[k, d], wrt[j])
                     + diff(g[d, j], wrt[k])
@@ -60,7 +60,7 @@ class Connection(EinsteinArray):
         for i, j, k, d in product(range(D), range(D), range(D), range(D)):
             empty[i, j, k] += (
                 Rational(1, 2)
-                * (ig[d, i])
+                * (ig[i, d])
                 * (
                     diff(g[k, d], wrt[j])
                     + diff(g[d, j], wrt[k])

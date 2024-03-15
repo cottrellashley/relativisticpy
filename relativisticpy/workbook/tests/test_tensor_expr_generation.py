@@ -92,8 +92,6 @@ def test_basic_tensor_component_generations_symbols():
     assert smp.simplify(res.components) == smp.MutableDenseNDimArray([[1, 0, 0], [0, r**2, 0], [0, 0, r**2*smp.sin(theta)**2]])
     assert str(res.indices) == "_{a}_{b}"
 
-
-@pytest.mark.skip(reason="TDD =====> Implement TODO: Covariant Derivative <======== ")
 def test_covariant_derivative_metric_mapping(
     Schwarzschild_Basis
 ):
@@ -115,7 +113,6 @@ def test_covariant_derivative_metric_mapping(
     assert str(res.indices) == "_{b}_{a}_{c}"
     assert equal(res.basis, basis)
 
-
 def test_tensor_multiplication_with_scalar(
     Schwarzschild_Basis
 ):
@@ -132,4 +129,22 @@ def test_tensor_multiplication_with_scalar(
     )
     assert str(res.components) == '[[(2*G*M/r - 1)*f(x), 0, 0, 0], [0, f(x)/(-2*G*M/r + 1), 0, 0], [0, 0, r**2*f(x), 0], [0, 0, 0, r**2*f(x)*sin(theta)**2]]'
     assert str(res.indices) == "_{a}_{b}"
+    assert str(res.basis) == '[t, r, theta, phi]'
+
+def test_vector_index_raise_lowering():
+    # This should do the following:
+    # 1. D_{a}*g_{b}_{c} == Zero
+    wb = Workbook()
+
+    res = wb.expr(
+            """
+                Coordinates := [t, r, theta, phi]
+                g_{mu nu} := [[-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
+
+                V_{a} := [1 + t , h(r, t), h(theta), h(r, t)]
+                V_{a} - V^{b} * g_{a b}
+            """
+    )
+    assert str(res.components) == '[0, 0, 0, 0]'
+    assert str(res.indices) == "_{a}"
     assert str(res.basis) == '[t, r, theta, phi]'
