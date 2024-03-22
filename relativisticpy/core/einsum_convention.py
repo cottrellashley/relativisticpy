@@ -13,12 +13,10 @@ from relativisticpy.symengine import SymbolArray
 # This Module
 from relativisticpy.core.indices import Indices
 
-
 @dataclass
 class _tensorproduct:
     components: SymbolArray
     indices: Indices
-
 
 def einstein_convention(cls: MultiIndexArrayType):
     """Class decorator. Injects the einstein summation convention implementation into class."""

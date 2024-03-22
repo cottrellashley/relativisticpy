@@ -1,5 +1,5 @@
 # Standard Library
-from typing import List, Callable
+from typing import List, Callable, Optional, Union
 from itertools import product
 
 # External Modules
@@ -8,35 +8,23 @@ from relativisticpy.symengine import SymbolArray, Basic
 
 # This Module
 from relativisticpy.core.indices import Indices, Idx
-from relativisticpy.core.einsum_convention import einstein_convention
+from relativisticpy.core.metric import Metric
+from relativisticpy.core.einsum_array import _EinsumArray
 
-
-@einstein_convention
-class EinsteinArray:
+class EinsteinArray(_EinsumArray):
     """
     A class representing arrays that operate under the Einstein summation convention.
     It supports operations like addition, subtraction, multiplication, and division,
-    following the rules of tensor algebra.
-
-    Attributes:
-        indices (Indices): The indices of the tensor.
-        components (SymbolArray): The tensor's components.
-        basis (SymbolArray): The basis vectors for the tensor space.
-        subcomponents (SymbolArray): The subcomponents derived from the tensor components.
-
-    Methods:
-        scalar: Property indicating if the tensor is a scalar.
-        shape: Property to get the shape of the tensor.
-        dimention: Property to get the dimension of the tensor space.
-        add, subtract, multiply, etc.: Methods implementing tensor operations.
-
+    following the rules of tensor algebra. Additionally, it opperates under metric spaces, 
+    meaning it we can raise and lower indices by either defining a metric or passing one as parameter.
     """
 
     def __init__(
         self,
         indices: Indices,
-        components: SymbolArray = None,
+        components: SymbolArray,
         basis: SymbolArray = None,
+        metric: Metric = None
     ):
         """
         Initializes an instance of the EinsteinArray class.
@@ -46,46 +34,32 @@ class EinsteinArray:
             components (SymbolArray, optional): The tensor's components. Defaults to None.
             basis (SymbolArray, optional): The basis vectors for the tensor space. Defaults to None.
         """
-        self.components = components
-        self.abasis = basis
+        super().__init__(indices, components)
+        self.__basis = basis
         self._subcomponents = None
-        self.indices = indices
-
-        if self.indices.basis == None: # Need a better solution (EinArray should not know indices implementation.)
-            self.indices.basis = basis
+        self.__metric = metric
 
         # I think this is trying to first remove an array 
         if indices.anyrunnig: # Need a better solution (EinArray should not know indices implementation.)
-            if basis != None:
-                indices.basis = basis
-                self._subcomponents = self.get_subcomponents(indices)
-                self.indices = indices.get_non_running()
-            else:
-                raise ValueError(
-                    f"Basis parameter must be provided to initialize {self} with non-running indices."
-                )
-        self.__post_init__(basis)
+            self._subcomponents = self.get_subcomponents(indices)
+            self.indices = indices.get_non_running()
 
-    @property
-    def rank(self):
-        """
-        Property to get the rank of the tensor.
-
-        Returns:
-            int: The rank of the tensor.
-        """
-        return self.indices.rank
-
-    @property
-    def scalar(self) -> bool:
-        """
-        Property indicating if the tensor is a scalar.
-
-        Returns:
-            bool: True if the tensor is a scalar, False otherwise.
-        """
-        return self.rank == (0, 0)
+        self.__post_init__()
     
+    def __post_init__(self) -> None:
+        """
+        Performs post-initialization operations.
+
+        Args:
+            basis (SymbolArray, optional): The basis vectors for the tensor space. Defaults to None.
+        """
+        if self.indices.self_summed:
+            result = self.trace()
+            self.components = result.components
+            self.indices = result.indices
+        else:
+            pass # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
+
     @property
     def scalar_comp_value(self):
         """
@@ -100,27 +74,7 @@ class EinsteinArray:
             return self.components
 
     @property
-    def shape(self):
-        """
-        Property to get the shape of the tensor.
-
-        Returns:
-            Tuple[int]: The shape of the tensor.
-        """
-        return self.indices.shape
-
-    @property
-    def basis(self): return self.abasis
-
-    @property
-    def dimention(self):
-        """
-        Property to get the dimension of the tensor space.
-
-        Returns:
-            int: The dimension of the tensor space.
-        """
-        return len(self.basis)
+    def basis(self): return self.__basis
 
     @property
     def subcomponents(self):
@@ -130,7 +84,7 @@ class EinsteinArray:
         Returns:
             SymbolArray: The subcomponents derived from the tensor components.
         """
-        return self._subcomponents
+        return self._subcomponents or self.components
 
     @subcomponents.setter
     def subcomponents(self, value: SymbolArray):
@@ -152,6 +106,12 @@ class EinsteinArray:
         """
         self.basis = value
         self.indices.basis = value
+    
+    @property
+    def metric(self) -> Metric: return self.__metric or Metric.default(self.dimention)
+
+    @metric.setter
+    def metric(self, value: 'EinsteinArray') -> None: self.__metric = value
 
     def get_subcomponents(self, indices: Indices):
         """
@@ -163,97 +123,83 @@ class EinsteinArray:
         Returns:
             SymbolArray: The subcomponents derived from the tensor components.
         """
+        if not isinstance(indices, Indices):
+            raise TypeError(f"Expected Indices, got {type(indices).__name__}")
+        if not self.indices.symbol_covariance_eq(indices):
+            raise ValueError(f"New indices must have same symbol and covariance as old indices, but in any different order.")
+    
         self._subcomponents = self.components[indices.__index__()]
         return self._subcomponents
 
-    def reshape_tensor_components(self, indices: Indices):
+    def reshape(self, new_indices: Indices):
         """
-        Reshapes the tensor components based on the given indices.
+        Reshapes the tensor components based on the new given indices. 
+        New indices must have same symbol and covariance as old indices, but in any different order.
 
-        Args:
-            indices (Indices): The indices of the tensor.
+        Parameters
+        ----------
+        indices : Indices
+            The indices of the tensor.
 
-        Returns:
-            EinsteinArray: The reshaped tensor.
+        Returns
+        -------
+        EinsteinArray
+            The tensor with re-shaped components and new indices object, re-shaped from old indices.
+
+        Raises
+        ------
+        TypeError
+            when indices arg not of Indices type.
+        ValueError
+            when indices arg does not have same symbol and covariance as current indices.
         """
+        if not isinstance(new_indices, Indices):
+            raise TypeError(f"Expected Indices, got {type(new_indices).__name__}")
+        if not self.indices.symbol_covariance_eq(new_indices):
+            raise ValueError(f"New indices must have same symbol and covariance as old indices, but in any different order.")
+
+        reshape_tuple_order = self.indices.get_reshape(new_indices)
+        new_indices.basis = self.basis
+        new_components = self.reshape_components(reshape_tuple_order)
+        return type(self)(new_indices, new_components, self.basis)
+    
+    def tensor_from_new_indices(self, indices: Indices, metric: Metric = None):
+        """
+        Returns new .
+
+        Parameters
+        ----------
+        indices : Indices
+            The indices of the tensor.
+
+        Returns
+        -------
+        EinsteinArray
+            The tensor with re-shaped components and new indices object, re-shaped from old indices.
+
+        Raises
+        ------
+        TypeError
+            when indices arg not of Indices type.
+        ValueError
+            when indices arg does not have same symbol and covariance as current indices.
+        """
+        if not isinstance(indices, Indices):
+            raise TypeError(f"Expected Indices, got {type(indices).__name__}")
+        if len(self.indices.indices) != len(indices.indices):
+            raise ValueError(f"New indices must have same number of indices as current indices.")
+        if metric:
+            self.__metric = metric
+        if not self.metric:
+            raise ValueError(f"Cannot perform operation on EinsteinArray objects without Metric defined.")
+
+        for index in indices:
+            if index.covariant:
+                result *= type(self.metric)(self.indices, self.components, self.basis)
         reshape_tuple_order = self.indices.get_reshape(indices)
         indices.basis = self.basis
-        new_components = self.rearrange_components(reshape_tuple_order)
+        new_components = self.reshape_components(reshape_tuple_order)
         return type(self)(indices, new_components, indices.basis)
-    
-    def rearrange_components(self, new_order: List[int]):
-        """
-        Rearranges the components of the tensor based on the given order.
-
-        Args:
-            new_order (List[int]): The new order of the components.
-
-        Returns:
-            SymbolArray: The tensor components with rearranged order.
-        """
-        # Determine the shape of the new array
-        new_shape = [self.components.shape[i] for i in new_order]
-
-        # Create a new array with the same data but new shape
-        new_array = SymbolArray.zeros(*new_shape)
-
-        # Iterate over each possible index in the new array
-        for new_index in product(*[range(s) for s in new_shape]):
-            # Map the new index to the corresponding index in the original array
-            original_index = tuple(new_index[new_order.index(i)] for i in range(len(new_order)))
-            # Assign the value from the original array to the new index in the new array
-            new_array[new_index] = self.components[original_index]
-
-        return new_array
-
-    def components_operation(self, operation: Callable):
-        """
-        Performs an operation on the tensor components.
-
-        Args:
-            operation (Callable): The operation to be performed on the components.
-
-        Returns:
-            EinsteinArray: The tensor with the operation applied to its components.
-        """
-        self.components = operation(self.components)
-        return self
-    
-    def index_operation(self, operation: Callable):
-        """
-        Performs an operation on the tensor indices.
-
-        Args:
-            operation (Callable): The operation to be performed on the indices.
-
-        Returns:
-            EinsteinArray: The tensor with the operation applied to its indices.
-        """
-        self.indices = operation(self.indices)
-        return self
-
-    def comps_contraction(self, other: "EinsteinArray", idcs: List[List[int]]):
-        """
-        Performs contraction of tensor components with another tensor.
-
-        Args:
-            other (EinsteinArray): The tensor to be contracted with.
-            idcs (List[List[int]]): The indices to be contracted.
-
-        Returns:
-            SymbolArray: The contracted tensor components.
-        """
-        return tensor_trace_product(self.components, other.components, idcs)
-
-    # Dunders
-    def __post_init__(self, basis = None) -> None:
-        """
-        Performs post-initialization operations.
-
-        Args:
-            basis (SymbolArray, optional): The basis vectors for the tensor space. Defaults to None.
-        """
-        self.__set_self_summed(basis)  # After __init__ -> check and perform self-sum i.e. G_{a}^{a}_{b}_{c}
 
     def __neg__(self):
         """
@@ -266,38 +212,32 @@ class EinsteinArray:
         return self
 
     def __add__(self, other: "EinsteinArray") -> "EinsteinArray":
-        if not isinstance(other, EinsteinArray):
+        if not isinstance(other, _EinsumArray):
             raise TypeError(f"Unsupported operand type(s) for +: 'EinsteinArray' and '{type(other).__name__}'")
-        if self.basis == None or other.basis == None:
-            message = "Cannot perform Operation on EinsteinArray objects without Coordinates defined. \n "
-            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
-            raise ValueError(message + fix)
+        if self.indices.is_einsum_product(other.indices):
+            raise ValueError(f"Cannot perform addition of EinsteinArray's with the indices: {str(self.indices)} and {str(other.indices)} ")
     
-        operation = lambda a, b: a + b
-        result = self.additive_operation(
-            other, operation
-        )  # Implementation inserted by decorator
+        product = self.prod(other, lambda a, b: a + b)
         return EinsteinArray(
-            components=result.components, indices=result.indices, basis=self.basis
+            indices=product.indices, components=product.components, basis=self.basis
         )
 
     def __sub__(self, other: "EinsteinArray") -> "EinsteinArray":
-        if not isinstance(other, EinsteinArray):
+        if not isinstance(other, _EinsumArray):
             raise TypeError(f"Unsupported operand type(s) for -: 'EinsteinArray' and '{type(other).__name__}'")
-        if self.basis == None or other.basis == None:
-            message = "Cannot perform Index Summation on EinsteinArray objects without Coordinates defined. \n "
-            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
-            raise ValueError(message + fix)
+        if self.indices.is_einsum_product(other.indices):
+            raise ValueError(f"Cannot perform addition of EinsteinArray's with the indices: {str(self.indices)} and {str(other.indices)} ")
     
-        operation = lambda a, b: a - b
-        result = self.additive_operation(other, operation)
+        product = self.prod(other, lambda a, b: a - b)
         return EinsteinArray(
-            components=result.components, indices=result.indices, basis=self.basis
+            indices=product.indices, components=product.components, basis=self.basis
         )
 
     def __mul__(self, other: "EinsteinArray") -> "EinsteinArray":
         if not isinstance(other, (float, int, Basic, EinsteinArray)):
             raise TypeError(f"Unsupported operand type(s) for *: 'EinsteinArray' and '{type(other).__name__}'")
+        if not self.indices.is_einsum_product(other.indices):
+            raise ValueError(f"Cannot perform addition of EinsteinArray's with the indices: {str(self.indices)} and {str(other.indices)} ")
 
         if isinstance(other, (float, int, Basic)):
             return EinsteinArray(
@@ -305,11 +245,6 @@ class EinsteinArray:
                 indices=self.indices,
                 basis=self.basis,
             )
-        
-        if self.basis == None or other.basis == None:
-            message = "Cannot perform Index Summation on EinsteinArray objects without Coordinates defined. \n "
-            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
-            raise ValueError(message + fix)
 
         if self.scalar or other.scalar:
             return EinsteinArray(
@@ -318,14 +253,17 @@ class EinsteinArray:
                 basis=other.basis if self.scalar else self.basis,
             )
 
-        operation = lambda a, b: a * b
-        result = self.einsum_operation(other, operation)
-        ein_array = EinsteinArray(components=result.components, indices=result.indices, basis=self.basis)
+        product = self.prod(other, lambda a, b: a * b)
+        ein_array = EinsteinArray(
+            indices=product.indices, components=product.components, basis=self.basis
+        )
         return ein_array.scalar_comp_value if ein_array.scalar else ein_array
 
     def __rmul__(self, other: "EinsteinArray") -> "EinsteinArray":
         if not isinstance(other, (float, int, Basic, EinsteinArray)):
             raise TypeError(f"Unsupported operand type(s) for *: '{type(self).__name__}' and '{type(other).__name__}'")
+        if not self.indices.is_einsum_product(other.indices):
+            raise ValueError(f"Cannot perform addition of EinsteinArray's with the indices: {str(self.indices)} and {str(other.indices)} ")
     
         if isinstance(
             other, (float, int, Basic)
@@ -335,11 +273,6 @@ class EinsteinArray:
                 indices=self.indices,
                 basis=self.basis,
             )
-    
-        if self.basis == None or other.basis == None:
-            message = "Cannot perform Index Summation on EinsteinArray objects without Coordinates defined. \n "
-            fix = "Please define Coordinates at the top, for example: \n Coordinates := [x, y, z] \n ... "
-            raise ValueError(message + fix)
 
         if self.scalar or other.scalar:
             return EinsteinArray(
@@ -373,19 +306,3 @@ class EinsteinArray:
                 indices=self.indices,
                 basis=self.basis,
             ).scalar_comp_value
-
-    # Privates
-    def __set_self_summed(self, basis = None) -> None:
-        """
-        Sets the tensor to be self-summed if necessary.
-
-        Args:
-            basis (SymbolArray, optional): The basis vectors for the tensor space. Defaults to None.
-        """
-        if self.indices.self_summed:
-            result = self.selfsum_operation()
-            self.components = result.components
-            self.indices = result.indices
-        else:
-            pass
-    

@@ -25,7 +25,7 @@ def display_error_with_code(code_str, error_line, error_char, error_message):
 
     return message
 
-class Error(Exception):
+class RelPyError(Exception):
     def __init__(self, pos: TokenPosition, error_name: str, details: str, source_code: str = None):
         self.pos_start = pos.start_pos
         self.pos_end = pos.end_pos
@@ -42,14 +42,31 @@ class Error(Exception):
         else:
             return result
     
-class IllegalCharacterError(Error):
+
+# General Language Errors
+
+class IllegalCharacterError(RelPyError):
     def __init__(self, pos: TokenPosition, details, source_code: str = None):
         super().__init__(pos, 'Illegal Character', details, source_code)
 
-class IllegalSyntaxError(Error):
+class IllegalSyntaxError(RelPyError):
     def __init__(self, pos: TokenPosition, details='', source_code: str = None):
         super().__init__(pos, 'Invalid Syntax', details, source_code)
 
-class IllegalAssignmentError(Error):
+class IllegalAssignmentError(RelPyError):
     def __init__(self, pos: TokenPosition, details='', source_code: str = None):
         super().__init__(pos, 'Illegal Assignment or Definition', details, source_code)
+
+# Interpreter Errors
+
+# ...
+
+# Tensor Errors
+
+class IndicesError(RelPyError):
+    def __init__(self, pos: TokenPosition, details, source_code: str = None):
+        super().__init__(pos, 'Indices Error', details, source_code)
+
+class TensorError(RelPyError):
+    def __init__(self, pos: TokenPosition, details, source_code: str = None):
+        super().__init__(pos, 'Tensor Error', details, source_code)

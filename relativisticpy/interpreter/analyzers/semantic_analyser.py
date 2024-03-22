@@ -50,7 +50,7 @@ from .operator_lookup_tables import (
     trigFunctionFunctionType
 )
 from relativisticpy.interpreter.shared.constants import NodeKeys
-from relativisticpy.interpreter.shared.errors import Error, IllegalAssignmentError, IllegalSyntaxError
+from relativisticpy.interpreter.shared.errors import RelPyError, IllegalAssignmentError, IllegalSyntaxError
 from relativisticpy.interpreter.nodes.base import (AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal, Definition, Def, Call, TensorNode)
 from relativisticpy.interpreter.state.scopes import ScopedState
 
@@ -123,10 +123,10 @@ class SemanticAnalyzer:
             self.display_error_str
             )
 
-    def ast_analyzer(self, node: Union[AstNode, Error]):
+    def ast_analyzer(self, node: Union[AstNode, RelPyError]):
 
         # Handle error nodes
-        if isinstance(node, (Error, IllegalSyntaxError)):
+        if isinstance(node, (RelPyError, IllegalSyntaxError)):
             self.error_from_ast_node = node
             self.contains_error = True
             self.display_error_str = node.as_string()
@@ -138,7 +138,7 @@ class SemanticAnalyzer:
     def error_object_in_args_of(self, node) -> List[bool]:
         args = []
         for arg in node.args:
-            if isinstance(arg, Error):
+            if isinstance(arg, RelPyError):
                 self.contains_error = True
                 self.error_from_ast_node = node # Not really nessesary 
                 self.display_error_str = arg.as_string()

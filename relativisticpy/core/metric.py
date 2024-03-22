@@ -4,7 +4,8 @@ from itertools import product
 from operator import itemgetter
 
 # External Modules
-from relativisticpy.core import EinsteinArray, Indices, Idx
+from relativisticpy.core.indices import Indices, Idx
+from relativisticpy.core.einsum_array import _EinsumArray
 from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
 from relativisticpy.utils import tensor_trace_product, transpose_list
 
@@ -102,15 +103,17 @@ class MetricIndices(Indices):
         return res
 
 
-class Metric(EinsteinArray):
+class Metric(_EinsumArray):
     cron_delta = (1, 1)
     contravariant = (0, 2)
     covariant = (2, 0)
+    indices_type = MetricIndices
 
     def __init__(
         self, indices: MetricIndices, components: SymbolArray, basis: SymbolArray
     ):
-        super().__init__(indices=indices, components=components, basis=basis)
+        super().__init__(indices=indices, components=components)
+        self.basis = basis
 
     @property
     def _(self):
@@ -182,10 +185,9 @@ class Metric(EinsteinArray):
         indices = "_{n" + a + "}^{" + a + "}_{n" + b + "}^{" + b + "}"
 
         # - Finally we multiply the metric with new substituted components with a tensor product of the jacobian.
-        resulting_GRtensor = self * EinsteinArray(
+        resulting_GRtensor = self * _EinsumArray(
             tensorproduct(components, components),
-            indices,
-            transformation.new_basis.as_string,
+            indices
         )
 
         new_components = simplify(resulting_GRtensor.components)
@@ -205,3 +207,11 @@ class Metric(EinsteinArray):
 
     def __getitem__(self: "Metric", idcs: MetricIndices):
         return self._.components if idcs.rank == (0, 2) else self.inv.components
+
+    @classmethod
+    def default(cls, dim: int, indices_symbols: list[str] = ['mu', 'nu']):
+        return cls(
+            cls.indices_type(Idx(indices_symbols[0]), Idx(indices_symbols[1])), 
+            SymbolArray([[1 if i==j else 0 for j in range(dim)] for i in range(dim)]),
+            SymbolArray([Symbol(f'x{i}') for i in range(dim)])
+            )

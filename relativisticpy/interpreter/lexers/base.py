@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from enum import Enum
 from typing import List, Union, Dict
-from relativisticpy.interpreter.shared.errors import Error
+from relativisticpy.interpreter.shared.errors import RelPyError
 from relativisticpy.interpreter.shared.iterator import Iterator
 
 from dataclasses import dataclass
@@ -485,7 +485,7 @@ class BaseLexer(ABC):
     def peek_char(self, n: int, default: any = None) -> Union[str, None]:
         return self.__characters.peek(n, default)
 
-    def raise_error(self, error: Error):
+    def raise_error(self, error: RelPyError):
         raise Exception(error.message)
 
     def current_pos(self) -> Position:

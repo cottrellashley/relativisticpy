@@ -538,7 +538,7 @@ class GRParser(BaseParser):
     #                 :   tensor tensor*  <- NOT IMPLEMENTED YET
     ###############################################################################################
     def tensor(self, token: Token):
-        tensor_node = TensorNode(self.current_token.position.copy())
+        tensor_node = TensorNode(self.current_token.position.copy(), source_code=self.raw_code)
         tensor_node.identifier = token.value
         tensor_covariant = True
 

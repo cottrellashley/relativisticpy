@@ -10,6 +10,8 @@ from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplif
 from relativisticpy.gr.connection import Connection
 from relativisticpy.gr.tensors.geometric import GeometricObject
 
+# TODO: Add mechanism which detects self-contractions and map any self contraction to relevant tensor i.e. Riemann^{a}_{b}_{a}_{c} == Ricci_{b}_{c}
+
 @einstein_convention
 class Riemann(GeometricObject):
     def __init__(self, indices: Indices, arg, basis: SymbolArray = None):

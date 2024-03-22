@@ -6,6 +6,7 @@ from typing import Callable, List, Union, Type
 from .position import Position
 from relativisticpy.interpreter.state.scopes import ScopedState, Scope
 from relativisticpy.interpreter.protocols import Node, Implementer, Tensor, Indices
+from relativisticpy.interpreter.shared.errors import IndicesError
 
 class NodeType(Enum):
     """An enumeration of node types used by a parser."""
@@ -513,14 +514,12 @@ class _Index:
      covariant: bool
      values: Union[int, List] = None
 
-
 class _Indices:
     def __init__(self, indices: List[_Index]):
         self.indices = indices
 
     def __str__(self) -> str:
         return ''.join([idx.identifier.join(['_{', '}']) if idx.covariant else idx.identifier.join(['^{', '}']) for idx in self.indices])
-
 
 class TensorNode(
     AstNode
@@ -541,12 +540,13 @@ class TensorNode(
             T_{mu nu} := A_{mu nu} - A_{nu mu}
     """
 
-    def __init__(self, position: Position):
+    def __init__(self, position: Position, source_code: str = None):
         self.type = NodeType.TENSOR
         self.position = position
         self._data_type = 'none'
         self._indices = []
         self.identifier = ""
+        self.source_code = source_code
 
         # The following are all set during build of object.
         self.start_position = None
@@ -608,7 +608,7 @@ class TensorNode(
 
             if symbol in state.get_variable(Scope.Coordinates):
                 if isinstance(idx.values, int):
-                    raise ValueError(f"Tensor sub-component is already being called by using index as the Coordinate variable '{idx.identifier}', cannot index again with method ': <int>'")
+                    raise IndicesError(self.position, f"Tensor sub-component is already being called by using index as the Coordinate variable '{idx.identifier}', cannot index again with method ': <int>'", self.source_code)
                 idx.values = list(state.get_variable(Scope.Coordinates)).index(symbol)
     
         if self.identifier == state.get_variable(Scope.DerivativeSymbol):

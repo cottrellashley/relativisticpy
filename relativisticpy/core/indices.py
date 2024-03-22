@@ -10,6 +10,11 @@ from relativisticpy.core.tensor_equality_types import TensorEqualityType
 from relativisticpy.utils import transpose_list
 from relativisticpy.symengine import SymbolArray
 
+# TODO: Add exception handling, check if the settable properties have correct values and types, and throw exceptions if they do not.
+# TODO: Exceptions from this file should not surface to the user, unless the error message is meaningfull. If it is not meaningful, catch and re-write a meningful error message at the workbook layer.
+# TODO: self.basis properties. You can do more than you are currently doing with them.
+# TODO: Add a copy method to the Indices class. This will be useful for the einsum implementation.
+
 class Idx:
     """
         IMPORTANT: This class is not for instantiation for use. The Indices class auto-initiates this class and sets all relevant properties.
@@ -48,13 +53,16 @@ class Idx:
     def get_summed_locations(self, indices: 'Indices') -> List[Tuple[int]]: return [(self.order, index.order) for index in indices if self.is_contracted_with(index)]
     def get_repeated_locations(self, indices: 'Indices') -> List[Tuple[int]]: return [(self.order, index.order) for index in indices if self.is_identical_to(index)]
 
-    # Equality comparitors
+    # Idx - Idx Comparitors
     def symbol_eq(self, other: 'Idx') -> bool: return self.symbol == other.symbol
-    def symbol_in_indices(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol for other_idx in other.indices])
-    def symbol_in_indices_and_order(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol and self.order == other_idx.order for other_idx in other.indices])
     def covariance_eq(self, other: 'Idx') -> bool: return self.covariant == other.covariant
-    def rank_match_in_indices(self, other: 'Indices') -> bool: return any([self.order == other_idx.order and self.covariant == other_idx.covariant for other_idx in other.indices])
     def order_match(self, other: 'Idx') -> bool: return self.order == other.order and self.symbol == other.symbol
+
+    # Idx - Indices Comparitors
+    def symbol_in_indices(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol for other_idx in other.indices])
+    def symbol_covariance_eq(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol and self.covariant == other_idx.covariant for other_idx in other.indices])
+    def symbol_in_indices_and_order(self, other: 'Indices') -> bool: return any([self.symbol == other_idx.symbol and self.order == other_idx.order for other_idx in other.indices])
+    def rank_match_in_indices(self, other: 'Indices') -> bool: return any([self.order == other_idx.order and self.covariant == other_idx.covariant for other_idx in other.indices])
 
     # Dunders
     def __neg__(self) -> 'Idx': return Idx(self.symbol, self.order, self.values, not self.covariant)
@@ -92,7 +100,7 @@ class Indices:
         self._basis = None
 
     # Properties
-    @property 
+    @property
     def basis(self) -> SymbolArray: return self._basis
     @property
     def anyrunnig(self) -> bool: return any([not idx.running for idx in self.indices])
@@ -139,6 +147,7 @@ class Indices:
     # Publics
     def zeros_array(self): return SymbolArray.zeros(*self.shape)
     def replace(self, old: Idx, new: Idx) -> 'Indices':
+        """ Replaces an index with another index, matching only on the symbol. """
         new.basis = self.basis
         indices = [new if index.symbol == old.symbol else index for index in self.indices]
         return Indices(*indices)
@@ -156,7 +165,8 @@ class Indices:
     # Types of equality
     def order_delta(self, other: 'Indices') -> Tuple[int]: return tuple([j.order for i, j in product(self.indices, other.indices) if i.symbol == j.symbol and i.covariant == j.covariant]) if self.symbol_eq(other) else None
     def rank_eq(self, other: 'Indices') -> bool:  return all([idx.rank_match_in_indices(other) for idx in self.indices])
-    def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices])
+    def symbol_covariance_eq(self, other: 'Indices') -> bool: return all([idx.symbol_covariance_eq(other) for idx in self.indices]) and len(self.indices) == len(other.indices)
+    def symbol_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices(other) for idx in self.indices]) and len(self.indices) == len(other.indices)
     def symbol_and_symbol_rank_eq(self, other: 'Indices') -> bool: return all([idx in other.indices for idx in self.indices])
     def symbol_order_eq(self, other: 'Indices') -> bool:  return all([idx.symbol_in_indices_and_order(other) for idx in self.indices])
     def symbol_order_rank_eq(self, other: 'Indices') -> bool:  return all([i[0] == i[1] for i in zip(self.indices, other.indices)]) if len(self.indices) == len(other.indices) else False
@@ -250,7 +260,7 @@ class Indices:
         res.basis = self.basis
         return res
 
-    # Privates
+    # Private Helpers
     def _indices_iterator(self): return list(product(*[x for x in self.indices]))
     def _is_all_summed_with(self, other: 'Indices') -> 'Indices': return all([idx.is_summed_wrt_indices(other.indices) for idx in self.indices])
     def _get_einsum_result(self, other: 'Indices') -> 'Indices': lst = [idx for idx in self.indices if not idx.is_summed_wrt_indices(other.indices)] + [idx for idx in other.indices if not idx.is_summed_wrt_indices(self.indices)]; return Indices(*lst)
