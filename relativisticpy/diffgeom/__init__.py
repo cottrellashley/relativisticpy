@@ -12,4 +12,3 @@ from relativisticpy.diffgeom.derivatives.covariant import CovDerivative
 from relativisticpy.diffgeom.derivatives.partial import Derivative
 from relativisticpy.diffgeom.manifold import Manifold, Patch, CoordinatePatch
 from relativisticpy.diffgeom.metric import Metric, MetricIndices
-from relativisticpy.diffgeom.geotensor import GrTensor

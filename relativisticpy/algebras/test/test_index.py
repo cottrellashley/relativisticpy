@@ -1,5 +1,5 @@
 # Assuming Idx is imported from your module
-from relativisticpy.algebras.index_algebra import Idx, Indices
+from relativisticpy.algebras import Idx, Indices
 from relativisticpy.symengine import Symbol, SymbolArray
 import pytest
 

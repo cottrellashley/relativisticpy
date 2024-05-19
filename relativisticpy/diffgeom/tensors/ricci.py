@@ -8,7 +8,6 @@ from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplif
 
 # This Module
 from relativisticpy.diffgeom.connection import LeviCivitaConnection
-from relativisticpy.diffgeom.geotensor import GrTensor
 from relativisticpy.diffgeom.tensors.riemann import Riemann
 
 class Ricci(Tensor):

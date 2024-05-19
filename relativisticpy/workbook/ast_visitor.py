@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import List
 
-from relativisticpy.algebras import Indices, Idx
-from relativisticpy.diffgeom import Metric, MetricIndices, GrTensor
-from relativisticpy.diffgeom import RicciScalar, MetricScalar, Ricci, Riemann, LeviCivitaConnection, Derivative, CovDerivative
+from relativisticpy.algebras import Indices, Idx, Tensor
+from relativisticpy.diffgeom import Metric, MetricIndices
+from relativisticpy.diffgeom import RicciScalar, MetricScalar, Ricci, Riemann, LeviCivitaConnection, Derivative, CovDerivative 
+
+from relativisticpy.gr.einstein import EinsteinTensor
 
 from relativisticpy.interpreter.protocols import Implementer
 from relativisticpy.interpreter import ScopedState
@@ -212,9 +214,9 @@ class RelPyAstNodeTraverser(Implementer):
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         return Metric(indices, components, basis)
 
-    def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> GrTensor:
+    def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> Tensor:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
-        return GrTensor(indices, components, basis)
+        return Tensor(indices, components, basis)
 
     def init_ricci_scalar(self, node: AstNode) -> RicciScalar:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."

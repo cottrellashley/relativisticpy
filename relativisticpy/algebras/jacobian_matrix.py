@@ -26,7 +26,7 @@ class CoordinateMap:
             transformation (Callable[[Basic], Basic]): The transformation function.
         """
         pass
-    
+
 class Jacobian(EinsumArray):
 
     def __init__(self, indices: Indices, components: SymbolArray):
@@ -81,3 +81,4 @@ class Jacobian(EinsumArray):
             # Set the component in the Jacobian matrix
             components[i, j] = comp
         return components
+

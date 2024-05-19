@@ -3,7 +3,6 @@ from relativisticpy.algebras import Indices, Tensor
 from relativisticpy.diffgeom.metric import Metric
 from relativisticpy.diffgeom.connection import LeviCivitaConnection
 from relativisticpy.symengine import SymbolArray, simplify
-
 from relativisticpy.diffgeom.tensors.riemann import Riemann
 
 class KScalar(Tensor):
@@ -39,3 +38,4 @@ class KScalar(Tensor):
         raise NotImplementedError(
             "KScalar from connection has not been implemented yet."
         )
+

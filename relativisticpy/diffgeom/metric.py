@@ -121,7 +121,7 @@ class MetricIndices(Indices):
         return res
 
 
-class Metric(EinsumArray):
+class Metric(Tensor):
     cron_delta = (1, 1)
     contravariant = (0, 2)
     covariant = (2, 0)
@@ -137,7 +137,7 @@ class Metric(EinsumArray):
 
     @property
     def args(self) -> Tuple[Indices, SymbolArray]:
-        return [self.indices, self.components, self.coordinate_patch]
+        return [self.indices, self.components]
 
     @property
     def uu_components(self) -> SymbolArray:
@@ -159,9 +159,7 @@ class Metric(EinsumArray):
         else:
             comp = SymbolArray(self.components.tomatrix().inv())
             ind = MetricIndices(*[-j for j in self.indices.indices])
-        return Metric(
-            indices=ind, components=comp
-        )
+        return Metric(indices=ind, components=comp)
 
     @property
     def contravariant(self):
@@ -171,9 +169,7 @@ class Metric(EinsumArray):
         else:
             comp = SymbolArray(self.components.tomatrix().inv())
             ind = MetricIndices(*[-j for j in self.indices.indices])
-        return Metric(
-            indices=ind, components=comp
-        )
+        return Metric(indices=ind, components=comp)
 
     def __pow__(self, other):
         if other == -1:
@@ -208,7 +204,6 @@ class Metric(EinsumArray):
         )
         return cls(indices, components)
 
-    # This needs drastic change.
     def __add__(self, other: EinsumArray):
         return self.add(other, type(other))
 
@@ -224,7 +219,124 @@ class Metric(EinsumArray):
     def __pow__(self, other: EinsumArray):
         return self.pow(other, type(self))
 
-    def rerank_a_tensor_idx(
+    def rerank(self, tensor: Tensor, new_indices: Indices):
+        if not isinstance(new_indices, Indices):
+            raise TypeError(f"Expected Indices, got {type(new_indices).__name__}")
+        if not tensor.indices.symbol_order_eq(new_indices):
+            raise ValueError(
+                f"New indices must have same symbol and covariance as old indices, but in any different order."
+            )
+        self._rerank(tensor, new_indices)
+
+    def reshape_rerank(self, tensor: Tensor, new_indices: Indices):
+        if not isinstance(new_indices, Indices):
+            raise TypeError(f"Expected Indices, got {type(new_indices).__name__}")
+        if len(tensor.indices.indices) != len(new_indices.indices):
+            raise ValueError(
+                f"New indices must have same number of indices as current indices."
+            )
+        if not tensor.indices.symbol_eq(new_indices):
+            raise ValueError(f"New indices must have same symbols as current indices.")
+
+        # DIFFERENT ORDERS - IGNORING COVERIANCE
+        # _{a b c} -> _{b a c}
+        # _{a b}^{c} -> ^{c}_{b a}
+        if tensor.indices.symbol_eq(new_indices):
+            self._reshape(tensor, new_indices, ignore_covariance=True)
+
+        # SAME SYMBOLS & ORDERS - DIFFERENT COVARIANCE
+        # _{a b c} -> ^{a}_{b c}
+        # ^{a}_{b c} -> _{a b}^{c}
+        if tensor.indices.symbol_order_eq(new_indices):
+            for index in new_indices.indices:
+                if new_in_old := tensor.indices.get_same_symbol(index):
+                    if new_in_old.covariant != index.covariant:
+                        (
+                            self.lower_index(tensor, new_in_old)
+                            if new_in_old.contravariant
+                            else self.raise_index(tensor, new_in_old)
+                        )
+                    else:
+                        continue
+                else:
+                    continue
+
+    def _rerank(self, tensor: Tensor, new_indices: Indices):
+        """Protected method to rerank the tensor in same rank as the new_indices."""
+        if tensor.indices.symbol_order_eq(new_indices):
+            for index in new_indices.indices:
+                if new_in_old := tensor.indices.get_same_symbol(index):
+                    if new_in_old.covariant != index.covariant:
+                        (
+                            self.lower_index(tensor, new_in_old)
+                            if new_in_old.contravariant
+                            else self.raise_index(tensor, new_in_old)
+                        )
+                    else:
+                        continue
+                else:
+                    continue
+        else:
+            for tensor_idx, new_idx in list(
+                zip(tensor.indices.indices, new_indices.indices)
+            ):
+                if tensor_idx.covariant != new_idx.covariant:
+                    if tensor_idx.covariant:
+                        self.lower_index(tensor, tensor_idx)
+                    else:
+                        self.raise_index(tensor, tensor_idx)
+                else:
+                    continue
+            tensor.indices = new_indices
+            new_indices.dimention = tensor.dimention
+
+    def lower_index(self, tensor: Tensor, index: Idx):
+        """
+        Protected method to lower an index of the tensor.
+        
+        Args:
+            tensor (Tensor): The tensor to lower the index of.
+            index (Idx): The index within the tensor to lower.
+
+        Raises:
+            TypeError: If the index is not an instance of Idx.
+            ValueError: If the index is not found in the tensor's indices.
+            ValueError: If the index is already covariant.
+        """
+        if not isinstance(index, Idx):
+            raise TypeError(f"Expected Idx, got {type(index).__name__}")
+        if not tensor.indices.has_index(index):
+            raise ValueError(f"Index {index} not found in indices {tensor.indices}.")
+        if index.covariant:
+            raise ValueError(f"Cannot raise index {index} as it is already covariant.")
+
+        self.__new_index(tensor, index, MetricIndices.lower_indices)
+
+    def raise_index(self, tensor: Tensor, index: Idx) -> Tensor:
+        """
+        Protected method to raise an index of the tensor.
+
+        Args:
+            tensor (Tensor): The tensor to raise the index of.
+            index (Idx): The index within the tensor to raise.
+        
+        Raises:
+            TypeError: If the index is not an instance of Idx.
+            ValueError: If the index is not found in the tensor's indices.
+            ValueError: If the index is already contravariant.
+        """
+        if not isinstance(index, Idx):
+            raise TypeError(f"Expected Idx, got {type(index).__name__}")
+        if not tensor.indices.has_index(index):
+            raise ValueError(f"Index {index} not found in indices {tensor.indices}.")
+        if index.contravariant:
+            raise ValueError(
+                f"Cannot raise index {index} as it is already contravariant."
+            )
+
+        self.__new_index(tensor, index, MetricIndices.raise_indices)
+
+    def __new_index(
         self, tensor: Tensor, index: Idx, dummy_indices_generator: Callable
     ):
         """Protected method to raise an index of the tensor."""
@@ -232,166 +344,14 @@ class Metric(EinsumArray):
         # The most efficient way is to directly manipulate the underlying components of the tensor.
         # For the time being, we perform the expensive operation by generate two dummy tensors objects and multiplying them.
         metric_dummy_indices, tensor_dummy_indices = dummy_indices_generator(
-            index, self.indices
+            index, tensor.indices
         )
-        # Following the Args convention of the Tensor classes: indices, components, other *args, **kwargs
-        # TODO: Create a class method in the base class which can be inherited by all the tensor classes which init_new_args(args) which
-        # will return the new args for the tensor class only changing the args passes in, everyhing else remains the same.
+
         tensor_args = [tensor_dummy_indices] + tensor.args[1:]
-        dummy_metric = Metric(metric_dummy_indices, self.components)
+        dummy_metric = Metric.from_metric(self, metric_dummy_indices)
         dummy_tensor = type(tensor)(*tensor_args)
         result = dummy_metric.mul(dummy_tensor, type(tensor))
 
         # Set new properties
         tensor.components = result.components
         tensor.indices = result.indices
-
-    def raise_index(self, index: Idx, dummy_indices_generator):
-        """Protected method to raise an index of the tensor."""
-
-        # The most efficient way is to directly manipulate the underlying components of the tensor.
-        # For the time being, we perform the expensive operation by generate two dummy tensors objects and multiplying them.
-        metric_dummy_indices, tensor_dummy_indices = dummy_indices_generator(
-            index, self.indices
-        )
-
-        tensor_args = [tensor_dummy_indices] + self.args[1:]
-        dummy_metric = Metric.from_metric(self.metric, metric_dummy_indices)
-        dummy_tensor = type(self)(*tensor_args)
-        result = dummy_metric.mul(dummy_tensor, type(self))
-
-        # Set new properties
-        self.components = result.components
-        self.indices = result.indices
-
-    def rerank(self, tensor: Tensor, new_indices: Indices):
-        if not isinstance(new_indices, Indices):
-            raise TypeError(f"Expected Indices, got {type(new_indices).__name__}")
-        if not self.indices.symbol_order_eq(new_indices):
-            raise ValueError(
-                f"New indices must have same symbol and covariance as old indices, but in any different order."
-            )
-        self._rerank(new_indices)
-
-        for index in new_indices.indices:
-            if new_in_old := self.indices.get_same_symbol(index):
-                if new_in_old.covariant != index.covariant:
-                    (
-                        self.lower_index(new_in_old)
-                        if new_in_old.contravariant
-                        else self.raise_index(new_in_old)
-                    )
-                else:
-                    continue
-            else:
-                continue
-
-    def reshape_rerank(self, new_indices: Indices):
-        if not isinstance(new_indices, Indices):
-            raise TypeError(f"Expected Indices, got {type(new_indices).__name__}")
-        if len(self.indices.indices) != len(new_indices.indices):
-            raise ValueError(
-                f"New indices must have same number of indices as current indices."
-            )
-        if not self.indices.symbol_eq(new_indices):
-            raise ValueError(f"New indices must have same symbols as current indices.")
-
-        # DIFFERENT ORDERS - IGNORING COVERIANCE
-        # _{a b c} -> _{b a c}
-        # _{a b}^{c} -> ^{c}_{b a}
-        if self.indices.symbol_eq(new_indices):
-            self._reshape(new_indices, ignore_covariance=True)
-
-        # SAME SYMBOLS & ORDERS - DIFFERENT COVARIANCE
-        # _{a b c} -> ^{a}_{b c}
-        # ^{a}_{b c} -> _{a b}^{c}
-        if self.indices.symbol_order_eq(new_indices):
-            for index in new_indices.indices:
-                if new_in_old := self.indices.get_same_symbol(index):
-                    if new_in_old.covariant != index.covariant:
-                        (
-                            self.lower_index(new_in_old)
-                            if new_in_old.contravariant
-                            else self.raise_index(new_in_old)
-                        )
-                    else:
-                        continue
-                else:
-                    continue
-
-    def lower_index(self, index: Idx):
-        """Protected method to lower an index of the tensor."""
-        if not isinstance(index, Idx):
-            raise TypeError(f"Expected Idx, got {type(index).__name__}")
-        if not self.indices.has_index(index):
-            raise ValueError(f"Index {index} not found in indices {self.indices}.")
-        if index.covariant:
-            raise ValueError(f"Cannot raise index {index} as it is already covariant.")
-        if not self.metric:
-            raise ValueError(
-                f"Cannot perform operation on EinsteinArray objects without Metric defined."
-            )
-        self.__new_index(index, MetricIndices.lower_indices)
-
-    def raise_index(self, index: Idx) -> "GrTensor":
-        """Protected method to raise an index of the tensor."""
-        if not isinstance(index, Idx):
-            raise TypeError(f"Expected Idx, got {type(index).__name__}")
-        if not self.indices.has_index(index):
-            raise ValueError(f"Index {index} not found in indices {self.indices}.")
-        if index.contravariant:
-            raise ValueError(
-                f"Cannot raise index {index} as it is already contravariant."
-            )
-        if not self.metric:
-            raise ValueError(
-                f"Cannot perform operation on EinsteinArray objects without Metric defined."
-            )
-        self.__new_index(index, MetricIndices.raise_indices)
-
-    def _rerank(self, new_indices: Indices):
-        """Protected method to rerank the tensor in same rank as the new_indices."""
-        if self.indices.symbol_order_eq(new_indices):
-            for index in new_indices.indices:
-                if new_in_old := self.indices.get_same_symbol(index):
-                    if new_in_old.covariant != index.covariant:
-                        (
-                            self.lower_index(new_in_old)
-                            if new_in_old.contravariant
-                            else self.raise_index(new_in_old)
-                        )
-                    else:
-                        continue
-                else:
-                    continue
-        else:
-            for self_idx, new_idx in list(
-                zip(self.indices.indices, new_indices.indices)
-            ):
-                if self_idx.covariant != new_idx.covariant:
-                    if self_idx.covariant:
-                        self.lower_index(self_idx)
-                    else:
-                        self.raise_index(self_idx)
-                else:
-                    continue
-            self.indices = new_indices
-            new_indices.dimention = self.dimention
-
-    def __new_index(self, index: Idx, dummy_indices_generator: Callable):
-        """Protected method to raise an index of the tensor."""
-
-        # The most efficient way is to directly manipulate the underlying components of the tensor.
-        # For the time being, we perform the expensive operation by generate two dummy tensors objects and multiplying them.
-        metric_dummy_indices, tensor_dummy_indices = dummy_indices_generator(
-            index, self.indices
-        )
-
-        tensor_args = [tensor_dummy_indices] + self.args[1:]
-        dummy_metric = Metric.from_metric(self.metric, metric_dummy_indices)
-        dummy_tensor = type(self)(*tensor_args)
-        result = dummy_metric.mul(dummy_tensor, type(self))
-
-        # Set new properties
-        self.components = result.components
-        self.indices = result.indices

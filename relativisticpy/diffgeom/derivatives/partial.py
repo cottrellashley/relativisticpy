@@ -1,6 +1,5 @@
 # External Modules
 from relativisticpy.algebras import Indices, EinsumArray
-from relativisticpy.diffgeom.geotensor import GrTensor
 from relativisticpy.symengine import diff, simplify
 
 class Derivative(EinsumArray):

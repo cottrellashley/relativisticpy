@@ -3,9 +3,8 @@ from typing import Union
 from itertools import product
 
 # External Modules
-from relativisticpy.algebras import Indices, Idx, EinsumArray
+from relativisticpy.algebras import Indices, Idx, EinsumArray, Tensor
 from relativisticpy.diffgeom.metric import Metric
-from relativisticpy.diffgeom.geotensor import GrTensor
 
 # This Module
 from relativisticpy.diffgeom.connection import LeviCivitaConnection
@@ -39,7 +38,7 @@ class CovDerivative(EinsumArray):
             indices=result.indices,
             basis=other.basis,
         )
-        
+
         # Method 2 where we use the einsum operation to compute the covariant derivative
         total2 = pdiff
         for index in other.indices.indices:
@@ -48,10 +47,10 @@ class CovDerivative(EinsumArray):
                 connection_indices = Indices(-Idx('dummy_index'), Idx(cd_idx), Idx(index.symbol))
                 connection_indices.basis = self.basis
                 operand_indices = other.indices.replace(old=index, new=Idx('dummy_index'))
-                total2 = total2 - GrTensor(
+                total2 = total2 - Tensor(
                                         components=self.connection_components,
                                         indices=connection_indices
-                                    ) * GrTensor(
+                                    ) * Tensor(
                                         components=other.components,
                                         indices=operand_indices
                                     )
@@ -59,10 +58,10 @@ class CovDerivative(EinsumArray):
                 connection_indices = Indices(-Idx(index.symbol), Idx(cd_idx), Idx('dummy_index'))
                 connection_indices.basis = self.basis
                 operand_indices = other.indices.replace(old=index, new=-Idx('dummy_index'))
-                total2 += GrTensor(
+                total2 += Tensor(
                                        components=self.connection_components,
                                         indices=connection_indices
-                                    ) * GrTensor(
+                                    ) * Tensor(
                                         components=other.components,
                                         indices=operand_indices
                                     )

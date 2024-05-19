@@ -2,13 +2,12 @@
 from itertools import product
 
 # External Modules
-from relativisticpy.algebras import Indices
-from relativisticpy.diffgeometry import Metric
+from relativisticpy.algebras import Indices, Tensor
+from relativisticpy.diffgeom import Metric
 from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplify
 
 # This Module
-from relativisticpy.diffgeom.connection import Connection
-from relativisticpy.diffgeom.tensors.geometric import Tensor
+from relativisticpy.diffgeom import LeviCivitaConnection
 
 class EinsteinTensor(Tensor):
     def __init__(self, indices: Indices, arg, basis: SymbolArray = None):
@@ -24,7 +23,7 @@ class EinsteinTensor(Tensor):
             A[i, j] += Ricci[i, j] - g[i, j] * ig[l, k] * Ricci[l, k]
         return simplify(A)
 
-    def __ricci_components_from_connection(self, connection: Connection) -> SymbolArray:
+    def __ricci_components_from_connection(self, connection: LeviCivitaConnection) -> SymbolArray:
         N = connection.dimention
         wrt = connection.basis
         Gamma = connection.components
@@ -38,7 +37,7 @@ class EinsteinTensor(Tensor):
     def __ricci_components_from_metric(self, metric: Metric) -> SymbolArray:
         N = metric.dimention
         wrt = metric.basis
-        Gamma = Connection.from_metric(metric)
+        Gamma = LeviCivitaConnection.from_metric(metric)
         A = SymbolArray(zeros(N**2), (N, N))
         for j, p, i, d in product(range(N), range(N), range(N), range(N)):
             A[j, p] += Rational(1, N) * (
