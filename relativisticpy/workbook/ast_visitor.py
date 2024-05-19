@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from typing import List
 
-from relativisticpy.core import EinsteinArray, Indices, Metric, MetricIndices, Idx
-from relativisticpy.gr import RicciScalar, MetricScalar, Ricci, Riemann, Connection, Derivative, EinsteinTensor, CovDerivative
+from relativisticpy.algebras import Indices, Idx
+from relativisticpy.diffgeom import Metric, MetricIndices, GrTensor
+from relativisticpy.diffgeom import RicciScalar, MetricScalar, Ricci, Riemann, LeviCivitaConnection, Derivative, CovDerivative
 
 from relativisticpy.interpreter.protocols import Implementer
 from relativisticpy.interpreter import ScopedState
@@ -129,16 +130,16 @@ class RelPyAstNodeTraverser(Implementer):
             return diff(node.args[0], wrt, node.args[2])
 
     def diff(self, node: AstNode):
-        if isinstance(node.args[0], EinsteinArray):
-            old_tensor: EinsteinArray = node.args[0]
+        if isinstance(node.args[0], Tensor):
+            old_tensor: Tensor = node.args[0]
             if len(node.args) == 3:
-                new_tensor = EinsteinArray(
+                new_tensor = Tensor(
                     old_tensor.indices,
                     diff(old_tensor.components, node.args[1], node.args[2]),
                     old_tensor.basis,
                 )
             else:
-                new_tensor = EinsteinArray(
+                new_tensor = Tensor(
                     old_tensor.indices,
                     diff(old_tensor.components, node.args[1]),
                     old_tensor.basis,
@@ -194,7 +195,7 @@ class RelPyAstNodeTraverser(Implementer):
             self.state.get_variable("MetricSymbol"): Metric,
             self.state.get_variable("RicciSymbol"): Ricci,
             self.state.get_variable("EinsteinTensorSymbol"): EinsteinTensor,
-            self.state.get_variable("ConnectionSymbol"): Connection,
+            self.state.get_variable("ConnectionSymbol"): LeviCivitaConnection,
             self.state.get_variable("RiemannSymbol"): Riemann,
             self.state.get_variable("CovariantDerivativeSymbol"): CovDerivative
         }
@@ -211,9 +212,9 @@ class RelPyAstNodeTraverser(Implementer):
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         return Metric(indices, components, basis)
 
-    def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> EinsteinArray:
+    def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> GrTensor:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
-        return EinsteinArray(indices, components, basis)
+        return GrTensor(indices, components, basis)
 
     def init_ricci_scalar(self, node: AstNode) -> RicciScalar:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."

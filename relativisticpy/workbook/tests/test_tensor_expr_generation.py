@@ -1,8 +1,8 @@
 import pytest
 import sympy as smp
 from relativisticpy.workbook.workbook import Workbook
-from relativisticpy.core import EinsteinArray, Metric
-from relativisticpy.gr import (
+from relativisticpy.algebras import EinsteinArray, Metric
+from relativisticpy.diffgeom import (
     EinsteinTensor,
     Ricci,
     RicciScalar,
