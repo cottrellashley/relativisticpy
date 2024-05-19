@@ -1,16 +1,16 @@
 import pytest
 import sympy as smp
 from relativisticpy.workbook.workbook import Workbook
-from relativisticpy.algebras import EinsteinArray, Metric
 from relativisticpy.diffgeom import (
-    EinsteinTensor,
     Ricci,
+    Metric,
     RicciScalar,
     Riemann,
     KScalar,
     MetricScalar,
-    Connection,
+    LeviCivitaConnection,
 )
+from relativisticpy.gr.einstein import EinsteinTensor
 
 # TODO: <<< PUT THIS FUNCTION SOMEWHERE ELSE + SIMPLIFY IT AS ITs IMPLEMENTATION LOOKS HORIBLE >>>>>>
 def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):

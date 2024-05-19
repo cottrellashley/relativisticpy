@@ -1,8 +1,8 @@
 import pytest
-from relativisticpy.algebras.index_algebra import Idx
+from relativisticpy.algebras import Idx
 from relativisticpy.symengine import Symbol, Function, sin, cos, diff, SymbolArray
-from relativisticpy.diffgeom.tensors.ricci import Ricci
-from relativisticpy.algebras import Metric, MetricIndices, Indices
+from relativisticpy.diffgeom import Ricci, Metric, MetricIndices
+from relativisticpy.algebras import Indices
 
 
 @pytest.fixture

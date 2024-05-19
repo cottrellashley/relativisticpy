@@ -1,6 +1,6 @@
-from ..nodes.position import Position
-from ..lexers.gr_lexer import GRLexer
-from ..lexers.base import LexerResult, Token, TokenType
+from relativisticpy.interpreter.nodes.position import Position
+from relativisticpy.interpreter.lexers.gr_lexer import GRLexer
+from relativisticpy.interpreter.lexers.base import LexerResult, Token, TokenType
 from typing import List
 import pytest
 

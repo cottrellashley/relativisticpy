@@ -1,16 +1,16 @@
 import pytest
 import sympy as smp
 from relativisticpy.workbook.workbook import Workbook
-from relativisticpy.algebras import EinsteinArray, Metric
 from relativisticpy.diffgeom import (
-    EinsteinTensor,
     Ricci,
     RicciScalar,
+    Metric,
     Riemann,
     KScalar,
     MetricScalar,
-    Connection,
+    LeviCivitaConnection,
 )
+from relativisticpy.gr.einstein import EinsteinTensor
 
 
 # TODO: <<< PUT THIS FUNCTION SOMEWHERE ELSE + SIMPLIFY IT AS ITs IMPLEMENTATION LOOKS HORIBLE >>>>>>
@@ -184,8 +184,8 @@ def test_workbook_metricScalar_result(Schwarzschild_MetricScalar, Schwarzschild_
     del res
 
 
-def test_connection_generation(Schwarzschild_Connection, Schwarzschild_Basis):
-    connection = Schwarzschild_Connection
+def test_LeviCivitaConnection_generation(Schwarzschild_LeviCivitaConnection, Schwarzschild_Basis):
+    LeviCivitaConnection = Schwarzschild_LeviCivitaConnection
     basis = Schwarzschild_Basis
 
     res = Workbook().expr(
@@ -195,7 +195,7 @@ def test_connection_generation(Schwarzschild_Connection, Schwarzschild_Basis):
                 C^{a}_{b}_{c}
     """
     )
-    assert equal(res.components, connection)
+    assert equal(res.components, LeviCivitaConnection)
     assert str(res.indices) == "^{a}_{b}_{c}"
     assert equal(res.basis, basis)
     del res
@@ -265,7 +265,7 @@ def test_metric_multiplication(Schwarzschild_MetricScalar, Schwarzschild_Basis):
     del res
 
 
-def test_connection_formulal_equal_built_in_connection(Schwarzschild_Basis):
+def test_LeviCivitaConnection_formulal_equal_built_in_LeviCivitaConnection(Schwarzschild_Basis):
     basis = Schwarzschild_Basis
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4)
     res = Workbook().expr(

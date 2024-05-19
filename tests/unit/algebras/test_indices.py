@@ -1,7 +1,7 @@
 from itertools import product
 import pytest
-from relativisticpy.algebras.index_algebra import Idx, Indices
-from relativisticpy.core.metric import MetricIndices
+from relativisticpy.algebras import Idx, Indices
+from relativisticpy.diffgeom import MetricIndices
 from relativisticpy.symengine import SymbolArray, Symbol
 
 
