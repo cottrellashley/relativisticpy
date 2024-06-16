@@ -3,7 +3,8 @@ from typing import Union
 from itertools import product
 
 # External Modules
-from relativisticpy.algebras import Indices, Idx, EinsumArray, Tensor
+from relativisticpy.algebras import Indices, Idx, EinsumArray
+from relativisticpy.diffgeom.tensor import Tensor
 from relativisticpy.diffgeom.metric import Metric
 
 # This Module

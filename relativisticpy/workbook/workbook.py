@@ -9,10 +9,10 @@ class Workbook:
 
 
 
-    def __init__(self, file_path: str = None):
+    def __init__(self, file_path: str = None, debug_mode: bool = False):
         self.file_path = file_path
         self.interpreter = RelParser( RelPyAstNodeTraverser() )
-        self.debug_mode = False
+        self.debug_mode = debug_mode
 
     def markdown(self, path: str):
         # Step 1: Read the markdown content

@@ -5,4 +5,3 @@ Curretly only implements Multi-Index Algebra implemented in the Einsetein Summat
 
 from relativisticpy.algebras.einstein_summation import EinsumArray, Indices, Idx
 from relativisticpy.algebras.jacobian_matrix import Jacobian
-from relativisticpy.algebras.tensor_algebra import Tensor

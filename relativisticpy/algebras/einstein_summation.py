@@ -6,6 +6,8 @@ from itertools import product, combinations
 from operator import itemgetter
 from typing import List, Callable, Literal, Tuple, Union, Optional, Any
 
+from sympy import NDimArray
+
 # External Modules
 from relativisticpy.symengine import SymbolArray, Basic
 from relativisticpy.utils import transpose_list
@@ -302,6 +304,7 @@ class _IdxAlgebraNCubeArray:
             TypeError: If indices or components are not of the expected type.
             ValueError: If the components' shape does not match the indices or is invalid. i.e. not a shape Hypercube Array shape: (N, N, N, ...).
     """
+
     def __init__(self, indices: Indices, components: SymbolArray):
         self.__validate(indices, components)
         self.indices = indices
@@ -315,6 +318,37 @@ class _IdxAlgebraNCubeArray:
     def args(self) -> Tuple[Indices, SymbolArray]:
         " Any object which inherits from this class should have a property called 'args' defined in sunch a way that Cls(*args) initializes the object."
         return [self.indices, self.components]
+    
+    @classmethod
+    def from_equation(cls, indices: Indices, *args, **kwargs) -> '_IdxAlgebraNCubeArray':
+        """
+            Initializes an instance of the _IdxAlgebraNCubeArray class from a computation of read from another _IdxAlgebraNCubeArray object.
+
+            Args:
+                indices (Indices): The indices of the tensor.
+                other (_IdxAlgebraNCubeArray): The tensor to read from.
+
+            Returns:
+                _IdxAlgebraNCubeArray: A new instance of the _IdxAlgebraNCubeArray class.
+        """
+        indices = None
+        components = None
+        # Categorize positional arguments
+        for arg in args:
+            if isinstance(arg, Indices):
+                indices = arg
+            elif isinstance(arg, SymbolArray):
+                components = arg
+
+        # Categorize keyword arguments
+        for _, value in kwargs.items():
+            if isinstance(value, Indices):
+                indices = arg
+            elif isinstance(value, SymbolArray):
+                components = arg
+    
+        return cls(indices, components)
+
 
     @property
     def scalar(self) -> bool: return self.rank == (0, 0)
@@ -379,38 +413,40 @@ class _IdxAlgebraNCubeArray:
             Performs a binary operation between all elements of two array-like objects.
             The order and/or shape in which the two arrays are combined depends on the indices object.
         """
+
         if binary_op == None:
             binary_op = lambda a, b : a * b
         if isinstance(other, (int, float, Basic)):
             self.__scalar_product(other, binary_op)
-        elif other.scalar:
-            self.__scalar_product(other.scalar_component, binary_op)
-        elif self.scalar and not other.scalar:
-            other.__scalar_product(self.scalar_component, binary_op)
-            self.indices = other.indices
-            self.components = other.components
-        elif self.scalar and other.scalar:
-            self.components = SymbolArray([binary_op(self.scalar_component, other.scalar_component)])
+        else:
+            if other.scalar:
+                self.__scalar_product(other.scalar_component, binary_op)
+            elif self.scalar and not other.scalar:
+                other.__scalar_product(self.scalar_component, binary_op)
+                self.indices = other.indices
+                self.components = other.components
+            elif self.scalar and other.scalar:
+                self.components = SymbolArray([binary_op(self.scalar_component, other.scalar_component)])
 
-        if self.components.shape[0] != other.components.shape[0]:
-            raise ValueError("Incompatible shapes for einstein array multiplication")
+            if self.components.shape[0] != other.components.shape[0]:
+                raise ValueError("Incompatible shapes for einstein array multiplication")
         
-        res_indices = self.__indices_product(other.indices, idx_op)
+            res_indices = self.__indices_product(other.indices, idx_op)
 
-        generator : Callable = res_indices.generator
-        rarray = res_indices.zeros_array()
+            generator : Callable = res_indices.generator
+            rarray = res_indices.zeros_array()
 
-        for i in res_indices:
-            # Vectorizing the result dynamically.
-            # We build a read from the resulting indices.generate function which is monkey patched into this.
-            rarray[i] = sum(
-                [
-                    binary_op(self.components[idx0], other.components[idx1])
-                    for idx0, idx1 in generator(i)
-                ]
-            )
-        self.indices = res_indices
-        self.components = rarray
+            for i in res_indices:
+                # Vectorizing the result dynamically.
+                # We build a read from the resulting indices.generate function which is monkey patched into this.
+                rarray[i] = sum(
+                    [
+                        binary_op(self.components[idx0], other.components[idx1])
+                        for idx0, idx1 in generator(i)
+                    ]
+                )
+            self.indices = res_indices
+            self.components = rarray
     
     def __indices_product(self, indices: Indices, idx_op: Union[Literal['EINSUM'], Literal['SUMMATION'], Literal['SELFSUM']] = None) -> Indices:
         if not self.indices.dimention:
@@ -473,7 +509,7 @@ class _IdxAlgebraNCubeArray:
         """
         if not isinstance(indices, Indices):
             raise TypeError(f"Expected Indices, got {type(indices).__name__}")
-        if not isinstance(components, SymbolArray):
+        if not isinstance(components, NDimArray):
             raise TypeError(f"Expected SymbolArray, got {type(components).__name__}")
         if not hasattr(components, 'shape'):
             raise ValueError("Invalid Argument: components argument must have attribute 'shape'.")
@@ -561,11 +597,12 @@ class EinsumArray(_IdxAlgebraNCubeArray):
                             new_type_cls = result_cls
                     )
 
-    def mul(self, other: "EinsumArray", result_cls = None) -> "EinsumArray":
+    def mul(self, other: Union['EinsumArray', float, int, Basic], result_cls = None) -> "EinsumArray":
         if not isinstance(other, (float, int, Basic, EinsumArray)):
             raise TypeError(f"Unsupported operand type(s) for *: '{EinsumArray.__name__}' and '{type(other).__name__}'")
-        if not self.indices.is_einsum_product(other.indices):
-            raise ValueError(f"Cannot perform summation of {EinsumArray.__name__}'s with the indices: {str(self.indices)} and {str(other.indices)} ")
+        if isinstance(other, EinsumArray):
+            if not self.indices.is_einsum_product(other.indices):
+                raise ValueError(f"Cannot perform summation of {EinsumArray.__name__}'s with the indices: {str(self.indices)} and {str(other.indices)} ")
         return self._product_copy(
                             other = other,
                             binary_op = lambda a, b: a * b,

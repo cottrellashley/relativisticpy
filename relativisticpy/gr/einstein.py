@@ -2,7 +2,8 @@
 from itertools import product
 
 # External Modules
-from relativisticpy.algebras import Indices, Tensor
+from relativisticpy.diffgeom.tensor import Tensor
+from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.diffgeom import Metric
 from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplify
 
@@ -10,8 +11,9 @@ from relativisticpy.symengine import SymbolArray, Rational, zeros, diff, simplif
 from relativisticpy.diffgeom import LeviCivitaConnection
 
 class EinsteinTensor(Tensor):
-    def __init__(self, indices: Indices, arg, basis: SymbolArray = None):
-        super().__init__(indices=indices, symbols=arg, basis=basis)
+    # TODO: Implement the Einstein Tensor with new base classes.
+    def __init__(self, indices: CoordIndices, arg):
+        super().__init__(indices=indices, symbols=arg)
 
     def from_metric(self, metric: Metric) -> SymbolArray:
         Ricci = self.__ricci_components_from_metric(metric)

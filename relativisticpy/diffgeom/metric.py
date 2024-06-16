@@ -4,17 +4,17 @@ from itertools import product
 from operator import itemgetter
 
 # External Modules
-from relativisticpy.algebras import EinsumArray, Indices, Idx, Tensor
-from relativisticpy.diffgeom.manifold import CoordinatePatch
+from relativisticpy.algebras import EinsumArray, Indices, Idx
+from relativisticpy.diffgeom.tensor import Tensor
+from relativisticpy.diffgeom.manifold import CoordIndices, CoordinatePatch
 from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
 from relativisticpy.utils import tensor_trace_product, transpose_list
 
-
-class MetricIndices(Indices):
+class MetricIndices(CoordIndices):
     # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
 
-    def __init__(self, *args: Idx):
-        super().__init__(*args)
+    def __init__(self, *args: Idx, coord_patch: CoordinatePatch = None):
+        super().__init__(*args, coord_patch=coord_patch)
 
     def _get_einsum_metric_result(
         self: "MetricIndices", other: Union["Indices", "MetricIndices"]
@@ -122,6 +122,36 @@ class MetricIndices(Indices):
 
 
 class Metric(Tensor):
+    """
+    Represents a metric tensor in differential geometry.
+
+    The Metric class inherits from the Tensor class and provides additional functionality specific to metric tensors.
+    It allows for operations such as raising and lowering indices, reranking tensors based on new indices, and reshaping tensors while preserving symbol order and covariance.
+
+    Examples:
+        >>> # Create a metric tensor with default values
+        >>> metric = Metric.default(4)
+
+        >>> # Rerank a tensor based on new indices
+        >>> tensor = Tensor(...)
+        >>> new_indices = Indices(Idx("a"), Idx("b"), Idx("c"))
+        >>> metric.rerank(tensor, new_indices)
+
+        >>> # Reshape and rerank a tensor based on new indices
+        >>> tensor = Tensor(...)
+        >>> new_indices = Indices(Idx("b"), Idx("a"), Idx("c"))
+        >>> metric.reshape_rerank(tensor, new_indices)
+
+        >>> # Raise an index of a tensor
+        >>> tensor = Tensor(...)
+        >>> index = Idx("a")
+        >>> metric.raise_index(tensor, index)
+
+        >>> # Lower an index of a tensor
+        >>> tensor = Tensor(...)
+        >>> index = Idx("a")
+        >>> metric.lower_index(tensor, index)
+    """
     cron_delta = (1, 1)
     contravariant = (0, 2)
     covariant = (2, 0)
@@ -134,6 +164,21 @@ class Metric(Tensor):
         # coordinate_patch: CoordinatePatch, TODO: Should be within the indices object
     ):
         super().__init__(indices=indices, components=components)
+
+    @property
+    def dimention(self) -> int:
+        return self.indices.dimention
+    
+    @property
+    def coordinate_patch(self) -> CoordinatePatch:
+        return self.indices
+    
+    @property
+    def coord_symbols(self) -> tuple[Symbol]:
+        return self.indices.coord_symbols
+    
+    @property
+    def basis(self) -> SymbolArray: return self.indices.basis
 
     @property
     def args(self) -> Tuple[Indices, SymbolArray]:
@@ -213,6 +258,9 @@ class Metric(Tensor):
     def __mul__(self, other: EinsumArray):
         return self.mul(other, type(other))
 
+    def __rmul__(self, other: EinsumArray):
+        return self.mul(other, type(self))
+
     def __truediv__(self, other: EinsumArray):
         return self.div(other, type(self))
 
@@ -220,6 +268,18 @@ class Metric(Tensor):
         return self.pow(other, type(self))
 
     def rerank(self, tensor: Tensor, new_indices: Indices):
+        """
+        Reranks the given tensor based on the new indices.
+
+        Args:
+            tensor (Tensor): The tensor to be reranked.
+            new_indices (Indices): The new indices to be applied to the tensor.
+
+        Raises:
+            TypeError: If `new_indices` is not an instance of `Indices`.
+            ValueError: If the symbol order and covariance of `new_indices` do not match those of `tensor`.
+
+        """
         if not isinstance(new_indices, Indices):
             raise TypeError(f"Expected Indices, got {type(new_indices).__name__}")
         if not tensor.indices.symbol_order_eq(new_indices):
@@ -242,7 +302,7 @@ class Metric(Tensor):
         # _{a b c} -> _{b a c}
         # _{a b}^{c} -> ^{c}_{b a}
         if tensor.indices.symbol_eq(new_indices):
-            self._reshape(tensor, new_indices, ignore_covariance=True)
+            tensor._reshape(new_indices, ignore_covariance=True)
 
         # SAME SYMBOLS & ORDERS - DIFFERENT COVARIANCE
         # _{a b c} -> ^{a}_{b c}
@@ -292,7 +352,7 @@ class Metric(Tensor):
 
     def lower_index(self, tensor: Tensor, index: Idx):
         """
-        Protected method to lower an index of the tensor.
+        Protected method to lower an index of a tensor.
         
         Args:
             tensor (Tensor): The tensor to lower the index of.
@@ -314,7 +374,7 @@ class Metric(Tensor):
 
     def raise_index(self, tensor: Tensor, index: Idx) -> Tensor:
         """
-        Protected method to raise an index of the tensor.
+        Protected method to raise an index of a tensor.
 
         Args:
             tensor (Tensor): The tensor to raise the index of.
@@ -355,3 +415,4 @@ class Metric(Tensor):
         # Set new properties
         tensor.components = result.components
         tensor.indices = result.indices
+

@@ -95,7 +95,16 @@ class AstNode(Node):
 
     def execute_node(self, implementer: Implementer):
         """
-        Executes this node by traversing and executing all child nodes first, then getting the node implementer callback and passing the args to it.
+        Executes node by traversing and executing all child nodes first, then getting the node implementer callback and passing the args to it.
+
+        Args:
+            implementer (Implementer): The object implementing the Node execution. Implementer contains all methods called as callbacks for the nodes. Implementer also contains state of the executing AST Node tree.
+        
+        Returns:
+            Any: The return value of the node execution. This can be anything depending on the implementation of the node.
+        
+        Raises:
+            NotImplementedError: If the Implementer object does not have the callback method required to execute the node.
         """
         self_exe : Callable = self.get_executor(implementer)
 
@@ -436,10 +445,10 @@ class Call(AstNode):
         self.children = args
         self.position = position
         self.type = NodeType.CALL
-        self.data_type = "undef"
-        self.identifier = identifier
-        self.is_built_in : bool = self.identifier in self.BUILT_INS
-        self.call_return = None
+        self.data_type = "undef" # syntactic analysis will infer the data type of the return value of the function.
+        self.identifier = identifier # The name of the function being called.
+        self.is_built_in : bool = self.identifier in self.BUILT_INS # Is the function being called a built-in function?
+        self.call_return = None 
 
     def execute_node(self, implementer: Implementer) -> None:
         state = self.get_state(implementer)
@@ -621,15 +630,15 @@ class TensorNode(
             if state.get_variable(Scope.MetricSymbol) == self.identifier and self.components_definition_type == 'array':
                 # This is the metric tensor
                 tensor_indices = implementer.init_indices(self)
-                new_tensor = implementer.init_metric_tensor(tensor_indices, tensor_component, state.get_variable(Scope.Coordinates))
+                new_tensor = implementer.init_metric_tensor(tensor_indices, tensor_component)
             elif self.components_definition_type == 'array':
                 # This is an einstein array.
                 tensor_indices = implementer.init_indices(self)
-                new_tensor = implementer.init_einstein_array(tensor_indices, tensor_component, state.get_variable(Scope.Coordinates))
+                new_tensor = implementer.init_einstein_array(tensor_indices, tensor_component)
             elif self.components_definition_type == 'tensor':
                 # This is an einstein array defined from other tensors.
                 tensor_indices = implementer.init_indices(self)
-                implementer.init_einstein_array(tensor_indices, tensor_component, state.get_variable(Scope.Coordinates))
+                implementer.init_einstein_array(tensor_indices, tensor_component)
                 einstein_array_obj : Tensor = tensor_component
                 new_tensor = einstein_array_obj.reshape_tensor_components(tensor_indices)
 
@@ -650,9 +659,11 @@ class TensorNode(
         if not state.has_tensor(self.identifier):  # If not stated => skip to generate imediatly.
             # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not reponsible for implementations we make it generic.
             if self.identifier == state.get_variable(Scope.MetricSymbol):
-
-                metric = implementer.init_metric_tensor(tensor_indices, state.metric_tensor[tensor_indices.get_non_running()], state.metric_tensor.basis)
+                metric = implementer.init_metric_tensor(tensor_indices, state.metric_tensor[tensor_indices.get_non_running()])
                 return metric.subcomponents if self.sub_components_called else metric
+            elif self.identifier == state.get_variable(Scope.ConnectionSymbol):
+                connection = implementer.connection_cls.from_metric(tensor_indices, state.metric_tensor)
+                return connection.subcomponents if self.sub_components_called else connection
             else:
                 cls : Type[Tensor] = implementer.metric_dependent_types(self.identifier)
                 new_tensor = cls(tensor_indices, state.metric_tensor)
@@ -673,14 +684,17 @@ class TensorNode(
                 diff_order = tensor.indices.get_reshape(tensor_indices)
                 if diff_order == None:
                     # No order changes => just init new instance with new indices.
-                    new_tensor : Tensor = type(tensor)(tensor_indices, components, tensor.basis)
+                    tensor.indices = tensor_indices
+                    tensor.components = components
+                    new_tensor : Tensor = type(tensor)(*tensor.args)
                     return new_tensor.subcomponents if self.sub_components_called else new_tensor
 
-                new_tensor = tensor.reshape_tensor_components(tensor_indices)
+                new_tensor = tensor.reshape(tensor_indices)
                 return new_tensor.subcomponents if self.sub_components_called else new_tensor
             
             # We need to generate the new subcomponents if user is calling new subcomponents
-            tensor : Tensor = type(tensor)(tensor_indices, tensor.components, tensor.basis)
+            tensor.indices = tensor_indices
+            tensor : Tensor = type(tensor)(*tensor.args)
             if self.sub_components_called and implementer.init_indices(self).anyrunnig:
                 return tensor.subcomponents
 
@@ -690,15 +704,16 @@ class TensorNode(
         
         has_same_rank = state.current_scope.match_on_tensors(tensor_indices.rank_eq, self)
         if has_same_rank != None:
+            has_same_rank.indices = tensor_indices
             new_tensor : Tensor = type(has_same_rank)(
-                tensor_indices, has_same_rank.components, has_same_rank.basis
+                *has_same_rank.args
             )
             state.set_tensor(self.identifier, new_tensor)
             return new_tensor.subcomponents if self.sub_components_called else new_tensor
 
         # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not reponsible for implementations we make it generic.
         if self.identifier == state.get_variable(Scope.MetricSymbol):
-            metric = implementer.init_metric_tensor(tensor_indices, state.metric_tensor[tensor_indices.get_non_running()], state.metric_tensor.basis)
+            metric : Tensor = implementer.init_metric_tensor(tensor_indices, state.metric_tensor[tensor_indices.get_non_running()])
             return metric.subcomponents if self.sub_components_called else metric
         else:
             cls : Type[Tensor] = implementer.metric_dependent_types(self.identifier)

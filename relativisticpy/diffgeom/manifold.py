@@ -9,7 +9,9 @@
 # Coordinate System/Patch
 # Transformations between patches
 
+from relativisticpy.algebras.einstein_summation import Indices
 from relativisticpy.symengine import Symbol, Basic
+from relativisticpy.symengine import SymbolArray
 
 class Manifold:
 
@@ -67,6 +69,36 @@ class CoordinatePatch:
 
     def transformation(self, to_cord_patch: 'CoordinatePatch'):
         pass
+
+class CoordIndices(Indices):
+
+    def __init__(self, *indices: Symbol, coord_patch: CoordinatePatch = None):
+        super().__init__(*indices)
+        self.__coord_patch = coord_patch
+        self.__basis = coord_patch.symbols if coord_patch else None
+
+    @property
+    def basis(self) -> SymbolArray: return self.__basis
+
+    @basis.setter
+    def basis(self, basis: SymbolArray):
+        self.__basis = basis
+
+    @property
+    def coord_symbols(self) -> CoordinatePatch: return self.__coord_patch.symbols
+
+    @property
+    def coord_patch(self) -> CoordinatePatch: return self.__coord_patch
+
+    @property
+    def manifold(self) -> Manifold: return self.__coord_patch.manifold
+
+    @property
+    def patch(self) -> Patch: return self.__coord_patch.patch
+
+    @property
+    def dim(self) -> int: return self.__coord_patch.dim
+    
 
 
     # def get_transformed_metric(self, transformation):

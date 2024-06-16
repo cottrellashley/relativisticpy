@@ -75,6 +75,6 @@ class Tensor(Protocol):
     def from_node(cls, node) -> 'Tensor':
         ...
 
-    def reshape_tensor_components(self, indices: Indices) -> 'Tensor':
+    def reshape(self, indices: Indices, ignore_covariance: bool = True) -> 'Tensor':
         " Re-shapes the tensor components with respect to new indices. "
         ...

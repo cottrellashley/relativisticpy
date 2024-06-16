@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from typing import List
 
-from relativisticpy.algebras import Indices, Idx, Tensor
+from relativisticpy.algebras import Idx
+from relativisticpy.diffgeom.tensor import Tensor
+from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.diffgeom import Metric, MetricIndices
 from relativisticpy.diffgeom import RicciScalar, MetricScalar, Ricci, Riemann, LeviCivitaConnection, Derivative, CovDerivative 
 
@@ -137,21 +139,19 @@ class RelPyAstNodeTraverser(Implementer):
             if len(node.args) == 3:
                 new_tensor = Tensor(
                     old_tensor.indices,
-                    diff(old_tensor.components, node.args[1], node.args[2]),
-                    old_tensor.basis,
+                    diff(old_tensor.components, node.args[1], node.args[2])
                 )
-            else:
+            else: # TODO: BAD CODE - THIS LAYER SHOULD NOT NEED TO KNOW HOW TO INIT TENSOR
                 new_tensor = Tensor(
                     old_tensor.indices,
-                    diff(old_tensor.components, node.args[1]),
-                    old_tensor.basis,
+                    diff(old_tensor.components, node.args[1])
                 )
             return new_tensor
         ans = diff(*node.args)
         return ans
 
     def tsimplify(self, node: AstNode):
-        tensor = node.args[0]
+        tensor : Tensor = node.args[0]
         tensor.components = simplify(
             list(tensor.components)[0]
         )  # ??????? Why do we need to call list ? can we standardise ?
@@ -197,7 +197,6 @@ class RelPyAstNodeTraverser(Implementer):
             self.state.get_variable("MetricSymbol"): Metric,
             self.state.get_variable("RicciSymbol"): Ricci,
             self.state.get_variable("EinsteinTensorSymbol"): EinsteinTensor,
-            self.state.get_variable("ConnectionSymbol"): LeviCivitaConnection,
             self.state.get_variable("RiemannSymbol"): Riemann,
             self.state.get_variable("CovariantDerivativeSymbol"): CovDerivative
         }
@@ -206,17 +205,22 @@ class RelPyAstNodeTraverser(Implementer):
     def init_indices(self, node: AstNode):
         if not self.state.get_variable("MetricSymbol") == node.identifier:
             indices = node.indices.indices
-            return Indices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in indices])
+            return CoordIndices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in indices])
         indices = node.indices.indices
         return MetricIndices(*[Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier, values=idx.values) for idx in indices])
 
-    def init_metric_tensor(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> Metric:
+    def init_metric_tensor(self, indices: CoordIndices, components: SymbolArray) -> Metric:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
-        return Metric(indices, components, basis)
+        return Metric(indices, components)
 
-    def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> Tensor:
+    def init_einstein_array(self, indices: CoordIndices, components: SymbolArray) -> Tensor:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
-        return Tensor(indices, components, basis)
+        return Tensor(indices, components)
+
+    @property
+    def connection_cls(self) -> Tensor:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        return LeviCivitaConnection
 
     def init_ricci_scalar(self, node: AstNode) -> RicciScalar:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."

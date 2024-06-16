@@ -39,7 +39,7 @@ class Implementer(Protocol):
         "Based on the state of the Tensor node and the sate -  we will initialize a metric indices."
         ...
 
-    def init_metric_tensor(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> Tensor:
+    def init_metric_tensor(self, indices: Indices, components: SymbolArray) -> Tensor:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         ...
 
@@ -56,6 +56,11 @@ class Implementer(Protocol):
         ...
 
     def init_tensor_derivative(self, node: TreeNodes) -> Tensor:
+        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        ...
+    
+    @property
+    def connection_cls(self) -> Type[Tensor]:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         ...
 

@@ -5,10 +5,16 @@ from relativisticpy.symengine import diff, simplify
 class Derivative(EinsumArray):
 
     def __init__(self, indices: Indices, wrt):
-        super().__init__(indices = indices, basis = wrt)
+        super().__init__(indices = indices, components = wrt)
 
     def __mul__(self, other: EinsumArray) -> EinsumArray:
-        self.components = other.basis
         operation = lambda a, b : diff(b, a)
-        result = self.einsum_operation(other, operation)
-        return type(other)(components = simplify(result.components), indices = result.indices, basis = other.basis)
+        result = self._product_copy(
+                                        other, 
+                                        operation,
+                                        idx_op = Indices.EINSUM_GENERATOR,
+                                        new_type_cls = type(other)
+                                    )
+        result.components = simplify(result.components)
+        
+        return type(result)(*result.args)
