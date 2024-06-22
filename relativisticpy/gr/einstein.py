@@ -38,7 +38,7 @@ class EinsteinTensor(Tensor):
 
     def __ricci_components_from_metric(self, metric: Metric) -> SymbolArray:
         N = metric.dimention
-        wrt = metric.basis
+        wrt = metric.indices.basis
         Gamma = LeviCivitaConnection.from_metric(metric)
         A = SymbolArray(zeros(N**2), (N, N))
         for j, p, i, d in product(range(N), range(N), range(N), range(N)):

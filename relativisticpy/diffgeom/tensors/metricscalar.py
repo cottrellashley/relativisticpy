@@ -11,42 +11,19 @@ class MetricScalar(Tensor):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'LeviCivitaConnection':
-        "Dynamic constructor for the inheriting classes."
-
-        components = None
-        metric = None
-
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, Metric):
-                metric = arg
-
-        # Categorize keyword arguments
-        for _, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = arg
-            elif isinstance(value, Metric):
-                metric = value
-
-        if components is None:
-            if metric is not None:
-                components = cls.components_from_metric(metric)
-            else:
-                raise TypeError("Components or metric is required.")
-
-        return cls(indices, components)
+    def component_equations(cls):
+        return (
+            (Metric, cls.components_from_metric),
+        )
 
     @staticmethod
     def components_from_metric(metric: Metric):
-        N = metric.dimention
+        dim = metric.dimention
         g = metric.components
-        ig = metric.uu_components
-        A = float()
-        for i, j in product( range(N), range(N) ):
-            A += (
-                ig[i, j] * g[i, j]
+        inv_g = metric.uu_components
+        skeleton = float()
+        for i, j in product(range(dim), range(dim)):
+            skeleton += (
+                    inv_g[i, j] * g[i, j]
             )
-        return simplify(A)
+        return simplify(skeleton)

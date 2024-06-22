@@ -20,5 +20,5 @@ class GeometricTensor(Protocol):
         ...
 
     @classmethod
-    def from_connection(self, connection: LeviCivitaConnection) -> 'GeometricTensor':
+    def from_connection(cls, connection: LeviCivitaConnection) -> 'GeometricTensor':
         ...

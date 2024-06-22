@@ -6,69 +6,43 @@ from relativisticpy.diffgeom.connection import LeviCivitaConnection
 from relativisticpy.symengine import SymbolArray, simplify
 from relativisticpy.diffgeom.tensors.riemann import Riemann
 
+
 class KScalar(Tensor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'LeviCivitaConnection':
-        "Dynamic constructor for the inheriting classes."
-        components = None
-        metric = None
-
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, Metric):
-                metric = arg
-            elif isinstance(arg, LeviCivitaConnection):
-                connection = arg
-
-        # Categorize keyword arguments
-        for _, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = arg
-            elif isinstance(value, Metric):
-                metric = value
-            elif isinstance(value, LeviCivitaConnection):
-                connection = value
-
-        if components is None:
-            if metric is not None:
-                components = cls.components_from_metric(metric)
-            elif connection is not None:
-                components = cls.components_from_connection(connection)
-            else:
-                raise TypeError("Components or metric is required.")
-
-        return cls(indices, components)
+    def component_equations(cls):
+        return (
+            (Metric, cls.components_from_metric),
+            (LeviCivitaConnection, cls.components_from_connection),
+        )
 
     @staticmethod
     def components_from_metric(metric: Metric):
-        N = metric.dimention
-        R = Riemann.riemann0000_components_from_metric(metric)
-        ig = metric.uu_components
-        A = float()
+        dim = metric.dimention
+        riemann = Riemann.llll_components_from_metric(metric)
+        inv_metric = metric.uu_components
+        skeleton = float()
         for i, j, k, p, d, n, s, t in product(
-            range(N),
-            range(N),
-            range(N),
-            range(N),
-            range(N),
-            range(N),
-            range(N),
-            range(N),
+            range(dim),
+            range(dim),
+            range(dim),
+            range(dim),
+            range(dim),
+            range(dim),
+            range(dim),
+            range(dim),
         ):
-            A += (
-                ig[i, j]
-                * ig[k, p]
-                * ig[d, n]
-                * ig[s, t]
-                * R[i, k, d, s]
-                * R[j, p, d, s]
+            skeleton += (
+                inv_metric[i, j]
+                * inv_metric[k, p]
+                * inv_metric[d, n]
+                * inv_metric[s, t]
+                * riemann[i, k, d, s]
+                * riemann[j, p, d, s]
             )
-        return simplify(A)
+        return simplify(skeleton)
 
     @staticmethod
     def components_from_connection(connection: LeviCivitaConnection) -> SymbolArray:

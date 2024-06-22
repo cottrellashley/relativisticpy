@@ -6,26 +6,13 @@ from relativisticpy.workbook.workbook import Workbook
 from relativisticpy.symengine import (
     Symbol,
     Function,
-    sin,
     I,
-    oo,
-    integrate,
-    Sum,
-    Product,
     solve,
     factor,
-    diff,
     expand,
-    limit,
     simplify,
-    apart,
-    cancel,
-    collect,
-    sqrt,
-    root,
-    dsolve,
-    SymbolArray,
 )
+
 
 @pytest.fixture
 def vars_x_y_z_t_r_theta_phi_tau():
@@ -47,6 +34,7 @@ def func_f_g_h():
     h = Function("h")
     return f, g, h
 
+
 def test_imaginary_numbers(vars_x_y_z_t_r_theta_phi_tau):
     wb = Workbook()
     x, y, z, t, r, theta, phi, tau = vars_x_y_z_t_r_theta_phi_tau
@@ -60,25 +48,27 @@ def test_imaginary_numbers(vars_x_y_z_t_r_theta_phi_tau):
 
     # Test that equations involving imaginary numbers can be solved
     res = wb.expr(
-    """
+        """
         x, y := symbols('x y')
         solve([x - i*y, Im(y), Im(x)])
     """
     )
     assert res == [(0, 0)]
 
+
 def test_imaginary_numbers_with_sympy_functions(vars_x_y_z_t_r_theta_phi_tau):
     wb = Workbook()
     x, y, z, t, r, theta, phi, tau = vars_x_y_z_t_r_theta_phi_tau
 
     # Test the 'expand' function with imaginary numbers
-    assert wb.expr("expand((x + i*y)**2)") == expand((x + I*y)**2)
+    assert wb.expr("expand((x + i*y)**2)") == expand((x + I * y) ** 2)
 
     # Test the 'simplify' function with imaginary numbers
-    assert wb.expr("simplify((x + i*y)**2 - x**2 - 2*i*x*y - y**2)") == simplify((x + I*y)**2 - x**2 - 2*I*x*y - y**2)
+    assert wb.expr("simplify((x + i*y)**2 - x**2 - 2*i*x*y - y**2)") == simplify(
+        (x + I * y) ** 2 - x ** 2 - 2 * I * x * y - y ** 2)
 
     # Test the 'factor' function with imaginary numbers
-    assert wb.expr("factor(x**2 - 2*i*x*y + y**2)") == factor(x**2 - 2*I*x*y + y**2)
+    assert wb.expr("factor(x**2 - 2*i*x*y + y**2)") == factor(x ** 2 - 2 * I * x * y + y ** 2)
 
     # # Test the 'collect' function with imaginary numbers
     # assert wb.expr("collect(x**2 + i*x*y + i*x*y + y**2, x)") == collect(x**2 + I*x*y + I*x*y + y**2, x)
@@ -90,4 +80,4 @@ def test_imaginary_numbers_with_sympy_functions(vars_x_y_z_t_r_theta_phi_tau):
     # assert wb.expr("cancel((x**2 + 2*i*x + 1)/(x + i))") == cancel((x**2 + 2*I*x + 1)/(x + I))
 
     # Test the 'solve' function with imaginary numbers
-    assert wb.expr("solve(x**2 + 2*i*x + 1, x)") == solve(x**2 + 2*I*x + 1, x)
+    assert wb.expr("solve(x**2 + 2*i*x + 1, x)") == solve(x ** 2 + 2 * I * x + 1, x)

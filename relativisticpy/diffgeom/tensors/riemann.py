@@ -13,14 +13,22 @@ from relativisticpy.diffgeom.connection import LeviCivitaConnection
 
 # TODO: Add mechanism which detects self-contractions and map any self contraction to relevant tensor i.e. Riemann^{a}_{b}_{a}_{c} == Ricci_{b}_{c}
 
+
 class Riemann(Tensor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'LeviCivitaConnection':
-        "Dynamic constructor for the inheriting classes."
+    def component_equations(cls):
+        return (
+            (SymbolArray, lambda arg: arg),
+            (Metric, cls.components_from_metric),
+            (LeviCivitaConnection, cls.components_from_connection),
+            (Riemann, cls.components_from_riemann)
+        )
 
+    @classmethod
+    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'Riemann':
         components = None
         metric = None
 
@@ -28,19 +36,23 @@ class Riemann(Tensor):
         for arg in args:
             if isinstance(arg, SymbolArray):
                 components = arg
+            elif isinstance(arg, cls):
+                components = arg.reshape(indices).components
             elif isinstance(arg, Metric):
                 metric = arg
 
         # Categorize keyword arguments
-        for _, value in kwargs.items():
+        for key, value in kwargs.items():
             if isinstance(value, SymbolArray):
-                components = arg
+                components = value
+            elif isinstance(value, cls):
+                components = value.reshape(indices).components
             elif isinstance(value, Metric):
                 metric = value
 
         if components is None:
             if metric is not None:
-                components = cls.components_from_metric(metric)
+                components = cls.components_from_metric(metric, "".join(["l" if idx.covariant else "u" for idx in indices.indices]))
             else:
                 raise TypeError("Components or metric is required.")
 
@@ -57,60 +69,29 @@ class Riemann(Tensor):
 
     @classmethod
     def ulll_components_from_metric(cls, metric: Metric):
-        N = metric.dimention
-        wrt = metric.basis
-        C = LeviCivitaConnection.componens_from_metric(metric)
-        A = SymbolArray(zeros(N**4), (N, N, N, N))
-        for i, j, k, p, d in product(range(N), range(N), range(N), range(N), range(N)):
-            A[i, j, k, p] += Rational(1, N) * (
-                diff(C[i, p, j], wrt[k]) - diff(C[i, k, j], wrt[p])
-            ) + (C[i, k, d] * C[d, p, j] - C[i, p, d] * C[d, k, j])
-        return simplify(A)
+        dim = metric.dimention
+        wrt = metric.indices.basis
+        gamma = LeviCivitaConnection.components_from_metric(metric)
+        skeleton = SymbolArray(zeros(dim**4), (dim, dim, dim, dim))
+        for i, j, k, p, d in product(range(dim), range(dim), range(dim), range(dim), range(dim)):
+            skeleton[i, j, k, p] += Rational(1, dim) * (
+                diff(gamma[i, p, j], wrt[k]) - diff(gamma[i, k, j], wrt[p])
+            ) + (gamma[i, k, d] * gamma[d, p, j] - gamma[i, p, d] * gamma[d, k, j])
+        return simplify(skeleton)
 
     @classmethod
     def llll_components_from_metric(cls, metric: Metric):
         dim = metric.dimention
         metric_comps = metric.components
         rie_comps = Riemann.ulll_components_from_metric(metric)
-        A = SymbolArray(zeros(dim**4), (dim, dim, dim, dim))
+        skeleton = SymbolArray(zeros(dim**4), (dim, dim, dim, dim))
         for i, j, k, p, d in product(
             range(dim), range(dim), range(dim), range(dim), range(dim)
         ):
-            A[i, j, k, p] += metric_comps[i, d] * rie_comps[d, j, k, p]
-        return simplify(A)
+            skeleton[i, j, k, p] += metric_comps[i, d] * rie_comps[d, j, k, p]
+        return simplify(skeleton)
 
-    def from_connection(connection: LeviCivitaConnection) -> SymbolArray:
-        # Setup Relevant quantities for computation
-        N = connection.dimention
-        wrt = connection.basis
-        C = connection.components
-        A = SymbolArray(zeros(N**4), (N, N, N, N))
+    def components(self, index_structure: str = None) -> SymbolArray:
+        # TODO: Implement this method using the metric to raise and lower indices of this object.
+        pass
 
-        # Perform computation
-        for i, j, k, p, d in product(range(N), range(N), range(N), range(N), range(N)):
-            A[i, j, k, p] += Rational(1, N) * (
-                diff(C[i, p, j], wrt[k]) - diff(C[i, k, j], wrt[p])
-            ) + (C[i, k, d] * C[d, p, j] - C[i, p, d] * C[d, k, j])
-
-        # Simplify object on before returning.
-        return simplify(A)
-    
-    @property
-    def ll_ricci(self):
-        return self.components
-    
-    @property
-    def uu_ricci(self):
-        return self.uu_components
-
-    @property
-    def llll_components(self):
-        return self.components
-    
-    def components(self, index_structure: str = 'llll') -> SymbolArray:
-        if index_structure == 'llll':
-            return self.llll_components
-        elif index_structure == 'ulll':
-            return self.ulll_components
-        else:
-            raise NotImplementedError("Only 'llll' and 'ulll' index structures have currently been implemented.")

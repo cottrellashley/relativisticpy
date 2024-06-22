@@ -7,50 +7,50 @@ from operator import itemgetter
 from relativisticpy.algebras import EinsumArray, Indices, Idx
 from relativisticpy.diffgeom.tensor import Tensor
 from relativisticpy.diffgeom.manifold import CoordIndices, CoordinatePatch
-from relativisticpy.symengine import SymbolArray, diff, simplify, tensorproduct, Symbol
-from relativisticpy.utils import tensor_trace_product, transpose_list
+from relativisticpy.symengine import SymbolArray, Symbol
+from relativisticpy.utils import transpose_list
+
 
 class MetricIndices(CoordIndices):
-    # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the comps => they mapp the components
+    # We can allow users to initiate the metric via the __setitem__ method: if user inits the Metric without the
+    # comps => they mapp the components
 
-    def __init__(self, *args: Idx, coord_patch: CoordinatePatch = None):
+    def __init__(self, *args: Idx, coord_patch: CoordinatePatch):
         super().__init__(*args, coord_patch=coord_patch)
 
     def _get_einsum_metric_result(
-        self: "MetricIndices", other: Union["Indices", "MetricIndices"]
+            self: "MetricIndices", other: Union["Indices", "MetricIndices"]
     ) -> (
-        "Indices"
+            "Indices"
     ):  # G_{a}_{b} * T^{c}^{d}^{a}^{f} => T^{c}^{d}_{b}^{f} (metric indices) != T_{b}^{c}^{d}^{f} (base indices)
         other_indices = list(other.indices)
         metric_indices = list(self.indices)
         for (
-            idx
+                idx
         ) in (
-            metric_indices
+                metric_indices
         ):  # iterate on metric indices => if summed with other indices => replace other summed idx with second metric idx
             if idx.is_summed_wrt_indices(other_indices):
                 other_indices[other_indices.index(-idx)] = metric_indices[
                     metric_indices.index(idx) - 1
-                ]
+                    ]
                 break
         return Indices(*other_indices)
 
-    @classmethod
     def raise_indices(
-        cls, idx: Idx, indices: Indices
+            self, idx: Idx, indices: Indices
     ) -> Tuple["MetricIndices", Indices]:
         temp_indices = indices.replace_symbol(idx.symbol, "__dummy__")
-        temp_metric = cls(-Idx(idx.symbol), -Idx("__dummy__"))
+        temp_metric = type(self)(-Idx(idx.symbol), -Idx("__dummy__"), coord_patch=self.coord_patch)
         temp_indices.dimention = indices.dimention
         temp_metric.dimention = indices.dimention
         return temp_metric, temp_indices
 
-    @classmethod
     def lower_indices(
-        cls, idx: Idx, indices: Indices
+            self, idx: Idx, indices: Indices, coord_patch: CoordinatePatch
     ) -> Tuple["MetricIndices", Indices]:
         temp_indices = indices.replace_symbol(idx.symbol, "__dummy__")
-        temp_metric = cls(Idx(idx.symbol), Idx("__dummy__"))
+        temp_metric = type(self)(Idx(idx.symbol), Idx("__dummy__"), coord_patch=self.coord_patch)
         return temp_metric, temp_indices
 
     def einsum_product(self, other: "Indices") -> "Indices":
@@ -60,7 +60,7 @@ class MetricIndices(CoordIndices):
                 (IndexA, IndexB)
                 for (IndexA, IndexB) in list(product(self, other))
                 if itemgetter(*summed_index_locations[0])(IndexA)
-                == itemgetter(*summed_index_locations[1])(IndexB)
+                   == itemgetter(*summed_index_locations[1])(IndexB)
             ]
             if len(summed_index_locations) > 0
             else [(IndexA, IndexB) for (IndexA, IndexB) in list(product(self, other))]
@@ -80,37 +80,37 @@ class MetricIndices(CoordIndices):
         ]
 
         def generator(
-            idx,
+                idx,
         ):  # Possible Abstraction => create a method attribute which takes in the function and its arguments as input and structures the if statements in list compr in acordance with what is not an empty array --> apply itemgetter.
             if not res.scalar and idx != None:
                 if (
-                    len(A_indices_not_summed) != 0 and len(B_indices_not_summed) != 0
+                        len(A_indices_not_summed) != 0 and len(B_indices_not_summed) != 0
                 ):  # e.g. A_{i}_{j}_{s} * B^{i}^{j}_{k}
                     return [
                         (IndicesA, IndicesB)
                         for (IndicesA, IndicesB) in all
                         if itemgetter(*A_indices_not_summed)(IndicesA)
-                        == itemgetter(*result_indices_in_A)(idx)
-                        and itemgetter(*B_indices_not_summed)(IndicesB)
-                        == itemgetter(*result_indices_in_B)(idx)
+                           == itemgetter(*result_indices_in_A)(idx)
+                           and itemgetter(*B_indices_not_summed)(IndicesB)
+                           == itemgetter(*result_indices_in_B)(idx)
                     ]
                 elif (
-                    len(A_indices_not_summed) == 0 and len(B_indices_not_summed) != 0
+                        len(A_indices_not_summed) == 0 and len(B_indices_not_summed) != 0
                 ):  # e.g. A_{i}_{j} * B^{i}^{j}_{k}
                     return [
                         (IndicesA, IndicesB)
                         for (IndicesA, IndicesB) in all
                         if itemgetter(*B_indices_not_summed)(IndicesB)
-                        == itemgetter(*result_indices_in_B)(idx)
+                           == itemgetter(*result_indices_in_B)(idx)
                     ]
                 elif (
-                    len(B_indices_not_summed) == 0 and len(A_indices_not_summed) != 0
+                        len(B_indices_not_summed) == 0 and len(A_indices_not_summed) != 0
                 ):  # e.g. A_{i}_{j}_{k} * B^{i}^{j}
                     return [
                         (IndicesA, IndicesB)
                         for (IndicesA, IndicesB) in all
                         if itemgetter(*A_indices_not_summed)(IndicesA)
-                        == itemgetter(*result_indices_in_A)(idx)
+                           == itemgetter(*result_indices_in_A)(idx)
                     ]
             else:
                 return all
@@ -126,9 +126,13 @@ class Metric(Tensor):
     Represents a metric tensor in differential geometry.
 
     The Metric class inherits from the Tensor class and provides additional functionality specific to metric tensors.
-    It allows for operations such as raising and lowering indices, reranking tensors based on new indices, and reshaping tensors while preserving symbol order and covariance.
 
-    Examples:
+	- **Type:** Pseudo-Riemannian tensor.
+	- **Role:** Defines the distance between points in spacetime. It is the fundamental tensor in general relativity, giving the geometry of spacetime.
+	- **Mathematical Properties:** Symmetric, non-degenerate, with a signature that allows for both timelike and spacelike intervals.
+	- **Python Functions:** It allows for operations such as raising and lowering indices, reranking tensors based on new indices, and reshaping tensors while preserving symbol order and covariance.
+    **Examples:**
+
         >>> # Create a metric tensor with default values
         >>> metric = Metric.default(4)
 
@@ -158,27 +162,28 @@ class Metric(Tensor):
     indices_type = MetricIndices
 
     def __init__(
-        self,
-        indices: MetricIndices,
-        components: SymbolArray,
-        # coordinate_patch: CoordinatePatch, TODO: Should be within the indices object
+            self,
+            indices: MetricIndices,
+            components: SymbolArray,
+            # coordinate_patch: CoordinatePatch, TODO: Should be within the indices object
     ):
         super().__init__(indices=indices, components=components)
 
     @property
     def dimention(self) -> int:
         return self.indices.dimention
-    
+
     @property
     def coordinate_patch(self) -> CoordinatePatch:
-        return self.indices
-    
+        return self.indices.coord_patch
+
     @property
     def coord_symbols(self) -> tuple[Symbol]:
         return self.indices.coord_symbols
-    
+
     @property
-    def basis(self) -> SymbolArray: return self.indices.basis
+    def basis(self) -> SymbolArray:
+        return self.indices.basis
 
     @property
     def args(self) -> Tuple[Indices, SymbolArray]:
@@ -338,7 +343,7 @@ class Metric(Tensor):
                     continue
         else:
             for tensor_idx, new_idx in list(
-                zip(tensor.indices.indices, new_indices.indices)
+                    zip(tensor.indices.indices, new_indices.indices)
             ):
                 if tensor_idx.covariant != new_idx.covariant:
                     if tensor_idx.covariant:
@@ -370,9 +375,9 @@ class Metric(Tensor):
         if index.covariant:
             raise ValueError(f"Cannot raise index {index} as it is already covariant.")
 
-        self.__new_index(tensor, index, MetricIndices.lower_indices)
+        self.__new_index(tensor, index, self.indices.lower_indices)
 
-    def raise_index(self, tensor: Tensor, index: Idx) -> Tensor:
+    def raise_index(self, tensor: Tensor, index: Idx) -> None:
         """
         Protected method to raise an index of a tensor.
 
@@ -394,17 +399,17 @@ class Metric(Tensor):
                 f"Cannot raise index {index} as it is already contravariant."
             )
 
-        self.__new_index(tensor, index, MetricIndices.raise_indices)
+        self.__new_index(tensor, index, self.indices.raise_indices)
 
     def __new_index(
-        self, tensor: Tensor, index: Idx, dummy_indices_generator: Callable
+            self, tensor: Tensor, index: Idx, dummy_indices_generator: Callable
     ):
         """Protected method to raise an index of the tensor."""
 
         # The most efficient way is to directly manipulate the underlying components of the tensor.
         # For the time being, we perform the expensive operation by generate two dummy tensors objects and multiplying them.
         metric_dummy_indices, tensor_dummy_indices = dummy_indices_generator(
-            index, tensor.indices
+            index, tensor.indices, self.indices.coord_patch
         )
 
         tensor_args = [tensor_dummy_indices] + tensor.args[1:]
@@ -415,4 +420,3 @@ class Metric(Tensor):
         # Set new properties
         tensor.components = result.components
         tensor.indices = result.indices
-

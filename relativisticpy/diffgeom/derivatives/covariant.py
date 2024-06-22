@@ -10,7 +10,6 @@ from relativisticpy.diffgeom.metric import Metric
 # This Module
 from relativisticpy.diffgeom.connection import LeviCivitaConnection
 from relativisticpy.symengine import diff, simplify, trigsimp
-from relativisticpy.utils.helpers import tensor_trace_product
 
 
 class CovDerivative(EinsumArray):
@@ -27,11 +26,11 @@ class CovDerivative(EinsumArray):
         pass
 
     def __init__(self, indices: Indices, metric: Metric):
-        super().__init__(indices=indices, basis=metric.basis)
+        super().__init__(indices=indices, components=metric.indices.basis)
         self.connection_components = LeviCivitaConnection.init_from_metric(metric).components
 
     def __mul__(self, other: EinsumArray) -> EinsumArray:
-        self.components = other.basis
+        self.components = other.indices.basis
         operation = lambda a, b: diff(b, a)
         result = self.einsum_operation(other, operation)
         pdiff = EinsumArray(

@@ -42,7 +42,7 @@ class Patch:
 
 class CoordinatePatch:
 
-    def __init__(self, patch: Patch, symbols: tuple[Symbol], bounds: tuple[Basic] = None):
+    def __init__(self, patch: Patch, symbols: SymbolArray, bounds: tuple[Basic] = None):
         if len(symbols) != patch.dim:
             raise ValueError("The number of symbols must be equal to the dimension of the patch.")
         self.__patch = patch
@@ -50,7 +50,7 @@ class CoordinatePatch:
         self.__transformations = {}
     
     @property
-    def symbols(self) -> tuple[Symbol]: return self.__symbols
+    def symbols(self) -> SymbolArray: return self.__symbols
 
     @property
     def patch(self) -> Patch: return self.__patch
@@ -69,6 +69,11 @@ class CoordinatePatch:
 
     def transformation(self, to_cord_patch: 'CoordinatePatch'):
         pass
+
+    @classmethod
+    def from_basis(cls, basis: SymbolArray):
+        patch = Patch("default", Manifold("default", len(basis)))
+        return cls(patch, basis)
 
 class CoordIndices(Indices):
 

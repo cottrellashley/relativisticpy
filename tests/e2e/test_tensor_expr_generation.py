@@ -10,6 +10,7 @@ from relativisticpy.diffgeom import (
     MetricScalar
 )
 
+
 # TODO: <<< PUT THIS FUNCTION SOMEWHERE ELSE + SIMPLIFY IT AS ITs IMPLEMENTATION LOOKS HORIBLE >>>>>>
 def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
     def find_non_zero_elements(arr, pos=None, results=None):
@@ -19,7 +20,7 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
             results = []
 
         if isinstance(
-            arr, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
+                arr, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
         ):
             for i, elem in enumerate(arr):
                 find_non_zero_elements(elem, pos + [i], results)
@@ -30,12 +31,12 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
         return results
 
     if not isinstance(
-        array1, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
+            array1, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
     ):
         return False
 
     if not isinstance(
-        array2, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
+            array2, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
     ):
         return False
 
@@ -54,19 +55,20 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
     list_res = []
     for i, items in enumerate(list1):
         if isinstance(
-            items[1], (smp.Expr, smp.Symbol, smp.Function, smp.MutableDenseNDimArray)
+                items[1], (smp.Expr, smp.Symbol, smp.Function, smp.MutableDenseNDimArray)
         ):
             list_res.append(list2[i][0] == items[0] and list2[i][1].equals(items[1]))
         else:
             list_res.append(list2[i][0] == items[0] and list2[i][1] == items[1])
     return all(list_res)
 
+
 def test_basic_tensor_component_generations_zeros():
     wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(2)
 
     res = wb.expr(
-            """
+        """
                     Coordinates := [x, y]
                     T_{a} := [0, 0]
                     T_{a}
@@ -74,6 +76,7 @@ def test_basic_tensor_component_generations_zeros():
     )
     assert smp.simplify(res.components) == zeros
     assert str(res.indices) == "_{a}"
+    assert str(res.indices.basis) == '[x, y]'
 
 
 def test_basic_tensor_component_generations_symbols():
@@ -81,26 +84,27 @@ def test_basic_tensor_component_generations_symbols():
     x, y, z, t, r, theta, phi, G, M, c = smp.symbols("x y z t r theta phi G M c")
 
     res = wb.expr(
-            """
+        """
                     Coordinates := [t, r, theta]
                     T_{a}_{b} := [[1, 0, 0], [0, r**2, 0], [0, 0, r**2*sin(theta)**2]]
                     T_{a}_{b}
             """
     )
-    assert smp.simplify(res.components) == smp.MutableDenseNDimArray([[1, 0, 0], [0, r**2, 0], [0, 0, r**2*smp.sin(theta)**2]])
+    assert smp.simplify(res.components) == smp.MutableDenseNDimArray(
+        [[1, 0, 0], [0, r ** 2, 0], [0, 0, r ** 2 * smp.sin(theta) ** 2]])
     assert str(res.indices) == "_{a}_{b}"
+    assert str(res.indices.basis) == '[t, r, theta]'
+
 
 def test_covariant_derivative_metric_mapping(
-    Schwarzschild_Basis
 ):
     # This should do the following:
     # 1. D_{a}*g_{b}_{c} == Zero
-    basis = Schwarzschild_Basis
     wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4)
 
     res = wb.expr(
-            """
+        """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                     T_{b}_{a}_{c} := D_{a}*g_{b}_{c}
@@ -109,17 +113,17 @@ def test_covariant_derivative_metric_mapping(
     )
     assert smp.simplify(res.components) == zeros
     assert str(res.indices) == "_{b}_{a}_{c}"
-    assert equal(res.basis, basis)
+    assert str(res.indices.basis) == '[t, r, theta, phi]'
+
 
 def test_tensor_multiplication_with_scalar(
-    Schwarzschild_Basis
 ):
     # This should do the following:
     # 1. D_{a}*g_{b}_{c} == Zero
     wb = Workbook()
 
     res = wb.expr(
-            """
+        """
                         Coordinates := [t, r, theta, phi] 
                         g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                         g_{a}_{b}*f(x)
@@ -127,7 +131,8 @@ def test_tensor_multiplication_with_scalar(
     )
     assert str(res.components) == '[[(2*G*M/r - 1)*f(x), 0, 0, 0], [0, f(x)/(-2*G*M/r + 1), 0, 0], [0, 0, r**2*f(x), 0], [0, 0, 0, r**2*f(x)*sin(theta)**2]]'
     assert str(res.indices) == "_{a}_{b}"
-    assert str(res.basis) == '[t, r, theta, phi]'
+    assert str(res.indices.basis) == '[t, r, theta, phi]'
+
 
 def test_vector_index_raise_lowering():
     # This should do the following:
@@ -135,7 +140,7 @@ def test_vector_index_raise_lowering():
     wb = Workbook()
 
     res = wb.expr(
-            """
+        """
                 Coordinates := [t, r, theta, phi]
                 g_{mu nu} := [[-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
 
@@ -145,4 +150,4 @@ def test_vector_index_raise_lowering():
     )
     assert str(res.components) == '[0, 0, 0, 0]'
     assert str(res.indices) == "_{a}"
-    assert str(res.basis) == '[t, r, theta, phi]'
+    assert str(res.indices.basis) == '[t, r, theta, phi]'

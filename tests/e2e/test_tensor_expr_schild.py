@@ -22,7 +22,7 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
             results = []
 
         if isinstance(
-            arr, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
+                arr, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
         ):
             for i, elem in enumerate(arr):
                 find_non_zero_elements(elem, pos + [i], results)
@@ -33,12 +33,12 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
         return results
 
     if not isinstance(
-        array1, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
+            array1, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
     ):
         return False
 
     if not isinstance(
-        array2, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
+            array2, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
     ):
         return False
 
@@ -57,7 +57,7 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
     list_res = []
     for i, items in enumerate(list1):
         if isinstance(
-            items[1], (smp.Expr, smp.Symbol, smp.Function, smp.MutableDenseNDimArray)
+                items[1], (smp.Expr, smp.Symbol, smp.Function, smp.MutableDenseNDimArray)
         ):
             list_res.append(list2[i][0] == items[0] and list2[i][1].equals(items[1]))
         else:
@@ -65,8 +65,7 @@ def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
     return all(list_res)
 
 
-def test_workbook_new_line_components_definition(Schwarzschild_Metric):
-    metric, inverse_metric = Schwarzschild_Metric
+def test_workbook_new_line_components_definition():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -80,21 +79,19 @@ def test_workbook_new_line_components_definition(Schwarzschild_Metric):
                 g_{mu}_{nu}
         """
     )
-    assert equal(res.components, metric)
-    del res
+    assert str(res.components) == '[[2*G*M/r - 1, 0, 0, 0], [0, 1/(-2*G*M/r + 1), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]'
+    assert str(res.indices) == "_{mu}_{nu}"
 
-def test_ricci_generation_from_riemann_contraction_caching_correctly(Schwarzschild_Ricci):
-    ricci_components = Schwarzschild_Ricci
-
+def test_ricci_generation_from_riemann_contraction_caching_correctly():
     wb = Workbook()
     wb.expr(
-            """
+        """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                     R^{a}_{b}_{a}_{h}
                     R^{a}_{c}_{a}_{h}
             """
-        )
+    )
     wb.expr(
         """
                 R^{a}_{b}_{a}_{h}
@@ -106,14 +103,11 @@ def test_ricci_generation_from_riemann_contraction_caching_correctly(Schwarzschi
         """
     )
 
-    assert equal(smp.simplify(res.components), ricci_components)
+    assert str(smp.simplify(res.components)) == "ricci_components)"
     assert str(res.indices) == "_{b}_{h}"
-    del wb
-    del res
 
-def test_metric_init(Schwarzschild_Metric):
-    metric, _ = Schwarzschild_Metric
 
+def test_metric_init():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -121,16 +115,12 @@ def test_metric_init(Schwarzschild_Metric):
                 g_{mu}_{nu}
     """
     )
-    assert equal(res.components, metric)
+    assert str(res.components) == "metric)"
     assert str(res.indices) == "_{mu}_{nu}"
-    del res
 
 
 def test_workbook_inverse_metric_components_match(
-    Schwarzschild_Metric
 ):
-    _, inverse_metric = Schwarzschild_Metric
-
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -138,9 +128,8 @@ def test_workbook_inverse_metric_components_match(
                 g^{a}^{b}
     """
     )
-    assert equal(res.components, inverse_metric)
+    assert str(res.components) == ", inverse_metric)"
     assert str(res.indices) == "^{a}^{b}"
-    del res
 
 
 def test_workbook_cron_delta_metric_result():
@@ -158,9 +147,7 @@ def test_workbook_cron_delta_metric_result():
     del res
 
 
-def test_workbook_metricScalar_result(Schwarzschild_MetricScalar):
-    metric = Schwarzschild_MetricScalar
-
+def test_workbook_metricScalar_result():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -169,14 +156,11 @@ def test_workbook_metricScalar_result(Schwarzschild_MetricScalar):
     """
     )
 
-    assert res.components == 4
+    assert int(res.components) == 4
     assert str(res.indices) == ""
-    del res
 
 
-def test_LeviCivitaConnection_generation(Schwarzschild_LeviCivitaConnection):
-    LeviCivitaConnection = Schwarzschild_LeviCivitaConnection
-
+def test_LeviCivitaConnection_generation():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -184,14 +168,11 @@ def test_LeviCivitaConnection_generation(Schwarzschild_LeviCivitaConnection):
                 C^{a}_{b}_{c}
     """
     )
-    assert equal(res.components, LeviCivitaConnection)
+    assert str(res.components) == "LeviCivitaConnection"
     assert str(res.indices) == "^{a}_{b}_{c}"
-    del res
 
 
-def test_ricci_generation(Schwarzschild_Ricci):
-    ricci_components = Schwarzschild_Ricci
-
+def test_ricci_generation():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -199,14 +180,11 @@ def test_ricci_generation(Schwarzschild_Ricci):
                 Ric_{a}_{b}
     """
     )
-    assert equal(res.components, ricci_components)
+    assert str(res.components) == ", ricci_components)"
     assert str(res.indices) == "_{a}_{b}"
-    del res
 
 
-def test_riemann_generation(Schwarzschild_Riemann):
-    riemann_components = Schwarzschild_Riemann
-
+def test_riemann_generation():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -214,13 +192,11 @@ def test_riemann_generation(Schwarzschild_Riemann):
                 R^{a}_{b}_{c}_{h}
     """
     )
-    assert equal(res.components, riemann_components)
+    assert str(res.components) == "riemann_components)"
     assert str(res.indices) == "^{a}_{b}_{c}_{h}"
-    del res
 
-def test_ricci_generation_from_riemann_contraction(Schwarzschild_Ricci):
-    ricci_components = Schwarzschild_Ricci
 
+def test_ricci_generation_from_riemann_contraction():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -228,13 +204,11 @@ def test_ricci_generation_from_riemann_contraction(Schwarzschild_Ricci):
                 R^{a}_{b}_{a}_{h}
         """
     )
-    assert equal(smp.simplify(res.components), ricci_components)
+    assert str(smp.simplify(res.components)) == "(ricci_components)"
     assert str(res.indices) == "_{b}_{h}"
-    del res
 
-def test_metric_multiplication(Schwarzschild_MetricScalar):
-    metric = Schwarzschild_MetricScalar
 
+def test_metric_multiplication():
     res = Workbook().expr(
         """
                 Coordinates := [t, r, theta, phi] 
@@ -242,8 +216,7 @@ def test_metric_multiplication(Schwarzschild_MetricScalar):
                 g_{a}_{b}*g^{a}^{b}
     """
     )
-    assert res == 4
-    del res
+    assert int(res) == 4
 
 
 def test_LeviCivitaConnection_formulal_equal_built_in_LeviCivitaConnection():
@@ -257,9 +230,8 @@ def test_LeviCivitaConnection_formulal_equal_built_in_LeviCivitaConnection():
         """
     )
 
-    assert smp.simplify(res.components) == zeros
+    assert str(smp.simplify(res.components)) == str(zeros)
     assert str(res.indices) == "^{a}_{c}_{f}"
-    del res
 
 
 def test_riemann_formulal_comps_equal_built_in_riemann():
@@ -272,13 +244,11 @@ def test_riemann_formulal_comps_equal_built_in_riemann():
     """
     )
 
-    assert smp.simplify(res.components) == zeros
+    assert str(smp.simplify(res.components)) == str(zeros)
     assert str(res.indices) == "^{a}_{m}_{b}_{n}"  # _{b}^{a}_{n}_{m}
-    del res
 
 
 def test_riemann_formulal_indices_equal_built_in_riemann(
-    Schwarzschild_Riemann
 ):
     # This should do the following:
     # 1. Idetify that T is a Variable and of a Tensor Type => It is a tensor created by user and to be assigned by user
@@ -288,19 +258,17 @@ def test_riemann_formulal_indices_equal_built_in_riemann(
     # 5. Now there should be a tensor T stored in cache, with the computed components and indices defined by user.
     # In this case, the formula is the Riemann formulla and since usually the app returns the rusult in indices '_{b}^{a}_{n}_{m}'
     # Check that the Riemann components assigned to tensot T has been re-structure from: '_{b}^{a}_{n}_{m}' -> '^{a}_{m}_{b}_{n}'
-    riemann_components = Schwarzschild_Riemann
 
     res = Workbook().expr(
-            """
+        """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                     T^{a}_{m}_{b}_{n} := d_{b}*C^{a}_{n}_{m} + C^{a}_{b}_{l}*C^{l}_{n}_{m} - d_{n}*C^{a}_{b}_{m} - C^{a}_{n}_{l}*C^{l}_{b}_{m}
                     T^{a}_{m b n}
             """
     )
-    assert equal(smp.simplify(res.components), riemann_components)
+    assert str(smp.simplify(res.components)) == "str(zeros)"
     assert str(res.indices) == "^{a}_{m}_{b}_{n}"
-    del res
 
 
 def test_ricci_scalar():
@@ -312,10 +280,9 @@ def test_ricci_scalar():
         """
     )
 
-    assert res.components == 0
+    assert int(res.components) == 0
     assert str(res.indices) == ""
     assert type(res) == RicciScalar
-    del res
 
 
 def test_einstein_tensor():
@@ -332,6 +299,7 @@ def test_einstein_tensor():
     assert type(res) == EinsteinTensor
     assert str(res.indices) == "_{a}_{b}"
     del res
+
 
 def test_einstein_tensor_computed_from_equation():
     zeros = smp.MutableDenseNDimArray().zeros(4, 4)
@@ -358,15 +326,13 @@ def test_einstein_tensor_computed_from_equation():
 
 
 def test_covariant_derivative_metric_equals_zero(
-    Schwarzschild_Basis
 ):
     # This should do the following:
     # 1. D_{a}*g_{b}_{c} == Zero
-    basis = Schwarzschild_Basis
     zeros = smp.MutableDenseNDimArray().zeros(4, 4, 4)
 
     res = Workbook().exe(
-            """
+        """
                     Coordinates := [t, r, theta, phi] 
                     g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
                     D_{a}*g_{b c}
@@ -374,5 +340,4 @@ def test_covariant_derivative_metric_equals_zero(
     )
     assert equal(smp.simplify(res.components), zeros)
     assert str(res.indices) == "_{a}_{b}_{c}"
-    assert equal(res.basis, basis)
-    del res
+    assert str(res.indices.basis) == "[t, r, theta, phi]"

@@ -2,12 +2,12 @@ from typing import Protocol, Any, Type
 from relativisticpy.interpreter.protocols.tensor import Tensor, Indices
 from relativisticpy.interpreter.protocols.state import State
 from relativisticpy.interpreter.protocols.nodes import TreeNodes
-from relativisticpy.interpreter.protocols.symbolic import Symbolic, Equation, Expression, SymbolArray
+from relativisticpy.interpreter.protocols.symbolic import Equation, Expression, SymbolArray
 
-# Protocol typing class allows for very flexible and powerful type hints, 
-# enabling you to specify exactly what behavior is required from an object, 
-# without specifying the exact class of the object. 
-# This is especially useful in cases where you want to allow multiple different classes to be used, as long as they provide certain methods.
+
+# Protocol typing class allows for very flexible and powerful type hints, enabling you to specify exactly what
+# behavior is required from an object, without specifying the exact class of the object. This is especially useful in
+# cases where you want to allow multiple different classes to be used, as long as they provide certain methods.
 
 class Implementer(Protocol):
     """ 
@@ -22,7 +22,7 @@ class Implementer(Protocol):
     @property
     def state(self) -> State:
         ...
-    
+
     @state.setter
     def state(self, state: State) -> None:
         ...
@@ -34,17 +34,17 @@ class Implementer(Protocol):
     def init_indices(self, node: TreeNodes) -> Indices:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         ...
-    
+
     def init_metric_indices(self, node: TreeNodes) -> Indices:
         "Based on the state of the Tensor node and the sate -  we will initialize a metric indices."
         ...
 
     def init_metric_tensor(self, indices: Indices, components: SymbolArray) -> Tensor:
-        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        """Based on the Tensor Node state and the Interpreter sate - we will initialize the indices of a tensor."""
         ...
 
     def init_einstein_array(self, indices: Indices, components: SymbolArray, basis: SymbolArray) -> Tensor:
-        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        """Based on the state of the Tensor node and to sate - we will initialize the indices of a tensor."""
         ...
 
     def init_ricci_scalar(self, node: TreeNodes) -> Tensor:
@@ -58,7 +58,7 @@ class Implementer(Protocol):
     def init_tensor_derivative(self, node: TreeNodes) -> Tensor:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         ...
-    
+
     @property
     def connection_cls(self) -> Type[Tensor]:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
@@ -150,13 +150,13 @@ class Implementer(Protocol):
 
     def lim(self, node: TreeNodes) -> Expression:
         ...
-    
+
     def sqrt(self, node: TreeNodes) -> Expression:
         ...
 
     def expand(self, node: TreeNodes) -> Expression:
         ...
-    
+
     def func_derivative(self, node: TreeNodes) -> Expression:
         ...
 
@@ -231,10 +231,10 @@ class Implementer(Protocol):
 
     def call(self, node: TreeNodes):
         ...
-        
+
     def symbolfunc(self, node: TreeNodes):
         ...
-    
+
     def symbol_str(self, *arg, **kwargs):
         ...
 

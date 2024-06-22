@@ -1,0 +1,10 @@
+name: relativity
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - poetry
+  - sympy==1.12
+  - pytest==7.4.3
+  - pip:
+      # Add any pip-specific dependencies here, if needed

@@ -48,6 +48,10 @@ class Indices(Protocol):
         ...
     def get_non_running(self) -> 'Indices':
         ...
+    @basis.setter
+    def basis(self, value):
+        ...
+
 
 class TensorNode(Protocol):
     pass
@@ -77,4 +81,8 @@ class Tensor(Protocol):
 
     def reshape(self, indices: Indices, ignore_covariance: bool = True) -> 'Tensor':
         " Re-shapes the tensor components with respect to new indices. "
+        ...
+
+    @classmethod
+    def from_equation(cls, indices: Indices, *args, **kwargs) -> 'Tensor':
         ...

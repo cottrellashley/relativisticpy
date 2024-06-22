@@ -7,11 +7,9 @@ from relativisticpy.workbook.ast_visitor import RelPyAstNodeTraverser
 
 class Workbook:
 
-
-
     def __init__(self, file_path: str = None, debug_mode: bool = False):
         self.file_path = file_path
-        self.interpreter = RelParser( RelPyAstNodeTraverser() )
+        self.interpreter = RelParser(RelPyAstNodeTraverser())
         self.debug_mode = debug_mode
 
     def markdown(self, path: str):
@@ -37,20 +35,21 @@ class Workbook:
         return modified_content
 
     def expr(self, string: str):
-        if self.debug_mode: result = self.interpreter.exe(string)
+        if self.debug_mode:
+            result = self.interpreter.exe(string)
         else:
             try:
                 result = self.interpreter.exe(string)
             except Exception as ex:
                 return str(ex)
-    
+
         if isinstance(result, list):
             if len(result) == 1:
                 return result[0].value
             elif len(result) == 0:
                 return "No return value."
             else:
-                return [i.value for i in result][-1] # TODO: CAREFUL CONCIDERATION OF HOW WE RETURN VALUES TO USER.
+                return [i.value for i in result][-1]  # TODO: CAREFUL CONCIDERATION OF HOW WE RETURN VALUES TO USER.
         elif isinstance(result, str):
             return result
 
@@ -60,10 +59,10 @@ class Workbook:
             if len(result) == 1:
                 return result[0].value
             else:
-                return [i.value for i in result] # TODO: CAREFUL CONCIDERATION OF HOW WE RETURN VALUES TO USER.
+                return [i.value for i in result]  # TODO: CAREFUL CONCIDERATION OF HOW WE RETURN VALUES TO USER.
         elif isinstance(result, str):
             return result
-        
+
     def reset(self):
         self.interpreter.node_tree_walker.state.reset()
 
