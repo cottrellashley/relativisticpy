@@ -1,5 +1,7 @@
 import pytest
 import sympy as smp
+
+from relativisticpy.diffgeom.tensor import Tensor
 from relativisticpy.workbook.workbook import Workbook
 from relativisticpy.diffgeom import (
     Ricci,
@@ -103,7 +105,7 @@ def test_ricci_generation_from_riemann_contraction_caching_correctly():
         """
     )
 
-    assert str(smp.simplify(res.components)) == "ricci_components)"
+    assert str(smp.simplify(res.components)) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
     assert str(res.indices) == "_{b}_{h}"
 
 
@@ -115,7 +117,7 @@ def test_metric_init():
                 g_{mu}_{nu}
     """
     )
-    assert str(res.components) == "metric)"
+    assert str(res.components) == "[[2*G*M/r - 1, 0, 0, 0], [0, 1/(-2*G*M/r + 1), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]"
     assert str(res.indices) == "_{mu}_{nu}"
 
 
@@ -128,7 +130,7 @@ def test_workbook_inverse_metric_components_match(
                 g^{a}^{b}
     """
     )
-    assert str(res.components) == ", inverse_metric)"
+    assert str(res.components) == "[[1/(2*G*M/r - 1), 0, 0, 0], [0, -2*G*M/r + 1, 0, 0], [0, 0, r**(-2), 0], [0, 0, 0, 1/(r**2*sin(theta)**2)]]"
     assert str(res.indices) == "^{a}^{b}"
 
 
@@ -168,7 +170,7 @@ def test_LeviCivitaConnection_generation():
                 C^{a}_{b}_{c}
     """
     )
-    assert str(res.components) == "LeviCivitaConnection"
+    assert str(res.components) == "[[[0, G*M/(r*(-2*G*M + r)), 0, 0], [G*M/(r*(-2*G*M + r)), 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], [[G*M*(-2*G*M + r)/r**3, 0, 0, 0], [0, G*M/(r*(2*G*M - r)), 0, 0], [0, 0, 2*G*M - r, 0], [0, 0, 0, (2*G*M - r)*sin(theta)**2]], [[0, 0, 0, 0], [0, 0, 1/r, 0], [0, 1/r, 0, 0], [0, 0, 0, -sin(2*theta)/2]], [[0, 0, 0, 0], [0, 0, 0, 1/r], [0, 0, 0, 1/tan(theta)], [0, 1/r, 1/tan(theta), 0]]]"
     assert str(res.indices) == "^{a}_{b}_{c}"
 
 
@@ -180,7 +182,7 @@ def test_ricci_generation():
                 Ric_{a}_{b}
     """
     )
-    assert str(res.components) == ", ricci_components)"
+    assert str(res.components) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
     assert str(res.indices) == "_{a}_{b}"
 
 
@@ -192,7 +194,7 @@ def test_riemann_generation():
                 R^{a}_{b}_{c}_{h}
     """
     )
-    assert str(res.components) == "riemann_components)"
+    assert str(res.components) == "[[[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], [[0, 2*G*M/(r**2*(-2*G*M + r)), 0, 0], [2*G*M/(r**2*(2*G*M - r)), 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, -G*M/r, 0], [0, 0, 0, 0], [G*M/r, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, -G*M*sin(theta)**2/r], [0, 0, 0, 0], [0, 0, 0, 0], [G*M*sin(theta)**2/r, 0, 0, 0]]], [[[0, 2*G*M*(-2*G*M + r)/r**4, 0, 0], [2*G*M*(2*G*M - r)/r**4, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, -G*M/r, 0], [0, G*M/r, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, 0, -G*M*sin(theta)**2/r], [0, 0, 0, 0], [0, G*M*sin(theta)**2/r, 0, 0]]], [[[0, 0, G*M*(2*G*M - r)/r**4, 0], [0, 0, 0, 0], [G*M*(-2*G*M + r)/r**4, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, G*M/(r**2*(-2*G*M + r)), 0], [0, G*M/(r**2*(2*G*M - r)), 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 2*G*M*sin(theta)**2/r], [0, 0, -2*G*M*sin(theta)**2/r, 0]]], [[[0, 0, 0, G*M*(2*G*M - r)/r**4], [0, 0, 0, 0], [0, 0, 0, 0], [G*M*(-2*G*M + r)/r**4, 0, 0, 0]], [[0, 0, 0, 0], [0, 0, 0, G*M/(r**2*(-2*G*M + r))], [0, 0, 0, 0], [0, G*M/(r**2*(2*G*M - r)), 0, 0]], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, -2*G*M/r], [0, 0, 2*G*M/r, 0]], [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]]]"
     assert str(res.indices) == "^{a}_{b}_{c}_{h}"
 
 
@@ -204,7 +206,7 @@ def test_ricci_generation_from_riemann_contraction():
                 R^{a}_{b}_{a}_{h}
         """
     )
-    assert str(smp.simplify(res.components)) == "(ricci_components)"
+    assert str(smp.simplify(res.components)) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
     assert str(res.indices) == "_{b}_{h}"
 
 
@@ -216,7 +218,7 @@ def test_metric_multiplication():
                 g_{a}_{b}*g^{a}^{b}
     """
     )
-    assert int(res) == 4
+    assert int(res.components) == 4
 
 
 def test_LeviCivitaConnection_formulal_equal_built_in_LeviCivitaConnection():
@@ -295,7 +297,7 @@ def test_einstein_tensor():
         """
     )
 
-    assert smp.simplify(res.components) == zeros
+    assert str(res.components) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
     assert type(res) == EinsteinTensor
     assert str(res.indices) == "_{a}_{b}"
     del res
@@ -313,12 +315,12 @@ def test_einstein_tensor_computed_from_equation():
         """
     )
 
-    assert equal(smp.simplify(res[0].components), zeros)
-    assert equal(smp.simplify(res[1].components), zeros)
-    assert equal(smp.simplify(res[2].components), zeros)
-    assert type(res[0]) == EinsteinArray
-    assert type(res[1]) == EinsteinArray
-    assert type(res[2]) == EinsteinArray
+    assert str(res[0].components) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
+    assert str(res[1].components) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
+    assert str(res[2].components) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]]"
+    assert type(res[0]) == Tensor
+    assert type(res[1]) == Tensor
+    assert type(res[2]) == Tensor
     assert str(res[0].indices) == "_{a}_{b}"
     assert str(res[1].indices) == "_{a}_{b}"
     assert str(res[2].indices) == "_{a}_{b}"

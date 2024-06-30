@@ -20,12 +20,11 @@ class Riemann(Tensor):
 
     @classmethod
     def component_equations(cls):
-        return (
+        return [
             (SymbolArray, lambda arg: arg),
             (Metric, cls.components_from_metric),
-            (LeviCivitaConnection, cls.components_from_connection),
-            (Riemann, cls.components_from_riemann)
-        )
+            (LeviCivitaConnection, cls.components_from_connection)
+        ]
 
     @classmethod
     def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'Riemann':
@@ -95,3 +94,5 @@ class Riemann(Tensor):
         # TODO: Implement this method using the metric to raise and lower indices of this object.
         pass
 
+    def components_from_connection(connection: LeviCivitaConnection) -> SymbolArray:
+        raise NotImplementedError("Riemann tensor from connection is not yet implemented.")

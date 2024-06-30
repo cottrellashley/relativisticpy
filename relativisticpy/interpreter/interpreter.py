@@ -1,10 +1,10 @@
 from dataclasses import dataclass
-from typing import List
-from relativisticpy.interpreter.analyzers.base import ActionTree, GrScriptTree
+from relativisticpy.interpreter.analyzers.base import GrScriptTree
 from relativisticpy.interpreter.nodes.base import AstNode
-from relativisticpy.interpreter.state.scopes import ScopedState
+from relativisticpy.state import ScopedState
 
-from relativisticpy.interpreter.protocols import Implementer
+from relativisticpy.typing.protocols import Implementer
+
 
 @dataclass
 class ReturnObject:
@@ -37,4 +37,5 @@ class Interpreter:
                 self.executor(action_tree.ast)
         return self.return_list
 
-    def executor(self, ast_node: AstNode): return ast_node.execute_node(self.implementor)
+    def executor(self, ast_node: AstNode):
+        return ast_node.execute_node(self.implementor)

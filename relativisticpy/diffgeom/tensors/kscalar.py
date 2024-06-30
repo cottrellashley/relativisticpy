@@ -13,10 +13,10 @@ class KScalar(Tensor):
 
     @classmethod
     def component_equations(cls):
-        return (
+        return [
             (Metric, cls.components_from_metric),
             (LeviCivitaConnection, cls.components_from_connection),
-        )
+        ]
 
     @staticmethod
     def components_from_metric(metric: Metric):

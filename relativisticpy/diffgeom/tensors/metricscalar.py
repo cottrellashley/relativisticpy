@@ -1,9 +1,7 @@
 from itertools import product
-from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.diffgeom.tensor import Tensor
 from relativisticpy.diffgeom.metric import Metric
-from relativisticpy.diffgeom.connection import LeviCivitaConnection
-from relativisticpy.symengine import SymbolArray, simplify
+from relativisticpy.symengine import simplify
 
 
 class MetricScalar(Tensor):
@@ -12,9 +10,9 @@ class MetricScalar(Tensor):
 
     @classmethod
     def component_equations(cls):
-        return (
+        return [
             (Metric, cls.components_from_metric),
-        )
+        ]
 
     @staticmethod
     def components_from_metric(metric: Metric):

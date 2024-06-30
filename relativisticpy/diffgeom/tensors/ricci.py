@@ -26,16 +26,17 @@ class Ricci(Tensor):
 
     @classmethod
     def component_equations(cls):
-        return (
+        return [
             (SymbolArray, lambda arg: arg),
             (Metric, cls.components_from_metric),
             (LeviCivitaConnection, cls.components_from_connection),
             (Riemann, cls.components_from_riemann)
-        )
+        ]
 
     @property
     def args(self):
         return [self.indices, self.components]
+
 
     @staticmethod
     def components_from_metric(metric: Metric) -> SymbolArray:

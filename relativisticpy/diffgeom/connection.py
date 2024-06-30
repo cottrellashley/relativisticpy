@@ -7,7 +7,7 @@ from relativisticpy.algebras import EinsumArray
 from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.diffgeom.metric import Metric
 from relativisticpy.symengine import SymbolArray, Rational, diff, simplify, Basic
-
+from loguru import logger
 
 class LeviCivitaConnection(EinsumArray):
     """
@@ -20,22 +20,23 @@ class LeviCivitaConnection(EinsumArray):
     """
 
     def __init__(self, indices: CoordIndices, components: SymbolArray, metric: Metric = None):
+        logger.debug(f"Creating Levi-Civita Connection with indices {indices} and components {components}")
 
         if indices.rank != (1, 2):
             raise Exception("The Levi-Civita Connection must have be of rank (1, 2)")
 
         if len(components.shape) != 3 and all(number == components.shape[0] for number in components.shape):
             raise Exception(
-                f"The Levi-Civita Connection must have shape ({components.shape[0]}, {components.shape[0]}, {components.shape[0]}).")
+                f"The Levi-Civita Connection must have shape ({components.shape[0]}, {components.shape[0]}, {components.shape[0]}). Got {components.shape} instead.")
 
         super().__init__(indices=indices, components=components)
         self.metric = metric
 
     @classmethod
     def component_equations(cls):
-        return (
+        return [
             (Metric, cls.components_from_metric)
-        )
+        ]
 
     @property
     def args(self):
@@ -72,7 +73,7 @@ class LeviCivitaConnection(EinsumArray):
             # type(other) will most often be GrTensor. This is temporary until we have a better solution. When
             # connections multiply with tensors, the result is not necessarily a tensor. We make it so to not lose
             # tensor functionality.
-            return self.mul(other, type(other))
+            return self.mul(other, EinsumArray)
         else:
             raise TypeError(f"Expected int, float, or EinsumArray, got {type(other).__name__}")
 

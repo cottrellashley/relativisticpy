@@ -1,6 +1,5 @@
-from typing import Protocol, Callable
-from relativisticpy.interpreter.protocols.implementer import Implementer
-from relativisticpy.interpreter.protocols.state import State
+from typing import Protocol
+from relativisticpy.typing.protocols.implementer import Implementer
 
 
 # Protocol typing class allows for very flexible and powerful type hints, enabling you to specify exactly what

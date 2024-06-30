@@ -17,15 +17,17 @@ from relativisticpy.algebras.jacobian_matrix import Jacobian
 
 class Tensor(EinsumArray):
     """
-        Tensor algebra is a mathematical framework that generalizes scalars, vectors, and matrices to higher-dimensional structures. This algebra deals with objects called tensors, which can have multiple indices, and the operations that can be applied to them. Here's a concise summary of the fundamental rules and operations of tensor algebra:
+    Tensor algebra is a mathematical framework that generalizes scalars, vectors, and matrices to higher-dimensional
+    structures. This algebra deals with objects called tensors, which can have multiple indices, and the operations
+    that can be applied to them. Here's a concise summary of the fundamental rules and operations of tensor algebra:
 
         **1. Tensors**
 
-        - **Definition**: A tensor is a mathematical object that can be characterized by its order (or rank), which indicates the number of indices required to uniquely specify each of its components. For example:
-            - A scalar is a tensor of rank 0 (no indices).
-            - A vector is a tensor of rank 1 (one index).
-            - A matrix is a tensor of rank 2 (two indices), and so on.
-        - **Components**: The elements of a tensor can be scalars from any field, typically real or complex numbers, which are indexed according to the tensor's rank.
+        - **Definition**: A tensor is a mathematical object that can be characterized by its order (or rank),
+        which indicates the number of indices required to uniquely specify each of its components. For example: - A
+        scalar is a tensor of rank 0 (no indices). - A vector is a tensor of rank 1 (one index). - A matrix is a
+        tensor of rank 2 (two indices), and so on. - **Components**: The elements of a tensor can be scalars from any
+        field, typically real or complex numbers, which are indexed according to the tensor's rank.
 
         **2. Tensor Operations**
 
@@ -36,19 +38,28 @@ class Tensor(EinsumArray):
 
         **3. Einstein Summation Convention**
 
-        - This is a notational simplification used in tensor operations where repeated indices in a term imply summation over all the values of that index. For example, in the expression \( a_i b^i \), the repeated index \( i \) means to sum over it, simplifying the description of dot products or more complex contractions.
+        - This is a notational simplification used in tensor operations where repeated indices in a term imply
+        summation over all the values of that index. For example, in the expression \( a_i b^i \), the repeated index
+        \( i \) means to sum over it, simplifying the description of dot products or more complex contractions.
 
         **4. Index Notation**
 
-        - **Covariant and Contravariant Indices**: In the context of tensors, indices can be either covariant (subscripts) or contravariant (superscripts), which reflect different types of geometric transformations. Covariant indices typically correspond to row vectors and contravariant to column vectors in matrix terms.
-        - **Raising and Lowering Indices**: Using a metric tensor, indices of a tensor can be "raised" (converted from covariant to contravariant) or "lowered" (vice versa), changing the way the tensor components transform under coordinate changes.
+        - **Covariant and Contravariant Indices**: In the context of tensors, indices can be either covariant (
+        subscripts) or contravariant (superscripts), which reflect different types of geometric transformations.
+        Covariant indices typically correspond to row vectors and contravariant to column vectors in matrix terms. -
+        **Raising and Lowering Indices**: Using a metric tensor, indices of a tensor can be "raised" (converted from
+        covariant to contravariant) or "lowered" (vice versa), changing the way the tensor components transform under
+        coordinate changes.
 
         **6. (TODO) Symmetry and Skew-Symmetry**
 
-        - Some tensors have symmetric or skew-symmetric properties with respect to certain pairs of indices. For instance, a tensor \( T_{ij} \) is symmetric if \( T_{ij} = T_{ji} \) and skew-symmetric if \( T_{ij} = -T_{ji} \).
+        - Some tensors have symmetric or skew-symmetric properties with respect to certain pairs of indices. For
+        instance, a tensor \( T_{ij} \) is symmetric if \( T_{ij} = T_{ji} \) and skew-symmetric if \( T_{ij} = -T_{
+        ji} \).
 
-        **7. (TODO) Tensor Decomposition**
-        - Tensors can often be decomposed into simpler, constituent tensors, which can be useful for various applications like principal component analysis (PCA) in statistics or spectral decomposition in linear algebra.
+        **7. (TODO) Tensor Decomposition** - Tensors can often be decomposed into simpler, constituent tensors,
+        which can be useful for various applications like principal component analysis (PCA) in statistics or
+        spectral decomposition in linear algebra.
 
     """
 
@@ -72,40 +83,11 @@ class Tensor(EinsumArray):
 
     @classmethod
     def component_equations(cls):
-        return (
-            (SymbolArray, lambda arg: arg)
-        )
-
-    @classmethod
-    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'Tensor':
-        """Dynamic constructor for the inheriting classes."""
-        components = None
-
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, cls):
-                components = arg.reshape(indices).components
-            else:
-                for equation_type, equation_func in cls.component_equations():
-                    if isinstance(arg, equation_type):
-                        components = equation_func(arg)
-                        break
-
-        # Categorize keyword arguments
-        for key, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = value
-            elif isinstance(value, cls):
-                components = value.reshape(indices).components
-            else:
-                for equation_type, equation_func in cls.component_equations():
-                    if isinstance(value, equation_type):
-                        components = equation_func(value)
-                        break
-
-        return cls(indices, components)
+        return [
+            (SymbolArray, lambda arg: arg),
+            (Tensor, lambda arg: arg.components),
+            (EinsumArray, lambda arg: arg.components),
+        ]
 
     # ### 2. Tensor Operations - **Addition and Subtraction**: Tensors of the same rank and shape can be added or
     # subtracted component-wise. - **Scalar Multiplication**: Each component of a tensor can be multiplied by a
@@ -126,7 +108,7 @@ class Tensor(EinsumArray):
     def __mul__(self, other: 'Tensor'):
         if isinstance(other, (int, float, Basic)):
             return self.mul(other, type(self))
-        elif isinstance(other, Tensor):
+        elif isinstance(other, EinsumArray):
             # type(other) will most often be Tensor or child object. This is temporary until we have a better
             # solution. When connections multiply with tensors, the result is not necessarily a tensor. We make it so
             # to not lose tensor functionality.
@@ -135,10 +117,16 @@ class Tensor(EinsumArray):
             raise TypeError(f"Expected int, float, or EinsumArray, got {type(other).__name__}")
 
     def __truediv__(self, other: 'Tensor'):
-        return self.div(other, type(self))
+        if isinstance(other, (int, float, Basic)):
+            return self.div(other, type(self))
+        else:
+            raise TypeError(f"Expected int, float, or Basic, got {type(other).__name__}")
 
     def __pow__(self, other: 'Tensor'):
-        return self.pow(other, type(self))
+        if isinstance(other, (int, float, Basic)):
+            return self.pow(other, type(self))
+        else:
+            raise TypeError(f"Expected int, float, or Basic, got {type(other).__name__}")
 
     def coordinate_transformation(self, indices: Indices, jacobian: Jacobian):
         """

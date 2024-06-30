@@ -55,10 +55,10 @@ def test_connection_sub_components():
                 C^{a:0}_{b:0}_{c}
     """
     )
-    assert str(res[0]) == "connection[0,0,0]"
-    assert str(res[1]) == "connection[:,0,0]"
-    assert str(res[2]) == "connection[0,:,0]"
-    assert str(res[3]) == "connection[0,0,:]"
+    assert str(res[0]) == "0"
+    assert str(res[1]) == "[0, G*M*(-2*G*M + r)/r**3, 0, 0]"
+    assert str(res[2]) == "[0, G*M/(r*(-2*G*M + r)), 0, 0]"
+    assert str(res[3]) == "[0, G*M/(r*(-2*G*M + r)), 0, 0]"
 
 
 def test_ricci_sub_components():
@@ -72,8 +72,8 @@ def test_ricci_sub_components():
                 Ric_{a:1}_{b}
     """
     )
-    assert str(res[0]) == "ricci_components[0,0]"
-    assert str(res[1]) == "ricci_components[0]"
+    assert str(res[0]) == "0"
+    assert str(res[1]) == "[0, 0, 0, 0]"
 
 
 def test_riemann_sub_components():
@@ -88,10 +88,10 @@ def test_riemann_sub_components():
                 R^{a:1}_{b}_{c}_{n:3}
         """
     )
-    assert str(res[0]) == "riemann_components[0, 0, 0, 0]"
-    assert str(res[1]) == "riemann_components[:, 0, 0, 0]"
-    assert str(res[2]) == "riemann_components[0, 1, 0, :]"
-    assert str(res[3]) == "riemann_components[1, :, :, 3]"
+    assert str(res[0]) == "0"
+    assert str(res[1]) == "[0, 0, 0, 0]"
+    assert str(res[2]) == "[0, 2*G*M/(r**2*(-2*G*M + r)), 0, 0]"
+    assert str(res[3]) == "[[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, -G*M*sin(theta)**2/r, 0, 0]]"
 
 
 def test_riemann_sub_components_latex():

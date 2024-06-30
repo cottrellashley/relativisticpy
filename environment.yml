@@ -4,7 +4,8 @@ channels:
 dependencies:
   - pip
   - poetry
-  - sympy==1.12
-  - pytest==7.4.3
   - pip:
+      - sympy==1.12
+      - pytest==7.4.3
+      - loguru
       # Add any pip-specific dependencies here, if needed

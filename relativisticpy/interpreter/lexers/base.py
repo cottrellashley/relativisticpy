@@ -59,10 +59,7 @@ class TokenType(Enum):
             ";": TokenType.SEMI,
             "@": TokenType.AT,
             "%": TokenType.PERCENT,
-            ":": TokenType.COLON,
             "_": TokenType.UNDER,
-            "{": TokenType.LBRACE,
-            "}": TokenType.RBRACE,
             "'": TokenType.APOSTROPHE,
         }
     

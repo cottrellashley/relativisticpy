@@ -10,10 +10,11 @@ from relativisticpy.diffgeom import RicciScalar, MetricScalar, Ricci, Riemann, L
 from relativisticpy.diffgeom.manifold import CoordinatePatch
 
 from relativisticpy.gr.einstein import EinsteinTensor
+from relativisticpy.state import Scope
 
-from relativisticpy.interpreter.protocols import Implementer
-from relativisticpy.interpreter import ScopedState
-
+from relativisticpy.typing.protocols import Implementer
+from relativisticpy.state import ScopedState
+from loguru import logger
 from relativisticpy.symengine import (
     Symbol,
     Basic,
@@ -85,30 +86,39 @@ class RelPyAstNodeTraverser(Implementer):
 
     # Python lib implementations
     def sub(self, node: AstNode):
+        logger.debug(f"Subtracting {node.args[0]} - {node.args[1]} at position {node.position}")
         return node.args[0] - node.args[1]
 
     def add(self, node: AstNode):
+        logger.debug(f"Adding {node.args[0]} + {node.args[1]} at position {node.position}")
         return node.args[0] + node.args[1]
 
     def neg(self, node: AstNode):
+        logger.debug(f"Negating {node.args[0]} at position {node.position}")
         return -node.args[0]
 
     def pos(self, node: AstNode):
+        logger.debug(f"Positing {node.args[0]} at position {node.position}")
         return +node.args[0]
 
     def mul(self, node: AstNode):
+        logger.debug(f"Multiplying {node.args[0]} * {node.args[1]} at position {node.position}")
         return node.args[0] * node.args[1]
 
     def div(self, node: AstNode):
+        logger.debug(f"Dividing {node.args[0]} / {node.args[1]} at position {node.position}")
         return node.args[0] / node.args[1]
 
     def pow(self, node: AstNode):
+        logger.debug(f"Powering {node.args[0]} ** {node.args[1]} at position {node.position}")
         return node.args[0] ** node.args[1]
 
     def int(self, node: AstNode):
+        logger.debug(f"Casting to Integer: {node.args[0]} at position {node.position}")
         return int("".join(node.args))
 
     def float(self, node: AstNode):
+        logger.debug(f"Casting to Float: {node.args[0]} at position {node.position}")
         return float("".join(node.args))
 
     # Symengine implementations
@@ -287,23 +297,34 @@ class RelPyAstNodeTraverser(Implementer):
 
     # TENSOR IMPLEMENTATIONS
 
-    def metric_dependent_types(self, tensor_key: str):
+    def get_tensor_cls(self, tensor_key: str, is_scalar: bool = False):
         types_map = {
-            self.state.get_variable("MetricSymbol"): Metric,
-            self.state.get_variable("RicciSymbol"): Ricci,
-            self.state.get_variable("EinsteinTensorSymbol"): EinsteinTensor,
-            self.state.get_variable("RiemannSymbol"): Riemann,
-            self.state.get_variable("CovariantDerivativeSymbol"): CovDerivative
+            self.state.get_variable(Scope.EinsteinTensorSymbol): EinsteinTensor,
+            self.state.get_variable(Scope.RiemannSymbol): Riemann,
+            self.state.get_variable(Scope.CovariantDerivativeSymbol): CovDerivative,
+            self.state.get_variable(Scope.ConnectionSymbol): LeviCivitaConnection,
         }
-        return types_map[tensor_key] if tensor_key in types_map else None
+        if is_scalar:
+            types_map.update({
+                self.state.get_variable(Scope.RicciSymbol): RicciScalar,
+                self.state.get_variable(Scope.MetricSymbol): MetricScalar,
+            })
+        else:
+            types_map.update({
+                self.state.get_variable(Scope.RicciSymbol): Ricci,
+                self.state.get_variable(Scope.MetricSymbol): Metric,
+            })
+        return types_map[tensor_key] if tensor_key in types_map else Tensor
 
-    def init_indices(self, node: AstNode):
-        if not self.state.get_variable("MetricSymbol") == node.identifier:
+    def init_indices(self, node: AstNode = None):
+        if node is None:
+            return CoordIndices(coord_patch=CoordinatePatch.from_basis(self.state.get_variable("Coordinates")))
+        if not self.state.get_variable(Scope.MetricSymbol) == node.identifier:
             indices = node.indices.indices
             return CoordIndices(*[
                 Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier,
                                                                                          values=idx.values) for idx in
-                indices])
+                indices], coord_patch=CoordinatePatch.from_basis(self.state.get_variable("Coordinates")))
         indices = node.indices.indices
         return MetricIndices(*[
             Idx(symbol=idx.identifier, values=idx.values) if idx.covariant else -Idx(symbol=idx.identifier,
@@ -311,17 +332,12 @@ class RelPyAstNodeTraverser(Implementer):
             indices], coord_patch=CoordinatePatch.from_basis(self.state.get_variable("Coordinates")))
 
     def init_metric_tensor(self, indices: CoordIndices, components: SymbolArray) -> Metric:
-        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        """Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."""
         return Metric(indices, components)
 
     def init_einstein_array(self, indices: CoordIndices, components: SymbolArray) -> Tensor:
-        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        """Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."""
         return Tensor(indices, components)
-
-    @property
-    def connection_cls(self) -> Tensor:
-        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
-        return LeviCivitaConnection
 
     def init_ricci_scalar(self, node: AstNode) -> RicciScalar:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."

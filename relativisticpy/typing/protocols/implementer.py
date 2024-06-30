@@ -1,8 +1,8 @@
-from typing import Protocol, Any, Type
-from relativisticpy.interpreter.protocols.tensor import Tensor, Indices
-from relativisticpy.interpreter.protocols.state import State
-from relativisticpy.interpreter.protocols.nodes import TreeNodes
-from relativisticpy.interpreter.protocols.symbolic import Equation, Expression, SymbolArray
+from typing import Protocol, Type
+from relativisticpy.typing.protocols.tensor import Tensor, Indices
+from relativisticpy.typing.protocols.state import State
+from relativisticpy.typing.protocols.nodes import TreeNodes
+from relativisticpy.typing.protocols.symbolic import Equation, Expression, SymbolArray
 
 
 # Protocol typing class allows for very flexible and powerful type hints, enabling you to specify exactly what
@@ -56,7 +56,7 @@ class Implementer(Protocol):
         ...
 
     def init_tensor_derivative(self, node: TreeNodes) -> Tensor:
-        "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
+        """Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."""
         ...
 
     @property
@@ -64,7 +64,7 @@ class Implementer(Protocol):
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         ...
 
-    def metric_dependent_types(self, tensor_key: str) -> Type[Tensor]:
+    def get_tensor_cls(self, tensor_key: str) -> Type[Tensor]:
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         ...
 

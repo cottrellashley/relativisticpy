@@ -11,58 +11,6 @@ from relativisticpy.diffgeom import (
 )
 
 
-# TODO: <<< PUT THIS FUNCTION SOMEWHERE ELSE + SIMPLIFY IT AS ITs IMPLEMENTATION LOOKS HORIBLE >>>>>>
-def equal(array1: smp.MutableDenseNDimArray, array2: smp.MutableDenseNDimArray):
-    def find_non_zero_elements(arr, pos=None, results=None):
-        if pos is None:
-            pos = []
-        if results is None:
-            results = []
-
-        if isinstance(
-                arr, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
-        ):
-            for i, elem in enumerate(arr):
-                find_non_zero_elements(elem, pos + [i], results)
-        else:
-            if arr != 0:
-                results.append((pos, arr))
-
-        return results
-
-    if not isinstance(
-            array1, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
-    ):
-        return False
-
-    if not isinstance(
-            array2, (smp.ImmutableDenseNDimArray, smp.MutableDenseNDimArray, list)
-    ):
-        return False
-
-    if not array1.shape == array2.shape:
-        return False
-
-    list1 = find_non_zero_elements(array1)
-    list2 = find_non_zero_elements(array2)
-
-    if len(list1) != len(list2):
-        return False
-
-    if len(list1) == 0 and len(list2) == 0:
-        return True
-
-    list_res = []
-    for i, items in enumerate(list1):
-        if isinstance(
-                items[1], (smp.Expr, smp.Symbol, smp.Function, smp.MutableDenseNDimArray)
-        ):
-            list_res.append(list2[i][0] == items[0] and list2[i][1].equals(items[1]))
-        else:
-            list_res.append(list2[i][0] == items[0] and list2[i][1] == items[1])
-    return all(list_res)
-
-
 def test_basic_tensor_component_generations_zeros():
     wb = Workbook()
     zeros = smp.MutableDenseNDimArray().zeros(2)

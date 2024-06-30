@@ -1,7 +1,6 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from enum import Enum
-from typing import List, Tuple, Union
+from typing import List, Union
 
 from typing import Iterable
 from relativisticpy.interpreter.lexers.base import LexerResult, Token, TokenType
@@ -10,7 +9,7 @@ from relativisticpy.interpreter.shared.iterator import Iterator
 
 from relativisticpy.interpreter.nodes.base import AstNode, Infinitesimal, Call, UnaryNode, BinaryNode, ArrayNode, IntNode, FloatNode, SymbolNode, NegNode, PosNode, NotNode, PrintNode, AssignmentNode, Definition, NodeType, ConstantNode
 from relativisticpy.interpreter.nodes.position import Position, TokenPosition
-from relativisticpy.interpreter.protocols import Implementer
+from relativisticpy.typing.protocols import Implementer
 
 @dataclass
 class ParserResult:

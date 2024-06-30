@@ -320,7 +320,6 @@ def test_einsum_product(indices_product_setup):
         ]
     )
 
-
 def test_einsum_product_with_metric_indices(indices_product_setup):
     # Here we test that the resulting indices has been generated correctly.
     _, _, mu0_nu0, mu1_nu1, metric_a0_nu0, metric_a1_nu1 = indices_product_setup

@@ -7,7 +7,7 @@ from itertools import product, combinations
 from operator import itemgetter
 from typing import List, Callable, Literal, Tuple, Union, Optional, Any
 
-from sympy import NDimArray
+from sympy import NDimArray, MutableDenseNDimArray
 
 # External Modules
 from relativisticpy.symengine import SymbolArray, Basic
@@ -32,8 +32,12 @@ class Idx:
         IMPORTANT: This class is not for instantiation for use. The Indices class auto-initiates this class and sets all relevant properties.
     """
 
-    def __init__(self, symbol: str, order: Optional[int] = None, values: Optional[Union[List, int]] = None,
-                 covariant: Optional[bool] = True):
+    def __init__(self,
+                 symbol: str,
+                 order: Optional[int] = None,
+                 values: Optional[Union[List, int]] = None,
+                 covariant: Optional[bool] = True
+                 ):
         self.symbol: str = symbol
         self.order: Optional[int] = order
         self.values: Optional[Union[List, int]] = values
@@ -82,10 +86,10 @@ class Idx:
     def get_repeated_location(self, indices: 'Indices') -> List[int]:
         return [self.order for index in indices if self.is_identical_to(index)]
 
-    def get_summed_locations(self, indices: 'Indices') -> List[Tuple[int]]:
+    def get_summed_locations(self, indices: 'Indices') -> list[tuple[int | None, Any]]:
         return [(self.order, index.order) for index in indices if self.is_contracted_with(index)]
 
-    def get_repeated_locations(self, indices: 'Indices') -> List[Tuple[int]]:
+    def get_repeated_locations(self, indices: 'Indices') -> list[tuple[int | None, Any]]:
         return [(self.order, index.order) for index in indices if self.is_identical_to(index)]
 
     def get_symbol_eq_location(self, indices: 'Indices') -> int:
@@ -270,7 +274,7 @@ class Indices:
     def get_same_symbol(self, idx: Idx) -> Idx:
         lst = [index for index in self.indices if index.symbol == idx.symbol]; return lst[0] if len(lst) == 1 else None
 
-    def covariance_delta(self, other: 'Indices') -> List[Tuple[int, str]]:
+    def covariance_delta(self, other: 'Indices') -> list[tuple[str | Any, ...]]:
         return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in
                 product(self.indices, other.indices) if i.order == j.order and i.covariant != j.covariant]
 
@@ -280,7 +284,7 @@ class Indices:
         return self
 
     # Types of equality
-    def order_delta(self, other: 'Indices') -> Tuple[int]:
+    def order_delta(self, other: 'Indices') -> tuple[Any, ...] | None:
         return tuple([j.order for i, j in product(self.indices, other.indices) if
                       i.symbol == j.symbol and i.covariant == j.covariant]) if self.symbol_eq(other) else None
 
@@ -446,31 +450,35 @@ class Indices:
 
 class _IdxAlgebraNCubeArray:
     """
-        A private module class, intended for inheritance, representing logic for a multi-index algebraic array-like object. 
-        It serves as a base object for all algebraic logic of multi-indices/component objects. Indices can be covariant and contravariant.
-        Product operations follow the Einstein Summation Convention, while addition follows normal index addition rules.
+    A private module class, intended for inheritance, representing logic for a multi-index algebraic array-like
+    object. It serves as a base object for all algebraic logic of multi-indices/component objects. Indices can be
+    covariant and contravariant. Product operations follow the Einstein Summation Convention, while addition follows
+    normal index addition rules.
         
         Ensures:
         - The object remains in a valid state after any manipulations.
         - Manipulations change the state of the object rather than returning new objects.
         
-        Usage:
-        - Logic of this object is to be interfaced outside the Algebra Module via the public methods of the inheriting class.
+        Usage: - Logic of this object is to be interfaced outside the Algebra Module via the public methods of the
+        inheriting class.
 
         Args:
             indices (Indices): The indices object representing the multi-index structure.
             components (SymbolArray): The array of components associated with the indices.
 
-        Raises:
-            TypeError: If indices or components are not of the expected type.
-            ValueError: If the components' shape does not match the indices or is invalid. i.e. not a shape Hypercube Array shape: (N, N, N, ...).
+        Raises: TypeError: If indices or components are not of the expected type. ValueError: If the components'
+        shape does not match the indices or is invalid. i.e. not a shape Hypercube Array shape: (N, N, N, ...).
     """
 
     def __init__(self, indices: Indices, components: SymbolArray):
         self.__validate(indices, components)
         self.indices = indices
-        self.indices.dimention = components.shape[0]
-        self._components = components
+        if self.indices.scalar:
+            if hasattr(self.indices, "dim"):
+                self.indices.dimention = self.indices.dim
+        else:
+            self.indices.dimention = components.shape[0]
+        self.components = components
 
     @property
     def rank(self):
@@ -484,55 +492,17 @@ class _IdxAlgebraNCubeArray:
         """
         return [self.indices, self.components]
 
-    @classmethod
-    def from_equation(cls, indices: Indices, *args, **kwargs) -> '_IdxAlgebraNCubeArray':
-        """
-        Initializes an instance of the _IdxAlgebraNCubeArray class from a computation of read from another
-        _IdxAlgebraNCubeArray object.
-
-            Args:
-                indices (Indices): The indices of the tensor.
-                *args, **kwargs: Children classes
-
-            Returns:
-                _IdxAlgebraNCubeArray: A new instance of the _IdxAlgebraNCubeArray class.
-        """
-        components = None
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, Indices):
-                indices = arg
-            elif isinstance(arg, SymbolArray):
-                components = arg
-
-        # Categorize keyword arguments
-        for _, value in kwargs.items():
-            if isinstance(value, Indices):
-                indices = value
-            elif isinstance(value, SymbolArray):
-                components = value
-
-        return cls(indices, components)
-
     @property
     def scalar(self) -> bool:
         return self.rank == (0, 0)
 
     @property
     def shape(self) -> tuple:
-        return self._components.shape
+        return self.components.shape
 
     @property
     def dimention(self) -> int:
         return self.shape[0]
-
-    @property
-    def components(self) -> SymbolArray:
-        return self._components
-
-    @components.setter
-    def components(self, components: SymbolArray) -> None:
-        self._components = components
 
     @property
     def subcomponents(self) -> SymbolArray:
@@ -541,7 +511,7 @@ class _IdxAlgebraNCubeArray:
     @property
     def scalar_component(self) -> Union[int, float, Basic]:
         if self.scalar:
-            return list(self.components)[0]
+            return self.components
         else:
             raise ValueError("Not a scalar object.")
 
@@ -552,11 +522,15 @@ class _IdxAlgebraNCubeArray:
     def _index_operation(self, operation: Callable) -> None:
         self.indices = operation(self.indices)
 
-    def _product_copy(self, other: Union['_IdxAlgebraNCubeArray', int, float, Basic], binary_op: Callable,
-                      idx_op: Callable = None, new_type_cls=None) -> '_IdxAlgebraNCubeArray':
+    def _product_copy(self,
+                      other: Union['_IdxAlgebraNCubeArray', int, float, Basic],
+                      binary_op: Callable,
+                      idx_op: Callable = None,
+                      new_type_cls=None
+                      ) -> '_IdxAlgebraNCubeArray':
         new_obj = copy.deepcopy(self)
         new_obj.__product(other, binary_op, idx_op)
-        return new_type_cls(*new_obj.args) if new_type_cls else type(self)(*new_obj.args)
+        return new_type_cls(new_obj.indices, new_obj.components) if new_type_cls else type(self)(new_obj.indices, new_obj.components)
 
     def _trace(self) -> None:
         resulting_indices = self.indices.self_product()
@@ -568,7 +542,10 @@ class _IdxAlgebraNCubeArray:
         self.indices = resulting_indices
         self.components = rarray
 
-    def __scalar_product(self, other: Union[int, float, Basic], binary_op: Callable = lambda a, b: a * b) -> None:
+    def __scalar_product(self,
+                         other: Union[int, float, Basic],
+                         binary_op: Callable = lambda a, b: a * b
+                         ) -> None:
         self.indices.dimention = self.components.shape[0]
         rarray = self.indices.zeros_array()
         if isinstance(other, (int, float, Basic)):
@@ -592,16 +569,15 @@ class _IdxAlgebraNCubeArray:
             binary_op = lambda a, b: a * b
         if isinstance(other, (int, float, Basic)):
             self.__scalar_product(other, binary_op)
+        elif other.scalar:
+            self.__scalar_product(other.scalar_component, binary_op)
+        elif self.scalar and not other.scalar:
+            other.__scalar_product(self.scalar_component, binary_op)
+            self.indices = other.indices
+            self.components = other.components
+        elif self.scalar and other.scalar:
+            self.components = SymbolArray([binary_op(self.scalar_component, other.scalar_component)])
         else:
-            if other.scalar:
-                self.__scalar_product(other.scalar_component, binary_op)
-            elif self.scalar and not other.scalar:
-                other.__scalar_product(self.scalar_component, binary_op)
-                self.indices = other.indices
-                self.components = other.components
-            elif self.scalar and other.scalar:
-                self.components = SymbolArray([binary_op(self.scalar_component, other.scalar_component)])
-
             if self.components.shape[0] != other.components.shape[0]:
                 raise ValueError("Incompatible shapes for einstein array multiplication")
 
@@ -676,29 +652,36 @@ class _IdxAlgebraNCubeArray:
 
         self.components = new_array
 
+
     def __validate(self, indices: Indices, components: SymbolArray):
         """
-        Validation of all arguments passed to the constructor. 
+        Validation of all arguments passed to the constructor.
         This method is be called in the constructor for all children of this class.
-        
+
         """
         if not isinstance(indices, Indices):
             raise TypeError(f"Expected Indices, got {type(indices).__name__}")
-        if not isinstance(components, NDimArray):
-            raise TypeError(f"Expected SymbolArray, got {type(components).__name__}")
-        if not hasattr(components, 'shape'):
-            raise ValueError("Invalid Argument: components argument must have attribute 'shape'.")
-        shape: tuple = components.shape
-        if len(shape) > 1:
-            if not all([i == shape[0] for i in shape[1:]]):
-                raise ValueError("Incompatible shapes for einstein array multiplication")
-        if len(shape) == 0:
-            raise ValueError("Incompatible shapes for einstein array multiplication")
+        if indices.scalar:
+            if not isinstance(components, (int, float, Basic)):
+                raise ValueError("Invalid Argument: components argument must be a scalar.")
 
-        if len(shape) != len(indices.indices):
-            if indices.scalar and len(shape) == 1:
-                pass
-            else:
+        elif not indices.scalar:
+            if not isinstance(components, (NDimArray, MutableDenseNDimArray, SymbolArray)):
+                raise TypeError(f"Expected SymbolArray, got {type(components).__name__}")
+
+            if not hasattr(components, 'shape'):
+                raise ValueError("Invalid Argument: components argument must have attribute 'shape'.")
+
+            shape: tuple = components.shape
+
+            if len(shape) > 1:
+                if not all([i == shape[0] for i in shape[1:]]):
+                    raise ValueError("Incompatible shapes for einstein array multiplication")
+
+            if len(shape) == 0:
+                raise ValueError("Incompatible shapes for einstein array multiplication")
+
+            if len(shape) != len(indices.indices):
                 raise ValueError("Components shape does not match indices structure.")
 
     def __getitem__(self, index):
@@ -817,6 +800,52 @@ class EinsumArray(_IdxAlgebraNCubeArray):
                 new_type_cls=result_cls
             )
 
+    @classmethod
+    def component_equations(cls):
+        return [
+            (SymbolArray, lambda arg: arg),
+            (EinsumArray, lambda arg: arg.components),
+        ]
+
+    @classmethod
+    def from_equation(cls, indices: Indices, *args, **kwargs) -> 'EinsumArray':
+        """Dynamic constructor for child classes."""
+        components = None
+
+        # Categorize positional arguments
+        for arg in args:
+            if isinstance(arg, SymbolArray):
+                components = arg
+            elif isinstance(arg, cls):
+                if arg.indices.symbol_and_symbol_rank_eq(indices):
+                    components = arg.reshape(indices, ignore_covariance=True).components
+                elif arg.indices.rank_eq(indices):
+                    components = arg.components
+            else:
+                for equation_type, equation_func in cls.component_equations():
+                    if isinstance(arg, equation_type):
+                        components = equation_func(arg)
+                        break
+
+        # Categorize keyword arguments
+        for key, value in kwargs.items():
+            if isinstance(value, SymbolArray):
+                components = value
+            elif isinstance(value, cls):
+                if value.indices.symbol_and_symbol_rank_eq(indices):
+                    components = value.reshape(indices, ignore_covariance=True).components
+                elif value.indices.rank_eq(indices):
+                    components = value.components
+            else:
+                for equation_type, equation_func in cls.component_equations():
+                    if isinstance(value, equation_type):
+                        components = equation_func(value)
+                        break
+
+        return cls(indices, components)
+
+
+
     # Dunders (Still unsure if these should even be implemented since the class is not a tensor itself.)
     def __add__(self, other):
         return self.add(other, type(self))
@@ -834,4 +863,4 @@ class EinsumArray(_IdxAlgebraNCubeArray):
         return self.pow(other, type(self))
 
     def __neg__(self):
-        self._components = -self._components; return self
+        self.components = -self.components; return self

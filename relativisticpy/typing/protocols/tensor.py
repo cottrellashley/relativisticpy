@@ -1,5 +1,5 @@
 from typing import Protocol, List
-from relativisticpy.interpreter.protocols.symbolic import SymbolArray
+from relativisticpy.typing.protocols.symbolic import SymbolArray
 
 class Idx(Protocol):
 
@@ -72,7 +72,7 @@ class Tensor(Protocol):
 
     @property
     def subcomponents(self) -> SymbolArray:
-        "Returns the sub-components of the tensor (if user defined tensor by calling sub-component from indices.)"
+        """Returns the sub-components of the tensor (if user defined tensor by calling sub-component from indices.)"""
         ...
     
     @classmethod
@@ -80,7 +80,7 @@ class Tensor(Protocol):
         ...
 
     def reshape(self, indices: Indices, ignore_covariance: bool = True) -> 'Tensor':
-        " Re-shapes the tensor components with respect to new indices. "
+        """ Re-shapes the tensor components with respect to new indices. """
         ...
 
     @classmethod

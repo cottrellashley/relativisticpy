@@ -39,20 +39,14 @@ from .operator_lookup_tables import (
     mulOperatorTypes,
     plusOperatorTypes,
     minusOperatorTypes,
-    simplifyOperatorTypes,
-    diffOperatorTypes,
     divOperatorTypes,
-    assigningTypes,
-    ID_definitionsLookup,
     negOperatorTypes,
     posOperatorTypes,
-    integrateOperatorTypes,
     trigFunctionFunctionType
 )
-from relativisticpy.interpreter.shared.constants import NodeKeys
-from relativisticpy.interpreter.shared.errors import RelPyError, IllegalAssignmentError, IllegalSyntaxError
-from relativisticpy.interpreter.nodes.base import (AstNode, BinaryNode, UnaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal, Definition, Def, Call, TensorNode)
-from relativisticpy.interpreter.state.scopes import ScopedState
+from relativisticpy.interpreter.shared.errors import RelPyError, IllegalSyntaxError
+from relativisticpy.interpreter.nodes.base import (AstNode, BinaryNode, IntNode, FloatNode, ArrayNode, NotNode, PosNode, NegNode, PrintNode, SymbolNode, Infinitesimal, Definition, Def, Call, TensorNode)
+from relativisticpy.state import ScopedState
 
 @dataclass
 class ActionTree:

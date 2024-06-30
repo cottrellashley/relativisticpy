@@ -12,40 +12,12 @@ class RicciScalar(Tensor):
         super().__init__(*args, **kwargs)
 
     @classmethod
-    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'RicciScalar':
-        "Dynamic constructor for the inheriting classes."
-        components = None
-        metric = None
-        connection = None
-
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, Metric):
-                metric = arg
-            elif isinstance(arg, LeviCivitaConnection):
-                connection = arg
-
-        # Categorize keyword arguments
-        for _, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = value
-            elif isinstance(value, Metric):
-                metric = value
-            elif isinstance(value, LeviCivitaConnection):
-                connection = value
-
-        # Always compute least expensive comutations first.
-        if components is None:
-            if components is not None:
-                components = cls.components_from_connection(connection)
-            elif metric is not None:
-                components = cls.components_from_metric(metric)
-            else:
-                raise TypeError("Components or metric is required.")
-
-        return cls(indices, components)
+    def component_equations(cls):
+        return [
+            (SymbolArray, lambda arg: arg),
+            (Metric, cls.components_from_metric),
+            (LeviCivitaConnection, cls.components_from_connection),
+        ]
 
     @staticmethod
     def components_from_metric(metric: Metric):

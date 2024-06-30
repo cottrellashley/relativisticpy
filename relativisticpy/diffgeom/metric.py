@@ -1,7 +1,10 @@
 # Standard Library
-from typing import Union, Callable, Tuple
+from typing import Union, Callable, Tuple, List, Any
 from itertools import product
 from operator import itemgetter
+
+from loguru import logger
+from sympy import Basic
 
 # External Modules
 from relativisticpy.algebras import EinsumArray, Indices, Idx
@@ -171,7 +174,7 @@ class Metric(Tensor):
 
     @property
     def dimention(self) -> int:
-        return self.indices.dimention
+        return self.components.shape[0]
 
     @property
     def coordinate_patch(self) -> CoordinatePatch:
@@ -186,16 +189,19 @@ class Metric(Tensor):
         return self.indices.basis
 
     @property
-    def args(self) -> Tuple[Indices, SymbolArray]:
+    def args(self) -> list[Indices | SymbolArray | Any]:
         return [self.indices, self.components]
 
     @property
     def uu_components(self) -> SymbolArray:
-        return (
-            SymbolArray(self.components.tomatrix().inv())
-            if self.rank == (0, 2)
-            else self.components
-        )
+        if self.rank == (0, 2):
+            try:
+                return SymbolArray(self.components.tomatrix().inv())
+            except Exception as e:
+                raise ValueError(f"Cannot invert metric tensor with components: {self.components} with error: {e}")
+        else:
+            return self.components
+
 
     @property
     def ll_components(self) -> SymbolArray:
@@ -218,7 +224,7 @@ class Metric(Tensor):
             ind = self.indices
         else:
             comp = SymbolArray(self.components.tomatrix().inv())
-            ind = MetricIndices(*[-j for j in self.indices.indices])
+            ind = MetricIndices(*[-j for j in self.indices.indices], coord_patch=self.coordinate_patch)
         return Metric(indices=ind, components=comp)
 
     def __pow__(self, other):
@@ -252,6 +258,9 @@ class Metric(Tensor):
         components = (
             metric.ll_components if indices.rank == (0, 2) else metric.uu_components
         )
+        if not isinstance(indices, MetricIndices):
+            logger.debug(f"Converting {type(indices).__name__} to MetricIndices, as it is not an instance of MetricIndices.")
+            indices = MetricIndices(*indices.indices, coord_patch=metric.coordinate_patch)
         return cls(indices, components)
 
     def __add__(self, other: EinsumArray):
@@ -261,10 +270,16 @@ class Metric(Tensor):
         return self.sub(other, type(other))
 
     def __mul__(self, other: EinsumArray):
-        return self.mul(other, type(other))
+        if isinstance(other, (int, float, Basic)):
+            return self.mul(other, type(self))
+        else:
+            return self.mul(other, type(other))
 
     def __rmul__(self, other: EinsumArray):
-        return self.mul(other, type(self))
+        if isinstance(other, (int, float, Basic)):
+            return self.mul(other, type(self))
+        else:
+            return self.mul(other, type(other))
 
     def __truediv__(self, other: EinsumArray):
         return self.div(other, type(self))
@@ -420,3 +435,43 @@ class Metric(Tensor):
         # Set new properties
         tensor.components = result.components
         tensor.indices = result.indices
+
+
+    @classmethod
+    def from_equation(cls, indices: Indices, *args, **kwargs) -> 'EinsumArray':
+        """Dynamic constructor for child classes."""
+        components = None
+        if len(indices.indices) != 2:
+            raise ValueError(f"Expected 2 indices, got {len(indices.indices)}.")
+
+        # Categorize positional arguments
+        for arg in args:
+            if isinstance(arg, SymbolArray):
+                components = arg
+            elif isinstance(arg, Metric):
+                if indices.rank == (2, 0):
+                    components = arg.ll_components
+                elif indices.rank == (0, 2):
+                    components = arg.uu_components
+            else:
+                for equation_type, equation_func in cls.component_equations():
+                    if isinstance(arg, equation_type):
+                        components = equation_func(arg)
+                        break
+
+        # Categorize keyword arguments
+        for key, value in kwargs.items():
+            if isinstance(value, SymbolArray):
+                components = value
+            elif isinstance(value, Metric):
+                if indices.rank == (2, 0):
+                    components = value.ll_components
+                elif indices.rank == (0, 2):
+                    components = value.uu_components
+            else:
+                for equation_type, equation_func in cls.component_equations():
+                    if isinstance(value, equation_type):
+                        components = equation_func(value)
+                        break
+
+        return cls(indices, components)

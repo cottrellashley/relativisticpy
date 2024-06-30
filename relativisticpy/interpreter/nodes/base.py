@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from abc import ABC, abstractproperty
 
 from enum import Enum
 from typing import Callable, List, Union, Type
 from .position import Position
-from relativisticpy.interpreter.state.scopes import ScopedState, Scope
-from relativisticpy.interpreter.protocols import Node, Implementer, Tensor, Indices
+from relativisticpy.state import ScopedState, Scope
+from relativisticpy.typing.protocols import Node, Implementer, Tensor, Indices
 from relativisticpy.interpreter.shared.errors import IndicesError
 
 
@@ -633,7 +632,7 @@ class TensorNode(
         # TODO: Maze of IF / ELIF / ELSE statements => There is a lot of improvements to be made in terms of
         #  simplicity / simplification / elegance.
         state: ScopedState = self.get_state(implementer)
-        # First we descerialize indices numbers if they were set.
+
         for idx in self.indices.indices:  # TODO: Can indices be its own node?
             symbol = implementer.symbol_str(idx.identifier)
 
@@ -656,103 +655,13 @@ class TensorNode(
         # If these components of the tensor were set => We do not return anything. We only cache the object
         elif self.component_ast is not None:
             tensor_component = self.component_ast.execute_node(implementer)
-
-            if state.get_variable(Scope.MetricSymbol) == self.identifier and self.components_definition_type == 'array':
-                # This is the metric tensor
-                tensor_indices = implementer.init_indices(self)
-                new_tensor = implementer.init_metric_tensor(tensor_indices, tensor_component)
-            elif self.components_definition_type == 'array':
-                # This is an einstein array.
-                tensor_indices = implementer.init_indices(self)
-                new_tensor = implementer.init_einstein_array(tensor_indices, tensor_component)
-            elif self.components_definition_type == 'tensor':
-                # This is an einstein array defined from other tensors.
-                tensor_indices = implementer.init_indices(self)
-                einstein_array_obj: Tensor = tensor_component
-                new_tensor = einstein_array_obj.reshape(tensor_indices)  # WARNING: This could cause issues.
-
-            state.set_tensor(self.identifier, new_tensor)
+            tensor_indices = implementer.init_indices(self)
+            state.cache_new_tensor(self.identifier, tensor_indices, tensor_component)
         else:
-            return self.tensor_cache_retrieval(implementer)
-
-    def tensor_cache_retrieval(self, implementer: Implementer):
-        tensor_indices: Indices = implementer.init_indices(self)
-
-        state: ScopedState = self.get_state(implementer)
-
-        # Place this within the init_tensor_indices method.
-        tensor_indices.basis = (
-            state.get_variable(Scope.Coordinates)
-        )  # Error handling needed => if no coordinates defined cannot continue
-
-        if not state.has_tensor(self.identifier):  # If not stated => skip to generate immediately.
-            # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not
-            # reponsible for implementations we make it generic.
-            if self.identifier == state.get_variable(Scope.MetricSymbol):
-                metric = implementer.init_metric_tensor(tensor_indices,
-                                                        state.metric_tensor[tensor_indices.get_non_running()])
-                return metric.subcomponents if self.sub_components_called else metric
-
-            elif self.identifier == state.get_variable(Scope.ConnectionSymbol):
-                connection = implementer.connection_cls.from_equation(tensor_indices, state.metric_tensor)
-                return connection.subcomponents if self.sub_components_called else connection
-
-            else:
-                cls: Type[Tensor] = implementer.metric_dependent_types(self.identifier)
-                new_tensor = cls.from_equation(tensor_indices, state.metric_tensor)
-                state.set_tensor(self.identifier, new_tensor)
-                return new_tensor.subcomponents if self.sub_components_called else new_tensor
-
-        is_same_indices = state.current_scope.match_on_tensors(tensor_indices.symbol_eq, self)
-
-        if is_same_indices is not None:
-            tensor = state.current_scope.match_on_tensors(tensor_indices.symbol_order_rank_eq, self)
-
-            if tensor is None:
-                #  => state does not have an instance.
-                # Reset tensor to point to tensor we know not to be Null
-                tensor = is_same_indices
-                tensor_indices = implementer.init_indices(self)
-
-                # Handling any changes in order of indices.
-                diff_order = tensor.indices.get_reshape(tensor_indices)
-                if diff_order is None:
-                    # No order changes => just init new instance with new indices.
-                    new_tensor: Tensor = type(tensor).from_equation(tensor_indices, tensor)
-                    return new_tensor.subcomponents if self.sub_components_called else new_tensor # TODO: subcomponent check should be done in the tensor class.
-
-                new_tensor = tensor.reshape(tensor_indices)
-                return new_tensor.subcomponents if self.sub_components_called else new_tensor
-
-            # We need to generate the new subcomponents if user is calling new subcomponents
-            tensor: Tensor = type(tensor).from_equation(tensor_indices, tensor)
-            if self.sub_components_called and implementer.init_indices(self).anyrunnig:
-                return tensor.subcomponents
-
-            return (
-                tensor[implementer.init_indices(self)] if implementer.init_indices(
-                    self).anyrunnig or self.sub_components_called else tensor
-            )
-
-        has_same_rank = state.current_scope.match_on_tensors(tensor_indices.rank_eq, self)
-        if has_same_rank != None:
-            has_same_rank.indices = tensor_indices
-            new_tensor: Tensor = type(has_same_rank)(
-                *has_same_rank.args
-            )
-            state.set_tensor(self.identifier, new_tensor)
-            return new_tensor.subcomponents if self.sub_components_called else new_tensor
-
-        # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not reponsible for implementations we make it generic.
-        if self.identifier == state.get_variable(Scope.MetricSymbol):
-            metric: Tensor = implementer.init_metric_tensor(tensor_indices,
-                                                            state.metric_tensor[tensor_indices.get_non_running()])
-            return metric.subcomponents if self.sub_components_called else metric
-        else:
-            cls: Type[Tensor] = implementer.metric_dependent_types(self.identifier)
-            new_tensor = cls.from_equation(tensor_indices, state.metric_tensor)
-            state.set_tensor(self.identifier, new_tensor)
-            return new_tensor.subcomponents if self.sub_components_called else new_tensor
+            state: ScopedState = self.get_state(implementer)
+            indices = implementer.init_indices(self)
+            return state.init_tensor(indices=indices, identifier=self.identifier,
+                                     sub_components_called=self.sub_components_called)
 
     def analyze_node(self, implementer: Implementer):
         """ Defined how this node is analyzed by Semantic Analyzer. Note: For most nodes this is same implementation as execute_node. """
@@ -765,9 +674,9 @@ class TensorNode(
                 f"The object {type(implementer).__name__} has not implemented the TensorNode methods. ")
 
         for idx in self.indices.indices:
-            if idx.values != None:
+            if idx.values is not None:
                 idx.values.analyze_node(implementer)
-        if self.component_ast != None:
+        if self.component_ast is not None:
             self.component_ast.analyze_node(implementer)
 
         self_exe(self)
@@ -850,15 +759,9 @@ class SymbolNode(UnaryNode):
         state: ScopedState = self.get_state(implementer)
 
         # Is the symbol really just a scalar tensor ?
-        if self.var_key == state.get_variable(Scope.MetricSymbol):
-            metric_scalar = implementer.init_metric_scalar(self)
-            state.set_variable(self.var_key, metric_scalar)
-            return metric_scalar
-
-        elif self.var_key == state.get_variable(Scope.RicciSymbol):
-            ricci_scalar = implementer.init_ricci_scalar(self)
-            state.set_variable(self.var_key, ricci_scalar)
-            return ricci_scalar
+        if self.var_key in [state.get_variable(Scope.MetricSymbol), state.get_variable(Scope.RicciSymbol)]:
+            cls: Tensor = implementer.get_tensor_cls(self.var_key, is_scalar=True)
+            return cls.from_equation(implementer.init_indices(), state.metric_tensor)
 
         elif state.has_variable(self.var_key):
             return state.get_variable(self.var_key)

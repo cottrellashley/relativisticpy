@@ -3,14 +3,22 @@ import json
 
 from relativisticpy.interpreter import RelParser
 from relativisticpy.workbook.ast_visitor import RelPyAstNodeTraverser
-
+from loguru import logger
+import sys
 
 class Workbook:
 
     def __init__(self, file_path: str = None, debug_mode: bool = False):
+        logger.remove()
         self.file_path = file_path
         self.interpreter = RelParser(RelPyAstNodeTraverser())
         self.debug_mode = debug_mode
+        if self.debug_mode:
+            logger.remove()  # Removes all handlers added by default
+            logger.add(sys.stderr, level="DEBUG")
+        else:
+            logger.remove()  # Removes all handlers added by default
+            logger.add(sys.stderr, level="INFO")
 
     def markdown(self, path: str):
         # Step 1: Read the markdown content
@@ -67,7 +75,7 @@ class Workbook:
         self.interpreter.node_tree_walker.state.reset()
 
     def parse(self, string: str):
-        return self.interpreter.parse(string)
+        return self.interpreter.abstracy_syntax_tree(string)
 
     def tokens(self, string: str):
-        return self.interpreter.tokenize(string)
+        return self.interpreter.tokens(string)
