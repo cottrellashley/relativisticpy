@@ -361,7 +361,7 @@ class Definition(AstNode):
         state: ScopedState = self.get_state(implementer)
 
         # Execute Node
-        if "".join(self.args[0]) in Scope.BUILT_IN_VARS:
+        if "".join(self.args[0]) in state.current_scope.BUILT_IN_VARS:
             state.set_variable("".join(self.args[0]), "".join(self.args[1].args))
         elif "".join(self.args[0]) == "Constants":
             var = self.args[1].execute_node(implementer)
@@ -452,7 +452,8 @@ class Call(AstNode):
         Implementer.acosh.__name__,
         Implementer.asinh.__name__,
         Implementer.atanh.__name__,
-        Implementer.ln.__name__
+        Implementer.ln.__name__,
+        Implementer.factor.__name__,
     )
 
     def __init__(
@@ -654,14 +655,24 @@ class TensorNode(
 
         # If these components of the tensor were set => We do not return anything. We only cache the object
         elif self.component_ast is not None:
+            # There are two cases on which we enter this if statement:
+            # 1. When user defined a tensor components as an array. i.e. T_{mu nu} := [ [1, 0, ...], [0, 1, ...], ... ]
+            # 2. When user defined a tensor components from a tensor expression. i.e. T_{mu nu} := A_{mu nu} - A_{nu mu}
+
             tensor_component = self.component_ast.execute_node(implementer)
             tensor_indices = implementer.init_indices(self)
             state.cache_new_tensor(self.identifier, tensor_indices, tensor_component)
         else:
+            # If the tensor components were not set, we return the tensor object.
+            # For this to return anything, the tensor must be in the cache of the state object.
+
             state: ScopedState = self.get_state(implementer)
             indices = implementer.init_indices(self)
-            return state.init_tensor(indices=indices, identifier=self.identifier,
-                                     sub_components_called=self.sub_components_called)
+            return state.init_tensor(
+                indices=indices,
+                identifier=self.identifier,
+                sub_components_called=self.sub_components_called
+            )
 
     def analyze_node(self, implementer: Implementer):
         """ Defined how this node is analyzed by Semantic Analyzer. Note: For most nodes this is same implementation as execute_node. """
@@ -759,6 +770,7 @@ class SymbolNode(UnaryNode):
         state: ScopedState = self.get_state(implementer)
 
         # Is the symbol really just a scalar tensor ?
+        # TODO: Move this to state object.
         if self.var_key in [state.get_variable(Scope.MetricSymbol), state.get_variable(Scope.RicciSymbol)]:
             cls: Tensor = implementer.get_tensor_cls(self.var_key, is_scalar=True)
             return cls.from_equation(implementer.init_indices(), state.metric_tensor)

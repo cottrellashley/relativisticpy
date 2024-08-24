@@ -27,7 +27,7 @@ def test_constant_assumptions():
     assert wb.expr("x + y") == symbols('x', real=True) + symbols('y', real=True)
 
     # Test that complex variables can be defined with assumptions and used in calculations
-    wb.expr("Complexes := [z, w]")
+    wb.expr("Complex := [z, w]")
     assert wb.expr("z + w") == symbols('z', complex=True) + symbols('w', complex=True)
 
 
@@ -39,7 +39,7 @@ def test_involved_calculations():
     wb.expr("Constants := [C, G]")
     wb.expr("Integers := [n, m]")
     wb.expr("Reals := [x, y]")
-    wb.expr("Complexes := [z, w]")
+    wb.expr("Complex := [z, w]")
 
     # Test calculations involving various operations and functions
     assert wb.expr("t*r + theta*phi") == symbols('t') * symbols('r') + symbols('theta') * symbols('phi')

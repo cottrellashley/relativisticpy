@@ -1,16 +1,16 @@
 import copy
+from typing import Union, Dict, List, Callable, Type
+
+from loguru import logger
 
 from relativisticpy.algebras import Indices
 from relativisticpy.diffgeom import Metric, LeviCivitaConnection, CovDerivative
-from relativisticpy.diffgeom.tensors.metricscalar import MetricScalar
 from relativisticpy.diffgeom.tensor import Tensor
+from relativisticpy.diffgeom.tensors.metricscalar import MetricScalar
 from relativisticpy.diffgeom.tensors.ricci import Ricci
 from relativisticpy.diffgeom.tensors.ricciscalar import RicciScalar
 from relativisticpy.diffgeom.tensors.riemann import Riemann
 from relativisticpy.gr.einstein import EinsteinTensor
-from typing import Union, Dict, List, Callable, Type
-from loguru import logger
-
 from relativisticpy.symengine.sympy import SymbolArray
 
 
@@ -51,31 +51,31 @@ class TensorList:
 
 class Scope:
     # In-build and replaceable variables
-    MetricSymbol = "MetricSymbol"
-    EinsteinTensorSymbol = "EinsteinTensorSymbol"
-    ConnectionSymbol = "ConnectionSymbol"
-    RicciSymbol = "RicciSymbol"
-    RiemannSymbol = "RiemannSymbol"
-    DerivativeSymbol = "DerivativeSymbol"
-    CovariantDerivativeSymbol = "CovariantDerivativeSymbol"
-
-    BUILT_IN_VARS = {
-        "MetricSymbol": "g",
-        "EinsteinTensorSymbol": "G",
-        "ConnectionSymbol": "C",
-        "RicciSymbol": "Ric",
-        "RiemannSymbol": "R",
-        "DerivativeSymbol": "d",
-        "CovariantDerivativeSymbol": "D"
-    }
+    MetricSymbol = "__metric__"
+    EinsteinTensorSymbol = "__einstein_tensor__"
+    ConnectionSymbol = "__connection__"
+    RicciSymbol = "__ricci__"
+    RiemannSymbol = "__riemann__"
+    DerivativeSymbol = "__partial__"
+    CovariantDerivativeSymbol = "__covariant_derivative__"
 
     Coordinates = "Coordinates"
 
     def __init__(self):
+        self.BUILT_IN_VARS = {
+            Scope.MetricSymbol: "g",
+            Scope.EinsteinTensorSymbol: "G",
+            Scope.ConnectionSymbol: "C",
+            Scope.RicciSymbol: "Ric",
+            Scope.RiemannSymbol: "R",
+            Scope.DerivativeSymbol: "d",
+            Scope.CovariantDerivativeSymbol: "D"
+        }
+
         self.variables = {}
         self.function_variables = {}
         self.tensor_variables: Dict[str, TensorList] = {}
-        self.variables.update(Scope.BUILT_IN_VARS)
+        self.variables.update(self.BUILT_IN_VARS)
 
     def check_variable(self, var: str) -> bool:
         """ Returns True if variable exists in this current scope. """
@@ -94,11 +94,11 @@ class Scope:
 
     @property
     def has_metric(self) -> bool:
-        return self.variables["MetricSymbol"] in self.tensor_variables
+        return self.variables[self.MetricSymbol] in self.tensor_variables
 
     @property
     def metric_tensor(self):
-        tensors = self.tensor_variables[self.variables["MetricSymbol"]]
+        tensors = self.tensor_variables[self.variables[self.MetricSymbol]]
         logger.debug(f"Found {len(tensors.tensors)} Metric Tensor Objects in scope.")
         logger.debug(f"Returning {tensors.get(-1)}.")
         return tensors.get(-1)
@@ -108,26 +108,8 @@ class Scope:
             self.tensor_variables[tensor_id].add(tensor)
         self.tensor_variables[tensor_id] = TensorList(tensor)
 
-    def get_tensors(self, tensor_symbol_id: str):
-        if tensor_symbol_id in self.tensor_variables:
-            return self.tensor_variables[tensor_symbol_id].get(0)
-        return None
-
-    def new_tensor(self, indices: Indices, tensor_symbol_id: str) -> Tensor:
-        return self.tensor_factory(indices, components, basis)
-
     def has_tensor(self, tensor_id: str):
         return tensor_id in self.tensor_variables
-
-    def match_on_tensors(
-            self, callback: Callable, tensor_node
-    ):
-        if not self.has_tensor(tensor_node.identifier):
-            return None
-
-        cached_tensors: TensorList = self.tensor_variables[tensor_node.identifier]
-        tensor_matched = cached_tensors.find(callback)
-        return tensor_matched
 
     def _match_on_tensors(
             self, callback: Callable, identifier: str
@@ -143,7 +125,7 @@ class Scope:
         self.variables = {}
         self.function_variables = {}
         self.tensor_variables: Dict[str, TensorList] = {}
-        self.variables.update(Scope.BUILT_IN_VARS)
+        self.variables.update(self.BUILT_IN_VARS)
 
 
 class ScopedState:
@@ -154,8 +136,7 @@ class ScopedState:
 
     def reset(self):
         del self.stack
-        self.stack = []
-        self.stack.append(Scope())
+        self.stack = [Scope()]
 
     @property
     def is_global(self):
@@ -218,7 +199,7 @@ class ScopedState:
         return False
 
     @property
-    def metric_tensor(self):
+    def metric_tensor(self) -> Metric:
         """Search for a variable in the stack, starting from the top"""
         for scope in reversed(self.stack):
             if scope.has_metric:
@@ -259,27 +240,41 @@ class ScopedState:
         return self.stack[0]
 
     def cache_new_tensor(self, identifier: str, indices: Indices, components: SymbolArray) -> None:
+        """
+        Caches a new tensor in the current scope.
+        :param identifier: The identifier of the tensor. This is the key used to store the tensor in the cache.
+        :param indices: The indices of the tensor.
+        :param components: The components of the tensor.
+        :return: None
+        """
         cls = self.get_tensor_cls(identifier)
-        new_tensor = cls.from_equation(indices, components)
+        new_tensor = cls.new(indices, components)
         self.set_tensor(identifier, new_tensor)
 
     def init_tensor(self, indices: Indices, identifier: str, sub_components_called: bool):
+        """
+        Initializes a tensor from the cache if it exists. If it does not exist, it generates a new tensor.
+
+        :param indices: The indices of the tensor .
+        :param identifier:
+        :param sub_components_called:
+        :return:
+        """
         logger.debug(f"Attempting to initiating '{identifier}{indices}' by equation from cached tensors.")
 
         if self.get_variable(Scope.MetricSymbol) == identifier:
-            logger.debug(f"     Identified '{identifier}{indices}' to be a Metric. Initializing Metric from Metric.")
-            metric = Metric.from_metric(self.metric_tensor, indices)
-            logger.debug(f"     Computed components of '{identifier}{indices}' to be: '{metric.components}'")
+            logger.debug(f"Identified '{identifier}{indices}' to be a Metric. Initializing Metric from Metric.")
+            metric = Metric.from_metric(
+                self.metric_tensor,
+                indices=indices
+            )
+            logger.debug(f"Computed components of '{identifier}{indices}' to be: '{metric.components}'")
             self.set_tensor(identifier, metric)
             return metric.subcomponents if sub_components_called else metric
 
-        if not self.has_tensor(identifier):  # If not stated => skip to generate immediately.
-            # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not
-            # responsible for implementations we make it generic.
-            cls: Type[Tensor] = self.get_tensor_cls(identifier)
-            new_tensor = cls.from_equation(indices, self.metric_tensor)
-            self.set_tensor(identifier, new_tensor)
-            return new_tensor.subcomponents if sub_components_called else new_tensor
+        if not self.has_tensor(identifier):
+            return self.compute_tensor(identifier, indices, sub_components_called)
+
 
         is_same_indices = self.current_scope._match_on_tensors(indices.symbol_eq, identifier)
 
@@ -296,7 +291,7 @@ class ScopedState:
                 diff_order = tensor.indices.get_reshape(indices)
                 if diff_order is None:
                     # No order changes => just init new instance with new indices.
-                    new_tensor: Tensor = type(tensor).from_equation(indices, tensor)
+                    new_tensor: Tensor = type(tensor).new(indices, tensor)
                     return new_tensor.subcomponents if sub_components_called else new_tensor  # TODO: subcomponent
                     # check should be done in the tensor class.
 
@@ -304,7 +299,7 @@ class ScopedState:
                 return new_tensor.subcomponents if sub_components_called else new_tensor
 
             # We need to generate the new subcomponents if user is calling new subcomponents
-            tensor: Tensor = type(tensor).from_equation(indices, tensor)
+            tensor: Tensor = type(tensor).new(indices, tensor)
             if sub_components_called and indices.anyrunnig:
                 return tensor.subcomponents
 
@@ -313,14 +308,20 @@ class ScopedState:
         has_same_rank = self.current_scope._match_on_tensors(indices.rank_eq, identifier)
         if has_same_rank is not None:
             cls: Type[Tensor] = self.get_tensor_cls(identifier)
-            new_tensor: Tensor = cls.from_equation(indices, has_same_rank)
+            new_tensor: Tensor = cls.new(indices, has_same_rank)
             self.set_tensor(identifier, new_tensor)
             return new_tensor.subcomponents if sub_components_called else new_tensor
 
-        # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not reponsible
+        # last thing we do is generate a new instance of the tensor - Since the Interpreter Modules is not responsible
         # for implementations we make it generic.
         cls: Type[Tensor] = self.get_tensor_cls(identifier)
-        new_tensor = cls.from_equation(indices, self.metric_tensor)
+        new_tensor = cls.new(indices, self.metric_tensor)
+        self.set_tensor(identifier, new_tensor)
+        return new_tensor.subcomponents if sub_components_called else new_tensor
+
+    def compute_tensor(self, identifier: str, indices: Indices, sub_components_called: bool):
+        cls: Type[Tensor] = self.get_tensor_cls(identifier)
+        new_tensor = cls.new(indices, self.metric_tensor)
         self.set_tensor(identifier, new_tensor)
         return new_tensor.subcomponents if sub_components_called else new_tensor
 

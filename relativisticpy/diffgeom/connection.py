@@ -1,9 +1,10 @@
 # Standard Library
+from functools import singledispatchmethod
 from itertools import product
-from typing import Union
+from typing import Union, Any
 
 # External Modules
-from relativisticpy.algebras import EinsumArray
+from relativisticpy.algebras import EinsumArray, Indices
 from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.diffgeom.metric import Metric
 from relativisticpy.symengine import SymbolArray, Rational, diff, simplify, Basic
@@ -32,15 +33,25 @@ class LeviCivitaConnection(EinsumArray):
         super().__init__(indices=indices, components=components)
         self.metric = metric
 
+    @singledispatchmethod
     @classmethod
-    def component_equations(cls):
-        return [
-            (Metric, cls.components_from_metric)
-        ]
+    def _new(cls, operand, indices):
+        logger.debug(f"[MetricScalar] Handling init: {operand.__class__.__name__}")
 
-    @property
-    def args(self):
-        return [self.indices, self.components, self.metric]
+    @_new.register
+    @classmethod
+    def _(cls, operand: Metric, indices):
+        components = cls.components_from_metric(operand)
+        return cls(indices, components)
+
+    @classmethod
+    def components_constructor(cls, dependent_object: Any) -> SymbolArray:
+        if isinstance(dependent_object, EinsumArray):
+            return dependent_object.components
+        elif isinstance(dependent_object, SymbolArray):
+            return dependent_object
+        else:
+            raise ValueError("Invalid argument type for components constructor.")
 
     @staticmethod
     def components_from_metric(metric: Metric) -> SymbolArray:

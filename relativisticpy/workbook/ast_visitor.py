@@ -1,20 +1,23 @@
 from dataclasses import dataclass
 from typing import List
 
-from relativisticpy.algebras import Idx
-from relativisticpy.diffgeom.tensor import Tensor
-from relativisticpy.diffgeom.manifold import CoordIndices
-from relativisticpy.diffgeom import Metric, MetricIndices
-from relativisticpy.diffgeom import RicciScalar, MetricScalar, Ricci, Riemann, LeviCivitaConnection, Derivative, \
-    CovDerivative
-from relativisticpy.diffgeom.manifold import CoordinatePatch
+from loguru import logger
 
+from relativisticpy.algebras import Idx, EinsumArray
+from relativisticpy.diffgeom import Metric, MetricIndices, LeviCivitaConnection, CovDerivative
+from relativisticpy.diffgeom import (
+    RicciScalar,
+    MetricScalar,
+    Derivative,
+)
+from relativisticpy.diffgeom.manifold import CoordIndices
+from relativisticpy.diffgeom.manifold import CoordinatePatch
+from relativisticpy.diffgeom.tensor import Tensor
+from relativisticpy.diffgeom.tensors.ricci import Ricci
+from relativisticpy.diffgeom.tensors.riemann import Riemann
 from relativisticpy.gr.einstein import EinsteinTensor
 from relativisticpy.state import Scope
-
-from relativisticpy.typing.protocols import Implementer
 from relativisticpy.state import ScopedState
-from loguru import logger
 from relativisticpy.symengine import (
     Symbol,
     Basic,
@@ -55,7 +58,9 @@ from relativisticpy.symengine import (
     tanh,
     atanh,
     factorial,
+    factor
 )
+from relativisticpy.typing.protocols import Implementer
 
 
 class RelPyError:
@@ -146,6 +151,10 @@ class RelPyAstNodeTraverser(Implementer):
     def solve(self, node: AstNode):
         return solve(*node.args)
 
+    # @builtin(name="solve")
+    # def solve(self, node: AstNode):
+    #     return solve(*node.args)
+
     def numerical(self, node: AstNode):
         return N(*node.args)
 
@@ -230,6 +239,9 @@ class RelPyAstNodeTraverser(Implementer):
     def factorial(self, node: AstNode):
         return factorial(*node.args)
 
+    def factor(self, node: AstNode):
+        return factor(*node.args)
+
     def absolute(self, node: AstNode):
         return Abs(*node.args)
 
@@ -297,25 +309,6 @@ class RelPyAstNodeTraverser(Implementer):
 
     # TENSOR IMPLEMENTATIONS
 
-    def get_tensor_cls(self, tensor_key: str, is_scalar: bool = False):
-        types_map = {
-            self.state.get_variable(Scope.EinsteinTensorSymbol): EinsteinTensor,
-            self.state.get_variable(Scope.RiemannSymbol): Riemann,
-            self.state.get_variable(Scope.CovariantDerivativeSymbol): CovDerivative,
-            self.state.get_variable(Scope.ConnectionSymbol): LeviCivitaConnection,
-        }
-        if is_scalar:
-            types_map.update({
-                self.state.get_variable(Scope.RicciSymbol): RicciScalar,
-                self.state.get_variable(Scope.MetricSymbol): MetricScalar,
-            })
-        else:
-            types_map.update({
-                self.state.get_variable(Scope.RicciSymbol): Ricci,
-                self.state.get_variable(Scope.MetricSymbol): Metric,
-            })
-        return types_map[tensor_key] if tensor_key in types_map else Tensor
-
     def init_indices(self, node: AstNode = None):
         if node is None:
             return CoordIndices(coord_patch=CoordinatePatch.from_basis(self.state.get_variable("Coordinates")))
@@ -355,3 +348,22 @@ class RelPyAstNodeTraverser(Implementer):
         "Based on the state of the Tensor node and the sate - we will initialize the indices of a tensor."
         basis = self.state.get_variable("Coordinates")
         return Derivative(self.init_indices(node), basis)
+
+    def get_tensor_cls(self, tensor_key: str, is_scalar: bool = False):
+        types_map = {
+            self.state.get_variable(Scope.EinsteinTensorSymbol): EinsteinTensor,
+            self.state.get_variable(Scope.RiemannSymbol): Riemann,
+            self.state.get_variable(Scope.CovariantDerivativeSymbol): CovDerivative,
+            self.state.get_variable(Scope.ConnectionSymbol): LeviCivitaConnection,
+        }
+        if is_scalar:
+            types_map.update({
+                self.state.get_variable(Scope.RicciSymbol): RicciScalar,
+                self.state.get_variable(Scope.MetricSymbol): MetricScalar,
+            })
+        else:
+            types_map.update({
+                self.state.get_variable(Scope.RicciSymbol): Ricci,
+                self.state.get_variable(Scope.MetricSymbol): Metric,
+            })
+        return types_map[tensor_key] if tensor_key in types_map else Tensor

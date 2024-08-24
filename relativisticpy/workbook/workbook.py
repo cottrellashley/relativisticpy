@@ -1,14 +1,31 @@
 import re
-import json
+import sys
+from enum import Enum
+
+from loguru import logger
 
 from relativisticpy.interpreter import RelParser
 from relativisticpy.workbook.ast_visitor import RelPyAstNodeTraverser
-from loguru import logger
-import sys
+
+
+class LogLevels(Enum):
+    SYMBOL = "SYMBOL"
+    TENSOR = "TENSOR"
+    DEBUG = "DEBUG"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    CRITICAL = "CRITICAL"
+
 
 class Workbook:
 
-    def __init__(self, file_path: str = None, debug_mode: bool = False):
+    def __init__(self,
+                 file_path: str = None,
+                 debug_mode: bool = False,
+                 logger_level: str = "INFO",
+                 logger_sink: str = sys.stderr
+                 ):
         logger.remove()
         self.file_path = file_path
         self.interpreter = RelParser(RelPyAstNodeTraverser())

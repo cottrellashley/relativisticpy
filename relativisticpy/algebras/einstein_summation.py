@@ -2,11 +2,14 @@
 # Summation Convention.
 
 # Standard Library
-import re, copy
+import re
+import copy
+from functools import singledispatchmethod
 from itertools import product, combinations
 from operator import itemgetter
 from typing import List, Callable, Literal, Tuple, Union, Optional, Any
 
+from loguru import logger
 from sympy import NDimArray, MutableDenseNDimArray
 
 # External Modules
@@ -21,7 +24,7 @@ from relativisticpy.utils import transpose_list
 
 # TODO IDEA: Index object should be able to have a inherited type, which takes a CoordinatePatch(Patch(Manifold()),
 #  CoordinateSystem()) -> This way users can defined and switch coordinate systems from simply defining indices
-#  within the tensos:
+#  within the tensors:
 
 # User defined the indices in a coordinate system and can then call the components of the tensor in a different
 # coordinate system. This will be useful for the einsum implementation. T_{mu nu} -> {mu nu alpha beta} :=
@@ -161,10 +164,10 @@ class Indices:
     SELFSUM_GENERATOR = "SELFSUM"
 
     def __init__(self, *args: Idx):
-        self.indices: Union[List[Idx], Tuple[Idx]] = tuple(
-            [index.set_order(order) for order, index in enumerate([*args])])
-        self.generator = lambda: None  # mokey patch product implementations of index depending on mul or add products
-        self.generator_implementor = None  # Curretly only used for unit tests => for use to know which implementation the generator is in currently.
+        self.indices: Tuple[Idx, ...] = tuple([index.set_order(order) for order, index in enumerate([*args])])
+        self.generator = lambda: None  # monkey patch product implementations of index depending on mul or add products
+        self.generator_implementor = None  # Curretly only used for unit tests => for use to know which
+        # implementation the generator is in currently.
 
     @property
     def anyrunnig(self) -> bool:
@@ -272,7 +275,8 @@ class Indices:
         return any([idx.symbol == index.symbol and idx.covariant == index.covariant for index in self.indices])
 
     def get_same_symbol(self, idx: Idx) -> Idx:
-        lst = [index for index in self.indices if index.symbol == idx.symbol]; return lst[0] if len(lst) == 1 else None
+        lst = [index for index in self.indices if index.symbol == idx.symbol];
+        return lst[0] if len(lst) == 1 else None
 
     def covariance_delta(self, other: 'Indices') -> list[tuple[str | Any, ...]]:
         return [tuple(['rs', i.order]) if i.covariant else tuple(['lw', i.order]) for i, j in
@@ -426,7 +430,8 @@ class Indices:
         lst = [idx for idx in self.indices if not idx.is_summed_wrt_indices(other.indices)] + [idx for idx in
                                                                                                other.indices if
                                                                                                not idx.is_summed_wrt_indices(
-                                                                                                   self.indices)]; return Indices(
+                                                                                                   self.indices)];
+        return Indices(
             *lst)
 
     def _get_selfsum_result(self) -> 'Indices':
@@ -443,7 +448,7 @@ class Indices:
         return [index.get_repeated_locations(other.indices)[0] for index in self.indices if
                 len(index.get_repeated_locations(other.indices)) > 0]
 
-    def _get_all_repeated_location(self, other: 'Indices') -> List[Tuple[int, int]]:
+    def _get_all_repeated_location(self, other: 'Indices') -> List[List[int]]:
         return [index.get_repeated_location(other.indices) for index in self.indices if
                 len(index.get_repeated_location(other.indices)) > 0]
 
@@ -478,7 +483,15 @@ class _IdxAlgebraNCubeArray:
                 self.indices.dimention = self.indices.dim
         else:
             self.indices.dimention = components.shape[0]
-        self.components = components
+        self.__components = components
+
+    @property
+    def components(self) -> SymbolArray:
+        return self.__components
+
+    @components.setter
+    def components(self, components: SymbolArray) -> None:
+        self.__components = components
 
     @property
     def rank(self):
@@ -511,7 +524,7 @@ class _IdxAlgebraNCubeArray:
     @property
     def scalar_component(self) -> Union[int, float, Basic]:
         if self.scalar:
-            return self.components
+            return list(self.components)[0]
         else:
             raise ValueError("Not a scalar object.")
 
@@ -530,7 +543,8 @@ class _IdxAlgebraNCubeArray:
                       ) -> '_IdxAlgebraNCubeArray':
         new_obj = copy.deepcopy(self)
         new_obj.__product(other, binary_op, idx_op)
-        return new_type_cls(new_obj.indices, new_obj.components) if new_type_cls else type(self)(new_obj.indices, new_obj.components)
+        return new_type_cls(new_obj.indices, new_obj.components) if new_type_cls else type(self)(new_obj.indices,
+                                                                                                 new_obj.components)
 
     def _trace(self) -> None:
         resulting_indices = self.indices.self_product()
@@ -625,7 +639,8 @@ class _IdxAlgebraNCubeArray:
         else:
             reshape_tuple_order = self.indices.get_symbol_only_reshape(new_indices)
             self._reshape_components(reshape_tuple_order)
-            # We return indices with same rank and symbols as our old original indices, but in the symbol order of the new indices.
+            # We return indices with same rank and symbols as our old original indices, but in the symbol order of
+            # the new indices.
             self.indices = Indices(*[self.indices.indices[i] for i in reshape_tuple_order])
         self.indices.dimention = self.dimention
 
@@ -652,17 +667,20 @@ class _IdxAlgebraNCubeArray:
 
         self.components = new_array
 
-
-    def __validate(self, indices: Indices, components: SymbolArray):
+    @staticmethod
+    def __validate(indices: Indices, components: SymbolArray):
         """
         Validation of all arguments passed to the constructor.
-        This method is be called in the constructor for all children of this class.
+        This method is being called in the constructor for all children of this class.
 
         """
         if not isinstance(indices, Indices):
             raise TypeError(f"Expected Indices, got {type(indices).__name__}")
         if indices.scalar:
-            if not isinstance(components, (int, float, Basic)):
+            if isinstance(components, (NDimArray, MutableDenseNDimArray, SymbolArray)):
+                if components.shape != ():
+                    raise ValueError("Invalid Argument: components argument must be a scalar.")
+            elif not isinstance(components, (int, float, Basic)):
                 raise ValueError("Invalid Argument: components argument must be a scalar.")
 
         elif not indices.scalar:
@@ -685,7 +703,10 @@ class _IdxAlgebraNCubeArray:
                 raise ValueError("Components shape does not match indices structure.")
 
     def __getitem__(self, index):
-        return self.components[index]
+        if self.scalar:
+            return self.scalar_component
+        else:
+            return self.components[index]
 
 
 class EinsumArray(_IdxAlgebraNCubeArray):
@@ -705,10 +726,6 @@ class EinsumArray(_IdxAlgebraNCubeArray):
         """
         super().__init__(indices, components)
         if self.indices.self_summed: self._trace()  # G^{a}_{a}_{c} = G_{c} after self-summing (trace) over indices a
-
-    @property
-    def args(self) -> Tuple[Indices, SymbolArray]:
-        return [self.indices, self.components]
 
     def reshape(self, new_indices: Indices, ignore_covariance: bool = False):
         """
@@ -775,7 +792,7 @@ class EinsumArray(_IdxAlgebraNCubeArray):
             new_type_cls=result_cls
         )
 
-    def div(self, other: Union[float, int, Basic], result_cls=None) -> "EinsumArray":
+    def div(self, other: Union[float, int, Basic], result_cls: object = None) -> "EinsumArray":
         if not isinstance(other, (float, int, Basic)):
             raise TypeError(
                 f"Unsupported operand type(s) for / or __truediv__(): 'EinsteinArray' and {type(other).__name__}")
@@ -808,52 +825,52 @@ class EinsumArray(_IdxAlgebraNCubeArray):
         ]
 
     @classmethod
-    def from_equation(cls, indices: Indices, *args, **kwargs) -> 'EinsumArray':
-        """Dynamic constructor for child classes."""
-        components = None
+    def new(cls, indices: Indices, operand: Union[SymbolArray, 'EinsumArray']) -> 'EinsumArray':
+        """
+        Dynamic constructor for child classes. This returns instances of tensors, based on the input arguments.
 
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, cls):
-                if arg.indices.symbol_and_symbol_rank_eq(indices):
-                    components = arg.reshape(indices, ignore_covariance=True).components
-                elif arg.indices.rank_eq(indices):
-                    components = arg.components
-            else:
-                for equation_type, equation_func in cls.component_equations():
-                    if isinstance(arg, equation_type):
-                        components = equation_func(arg)
-                        break
+        Args:
+            indices (Indices): The indices of the tensor.
+            operand (Union[SymbolArray, 'EinsumArray']): The operand, used to apply and compute the components of the
+             new tensor.
+        """
+        # If the operand is just an array, we build the tensor, taking the components given to be the components of the
+        # new tensor.
+        if isinstance(operand, SymbolArray):
+            return cls(indices, operand)
 
-        # Categorize keyword arguments
-        for key, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = value
-            elif isinstance(value, cls):
-                if value.indices.symbol_and_symbol_rank_eq(indices):
-                    components = value.reshape(indices, ignore_covariance=True).components
-                elif value.indices.rank_eq(indices):
-                    components = value.components
-            else:
-                for equation_type, equation_func in cls.component_equations():
-                    if isinstance(value, equation_type):
-                        components = equation_func(value)
-                        break
+        # If the operand is a tensor, but the same exact type of tensor. Then we can just reshape the tensor to the new
+        # indices provided and return the new tensor instance.
+        elif isinstance(operand, cls):
+            if operand.indices.symbol_and_symbol_rank_eq(indices):
+                return cls(indices, operand.reshape(indices, ignore_covariance=True).components)
+            elif operand.indices.rank_eq(indices):
+                return cls(indices, operand.components)
+        else:
+            return cls._new(operand, indices)
 
-        return cls(indices, components)
-
-
+    @singledispatchmethod
+    @classmethod
+    def _new(cls, operand, indices):
+        logger.debug(f"[EinsumArray] Handling init: {operand.__class__.__name__}")
 
     # Dunders (Still unsure if these should even be implemented since the class is not a tensor itself.)
     def __add__(self, other):
         return self.add(other, type(self))
 
+    def __radd__(self, other):
+        return self.add(other, type(self))
+
     def __sub__(self, other):
         return self.sub(other, type(self))
 
+    def __rsub__(self, other):
+        return self.sub(other, type(self))
+
     def __mul__(self, other):
+        return self.mul(other, type(self))
+
+    def __rmul__(self, other):
         return self.mul(other, type(self))
 
     def __truediv__(self, other):
@@ -863,4 +880,5 @@ class EinsumArray(_IdxAlgebraNCubeArray):
         return self.pow(other, type(self))
 
     def __neg__(self):
-        self.components = -self.components; return self
+        self.components = -self.components;
+        return self

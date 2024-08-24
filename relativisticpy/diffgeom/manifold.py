@@ -75,6 +75,7 @@ class CoordinatePatch:
         patch = Patch("default", Manifold("default", len(basis)))
         return cls(patch, basis)
 
+
 class CoordIndices(Indices):
 
     def __init__(self, *indices: Symbol, coord_patch: CoordinatePatch = None):

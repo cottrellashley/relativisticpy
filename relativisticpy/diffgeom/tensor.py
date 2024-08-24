@@ -1,4 +1,8 @@
+from functools import singledispatchmethod
 from typing import Union
+
+from loguru import logger
+
 # External Modules
 from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.symengine import SymbolArray, Basic, simplify, trigsimp
@@ -77,17 +81,18 @@ class Tensor(EinsumArray):
         """
         super().__init__(indices, components)
 
-    @property
-    def args(self):
-        return [self.indices, self.components]
-
+    @singledispatchmethod
     @classmethod
-    def component_equations(cls):
-        return [
-            (SymbolArray, lambda arg: arg),
-            (Tensor, lambda arg: arg.components),
-            (EinsumArray, lambda arg: arg.components),
-        ]
+    def _new(cls, operand, indices):
+        logger.debug(f"[Tensor] Handling init: {operand.__class__.__name__}")
+
+    @_new.register
+    @classmethod
+    def _(cls, operand: EinsumArray, indices):
+        if operand.indices.symbol_and_symbol_rank_eq(indices):
+            return cls(indices, operand.reshape(indices, ignore_covariance=True).components)
+        else:
+            return cls(indices, operand.components)
 
     # ### 2. Tensor Operations - **Addition and Subtraction**: Tensors of the same rank and shape can be added or
     # subtracted component-wise. - **Scalar Multiplication**: Each component of a tensor can be multiplied by a

@@ -1,7 +1,11 @@
 # Standard Library
+from functools import singledispatchmethod
 from typing import Union
 from itertools import product
 
+from loguru import logger
+
+from relativisticpy.algebras import EinsumArray, Indices
 # External Modules
 from relativisticpy.diffgeom.manifold import CoordIndices
 from relativisticpy.diffgeom.tensor import Tensor
@@ -18,44 +22,21 @@ class Riemann(Tensor):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+    @singledispatchmethod
     @classmethod
-    def component_equations(cls):
-        return [
-            (SymbolArray, lambda arg: arg),
-            (Metric, cls.components_from_metric),
-            (LeviCivitaConnection, cls.components_from_connection)
-        ]
+    def _new(cls, operand, indices):
+        logger.debug(f"[MetricScalar] Handling init: {operand.__class__.__name__}")
 
+    @_new.register
     @classmethod
-    def from_equation(cls, indices: CoordIndices, *args, **kwargs) -> 'Riemann':
-        components = None
-        metric = None
-
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, cls):
-                components = arg.reshape(indices).components
-            elif isinstance(arg, Metric):
-                metric = arg
-
-        # Categorize keyword arguments
-        for key, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = value
-            elif isinstance(value, cls):
-                components = value.reshape(indices).components
-            elif isinstance(value, Metric):
-                metric = value
-
-        if components is None:
-            if metric is not None:
-                components = cls.components_from_metric(metric, "".join(["l" if idx.covariant else "u" for idx in indices.indices]))
-            else:
-                raise TypeError("Components or metric is required.")
-
+    def _(cls, operand: Metric, indices: Indices) -> Tensor:
+        components = cls.components_from_metric(operand, 'ulll')
         return cls(indices, components)
+
+    @_new.register
+    @classmethod
+    def _(cls, operand: LeviCivitaConnection, indices: Indices) -> Tensor:
+        raise NotImplementedError("Riemann tensor from connection is not yet implemented.")
 
     @staticmethod
     def components_from_metric(metric: Metric, index_structure: str = None) -> SymbolArray:
@@ -90,9 +71,6 @@ class Riemann(Tensor):
             skeleton[i, j, k, p] += metric_comps[i, d] * rie_comps[d, j, k, p]
         return simplify(skeleton)
 
-    def components(self, index_structure: str = None) -> SymbolArray:
-        # TODO: Implement this method using the metric to raise and lower indices of this object.
-        pass
-
-    def components_from_connection(connection: LeviCivitaConnection) -> SymbolArray:
+    @classmethod
+    def components_from_connection(cls, connection: LeviCivitaConnection) -> SymbolArray:
         raise NotImplementedError("Riemann tensor from connection is not yet implemented.")

@@ -199,13 +199,22 @@ class Metric(Tensor):
                 return SymbolArray(self.components.tomatrix().inv())
             except Exception as e:
                 raise ValueError(f"Cannot invert metric tensor with components: {self.components} with error: {e}")
-        else:
+        elif self.rank == (2, 0):
             return self.components
-
+        else:
+            raise ValueError(f"Invalid rank for metric tensor: {self.rank}")
 
     @property
     def ll_components(self) -> SymbolArray:
-        return self.components if self.rank == (0, 2) else self.uu_components
+        if self.rank == (2, 0):
+            try:
+                return SymbolArray(self.components.tomatrix().inv())
+            except Exception as e:
+                raise ValueError(f"Cannot invert metric tensor with components: {self.components} with error: {e}")
+        elif self.rank == (0, 2):
+            return self.components
+        else:
+            raise ValueError(f"Invalid rank for metric tensor: {self.rank}")
 
     @property
     def covariant(self):
@@ -254,7 +263,7 @@ class Metric(Tensor):
         )
 
     @classmethod
-    def from_metric(cls, metric: "Metric", indices: MetricIndices):
+    def from_metric(cls, metric: "Metric", indices: Indices):
         components = (
             metric.ll_components if indices.rank == (0, 2) else metric.uu_components
         )
@@ -435,43 +444,3 @@ class Metric(Tensor):
         # Set new properties
         tensor.components = result.components
         tensor.indices = result.indices
-
-
-    @classmethod
-    def from_equation(cls, indices: Indices, *args, **kwargs) -> 'EinsumArray':
-        """Dynamic constructor for child classes."""
-        components = None
-        if len(indices.indices) != 2:
-            raise ValueError(f"Expected 2 indices, got {len(indices.indices)}.")
-
-        # Categorize positional arguments
-        for arg in args:
-            if isinstance(arg, SymbolArray):
-                components = arg
-            elif isinstance(arg, Metric):
-                if indices.rank == (2, 0):
-                    components = arg.ll_components
-                elif indices.rank == (0, 2):
-                    components = arg.uu_components
-            else:
-                for equation_type, equation_func in cls.component_equations():
-                    if isinstance(arg, equation_type):
-                        components = equation_func(arg)
-                        break
-
-        # Categorize keyword arguments
-        for key, value in kwargs.items():
-            if isinstance(value, SymbolArray):
-                components = value
-            elif isinstance(value, Metric):
-                if indices.rank == (2, 0):
-                    components = value.ll_components
-                elif indices.rank == (0, 2):
-                    components = value.uu_components
-            else:
-                for equation_type, equation_func in cls.component_equations():
-                    if isinstance(value, equation_type):
-                        components = equation_func(value)
-                        break
-
-        return cls(indices, components)

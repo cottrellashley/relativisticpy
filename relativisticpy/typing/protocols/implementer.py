@@ -89,6 +89,9 @@ class Implementer(Protocol):
     def ln(self, node: TreeNodes) -> None:
         ...
 
+    def factor(self, node: TreeNodes) -> None:
+        ...
+
     def assignment(self, node: TreeNodes) -> None:
         ...
 
