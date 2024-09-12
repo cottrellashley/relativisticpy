@@ -1,5 +1,6 @@
 from relativisticpy.workbook.workbook import Workbook
 
+
 def test_general_schild_derivation_from_spherically_symetric_tensor():
     wb = Workbook()
 
@@ -7,7 +8,7 @@ def test_general_schild_derivation_from_spherically_symetric_tensor():
         Workbook()
     )  # Refresh the cache each time you call the method --- I am getting errors because the state is not refreshing
     res = wb.expr(
-    """
+        """
             Coordinates := [t, r, theta, phi]
 
             g_{mu}_{nu} := [ 
@@ -43,14 +44,16 @@ def test_general_schild_derivation_from_spherically_symetric_tensor():
             g_{mu}_{nu} 
     """
     )
-    assert str(res.components) == '[[C1 + C2/r, 0, 0, 0], [0, 1/(C1 + C2/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]'
+    assert str(
+        res.components) == '[[C1 + C2/r, 0, 0, 0], [0, 1/(C1 + C2/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]'
+
 
 def test_schild_boundary_condition_calculation():
     wb = (
         Workbook()
     )  # Refresh the cache each time you call the method --- I am getting errors because the state is not refreshing
     res = wb.expr(
-    """
+        """
 
     Coordinates := [t, r, theta, phi]
 
@@ -62,14 +65,16 @@ def test_schild_boundary_condition_calculation():
     exopr
     """
     )
-    assert str(res[0]) == '-2*G*M' # TODO: solve returns a list => Need to be added to sematic analyzer + UI functionality for user to be able to manipulate lists.
+    assert str(res[
+                   0]) == '-2*G*M'  # TODO: solve returns a list => Need to be added to sematic analyzer + UI functionality for user to be able to manipulate lists.
+
 
 def test_k_scalar_derivation_from_schild():
     wb = (
         Workbook()
     )  # Refresh the cache each time you call the method --- I am getting errors because the state is not refreshing
     res = wb.expr(
-    """
+        """
     Coordinates := [t, r, theta, phi]
 
     g_{mu}_{nu} := [
@@ -85,13 +90,13 @@ def test_k_scalar_derivation_from_schild():
 
     Ricci_{m}_{n} := Riemann^{a}_{m}_{a}_{n}
 
-    TempOne^{a}^{f}^{h}^{i} := g^{i}^{q}*( g^{h}^{c}*( g^{f}^{b} * Riemann^{a}_{b}_{c}_{q} ) )
+    TempOne^{a}^{f}^{h}^{s} := g^{s}^{q}*( g^{h}^{c}*( g^{f}^{b} * Riemann^{a}_{b}_{c}_{q} ) )
 
-    TempTwo_{a}_{f}_{h}_{i} := g_{a}_{n}*Riemann^{n}_{f}_{h}_{i}
+    TempTwo_{a}_{f}_{h}_{s} := g_{a}_{n}*Riemann^{n}_{f}_{h}_{s}
 
-    S := TempOne^{a}^{f}^{h}^{i}*TempTwo_{a}_{f}_{h}_{i}
+    S := TempOne^{a}^{f}^{h}^{s}*TempTwo_{a}_{f}_{h}_{s}
 
     simplify(S)
     """
     )
-    assert str(res) == '48.0*G**2*M**2/(c**4*r**6)'
+    assert str(res.components) == '48.0*G**2*M**2/(c**4*r**6)'

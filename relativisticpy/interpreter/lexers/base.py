@@ -62,7 +62,7 @@ class TokenType(Enum):
             "_": TokenType.UNDER,
             "'": TokenType.APOSTROPHE,
         }
-    
+
     @classmethod
     def DOUBLES(self):
         return {
@@ -183,16 +183,16 @@ class TokenType(Enum):
     def Keywords(cls):
         return {
             # Keywords mappings
-            cls.NOT.value: cls.NOT, 
-            cls.AND.value: cls.AND, 
-            cls.OR.value: cls.OR, 
-            cls.PRINT.value: cls.PRINT, 
+            cls.NOT.value: cls.NOT,
+            cls.AND.value: cls.AND,
+            cls.OR.value: cls.OR,
+            cls.PRINT.value: cls.PRINT,
             cls.INFINITESIMAL.value: cls.INFINITESIMAL,
-            cls.PI.value : cls.CONSTANT,
-            cls.E.value : cls.CONSTANT,
-            cls.INFTY.value : cls.CONSTANT,
-            cls.IM.value : cls.CONSTANT,
-            cls.OO.value : cls.CONSTANT
+            cls.PI.value: cls.CONSTANT,
+            cls.E.value: cls.CONSTANT,
+            cls.INFTY.value: cls.CONSTANT,
+            cls.IM.value: cls.CONSTANT,
+            cls.OO.value: cls.CONSTANT
         }
 
     ##########################################
@@ -230,9 +230,9 @@ class TokenType(Enum):
             cls.DERIVATIVE.value: cls.DERIVATIVE,
             cls.PDERIVATIVE.value: cls.PDERIVATIVE,
             cls.PARTIAL.value: cls.PARTIAL,
-            cls.INTEGRATE.value : cls.INTEGRATE,
-            cls.INFTY.value : cls.CONSTANT,
-            cls.SQRT.value : cls.SQRT,
+            cls.INTEGRATE.value: cls.INTEGRATE,
+            cls.INFTY.value: cls.CONSTANT,
+            cls.SQRT.value: cls.SQRT,
             # LaTeX symbols are all mapped to cls.SYMBOL
             cls.alpha.value: cls.SYMBOL,
             cls.Alpha.value: cls.SYMBOL,
@@ -282,7 +282,7 @@ class TokenType(Enum):
             cls.Psi.value: cls.SYMBOL,
             cls.omega.value: cls.SYMBOL,
             cls.Omega.value: cls.SYMBOL
-            }
+        }
 
     ##########################################
     ############ Latex Operations ############ 
@@ -378,6 +378,7 @@ class Characters(Enum):
     LETTERS = LOWER + UPPER
     IDS = LETTERS + DIGITS
 
+
 @dataclass
 class Token:
     type: TokenType = None
@@ -392,54 +393,63 @@ class _TokenProvider:
         self.tokens = []
 
     def new_token(
-        self, type: TokenType, value: str, end_pos: Position
+            self, type: TokenType, value: str, end_pos: Position
     ) -> None:
-        self.tokens.append(Token(type, value, TokenPosition(start_pos = Position(end_pos.line, end_pos.character - len(value)), end_pos = end_pos)))
+        self.tokens.append(Token(type, value,
+                                 TokenPosition(start_pos=Position(end_pos.line, end_pos.character - len(value)),
+                                               end_pos=end_pos)))
 
     def get_tokens(self):
         return self.tokens
 
     def new_single_operation_token(
-        self, c1: str, end_pos: Position
+            self, c1: str, end_pos: Position
     ) -> None:
         if self.single_match_exists(c1):
             token_type: TokenType = TokenType.SINGLES()[c1]
-            self.tokens.append(Token(token_type, token_type.value, TokenPosition(start_pos = Position(end_pos.line, end_pos.character - 1), end_pos = end_pos)))
+            self.tokens.append(Token(token_type, token_type.value,
+                                     TokenPosition(start_pos=Position(end_pos.line, end_pos.character - 1),
+                                                   end_pos=end_pos)))
 
     def new_double_operation_token(
-        self, c1: str, c2: str, end_pos: Position
+            self, c1: str, c2: str, end_pos: Position
     ) -> None:
         if self.double_match_exists(c1, c2):
             token_type: TokenType = TokenType.DOUBLES()[c1][c2]
-            self.tokens.append(Token(token_type, token_type.value, TokenPosition(start_pos = Position(end_pos.line, end_pos.character - 2), end_pos = end_pos)))
+            self.tokens.append(Token(token_type, token_type.value,
+                                     TokenPosition(start_pos=Position(end_pos.line, end_pos.character - 2),
+                                                   end_pos=end_pos)))
 
     def new_tripple_operation_token(
-        self, c1: str, c2: str, c3: str, end_pos: Position
+            self, c1: str, c2: str, c3: str, end_pos: Position
     ) -> None:
         if self.tripple_match_exists(c1, c2, c3):
             token_type: TokenType = TokenType.TRIPPLES()[c1][c2][c3]
-            self.tokens.append(Token(token_type, token_type.value, TokenPosition(start_pos = Position(end_pos.line, end_pos.character - 3), end_pos = end_pos)))
+            self.tokens.append(Token(token_type, token_type.value,
+                                     TokenPosition(start_pos=Position(end_pos.line, end_pos.character - 3),
+                                                   end_pos=end_pos)))
 
     def single_match_exists(self, c1: str) -> bool:
         try:
-            TokenType.SINGLES()[c1]
+            var = TokenType.SINGLES()[c1]
             return True
         except:
             return False
 
     def double_match_exists(self, c1: str, c2: str) -> bool:
         try:
-            TokenType.DOUBLES()[c1][c2]
+            var = TokenType.DOUBLES()[c1][c2]
             return True
         except:
             return False
 
     def tripple_match_exists(self, c1: str, c2: str, c3: str) -> bool:
         try:
-            TokenType.TRIPPLES()[c1][c2][c3]
+            var = TokenType.TRIPPLES()[c1][c2][c3]
             return True
         except:
             return False
+
 
 @dataclass
 class LexerResult:
@@ -459,7 +469,7 @@ class BaseLexer(ABC):
         self.__characters.advance()
 
     @abstractmethod
-    def tokenize() -> LexerResult:
+    def tokenize(self) -> LexerResult:
         pass
 
     @property

@@ -1,12 +1,13 @@
 from relativisticpy.interpreter.lexers.base import BaseLexer, Characters, LexerResult, TokenType
 
+
 class GRLexer(BaseLexer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
     def tokenize(self):
         # If the token is longer than a single character, we need to defined how to generate it.
-        while self.current_char() != None:
+        while self.current_char() is not None:
             if self.current_char() in Characters.WHITESPACE.value:
                 self.advance_char()
 
@@ -42,8 +43,8 @@ class GRLexer(BaseLexer):
 
     def _build_number(self):
         number = ""
-        while self.current_char() != None and (
-            self.current_char() in Characters.NUMBER.value
+        while self.current_char() is not None and (
+                self.current_char() in Characters.NUMBER.value
         ):
             number += self.current_char()
             self.advance_char()
@@ -63,21 +64,16 @@ class GRLexer(BaseLexer):
         ops = []
         doubles_dic = TokenType.DOUBLES()
         triples_dic = TokenType.TRIPPLES()
-        while (
-            self.current_char() != None
-            and self.current_char() in TokenType.SINGLES()
-        ):
+        while self.current_char() is not None and self.current_char() in TokenType.SINGLES():
             ops.append(self.current_char())
             self.advance_char()
 
         i = 0
         while i < len(ops):
             if (
-                i + 2 < len(ops)
-                and ops[i] in triples_dic
-                and self.token_provider.tripple_match_exists(
-                    ops[i], ops[i + 1], ops[i + 2]
-                )
+                    i + 2 < len(ops)
+                    and ops[i] in triples_dic
+                    and self.token_provider.tripple_match_exists(ops[i], ops[i + 1], ops[i + 2])
             ):
                 self.token_provider.new_tripple_operation_token(
                     ops[i],
@@ -87,9 +83,9 @@ class GRLexer(BaseLexer):
                 )
                 i += 3
             elif (
-                i + 1 < len(ops)
-                and ops[i] in doubles_dic
-                and self.token_provider.double_match_exists(ops[i], ops[i + 1])
+                    i + 1 < len(ops)
+                    and ops[i] in doubles_dic
+                    and self.token_provider.double_match_exists(ops[i], ops[i + 1])
             ):
                 self.token_provider.new_double_operation_token(
                     ops[i], ops[i + 1], end_pos=self.current_pos()
@@ -104,7 +100,7 @@ class GRLexer(BaseLexer):
     # Here we are building: function - object - tensor
     def _identifiers(self):
         obj = ""
-        while self.current_char() != None and self.current_char() in Characters.IDS.value:
+        while self.current_char() is not None and self.current_char() in Characters.IDS.value:
             obj += self.current_char()
 
             if self.peek_char(1, None) == "_" and self.peek_char(2, None) in Characters.IDS.value:
@@ -112,17 +108,17 @@ class GRLexer(BaseLexer):
                 obj += self.current_char()
 
             self.advance_char()
-        
+
         if obj in TokenType.Keywords():
-            self.token_provider.new_token(TokenType.Keywords()[obj], obj, end_pos=self.current_pos() )
+            self.token_provider.new_token(TokenType.Keywords()[obj], obj, end_pos=self.current_pos())
         else:
-            self.token_provider.new_token(TokenType.ID, obj, end_pos=self.current_pos() )
+            self.token_provider.new_token(TokenType.ID, obj, end_pos=self.current_pos())
 
     def _build_latex(self):
         obj = ""
         self.advance_char()
 
-        while self.current_char() != None and self.current_char() in Characters.LETTERS.value:
+        while self.current_char() is not None and self.current_char() in Characters.LETTERS.value:
             obj += self.current_char()
             self.advance_char()
 
@@ -135,14 +131,13 @@ class GRLexer(BaseLexer):
             self.advance_char()
         elif obj not in TokenType.LaTeX():
             raise ValueError("TOKENIZER LEVEL ERROR: The latex keyword entered is not supported.")
-        
+
         if obj in TokenType.LaTeX():
             self.token_provider.new_token(
                 TokenType.LaTeX()[obj],
                 obj,
                 end_pos=self.current_pos(),
             )
-
 
     def _skip_comment(self):
         self.advance_char()

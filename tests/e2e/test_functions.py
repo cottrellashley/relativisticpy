@@ -99,6 +99,7 @@ def test_piecewise_function():
             piecewise(2) * piecewise(-2)
     """
     )
+    print(res)
     assert str(res) == 'v**4 + 7*v**2 - 56'
 
 

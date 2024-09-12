@@ -12,6 +12,7 @@ from relativisticpy.algebras import EinsumArray, Indices, Idx
 # 4. If all arguments are valid, the public method calls a protected method that performs the actual operation.
 # 5. The protected method does not perform argument validation, as it is assumed that the public method has already done this.
 
+
 class CoordinateMap:
     
     def __init__(self):
@@ -26,6 +27,7 @@ class CoordinateMap:
             transformation (Callable[[Basic], Basic]): The transformation function.
         """
         pass
+
 
 class Jacobian(EinsumArray):
 

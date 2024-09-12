@@ -143,7 +143,15 @@ class RelPyAstNodeTraverser(Implementer):
         return integrate(*node.args)
 
     def simplify(self, node: AstNode):
-        return simplify(*node.args)
+        n = node
+        args = n.args
+        if isinstance(args[0], Tensor):
+            tensor: Tensor = args[0]
+            tensor.components = simplify(
+                list(tensor.components)[0]
+            )
+            return tensor
+        return simplify(*args)
 
     def latex(self, node: AstNode):
         return latex(*node.args)

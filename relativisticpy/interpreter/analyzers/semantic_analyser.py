@@ -314,6 +314,9 @@ class SemanticAnalyzer:
     def integrate(self, node: Call):
         node.data_type = 'sym_expr'
 
+    def factor(self, node: Call):
+        node.data_type = 'sym_expr'
+
     def latex(self, node: Call):
         node.data_type = 'sym_expr'
 

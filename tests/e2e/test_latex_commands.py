@@ -134,7 +134,7 @@ def test_newline_command(vars_x_y_z_t_r_theta_phi_tau):
     assert wb.expr(" A := \\prod_{x=0}^{10} x \\newline A") == wb.expr(""" A := \\prod_{x=0}^{10} x 
                                                                           A""")
 
-def test_all_derivative_commands(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
+def  test_all_derivative_commands(vars_x_y_z_t_r_theta_phi_tau, func_f_g_h):
     wb = Workbook()
     x, y, z, t, r, theta, phi, tau = vars_x_y_z_t_r_theta_phi_tau
     f, g, h = func_f_g_h
