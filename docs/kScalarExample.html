@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RelativisticPy</title>
+    <link type="text/css" rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+    <div class="sidebar">
+        <a href="index.html"> <!-- Change href to your home page URL -->
+            <img src="./data/logo.png" >
+        </a>
+        <h3>Menu</h3>
+        <a href="quickStartGuide.html">Quick Start Guide</a>
+        <a href="instalation.html">Installation</a>
+        <a href="functions.html">Functions</a>
+        <a href="tensorOperations.html">Tensor Operations</a>
+        <a href="comingFeatures.html">Coming Features</a>
+        <a href="contributions.html">Contributions</a>
+        <h3>Examples</h3>
+        <a href="kScalarExample.html">K-Scalar</a>
+        <a href="blackHoleExample.html">Black Hole Solution</a>
+    </div>
+    <div class="main-content">
+        <h1>K-Scalar Calculations in General Relativity</h1>
+
+        <section id="metric-definition">
+            <h2>Defining the Metric</h2>
+            <p>The first step in our journey through tensor calculus in General Relativity is defining the metric. The metric is a fundamental concept, providing the groundwork upon which we build our tensor equations.</p>
+            <pre><code>
+    Coordinates := [t, r, theta, phi]
+    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0], [0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2 * sin(theta) ** 2]]
+            </code></pre>
+            <p>This expression sets up a spherically symmetric metric tensor in Schwarzschild coordinates, essential for describing spacetime around non-rotating spherical objects like black holes.</p>
+        </section>
+    
+        <section id="tensor-equations">
+            <h2>Writing Tensor Equations</h2>
+            <p>Once the metric is defined, we proceed to write tensor equations. These equations are key to exploring the curvature of spacetime and the dynamics of gravitational fields.</p>
+            <pre><code>
+    Gamma^{a}_{c}_{f} = (1/2)*g^{a}^{b}*(d_{c}*g_{b}_{f} + d_{f}*g_{b}_{c} - d_{b}*g_{c}_{f})
+    Riemann^{a}_{m}_{b}_{n} = d_{b}*Gamma^{a}_{n}_{m} + Gamma^{a}_{b}_{l}*Gamma^{l}_{n}_{m} - d_{n}*Gamma^{a}_{b}_{m} - Gamma^{a}_{n}_{l}*Gamma^{l}_{b}_{m}
+    Ricci_{m}_{n} = Riemann^{a}_{m}_{a}_{n}
+            </code></pre>
+            <p>These equations describe the connection coefficients (Γ), the Riemann curvature tensor, and the Ricci tensor, respectively. They are crucial for understanding the geometry of spacetime.</p>
+        </section>
+    
+        <section id="tensor-assignment">
+            <h2>Assigning Tensor Equations</h2>
+            <p>Next, we assign our tensor equations to new tensors, mapping their indices as per our requirements. This step involves significant tensor manipulation and serves as a foundation for further calculations.</p>
+            <pre><code>
+    TempOne^{a}^{f}^{h}^{i} = g^{i}^{d}*(g^{h}^{c}*(g^{f}^{b}*Riemann^{a}_{b}_{c}_{d}))
+    TempTwo_{a}_{f}_{h}_{i} = g_{a}_{n}*Riemann^{n}_{f}_{h}_{i}
+            </code></pre>
+            <p>Here, we define two new tensors, TempOne and TempTwo, by manipulating the Riemann tensor and the metric tensor.</p>
+        </section>
+    
+        <section id="k-scalar-computation">
+            <h2>Computing the K-Scalar</h2>
+            <p>Finally, we compute the K-Scalar, a scalar quantity derived from the contracted product of TempOne and TempTwo tensors. The K-Scalar is significant in various applications within General Relativity.</p>
+            <pre><code>
+    S = TempOne^{a}^{f}^{h}^{i}*TempTwo_{a}_{f}_{h}_{i}
+            </code></pre>
+            <p>This operation results in the K-Scalar <em>S</em>, which encapsulates complex geometric information about the spacetime structure.</p>
+        </section>
+
+
+        <section id="k-scalar-computation">
+            <h2>Full Script to Copy/Paste into Playgorund</h2>
+            <p>Finally, we compute the K-Scalar, a scalar quantity derived from the contracted product of TempOne and TempTwo tensors. The K-Scalar is significant in various applications within General Relativity.</p>
+            <pre><code>
+Coordinates := [t, r, theta, phi]
+g_{mu}_{nu} := [[-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]
+
+Gamma^{a}_{c}_{f} = (1/2)*g^{a}^{b}*(d_{c}*g_{b}_{f} + d_{f}*g_{b}_{c} - d_{b}*g_{c}_{f})
+
+Riemann^{a}_{m}_{b}_{n} = d_{b}*Gamma^{a}_{n}_{m} + Gamma^{a}_{b}_{l}*Gamma^{l}_{n}_{m} - d_{n}*Gamma^{a}_{b}_{m} - Gamma^{a}_{n}_{l}*Gamma^{l}_{b}_{m}
+
+Ricci_{m}_{n} = Riemann^{a}_{m}_{a}_{n}
+
+TempOne^{a}^{f}^{h}^{i} = g^{i}^{d}*(g^{h}^{c}*(g^{f}^{b}*Riemann^{a}_{b}_{c}_{d}))
+
+TempTwo_{a}_{f}_{h}_{i} = g_{a}_{n}*Riemann^{n}_{f}_{h}_{i}
+
+S = TempOne^{a}^{f}^{h}^{i}*TempTwo_{a}_{f}_{h}_{i}
+
+S
+            </code></pre>
+            <p>This operation results in the K-Scalar <em>S</em>, which encapsulates complex geometric information about the spacetime structure.</p>
+        </section>
+
+        <footer class="section">
+            <p>&copy; 2024 RelativisticPy. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+</html>

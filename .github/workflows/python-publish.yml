@@ -1,0 +1,53 @@
+# This workflow will upload a Python Package using Twine when a release is created
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-python#publishing-to-package-registries
+
+# This workflow uses actions that are not certified by GitHub.
+# They are provided by a third-party and are governed by
+# separate terms of service, privacy policy, and support
+# documentation.
+
+# Future -> push to pip test env -> run e2e on pipeline on pip install test verison -> publish to pip if passed.
+
+name: Upload Python Package
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger the workflow on tag push like v1.0.0
+
+jobs:
+  deploy:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v3
+      with:
+        python-version: '3.11'
+
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Run tests
+      run: poetry run pytest  # assuming you are using pytest for testing
+
+    - name: Configure Poetry
+      if: success()
+      run: |
+        poetry config repositories.pypi https://upload.pypi.org/legacy/
+        poetry config http-basic.pypi __token__ ${{ secrets.PYPI_TOKEN }}
+        poetry config repositories.PROJECT_NAME https://pypi.org/project/relativisticpy/
+        poetry config http-basic.PROJECT_NAME __token__ ${{ secrets.PROJECT_NAME_TOKEN }}
+
+    - name: Build and publish
+      if: success()
+      run: |
+        poetry build
+        poetry publish

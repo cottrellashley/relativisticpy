@@ -1,0 +1,105 @@
+@font-face {
+    font-family: 'Sohne-Bold';
+    src: url('fonts/Sohne-Bold.woff') format('woff'); /* Adjust the path as needed */
+}
+
+
+body {
+    font-family: 'Sohne-Regular', sans-serif;
+    margin: 0;
+    padding: 0;
+    color: #E0E0E0;
+    background-color: rgb(15, 17, 23); 
+    display: flex;
+}
+.sidebar {
+    flex: 0 0 12%;
+    width: 250px;
+    height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+    background-color: rgb(18, 16, 33); 
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center children horizontally */
+}
+.sidebar a {
+    
+    text-decoration: none;
+    color: #E0E0E0;
+    display: block;
+    padding: 10px 0;
+}
+.sidebar a:hover { /* When we hover  */
+    transform: scale(1.1);
+    color: #d6b3b3; /* Slightly darker color on hover */
+
+}
+.main-content {
+    flex-grow: 1;
+    margin-top: 100px;
+    max-width: 960px; /* Set a max width */
+    margin-left: auto; /* Center the div */
+    margin-right: auto; /* Center the div */
+    box-sizing: border-box;
+}
+.main-content h1 {
+    margin-top: 0;
+}
+.sidebar a img {
+    position: relative;
+    width: 100%; /* Smaller size, adjust as needed */
+    height: auto;
+    margin-bottom: 0px; /* Space below the image */
+    transition: transform 0.2s; /* Smooth transform */
+}
+.sidebar a img:hover {
+    transform: scale(1.2); /* Slightly increase size on hover */
+}
+h1, h2, h3 {
+    font-family: 'Sohne-Bold', sans-serif;
+    position: relative; /* Slightly darker color on hover */
+}
+
+body pre {
+    background-color: rgb(38, 39, 48);
+    padding: 10px;
+    border-radius: 10px; /* Rounded corners */
+    overflow-x: auto; /* Useful if the code is wider than the container */
+}
+body pre code {
+    font-family: 'SohneMono-Regular', 'Courier New', monospace;
+    font-size: 0.95em; /* Adjust as needed */
+    display: block; /* Ensure it takes up the full width */
+}
+
+.title-home-page {
+    text-align: center;
+    font-size: 50pt;
+}
+
+.logo {
+    width: 50%; /* Adjust size as needed */
+    height: auto;
+    display: block;
+    margin: 0 auto; /* Center the logo */
+}
+.link-container {
+    display: flex;
+    justify-content: center; /* Center the links */
+    margin-top: 30px;
+}
+.link {
+    display: inline-block;
+    margin: 10px;
+    padding: 10px 15px;
+    background-color: #0366d6;
+    color: white;
+    text-decoration: none;
+    border-radius: 5px;
+    flex: 1; /* Make all links the same size */
+    text-align: center; /* Center text in links */
+}
+.link:hover {
+    background-color: #0056b3;
+}
