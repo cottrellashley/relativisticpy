@@ -124,6 +124,15 @@ def test_arithmetic_errors(wb, source, message):
         wb.expr(source)
 
 
+def test_long_expressions(wb):
+    # Thousands of terms or factors, as in a long expansion, are no deeper to compile.
+    n = 3000
+    total = wb.expr(" + ".join(f"x^{{{i}}}" for i in range(n)))
+    assert len(total.args) == n
+    assert wb.expr(" ".join(["x"] * n)) == x**n
+    assert wb.expr(r"\int_0^1 " + " ".join(["x"] * 100) + r" \, dx") == Rational(1, 101)
+
+
 def test_definitions_are_remembered(wb):
     a = diff(f(x), x) + P(x) * f(x) - Q(x)
     assert wb.expr("a := diff(f(x), x) + P(x)*f(x) - Q(x)\ndsolve(a, f(x))") == dsolve(a, f(x))

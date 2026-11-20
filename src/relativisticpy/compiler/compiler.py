@@ -583,16 +583,16 @@ class Compiler:
         return self._multiply([self.graph.const(factor, SCALAR), result], node.span)
 
     def _sum(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
+        # The terms in order, without recursion: a sum may have thousands of them.
         terms: list[tuple[int, ast.Expr]] = []
-
-        def walk(expr: ast.Expr, sign: int) -> None:
+        pending: list[tuple[int, ast.Expr]] = [(1, node)]
+        while pending:
+            sign, expr = pending.pop()
             if isinstance(expr, ast.Binary) and expr.op in ("+", "-"):
-                walk(expr.left, sign)
-                walk(expr.right, sign if expr.op == "+" else -sign)
+                pending.append((sign if expr.op == "+" else -sign, expr.right))
+                pending.append((sign, expr.left))
             else:
                 terms.append((sign, expr))
-
-        walk(node, 1)
         values = [(sign, self.value(_operand(term), scope, ctx), term) for sign, term in terms]
         tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         if not tensors:
@@ -1852,23 +1852,21 @@ def _names(value: ast.Expr, what: str) -> list[str]:
 def _mentioned(value: ast.Expr) -> frozenset[str]:
     """Every name written in an expression."""
     found: set[str] = set()
-
-    def visit(node: object) -> None:
+    pending: list[object] = [value]
+    while pending:  # without recursion, for expressions of any length
+        node = pending.pop()
         if isinstance(node, ast.Name):
             found.add(node.id)
             found.update(split_index_labels(node.id))
         if isinstance(node, ast.Node):
-            for value in vars(node).values():
-                if isinstance(value, tuple):
-                    for element in value:
-                        visit(element)
+            for field_value in vars(node).values():
+                if isinstance(field_value, tuple):
+                    for element in field_value:
+                        pending.append(element)
                         if isinstance(element, tuple):
-                            for inner in element:
-                                visit(inner)
+                            pending.extend(element)
                 else:
-                    visit(value)
-
-    visit(value)
+                    pending.append(field_value)
     return frozenset(found)
 
 
@@ -2000,17 +1998,16 @@ def _line_element_coordinates(value: ast.Expr) -> list[str]:
     ``-dt^2 + dr^2 + r^2 d\Omega^2`` names t, r, θ and φ. Empty if a differential is
     abstract, as in ``g_{\mu\nu} dx^\mu dx^\nu``, or if there are none."""
     atoms: list[ast.Expr] = []
-
-    def visit(node: ast.Expr) -> None:
+    pending: list[ast.Expr] = [value]
+    while pending:  # left to right, without recursion
+        node = pending.pop()
         if isinstance(node, ast.Binary):
-            visit(node.left)
-            visit(node.right)
+            pending.append(node.right)
+            pending.append(node.left)
         elif isinstance(node, ast.Unary):
-            visit(node.operand)
+            pending.append(node.operand)
         else:
             atoms.append(node)
-
-    visit(value)
     names: list[str] = []
     for atom, following in zip(atoms, [*atoms[1:], None], strict=True):
         base = atom.base if isinstance(atom, ast.Scripted) else atom

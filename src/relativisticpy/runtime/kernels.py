@@ -49,9 +49,12 @@ def _add(op: ops.Add, args: list[Any], executor: Executor) -> Any:
         if () in shapes:
             raise EvaluationError("cannot add a scalar and an array")
         raise EvaluationError(f"cannot add arrays of shapes {' and '.join(map(str, shapes))}")
-    total = terms[0] if op.signs[0] > 0 else -terms[0]
-    for sign, term in zip(op.signs[1:], terms[1:], strict=True):
-        total = total + term if sign > 0 else total - term
+    signed = [term if sign > 0 else -term for sign, term in zip(op.signs, terms, strict=True)]
+    if shapes == [()] and all(isinstance(term, sympy.Expr) for term in signed):
+        return sympy.Add(*signed)  # one canonical sum, rather than one per term added
+    total = signed[0]
+    for term in signed[1:]:
+        total = total + term
     return total
 
 

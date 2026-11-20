@@ -1588,10 +1588,17 @@ def _quotient(numerator: ast.Expr, denominator: ast.Expr, span: Span, *, leibniz
 
 
 def _factors(node: ast.Expr) -> list[ast.Expr]:
-    """The factors of a juxtaposition: ``d^2 y`` is ``[d^2, y]``."""
-    if isinstance(node, ast.Binary) and node.op == "*" and node.implicit:
-        return _factors(node.left) + _factors(node.right)
-    return [node]
+    """The factors of a juxtaposition, in order: ``d^2 y`` is ``[d^2, y]``."""
+    factors: list[ast.Expr] = []
+    pending = [node]
+    while pending:  # without recursion: a product may have thousands of factors
+        current = pending.pop()
+        if isinstance(current, ast.Binary) and current.op == "*" and current.implicit:
+            pending.append(current.right)
+            pending.append(current.left)
+        else:
+            factors.append(current)
+    return factors
 
 
 def _product(factors: list[ast.Expr]) -> ast.Expr | None:
@@ -1766,72 +1773,80 @@ def _generalised_fractions(tokens: list[Token]) -> list[Token]:
     r"""Rewrite TeX's ``{a \over b}`` as ``\frac{a}{b}``, and ``\choose`` as ``\binom``.
 
     As in TeX, ``\over`` divides everything in the group it is in: the braces or
-    brackets around it, or else its alignment cell or line.
+    brackets around it, or else its alignment cell or line. One pass over the
+    tokens, keeping a stack of the groups open, rewrites every group as it closes.
     """
-    while True:
-        index = next(
-            (
-                i
-                for i, token in enumerate(tokens)
-                if token.kind is K.COMMAND and token.value in _FRACTION_COMMANDS
-            ),
-            None,
-        )
-        if index is None:
-            return tokens
-        start, end = _group_around(tokens, index)
-        over = tokens[index]
-        # The new tokens span the whole fraction, so that the fraction's span does too.
-        first = tokens[start].span if start < index else over.span
-        last = tokens[end - 1].span if end - 1 > index else over.span
-        opening = Span(first.source, first.start, first.start)
-        closing = Span(last.source, last.end, last.end)
-        replacement = [
-            Token(
-                K.COMMAND,
-                _FRACTION_COMMANDS[over.value],
-                first.to(last),
-                tokens[start].space_before,
-            ),
-            Token(K.LBRACE, "{", opening),
-            *tokens[start:index],
-            Token(K.RBRACE, "}", over.span),
-            Token(K.LBRACE, "{", over.span),
-            *tokens[index + 1 : end],
-            Token(K.RBRACE, "}", closing),
-        ]
-        tokens = [*tokens[:start], *replacement, *tokens[end:]]
-
-
-def _group_around(tokens: list[Token], index: int) -> tuple[int, int]:
-    """The extent ``[start, end)`` of the group the token at ``index`` is in."""
-    depth, start = 0, index
-    while start > 0:
-        token = tokens[start - 1]
-        if token.kind in _CLOSERS:
-            depth += 1
+    if not any(t.kind is K.COMMAND and t.value in _FRACTION_COMMANDS for t in tokens):
+        return tokens
+    groups = [_Group()]
+    for token in tokens:
+        group = groups[-1]
+        if token.kind in _GROUP_LIMITS:
+            group.end_segment()
+            group.tokens.append(token)
+            group.start = len(group.tokens)
+            continue
+        if token.aligned:  # an alignment cell starts here
+            group.end_segment()
+        if token.kind is K.COMMAND and token.value in _FRACTION_COMMANDS:
+            group.overs.append((len(group.tokens), token))
         elif token.kind in _OPENERS:
-            if depth == 0:
-                break
-            depth -= 1
-        elif depth == 0 and token.kind in _GROUP_LIMITS:
-            break
-        start -= 1
-        if depth == 0 and tokens[start].aligned:
-            break  # an alignment cell starts here
-    depth, end = 0, index + 1
-    while end < len(tokens):
-        token = tokens[end]
-        if token.kind in _OPENERS:
-            depth += 1
-        elif token.kind in _CLOSERS:
-            if depth == 0:
-                break
-            depth -= 1
-        elif depth == 0 and (token.kind in _GROUP_LIMITS or token.aligned):
-            break
-        end += 1
-    return start, end
+            group.tokens.append(token)
+            groups.append(_Group())
+        elif token.kind in _CLOSERS and len(groups) > 1:
+            inner = groups.pop()
+            groups[-1].tokens.extend(inner.finish())
+            groups[-1].tokens.append(token)
+        else:
+            group.tokens.append(token)
+    while len(groups) > 1:  # unclosed brackets: the parser will report them
+        inner = groups.pop()
+        groups[-1].tokens.extend(inner.finish())
+    return groups[0].finish()
+
+
+class _Group:
+    """A group of tokens being read, and the ``\\over`` commands in its current segment."""
+
+    def __init__(self) -> None:
+        self.tokens: list[Token] = []
+        self.start = 0  # where the current segment (cell or line) begins
+        self.overs: list[tuple[int, Token]] = []  # (position in tokens, \over)
+
+    def end_segment(self) -> None:
+        if self.overs:
+            segment = self.tokens[self.start :]
+            overs = [(position - self.start, over) for position, over in self.overs]
+            self.tokens[self.start :] = _fraction(segment, overs)
+            self.overs = []
+        self.start = len(self.tokens)
+
+    def finish(self) -> list[Token]:
+        self.end_segment()
+        return self.tokens
+
+
+def _fraction(tokens: list[Token], overs: list[tuple[int, Token]]) -> list[Token]:
+    """``a \\over b``, given the tokens of a segment without its ``\\over``s, and where
+    they were. A second ``\\over``, which TeX would reject, divides the denominator."""
+    if not overs:
+        return tokens
+    (position, over), rest = overs[0], overs[1:]
+    numerator = tokens[:position]
+    denominator = _fraction(tokens[position:], [(p - position, o) for p, o in rest])
+    # The new tokens span the whole fraction, so that the fraction's span does too.
+    first = numerator[0].span if numerator else over.span
+    last = denominator[-1].span if denominator else over.span
+    space_before = numerator[0].space_before if numerator else over.space_before
+    return [
+        Token(K.COMMAND, _FRACTION_COMMANDS[over.value], first.to(last), space_before),
+        Token(K.LBRACE, "{", Span(first.source, first.start, first.start)),
+        *numerator,
+        Token(K.RBRACE, "}", over.span),
+        Token(K.LBRACE, "{", over.span),
+        *denominator,
+        Token(K.RBRACE, "}", Span(last.source, last.end, last.end)),
+    ]
 
 
 def _definable(target: ast.Expr) -> bool:

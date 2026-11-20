@@ -57,10 +57,21 @@ def is_zero(expr: object) -> bool:
         return True
     if not isinstance(expr, sympy.Expr) or (expr.is_number and expr != 0):
         return False
-    numerator = sympy.expand(sympy.fraction(sympy.together(normal_trig(expr)))[0])
+    normal = normal_trig(expr)
+    if _has_denominator(normal):  # combine into one fraction; its numerator decides
+        numerator = sympy.expand(sympy.fraction(sympy.together(normal))[0])
+    else:  # a polynomial in its atoms: expanding it decides, with no common denominator
+        numerator = sympy.expand(normal)
     if numerator == 0:
         return True
     return bool(numerator.has(cos) and _reduce_pythagorean(numerator) == 0)
+
+
+def _has_denominator(expr: Expr) -> bool:
+    """Whether anything but a number divides part of ``expr``, as in ``x/r``."""
+    return any(
+        power.exp.is_negative and not power.base.is_number for power in expr.atoms(sympy.Pow)
+    )
 
 
 def simplify_component(expr: object) -> Expr:
