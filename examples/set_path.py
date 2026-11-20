@@ -1,1 +1,0 @@
-def set_root_path(): import os; os.chdir(os.path.dirname(os.path.dirname(__file__))); print(f'Working directory: {os.path.dirname(os.path.dirname(__file__))}')
