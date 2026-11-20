@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import operator
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from typing import Any
 
@@ -59,6 +59,7 @@ from relativisticpy.ir import (
     Node,
     TensorType,
     Type,
+    dependencies,
     ops,
 )
 from relativisticpy.language import syntax as ast
@@ -110,6 +111,9 @@ class Compiler:
     def __init__(self, session: Session) -> None:
         self.session = session
         self.graph = session.graph
+        # Every component selection made, in order, so that a covariant derivative
+        # can tell which components were chosen inside its operand.
+        self._selections: list[Node] = []
 
     # ======================================================================
     # Statements
@@ -523,12 +527,18 @@ class Compiler:
             left = left.left
         factors.insert(0, left)
         factors = [part for factor in factors for part in _unsigned(factor)]
-        terms = [self.term(_operand(factor), scope, ctx) for factor in factors]
+        terms: list[Term] = []
+        chosen: list[list[Node]] = []  # the components each factor selects
+        for factor in factors:
+            mark = len(self._selections)
+            terms.append(self.term(_operand(factor), scope, ctx))
+            chosen.append(self._selections[mark:])
         # Operators act on what follows them, innermost (rightmost) first. As in
         # physics texts, ∂_μ acts on the next factor (∂_μφ ∂^μφ is (∂_μφ)(∂^μφ)) while
         # d/dx acts on the rest of the term (d/dx x² y³ is d/dx (x² y³)).
         stack: list[Node] = []
-        for term in reversed(terms):
+        selected: list[list[Node]] = []
+        for term, selections in zip(reversed(terms), reversed(chosen), strict=True):
             if isinstance(term, Operator):
                 if not stack:
                     raise CompileError(
@@ -537,10 +547,14 @@ class Compiler:
                 if isinstance(term, LeibnizDerivative):
                     rest = self._multiply(stack[::-1], node.span)
                     stack = [self._apply(term, rest, node.span, scope, ctx)]
+                    selected = [[s for group in selected for s in group]]
                 else:
+                    if isinstance(term, IndexDerivative) and term.covariant:
+                        self._require_whole(stack[-1], selected[-1], term.span)
                     stack[-1] = self._apply(term, stack[-1], node.span, scope, ctx)
             else:
                 stack.append(term)
+                selected.append(selections)
         result = self._multiply(stack[::-1], node.span)
         return self._spanning_brackets(factors, result, node.span)
 
@@ -734,6 +748,23 @@ class Compiler:
             VALUE,
             node.span,
         )
+
+    def _require_whole(self, operand: Node, selections: Sequence[Node], span: Span) -> None:
+        """A covariant derivative acts on whole tensors. Components chosen as the operand
+        is accessed, as in ∇_μ T^{μt}, are taken after the derivative (see
+        :meth:`_index_derivative`); components chosen inside it, as in ∇_μ (A^μ B^t),
+        are an error rather than a guess at which was meant."""
+        inner = operand.args[0] if isinstance(operand.op, ops.Select) else operand
+        inside = {node.id for node in dependencies([inner])}
+        if any(selection.id in inside for selection in selections):
+            raise IndexNotationError(
+                "a covariant derivative acts on whole tensors, not on components chosen "
+                "inside its operand",
+                span=span,
+                hint="define the operand as a tensor first, as in X^{\\mu\\nu} := "
+                "A^{\\mu} B^{\\nu}, then write \\nabla_\\mu X^{\\mu t}; or name a "
+                "component to use it as a function, as in f := g_{tt}",
+            )
 
     def _apply(
         self, operator_: Operator, operand: Node, span: Span, scope: Scope, ctx: Context
@@ -1050,25 +1081,42 @@ class Compiler:
         entries: Sequence[tuple[ast.IndexItem, bool]],
         coordinates: Sequence[Symbol],
         span: Span,
+        fixed: Mapping[int, int] | None = None,
     ) -> Node:
-        """Name the axes after the items written, fix components and take traces."""
+        """Name the axes after the items written, take traces and (anti)symmetrisations,
+        then fix components: those the items name, and any already ``fixed`` by position.
+        Components are fixed last so that a covariant derivative of the result can still
+        reach the whole tensor (see :meth:`_index_derivative`)."""
         labels: list[Index] = []
-        fixed: list[tuple[int, int]] = []
+        values: dict[str, int] = {}
         for position, (item, upper) in enumerate(entries):
-            value = self._index_value(item, coordinates)
+            if fixed and position in fixed:
+                value: int | None = fixed[position]
+            else:
+                value = self._index_value(item, coordinates)
             if value is not None:
-                fixed.append((position, value))
+                values[f"#v{position}"] = value
                 labels.append(Index(f"#v{position}", upper))
             else:
                 labels.append(Index(str(item.label), upper))
-        dim = len(coordinates)
-        result = self.graph.retype(result, TensorType(Indices(labels), dim))
-        if fixed:
-            remaining = Indices(i for p, i in enumerate(labels) if p not in dict(fixed))
-            kind: Type = TensorType(remaining, dim) if remaining else SCALAR
-            result = self.graph.add(ops.Select(tuple(fixed)), (result,), kind, span)
+        result = self.graph.retype(result, TensorType(Indices(labels), len(coordinates)))
         result = self._trace(result, span)
-        return self._brackets(result, [item for item, _ in entries], span)
+        result = self._brackets(result, [item for item, _ in entries], span)
+        return self._select(result, values, span)
+
+    def _select(self, node: Node, values: dict[str, int], span: Span) -> Node:
+        """Fix the axes named in ``values`` to those components."""
+        if not values or not isinstance(node.type, TensorType):
+            return node
+        indices = node.type.indices
+        fixed = tuple(
+            (axis, values[index.name]) for axis, index in enumerate(indices) if index.name in values
+        )
+        remaining = Indices(index for index in indices if index.name not in values)
+        kind: Type = TensorType(remaining, node.type.dim) if remaining else SCALAR
+        selection = self.graph.add(ops.Select(fixed), (node,), kind, span)
+        self._selections.append(selection)
+        return selection
 
     def _index_value(self, item: ast.IndexItem, coordinates: Sequence[Symbol]) -> int | None:
         """The component an index item fixes: ``a=0``, ``a:t``, or a coordinate's name."""
@@ -1228,6 +1276,11 @@ class Compiler:
             variable = self.graph.const(self.session.symbol(item.label), SCALAR)
             return self._differentiate(operand, [(variable, 1)], span)
         coordinates = self.session.require_coordinates(span, "a derivative with an index")
+        selection: tuple[tuple[int, int], ...] = ()
+        if covariant and isinstance(operand.op, ops.Select):
+            # ∇ acts on the whole tensor and the components asked for are taken after:
+            # ∇_μ T^{μt} is the t component of ∇_μ T^{μν}, which needs every component.
+            selection, operand = operand.op.fixed, operand.args[0]
         if isinstance(operand.type, TensorType):
             current = Indices(Index(f"#{k}", i.upper) for k, i in enumerate(operand.type.indices))
             names = operand.type.indices
@@ -1241,7 +1294,8 @@ class Compiler:
         entries = [(item, upper)] + [
             (ast.IndexItem(name.name, span=span), name.upper) for name in names
         ]
-        return self._label(result, entries, coordinates, span)
+        fixed = {axis + 1: value for axis, value in selection}
+        return self._label(result, entries, coordinates, span, fixed)
 
     def _derivative_of(
         self, operand: Node, indices: Indices, label: str, covariant: bool, span: Span

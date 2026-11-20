@@ -4,11 +4,12 @@ The original tests compared printed strings; these compare mathematically, so
 they pin down the physics rather than the form SymPy happens to print.
 """
 
+import pytest
 import sympy
 from sympy import Array, Function, Matrix, Symbol, cos, diag, diff, sin, symbols
 
 from helpers import same, zero
-from relativisticpy import Tensor, TensorEquation, spacetimes
+from relativisticpy import IndexNotationError, Tensor, TensorEquation, spacetimes
 
 t, r, theta, phi, G, M, c = symbols("t r theta phi G M c")
 f_ = 1 - 2 * G * M / r
@@ -308,6 +309,45 @@ class TestLatexRelativity:
     def test_second_bianchi_identity(self, wb):
         wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
         assert wb.expr(r"\nabla_{[\lambda} R_{\rho\sigma]\mu\nu} = 0")
+
+    def test_a_covariant_derivative_sees_the_whole_tensor(self, wb):
+        # The t component of a divergence needs every component of T, not just T^{μt}.
+        wb.exe(
+            r"""
+            Coordinates := [t, r, \theta, \phi]
+            ds^2 = -dt^2 + a(t)^2 (\frac{dr^2}{1 - k r^2} + r^2 d\Omega^2)
+            u^{\mu} := [1, 0, 0, 0]
+            T^{\mu\nu} := (\rho(t) + p(t)) u^{\mu} u^{\nu} + p(t) g^{\mu\nu}
+            """
+        )
+        a, rho, p = (Function(n)(t) for n in ("a", "rho", "p"))
+        continuity = diff(rho, t) + 3 * diff(a, t) / a * (rho + p)
+        assert same(wb.expr(r"\nabla_\mu T^{\mu t}"), continuity)
+        assert same(wb.expr(r"T^{\mu t}{}_{;\mu}"), continuity)
+        assert same(wb.expr(r"\nabla_\mu T^{\mu\nu}")[0], continuity)
+        # Taken twice, the components are still chosen last, so each ∇ sees whole tensors.
+        assert same(
+            wb.expr(r"\nabla_r \nabla_\mu T^{\mu t}"),
+            wb.expr(r"\nabla_\lambda \nabla_\mu T^{\mu\nu}")[1, 0],
+        )
+
+    def test_a_covariant_derivative_refuses_components_chosen_inside(self, wb):
+        wb.exe(
+            r"""
+            Coordinates := [t, r, \theta, \phi]
+            g_{\mu\nu} := Schwarzschild(M)
+            A^{\mu} := [0, f(r), 0, 0]
+            """
+        )
+        for source in (r"\nabla_\mu (A^{\mu} A^{t})", r"\nabla_\mu (g_{tt} A^{\mu})"):
+            with pytest.raises(IndexNotationError, match="components chosen inside its operand"):
+                wb.expr(source)
+        # A component named first is a function like any other, and a power is not a
+        # component. Here the divergence of a radial vector is ∂_r (r² V^r) / r².
+        f, h = Function("f")(r), 2 * M / r - 1
+        wb.exe("h := g_{tt}")
+        assert same(wb.expr(r"\nabla_\mu (h A^{\mu})"), diff(r**2 * h * f, r) / r**2)
+        assert same(wb.expr(r"\nabla_\mu (r^{2} A^{\mu})"), diff(r**4 * f, r) / r**2)
 
     def test_conservation_of_the_einstein_tensor(self, wb):
         wb.exe(r"g_{\mu\nu} := ReissnerNordstrom(M, Q)")
