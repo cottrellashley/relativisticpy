@@ -1,0 +1,734 @@
+[
+  {
+    "origin": "test_complex_calculations.py:10",
+    "source": "\n            Coordinates := [t, r, theta, phi]\n\n            g_{mu}_{nu} := [ \n                            [-A(r),0,0,0], \n                            [0,B(r),0,0], \n                            [0,0,r**2,0], \n                            [0,0,0,r**2*sin(theta)**2]\n                        ]\n\n            #T_{mu nu} := 0 # We are looking for a solution in empty space. \n            #G_{mu nu} := R_{mu nu} - (1/2) * R * g_{mu nu}\n\n            # Now we have defined the metric above, we can call any individual component of the Ricci tensor itself (as it is metric dependent)\n            eq0 := Ric_{mu=0 nu=0}\n            eq1 := Ric_{mu=1 nu=1}\n            eq2 := Ric_{mu=2 nu=2}\n\n            eq5 := (eq0*B(r) + eq1*A(r))*(r*B(r))\n\n            B1 := RHS( dsolve(eq5, B(r)) )\n\n            eq6 := simplify( subs(eq2, B(r), B1) )\n\n            A1 := RHS( dsolve(eq6, A(r)) )\n\n            g_{mu}_{nu} := [\n                            [A1,0,0,0], \n                            [0,1/A1,0,0], \n                            [0,0,r**2,0], \n                            [0,0,0,r**2*sin(theta)**2]\n                        ]\n\n            g_{mu}_{nu} \n    "
+  },
+  {
+    "origin": "test_complex_calculations.py:55",
+    "source": "\n\n    Coordinates := [t, r, theta, phi]\n\n    g_{mu}_{nu} := [[1 + C/r, 0, 0, 0], [0, 1/(1 + C/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]\n\n    Gamma^{a}_{c f} := (1/2)*g^{a b}*(d_{c}*g_{b f} + d_{f}*g_{b c} - d_{b}*g_{c f})\n    a1 := Gamma^{a:1}_{c:0 f:0}\n    exopr := solve( \\lim_{r -> oo} a1*r**2 + G*M , C)\n    exopr\n    "
+  },
+  {
+    "origin": "test_complex_calculations.py:76",
+    "source": "\n    Coordinates := [t, r, theta, phi]\n\n    g_{mu}_{nu} := [\n                        [-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],\n                        [0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],\n                        [0, 0, r**2, 0],\n                        [0, 0, 0, r**2 * sin(theta) ** 2]\n                    ]\n\n    Gamma^{a}_{c f} := (1/2)*g^{a b}*(d_{c}*g_{b f} + d_{f}*g_{b c} - d_{b}*g_{c f})\n\n    Riemann^{a}_{m b n} := d_{b}*Gamma^{a}_{n m} + Gamma^{a}_{b l}*Gamma^{l}_{n m} - d_{n}*Gamma^{a}_{b m} - Gamma^{a}_{n l}*Gamma^{l}_{b m}\n\n    Ricci_{m}_{n} := Riemann^{a}_{m}_{a}_{n}\n\n    TempOne^{a}^{f}^{h}^{s} := g^{s}^{q}*( g^{h}^{c}*( g^{f}^{b} * Riemann^{a}_{b}_{c}_{q} ) )\n\n    TempTwo_{a}_{f}_{h}_{s} := g_{a}_{n}*Riemann^{n}_{f}_{h}_{s}\n\n    S := TempOne^{a}^{f}^{h}^{s}*TempTwo_{a}_{f}_{h}_{s}\n\n    simplify(S)\n    "
+  },
+  {
+    "origin": "test_definitions.py:18",
+    "source": "Constants := [C, G]"
+  },
+  {
+    "origin": "test_definitions.py:22",
+    "source": "Integers := [n, m]"
+  },
+  {
+    "origin": "test_definitions.py:26",
+    "source": "Reals := [x, y]"
+  },
+  {
+    "origin": "test_definitions.py:30",
+    "source": "Complex := [z, w]"
+  },
+  {
+    "origin": "test_definitions.py:38",
+    "source": "Coordinates := [t, r, theta, phi]"
+  },
+  {
+    "origin": "test_definitions.py:19",
+    "source": "C + G"
+  },
+  {
+    "origin": "test_definitions.py:23",
+    "source": "n + m"
+  },
+  {
+    "origin": "test_definitions.py:27",
+    "source": "x + y"
+  },
+  {
+    "origin": "test_definitions.py:31",
+    "source": "z + w"
+  },
+  {
+    "origin": "test_definitions.py:45",
+    "source": "t*r + theta*phi"
+  },
+  {
+    "origin": "test_definitions.py:46",
+    "source": "C*G + n*m"
+  },
+  {
+    "origin": "test_definitions.py:49",
+    "source": "x**y + z*w"
+  },
+  {
+    "origin": "test_definitions.py:54",
+    "source": "expand((t + r)**2)"
+  },
+  {
+    "origin": "test_definitions.py:55",
+    "source": "simplify((C + G)**2 - C**2 - 2*C*G - G**2)"
+  },
+  {
+    "origin": "test_definitions.py:59",
+    "source": "factor(n**2 - 2*n*m + m**2)"
+  },
+  {
+    "origin": "test_functions.py:11",
+    "source": "\n        f() := x**2\n        f()\n    "
+  },
+  {
+    "origin": "test_functions.py:23",
+    "source": "\n        h(x, y) := x**2 - y*8 + y*x\n        h(v**2, 7)\n    "
+  },
+  {
+    "origin": "test_functions.py:35",
+    "source": "\n        f(x) := 3*x**3 - 2*x**2 + x - 5\n        f(2)\n    "
+  },
+  {
+    "origin": "test_functions.py:47",
+    "source": "\n            g(x) := e**x - ln(x)\n            g(1) + exp(ln(x) + 10)\n    "
+  },
+  {
+    "origin": "test_functions.py:59",
+    "source": "\n            g(x) := x\n            g(1) + exp(ln(x) + 10)\n    "
+  },
+  {
+    "origin": "test_functions.py:71",
+    "source": "\n        t(x) := sin(x)**2 + cos(x)**2\n        t(pi/4)\n    "
+  },
+  {
+    "origin": "test_functions.py:83",
+    "source": "\n            abs_func(x) := |x - 3|\n            abs_func_two(x) := |-x**2|\n            |-x + abs_func(-1) + abs_func_two(10)|\n    "
+  },
+  {
+    "origin": "test_functions.py:96",
+    "source": "\n            piecewise(x) := { x**2, x > 0; -x, x <= 0 }\n            piecewise(2) * piecewise(-2)\n    "
+  },
+  {
+    "origin": "test_functions.py:109",
+    "source": "\n            f(x) := x**2 + 2*x - 1\n            g(x) := 2*sin(x)\n            h(x) := f(g(x))\n            h(pi/2)\n    "
+  },
+  {
+    "origin": "test_functions.py:123",
+    "source": "\n            f : (x) -> { \n                diff(y(x), x, 2) + 2*diff(y(x), x) + y(x) = 10 \n            }\n            dsolve(f(x), y(x))\n    "
+  },
+  {
+    "origin": "test_functions.py:137",
+    "source": "\n            y(x) = 10 * x |_{x = 10}\n    "
+  },
+  {
+    "origin": "test_functions.py:148",
+    "source": "\n            y(x) = 10\n    "
+  },
+  {
+    "origin": "test_functions.py:159",
+    "source": "\n            r(x) := (x**2 - 4) / (x - 2)\n            r(3)\n    "
+  },
+  {
+    "origin": "test_functions.py:171",
+    "source": "\n            factorial_func(n) := n!\n            comb(n, k) := n! / (k! * (n - k)!)\n\n            comb(factorial_func(3), 4)\n    "
+  },
+  {
+    "origin": "test_imaginary.py:50",
+    "source": "\n        x, y := symbols('x y')\n        solve([x - i*y, Im(y), Im(x)])\n    "
+  },
+  {
+    "origin": "test_imaginary.py:43",
+    "source": "i**2"
+  },
+  {
+    "origin": "test_imaginary.py:46",
+    "source": "Re(1 + i)"
+  },
+  {
+    "origin": "test_imaginary.py:47",
+    "source": "Im(1 + i)"
+  },
+  {
+    "origin": "test_imaginary.py:64",
+    "source": "expand((x + i*y)**2)"
+  },
+  {
+    "origin": "test_imaginary.py:67",
+    "source": "simplify((x + i*y)**2 - x**2 - 2*i*x*y - y**2)"
+  },
+  {
+    "origin": "test_imaginary.py:71",
+    "source": "factor(x**2 - 2*i*x*y + y**2)"
+  },
+  {
+    "origin": "test_imaginary.py:83",
+    "source": "solve(x**2 + 2*i*x + 1, x)"
+  },
+  {
+    "origin": "test_latex_commands.py:82",
+    "source": "\\sum_{x=0}^{10} x"
+  },
+  {
+    "origin": "test_latex_commands.py:83",
+    "source": "\\sum_{x=1}^{oo} 1/x**2"
+  },
+  {
+    "origin": "test_latex_commands.py:90",
+    "source": "\\prod_{x=0}^{10} x"
+  },
+  {
+    "origin": "test_latex_commands.py:91",
+    "source": "\\prod_{x=1}^{oo} 1/x**2"
+  },
+  {
+    "origin": "test_latex_commands.py:133",
+    "source": " A := \\prod_{x=0}^{10} x \\newline A"
+  },
+  {
+    "origin": "test_latex_commands.py:134",
+    "source": " A := \\prod_{x=0}^{10} x \n                                                                          A"
+  },
+  {
+    "origin": "test_latex_commands.py:143",
+    "source": "diff(f(x), x)"
+  },
+  {
+    "origin": "test_latex_commands.py:144",
+    "source": "diff(f(x), x, 4)"
+  },
+  {
+    "origin": "test_latex_commands.py:145",
+    "source": "diff(f(x) ** x, x, x)"
+  },
+  {
+    "origin": "test_latex_commands.py:148",
+    "source": " f'(x) "
+  },
+  {
+    "origin": "test_latex_commands.py:149",
+    "source": " f''(x) "
+  },
+  {
+    "origin": "test_latex_commands.py:150",
+    "source": " f'''(x) "
+  },
+  {
+    "origin": "test_latex_commands.py:151",
+    "source": " f'''''''''''''''''(x) "
+  },
+  {
+    "origin": "test_latex_commands.py:154",
+    "source": " \\frac{\\partial^2{x^2}}{\\partial{\\tau}^2} "
+  },
+  {
+    "origin": "test_latex_commands.py:155",
+    "source": " \\frac{\\partial^2{\\sqrt{ - x**3 + y**2 - z }}}{\\partial{x}^2} "
+  },
+  {
+    "origin": "test_latex_commands.py:158",
+    "source": " d{f(x)}/d{x} "
+  },
+  {
+    "origin": "test_latex_commands.py:159",
+    "source": " (d{f(x)})/(d{x}) "
+  },
+  {
+    "origin": "test_latex_commands.py:160",
+    "source": " d^3{f(x) + x**6 - y*7}/d{x}^3 "
+  },
+  {
+    "origin": "test_latex_commands.py:163",
+    "source": "\\frac{d^2{x^2}}{d{\\tau}^2} "
+  },
+  {
+    "origin": "test_latex_commands.py:164",
+    "source": "\\frac{ d^2{-(1 - t / (x**2*h(tau)))} }{d{tau}^2} "
+  },
+  {
+    "origin": "test_latex_commands.py:165",
+    "source": "\\frac{ d^2{\\sqrt{ - x**3 + y**2 - z }} }{d{x}^2} "
+  },
+  {
+    "origin": "test_latex_commands.py:168",
+    "source": " \\pdv{f(x)}{x} "
+  },
+  {
+    "origin": "test_latex_commands.py:169",
+    "source": " \\pdv[3]{f(x) + x**6 - y*7}{x}\t"
+  },
+  {
+    "origin": "test_latex_commands.py:170",
+    "source": " \\pdv{x}( \\frac{ \\partial^2{ \\sqrt{ - x^3 + y^2 - z } } }{ \\partial{y}^2 }  ) "
+  },
+  {
+    "origin": "test_latex_commands.py:263",
+    "source": "integrate(f(x), x)"
+  },
+  {
+    "origin": "test_latex_commands.py:264",
+    "source": "integrate(f(x), (x, 0, 1))"
+  },
+  {
+    "origin": "test_latex_commands.py:267",
+    "source": "∫ f(x) dx"
+  },
+  {
+    "origin": "test_latex_commands.py:268",
+    "source": "∫_0^1 f(x) dx"
+  },
+  {
+    "origin": "test_latex_commands.py:271",
+    "source": "\\int f(x) \\, dx"
+  },
+  {
+    "origin": "test_latex_commands.py:272",
+    "source": "\\int_0^1 f(x) \\, dx"
+  },
+  {
+    "origin": "test_latex_commands.py:275",
+    "source": "\\iint f(x, y) \\, dx \\, dy"
+  },
+  {
+    "origin": "test_latex_commands.py:276",
+    "source": "\\iint_0^1 f(x, y) \\, dx \\, dy"
+  },
+  {
+    "origin": "test_latex_commands.py:279",
+    "source": "\\iiint f(x, y, z) \\, dx \\, dy \\, dz"
+  },
+  {
+    "origin": "test_latex_commands.py:280",
+    "source": "\\iiint_0^1 f(x, y, z) \\, dx \\, dy \\, dz"
+  },
+  {
+    "origin": "test_latex_commands.py:98",
+    "source": "\\lim_{x -> 0} sin(x)/x"
+  },
+  {
+    "origin": "test_latex_commands.py:99",
+    "source": "\\lim_{ x -> oo } 1/x**2"
+  },
+  {
+    "origin": "test_latex_commands.py:100",
+    "source": "\\lim_{ x \\to 10 } 1/x**2"
+  },
+  {
+    "origin": "test_latex_commands.py:106",
+    "source": " \\frac{x}{10} * 1/x |_{x = oo}"
+  },
+  {
+    "origin": "test_latex_commands.py:107",
+    "source": " \\frac{x}{10} * 1/x |_{x = 10}"
+  },
+  {
+    "origin": "test_latex_commands.py:108",
+    "source": " \\frac{ diff(f(x), x) }{10} * 1/diff(f(x), x) |_{ diff(f(x), x) = 10}"
+  },
+  {
+    "origin": "test_latex_commands.py:114",
+    "source": "\\frac{x}{10} * 1/x"
+  },
+  {
+    "origin": "test_latex_commands.py:115",
+    "source": "\\frac{x}{oo} * x**2"
+  },
+  {
+    "origin": "test_latex_commands.py:116",
+    "source": "\\frac{1}{2} * 2/1"
+  },
+  {
+    "origin": "test_latex_commands.py:122",
+    "source": "\\sqrt{ x }"
+  },
+  {
+    "origin": "test_latex_commands.py:123",
+    "source": "\\sqrt{ x**2 }"
+  },
+  {
+    "origin": "test_latex_commands.py:124",
+    "source": "\\sqrt{ 10.23 * y  }"
+  },
+  {
+    "origin": "test_latex_commands.py:125",
+    "source": "\\sqrt{ sin(10) }"
+  },
+  {
+    "origin": "test_latex_commands.py:126",
+    "source": "\\sqrt{ sin(x**2) }"
+  },
+  {
+    "origin": "test_latex_commands.py:127",
+    "source": "\\sqrt{ sin(x)**2 }"
+  },
+  {
+    "origin": "test_latex_commands.py:177",
+    "source": "\n                        \\begin{matrix} \n                        1 &  2  & 3 \\\\\n                        4 &  5  & 6 \\\\\n                        7 &  8  & 9 \\\\\n                        \\end{matrix} \n        "
+  },
+  {
+    "origin": "test_latex_commands.py:188",
+    "source": "\n                        \\begin{matrix} \n                        1.123 &  2.12  & 3.87 \\\\\n                        4.123 &  5.32  & 6.12 \\\\\n                        7.123 &  8.12  & 9.12 \\\\\n                        \\end{matrix} \n        "
+  },
+  {
+    "origin": "test_latex_commands.py:199",
+    "source": "\n                        \\begin{matrix} \n                        x &  2  & 3 \\\\\n                        4 &  y  & 6 \\\\\n                        7 &  8  & z \\\\\n                        \\end{matrix} \n        "
+  },
+  {
+    "origin": "test_latex_commands.py:210",
+    "source": "\n                        \\begin{matrix} \n                        f(x) &  2  & 3 \\\\\n                        4 &  h(y, x)  & 6 \\\\\n                        7 &  8  & g(t, theta, phi) \\\\\n                        \\end{matrix} \n        "
+  },
+  {
+    "origin": "test_latex_commands.py:221",
+    "source": "\n                        \\begin{matrix} \n                        f(x)  &  2  & 3\n                        \\end{matrix} \n        "
+  },
+  {
+    "origin": "test_latex_commands.py:230",
+    "source": "\n                        \\begin{matrix} \n                        f(x)  &  2  & 3 \\\\\n                        \\end{matrix} \n         "
+  },
+  {
+    "origin": "test_latex_commands.py:239",
+    "source": "\n                        \\begin{matrix} \n                        f(x)  &  2  & 3 \\\\\n                        f(x)  &  0  & x\n                        \\end{matrix} \n        "
+  },
+  {
+    "origin": "test_latex_workflows.py:87",
+    "source": "\n                        C \\equiv \\begin{matrix} \n                        1 &  2  & 3 \\\\\n                        0 &  0  & x \\\\\n                        y & f(x) & 0 \\\\\n                        \\end{matrix} \n                        \\newline\n                        C \n                    "
+  },
+  {
+    "origin": "test_multi_functions.py:28",
+    "source": "\n        f : (x) -> { \n            x^2\n        }\n\n        f(3)\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:41",
+    "source": "\n        f : (x, y) -> { \n            x*y\n        }\n\n        f(3, 4)\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:54",
+    "source": "\n        f : (x) -> { \n            g : (y) -> {\n                y^2\n            }\n\n            x + g(x)\n        }\n\n        f(3)\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:71",
+    "source": "\n        f : () -> { \n            42\n        }\n\n        f()\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:84",
+    "source": "\n        f : (x) -> { \n            m := x^2 \n            s := m^2\n\n            g : (y) -> {\n                n := y^2\n                n^2\n            }\n\n            s + g(2)\n        }\n\n        f(2)\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:105",
+    "source": "\n        f : (x) -> { \n            y := x + 1\n            y\n        }\n\n        f(2) + y\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:119",
+    "source": "\n        f : (x) -> { \n            y := x + 1\n\n            g : (z) -> {\n                z + y\n            }\n\n            g(2)\n        }\n\n        f(2) + y\n    "
+  },
+  {
+    "origin": "test_multi_functions.py:138",
+    "source": "\n        f : (x) -> { \n            g : (z) -> {\n                z + x\n            }\n\n            g(2)\n        }\n\n        f(2) + g(2)\n    "
+  },
+  {
+    "origin": "test_simple_expressions.py:56",
+    "source": "2 * x"
+  },
+  {
+    "origin": "test_simple_expressions.py:95",
+    "source": "2 - 1"
+  },
+  {
+    "origin": "test_simple_expressions.py:96",
+    "source": "-2 - 1"
+  },
+  {
+    "origin": "test_simple_expressions.py:97",
+    "source": "-2 - -1"
+  },
+  {
+    "origin": "test_simple_expressions.py:100",
+    "source": "2.5 - 1"
+  },
+  {
+    "origin": "test_simple_expressions.py:101",
+    "source": "-2.5 - 1"
+  },
+  {
+    "origin": "test_simple_expressions.py:102",
+    "source": "-2.5 - -1.5"
+  },
+  {
+    "origin": "test_simple_expressions.py:107",
+    "source": "2 - 1 - pi"
+  },
+  {
+    "origin": "test_simple_expressions.py:108",
+    "source": "-2 - 1 + e"
+  },
+  {
+    "origin": "test_simple_expressions.py:109",
+    "source": "-2 - 1 + oo"
+  },
+  {
+    "origin": "test_simple_expressions.py:132",
+    "source": "solve(x + 2*y - 3, x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:133",
+    "source": "solve([x + y - 2, x - y + 1], [x, y])"
+  },
+  {
+    "origin": "test_simple_expressions.py:204",
+    "source": "lim(1/x, x, 0)"
+  },
+  {
+    "origin": "test_simple_expressions.py:210",
+    "source": "diag(x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:211",
+    "source": "diag(x**2, y**x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:212",
+    "source": "diag(x**2, y**x, 1)"
+  },
+  {
+    "origin": "test_simple_expressions.py:217",
+    "source": "diag(x**2, y**x, 1, 10*x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:229",
+    "source": "\n                        a := diff(f(x), x) + P(x)*f(x) - Q(x)\n                        dsolve(a, f(x)) \n            "
+  },
+  {
+    "origin": "test_simple_expressions.py:239",
+    "source": "\n                        a := diff(f(x), x) + P(x)*f(x) - Q(x)\n                        b := f(x)\n                        diag(a, b)\n            "
+  },
+  {
+    "origin": "test_simple_expressions.py:48",
+    "source": "2 * 3"
+  },
+  {
+    "origin": "test_simple_expressions.py:49",
+    "source": "-2 * 3"
+  },
+  {
+    "origin": "test_simple_expressions.py:50",
+    "source": "-2 * -3"
+  },
+  {
+    "origin": "test_simple_expressions.py:74",
+    "source": "sin(x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:83",
+    "source": "-2 * x"
+  },
+  {
+    "origin": "test_simple_expressions.py:84",
+    "source": "-2.5 * x"
+  },
+  {
+    "origin": "test_simple_expressions.py:87",
+    "source": "y * x"
+  },
+  {
+    "origin": "test_simple_expressions.py:88",
+    "source": "-y * x"
+  },
+  {
+    "origin": "test_simple_expressions.py:89",
+    "source": "-2.5 * x * y"
+  },
+  {
+    "origin": "test_simple_expressions.py:116",
+    "source": "x - 1"
+  },
+  {
+    "origin": "test_simple_expressions.py:117",
+    "source": "1 - x"
+  },
+  {
+    "origin": "test_simple_expressions.py:118",
+    "source": "-1.5 - x"
+  },
+  {
+    "origin": "test_simple_expressions.py:121",
+    "source": "y - x"
+  },
+  {
+    "origin": "test_simple_expressions.py:122",
+    "source": "-y - x"
+  },
+  {
+    "origin": "test_simple_expressions.py:123",
+    "source": "-1.5 * x - y"
+  },
+  {
+    "origin": "test_simple_expressions.py:143",
+    "source": "diff(x**2, x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:144",
+    "source": "diff(x**3 + 2*x**2 - 1, x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:147",
+    "source": "diff(x*y, x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:148",
+    "source": "diff(x**2*y**3, y)"
+  },
+  {
+    "origin": "test_simple_expressions.py:201",
+    "source": "lim((x**2 - 1)/(x - 1), x, 1)"
+  },
+  {
+    "origin": "test_simple_expressions.py:68",
+    "source": "integrate(x**2, x)"
+  },
+  {
+    "origin": "test_simple_expressions.py:157",
+    "source": "simplify(x**2 + 2*x + 1)"
+  },
+  {
+    "origin": "test_simple_expressions.py:162",
+    "source": "simplify((x + 1)**2 - x**2)"
+  },
+  {
+    "origin": "test_simple_expressions.py:170",
+    "source": "simplify(x*y + x**2*y**2)"
+  },
+  {
+    "origin": "test_simple_expressions.py:176",
+    "source": "simplify(x**2*y**3 / (x*y))"
+  },
+  {
+    "origin": "test_simple_expressions.py:187",
+    "source": "expand((x + y)**2)"
+  },
+  {
+    "origin": "test_simple_expressions.py:188",
+    "source": "expand((x + y)**3)"
+  },
+  {
+    "origin": "test_simple_expressions.py:191",
+    "source": "expand(x*(y + 1))"
+  },
+  {
+    "origin": "test_simple_expressions.py:192",
+    "source": "expand((x + y)*(x - y))"
+  },
+  {
+    "origin": "test_tensor_expr_generation.py:18",
+    "source": "\n                    Coordinates := [x, y]\n                    T_{a} := [0, 0]\n                    T_{a}\n            "
+  },
+  {
+    "origin": "test_tensor_expr_generation.py:34",
+    "source": "\n                    Coordinates := [t, r, theta]\n                    T_{a}_{b} := [[1, 0, 0], [0, r**2, 0], [0, 0, r**2*sin(theta)**2]]\n                    T_{a}_{b}\n            "
+  },
+  {
+    "origin": "test_tensor_expr_generation.py:54",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    T_{b}_{a}_{c} := D_{a}*g_{b}_{c}\n                    T_{b}_{a}_{c}\n            "
+  },
+  {
+    "origin": "test_tensor_expr_generation.py:73",
+    "source": "\n                        Coordinates := [t, r, theta, phi] \n                        g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                        g_{a}_{b}*f(x)\n            "
+  },
+  {
+    "origin": "test_tensor_expr_generation.py:90",
+    "source": "\n                Coordinates := [t, r, theta, phi]\n                g_{mu nu} := [[-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n\n                V_{a} := [1 + t , h(r, t), h(theta), h(r, t)]\n                V_{a} - V^{b} * g_{a b}\n            "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:71",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n\n                g_{mu}_{nu} := [\n                                    [-(1 - (2 * G * M) / (r)), 0, 0, 0],\n                                    [0, 1 / (1 - (2 * G * M) / (r)), 0, 0],\n                                    [0, 0, r**2, 0],\n                                    [0, 0, 0, r**2 * sin(theta) ** 2]\n                                ]\n                g_{mu}_{nu}\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:89",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    R^{a}_{b}_{a}_{h}\n                    R^{a}_{c}_{a}_{h}\n            "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:97",
+    "source": "\n                R^{a}_{b}_{a}_{h}\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:113",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                g_{mu}_{nu}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:126",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                g^{a}^{b}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:140",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                g_{a}_{b}*g^{b}^{c}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:153",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                g\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:166",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                C^{a}_{b}_{c}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:178",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                Ric_{a}_{b}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:190",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                R^{a}_{b}_{c}_{h}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:202",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                R^{a}_{b}_{a}_{h}\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:214",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                g_{a}_{b}*g^{a}^{b}\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:226",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    T^{a}_{c f} := (1/2)*g^{a}^{b}*(d_{c}*g_{b}_{f} + d_{f}*g_{b c} - d_{b}*g_{c f}) - C^{a}_{c f}\n                    T^{a}_{c f}\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:241",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                R^{a}_{m}_{b}_{n} - ( d_{b}*C^{a}_{n m} + C^{a}_{b l}*C^{l}_{n m} - d_{n}*C^{a}_{b m} - C^{a}_{n l}*C^{l}_{b m} )\n    "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:264",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    T^{a}_{m}_{b}_{n} := d_{b}*C^{a}_{n}_{m} + C^{a}_{b}_{l}*C^{l}_{n}_{m} - d_{n}*C^{a}_{b}_{m} - C^{a}_{n}_{l}*C^{l}_{b}_{m}\n                    T^{a}_{m b n}\n            "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:277",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    Ric\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:292",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    G_{a}_{b}\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:308",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    Ric_{a b} - Ric*g_{a b}\n                    Ric_{a b} - g_{a b}*Ric\n                    Ric_{a b} - Ric*g_{a b}*Ric - G_{a b}\n        "
+  },
+  {
+    "origin": "test_tensor_expr_schild.py:336",
+    "source": "\n                    Coordinates := [t, r, theta, phi] \n                    g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                    D_{a}*g_{b c}\n            "
+  },
+  {
+    "origin": "test_tensor_subcomponets_expr.py:21",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                g_{a:0}_{b:0}\n                g_{a:1}_{b:1}\n                g_{a:2}_{b:2}\n                g_{a:3}_{b:3}\n                g_{a:1}_{b:0}\n                g_{a:0}_{b:1}\n                g_{a:0}_{b}\n                g_{a}_{b:2}\n    "
+  },
+  {
+    "origin": "test_tensor_subcomponets_expr.py:48",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                C^{a:0}_{b:0}_{c:0}\n                C^{a}_{b:0}_{c:0}\n                C^{a:0}_{b}_{c:0}\n                C^{a:0}_{b:0}_{c}\n    "
+  },
+  {
+    "origin": "test_tensor_subcomponets_expr.py:67",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                Ric_{a:0}_{b:0}\n                Ric_{a:1}_{b}\n    "
+  },
+  {
+    "origin": "test_tensor_subcomponets_expr.py:81",
+    "source": "\n                Coordinates := [t, r, theta, phi] \n                g_{mu}_{nu} := [[-(1 - (2 * G * M) / (r)), 0, 0, 0],[0, 1 / (1 - (2 * G * M) / (r)), 0, 0],[0, 0, r**2, 0],[0, 0, 0, r**2 * sin(theta) ** 2]]\n                R^{a:0}_{b:0}_{c:0}_{n:0}\n                R^{a}_{b:0}_{c:0}_{n:0}\n                R^{a:0}_{b:1}_{c:0}_{n}\n                R^{a:1}_{b}_{c}_{n:3}\n        "
+  },
+  {
+    "origin": "test_tensor_subcomponets_expr.py:100",
+    "source": "\n                Coordinates := \\begin{bmatrix} \n                                    t & r & theta & phi \n                                \\end{bmatrix}\n                \\vspace{5mm}\n                g_{\\mu\\nu} := \\begin{bmatrix}\n                                                -(1 - \\frac{2 \\cdot G \\cdot M}{r}) & 0 & 0 & 0 \\\n                                                0 & \\frac{1}{1 - \\frac{2 \\cdot G \\cdot M}{r}} & 0 & 0 \\\n                                                0 & 0 & r^2 & 0 \\\n                                                0 & 0 & 0 & r^2 \\sin(\\theta)^2\n                                 \\end{bmatrix}\n                \\newline\n                R^{a=0}_{b=0 c=0 n=0}\n                \\vspace{5mm}\n                R^{a}_{b:0 c=0 n=0}\n                \\linebreak[4]\n                R^{a=0}_{b=1 c=0 n}\n                \\vspace{5mm}\n                R^{a=1}_{b c n=3}\n        "
+  },
+  {
+    "origin": "ricci_getter.txt",
+    "source": "\n# Define the symbol for the metric tensor\nMetricSymbol := g # Comment in line test\n\n# Define the corrdinate system we are working in\nCoordinates := [t, r, theta, phi] \n\n# Define components of the metric tensor\ng_{mu}_{nu} := [[-1 + 2*M/r, 1, 0, 0], [0, 1/(1 - 2*M/r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]\n\nRicciSymbol := Ric \nRiemannSymbol := R # Hello\n\nRic_{a}_{b}\n\nRic_{a:1}_{b:0}\n\nRic_{a:0}_{b:0}"
+  }
+]

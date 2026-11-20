@@ -1,0 +1,565 @@
+"""The syntax tree produced by the parser.
+
+The tree records what was *written*, not what it *means*. Where notation is
+ambiguous the tree keeps every reading and leaves the choice to the compiler,
+which knows what each name refers to. The main example is a script: ``x^{a}``
+is a :class:`Script` holding both an expression (``x`` to the power ``a``) and
+an :class:`IndexList` (the contravariant component ``a`` of a vector ``x``).
+
+Nodes are immutable. Each carries the :class:`~relativisticpy.language.source.Span`
+it was parsed from, and spans are ignored when nodes are compared, so two trees
+are equal when they have the same structure.
+
+:func:`to_sexpr` renders any node as a compact S-expression, which is how the
+parser's tests state what a piece of notation means.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from typing import Literal
+
+from relativisticpy.errors import ParseError
+from relativisticpy.language.source import Span
+
+# ---------------------------------------------------------------------------
+# Base classes
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Node:
+    """Base class of every syntax-tree node."""
+
+    span: Span = field(kw_only=True, compare=False, repr=False)
+
+
+class Expr(Node):
+    """A node that denotes a value."""
+
+
+# ---------------------------------------------------------------------------
+# Atoms
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Number(Expr):
+    """A numeric literal, kept as written: ``2``, ``2.5``, ``6.674e-11``."""
+
+    text: str
+
+
+@dataclass(frozen=True)
+class String(Expr):
+    value: str
+
+
+@dataclass(frozen=True)
+class Name(Expr):
+    """A name: ``x``, ``theta`` (also written ``\\theta`` or ``θ``), ``Ric``, ``eq0``.
+
+    ``verbatim`` is set for names written inside ``\\mathrm{...}`` or ``\\text{...}``.
+    """
+
+    id: str
+    verbatim: bool = False
+
+
+@dataclass(frozen=True)
+class Operator(Expr):
+    """A differential operator symbol: ``\\partial`` (``∂``) or ``\\nabla`` (``∇``)."""
+
+    kind: Literal["partial", "nabla"]
+
+
+# ---------------------------------------------------------------------------
+# Operators
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Unary(Expr):
+    op: Literal["-", "+", "not"]
+    operand: Expr
+
+
+@dataclass(frozen=True)
+class Binary(Expr):
+    """A binary operation. ``implicit`` marks multiplication by juxtaposition (``2x``)."""
+
+    op: Literal["+", "-", "*", "/", "**", "and", "or"]
+    left: Expr
+    right: Expr
+    implicit: bool = False
+
+
+@dataclass(frozen=True)
+class Comparison(Expr):
+    """One or more chained comparisons: ``x > 0`` or ``0 < x <= 1``."""
+
+    operands: tuple[Expr, ...]
+    ops: tuple[Literal["<", ">", "<=", ">=", "==", "!="], ...]
+
+
+@dataclass(frozen=True)
+class Equation(Expr):
+    """``lhs = rhs``. Whether this defines ``lhs`` or states an equation is the compiler's call."""
+
+    lhs: Expr
+    rhs: Expr
+
+
+@dataclass(frozen=True)
+class Factorial(Expr):
+    operand: Expr
+
+
+@dataclass(frozen=True)
+class Abs(Expr):
+    operand: Expr
+
+
+@dataclass(frozen=True)
+class Call(Expr):
+    """A function applied to arguments: ``f(x)``, ``f'(x)``, ``\\sin x``."""
+
+    func: Expr
+    args: tuple[Expr, ...]
+
+
+@dataclass(frozen=True)
+class Prime(Expr):
+    """Lagrange's derivative notation, ``f'`` or ``f''``; normally the target of a call."""
+
+    func: Name
+    order: int
+
+
+@dataclass(frozen=True)
+class Accent(Expr):
+    """An accented symbol: ``\\dot{a}``, ``\\bar{x}``, ``\\hat{n}``.
+
+    ``accent`` names the decoration: ``dot``, ``bar``, ``hat`` and so on.
+    """
+
+    accent: str
+    base: Expr
+
+
+@dataclass(frozen=True)
+class Substitution(Expr):
+    """An evaluation bar: ``expr |_{x = a}`` or ``\\left. expr \\right|_{x = a}``."""
+
+    expr: Expr
+    bindings: tuple[tuple[Expr, Expr], ...]
+
+
+# ---------------------------------------------------------------------------
+# Scripts and indices
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class IndexItem(Node):
+    """One slot of an index list: a label (``a``), a label with a value (``a=0``,
+    ``mu:t``) or a bare value (``0``).
+
+    ``derivative`` marks slots written after a comma (partial derivative, as in
+    ``T_{\\mu\\nu,\\rho}``) or a semicolon (covariant derivative, ``V^{a}{}_{;b}``).
+    """
+
+    label: str | None
+    value: Expr | None = None
+    derivative: Literal[",", ";"] | None = None
+    opens: Literal["(", "["] | None = None
+    closes: Literal[")", "]"] | None = None
+
+
+@dataclass(frozen=True)
+class IndexList(Node):
+    """The contents of a script read as tensor indices: ``{\\mu\\nu}``, ``{a=0 b}``.
+
+    Index labels follow LaTeX: every letter is its own index, so ``{ab}`` is
+    ``a`` and ``b``, while Greek names stay whole (``{munu}`` is ``mu`` and ``nu``).
+
+    Round brackets symmetrise and square brackets antisymmetrise the enclosed
+    indices: ``T_{(ab)}``, ``F_{[\\mu\\nu]}``. Each item records whether it opens
+    or closes a bracket, because a bracket may span several tensors, as in the
+    Bianchi identity ``\\nabla_{[\\lambda} R_{\\rho\\sigma]\\mu\\nu}``.
+    """
+
+    items: tuple[IndexItem, ...]
+
+
+@dataclass(frozen=True)
+class Script(Node):
+    """A superscript (``^``) or subscript (``_``).
+
+    ``body`` is the script read as an expression and ``indices`` the script read
+    as an index list; whichever reading is impossible is ``None``. ``^{2}`` has
+    both, ``^{-1}`` only a body and ``_{a=0}`` only indices. When only the body
+    exists, ``index_error`` explains what stopped the index reading.
+    """
+
+    kind: Literal["^", "_"]
+    body: Expr | None
+    indices: IndexList | None
+    #: Why the script cannot be read as indices, when it can only be read as an expression.
+    index_error: ParseError | None = field(default=None, compare=False, repr=False)
+
+
+@dataclass(frozen=True)
+class Scripted(Expr):
+    """A base with scripts, in the order written: ``x^2``, ``R^{a}{}_{bcd}``."""
+
+    base: Expr
+    scripts: tuple[Script, ...]
+
+
+# ---------------------------------------------------------------------------
+# Collections
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class List(Expr):
+    """``[a, b, c]``."""
+
+    items: tuple[Expr, ...]
+
+
+@dataclass(frozen=True)
+class Tuple(Expr):
+    """``(a, b, c)``, as in ``integrate(f, (x, 0, 1))``."""
+
+    items: tuple[Expr, ...]
+
+
+@dataclass(frozen=True)
+class Matrix(Expr):
+    """A LaTeX matrix environment; ``environment`` is its name (``pmatrix``, ``vmatrix``, ...)."""
+
+    environment: str
+    rows: tuple[tuple[Expr, ...], ...]
+
+
+@dataclass(frozen=True)
+class Piecewise(Expr):
+    """``\\begin{cases}`` or ``{ x**2, x > 0; -x, x <= 0 }``. A ``None`` condition means
+    *otherwise*."""
+
+    pieces: tuple[tuple[Expr, Expr | None], ...]
+
+
+# ---------------------------------------------------------------------------
+# Calculus
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Root(Expr):
+    """``\\sqrt{x}`` or ``\\sqrt[n]{x}``."""
+
+    radicand: Expr
+    degree: Expr | None = None
+
+
+@dataclass(frozen=True)
+class Derivative(Expr):
+    """A derivative in Leibniz notation: ``\\frac{d^2 f}{dx^2}``, ``\\pdv{f}{x}{y}``.
+
+    ``variables`` pairs each variable with its order. When ``expr`` is ``None``
+    the derivative is an operator, as in ``\\frac{d}{dx}``, which acts on the
+    factor that follows it.
+    """
+
+    expr: Expr | None
+    variables: tuple[tuple[Expr, int], ...]
+    partial: bool
+
+
+@dataclass(frozen=True)
+class Differential(Expr):
+    """``d{f}`` or ``d^n{f}``: the plain-text differential, as in ``d{f(x)}/d{x}``."""
+
+    expr: Expr
+    order: int = 1
+
+
+@dataclass(frozen=True)
+class Bound(Node):
+    """An integration variable and its optional limits."""
+
+    variable: Expr
+    lower: Expr | None = None
+    upper: Expr | None = None
+
+
+@dataclass(frozen=True)
+class Integral(Expr):
+    """``\\int_a^b f\\,dx``. Multiple integrals have one bound per differential."""
+
+    integrand: Expr
+    bounds: tuple[Bound, ...]
+
+
+@dataclass(frozen=True)
+class BigOperator(Expr):
+    """``\\sum_{n=0}^{N} body`` or ``\\prod_{n=0}^{N} body``."""
+
+    op: Literal["sum", "prod"]
+    variable: Expr
+    lower: Expr
+    upper: Expr
+    body: Expr
+
+
+@dataclass(frozen=True)
+class Limit(Expr):
+    """``\\lim_{x \\to a} body``; ``direction`` is ``+`` or ``-`` for one-sided limits."""
+
+    variable: Expr
+    point: Expr
+    body: Expr
+    direction: Literal["+", "-"] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Statements
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Statement(Node):
+    """Base class of statements.
+
+    ``latex`` records whether the statement was written in LaTeX (it uses a
+    LaTeX command or Unicode mathematics). In LaTeX, as in typeset maths, a run
+    of letters such as ``GM`` is a product of symbols; in plain text it is one
+    name.
+    """
+
+    latex: bool = field(default=False, kw_only=True)
+
+
+@dataclass(frozen=True)
+class Evaluate(Statement):
+    """An expression to evaluate. Equations are evaluated too: ``ds^2 = ...``."""
+
+    expr: Expr
+
+
+@dataclass(frozen=True)
+class Define(Statement):
+    """``target := value``; several targets destructure: ``x, y := symbols('x y')``."""
+
+    targets: tuple[Expr, ...]
+    value: Expr
+
+
+@dataclass(frozen=True)
+class Block(Node):
+    """The body of a function written with ``->``: statements, the last one's value returned."""
+
+    statements: tuple[Statement, ...]
+
+
+@dataclass(frozen=True)
+class FunctionDefinition(Statement):
+    """``f(x, y) := body`` or ``f : (x, y) -> { statements }``."""
+
+    name: str
+    params: tuple[str, ...]
+    body: Expr | Block
+
+
+@dataclass(frozen=True)
+class Program(Node):
+    statements: tuple[Statement, ...]
+
+
+# ---------------------------------------------------------------------------
+# S-expressions
+# ---------------------------------------------------------------------------
+
+
+def to_sexpr(node: Node) -> str:
+    """Render a node as a compact S-expression, e.g. ``2x^2 + 1`` → ``(+ (* 2 (^ x 2)) 1)``.
+
+    Scripts print as ``^2`` or ``^(+ n 1)`` when read as an expression and as
+    ``_[mu nu]`` when they can be read as indices. Operator-form derivatives
+    print with ``_`` for the missing operand: ``(d/dx _)``.
+    """
+    return _Printer().render(node)
+
+
+class _Printer:
+    def render(self, node: Node | None) -> str:
+        if node is None:
+            return "_"
+        method = getattr(self, f"_{type(node).__name__}")
+        result: str = method(node)
+        return result
+
+    def _many(self, nodes: tuple[Node, ...] | list[Node]) -> str:
+        return " ".join(self.render(n) for n in nodes)
+
+    def _Number(self, node: Number) -> str:
+        return node.text
+
+    def _String(self, node: String) -> str:
+        return repr(node.value)
+
+    def _Name(self, node: Name) -> str:
+        return node.id
+
+    def _Operator(self, node: Operator) -> str:
+        return "∂" if node.kind == "partial" else "∇"
+
+    def _Unary(self, node: Unary) -> str:
+        return f"({node.op} {self.render(node.operand)})"
+
+    def _Binary(self, node: Binary) -> str:
+        return f"({node.op} {self.render(node.left)} {self.render(node.right)})"
+
+    def _Comparison(self, node: Comparison) -> str:
+        if len(node.ops) == 1:
+            return f"({node.ops[0]} {self._many(node.operands)})"
+        parts = [self.render(node.operands[0])]
+        for op, operand in zip(node.ops, node.operands[1:], strict=True):
+            parts += [op, self.render(operand)]
+        return f"(chain {' '.join(parts)})"
+
+    def _Equation(self, node: Equation) -> str:
+        return f"(= {self.render(node.lhs)} {self.render(node.rhs)})"
+
+    def _Factorial(self, node: Factorial) -> str:
+        return f"(! {self.render(node.operand)})"
+
+    def _Abs(self, node: Abs) -> str:
+        return f"(abs {self.render(node.operand)})"
+
+    def _Call(self, node: Call) -> str:
+        args = self._many(node.args)
+        return f"(call {self.render(node.func)}{' ' + args if args else ''})"
+
+    def _Prime(self, node: Prime) -> str:
+        return node.func.id + "'" * node.order
+
+    def _Accent(self, node: Accent) -> str:
+        return f"({node.accent} {self.render(node.base)})"
+
+    def _Substitution(self, node: Substitution) -> str:
+        bindings = " ".join(f"({self.render(t)} {self.render(v)})" for t, v in node.bindings)
+        return f"(at {self.render(node.expr)} {bindings})"
+
+    def _IndexItem(self, node: IndexItem) -> str:
+        if node.value is None:
+            text = node.label or ""
+        else:
+            value = self.render(node.value)
+            text = value if node.label is None else f"{node.label}={value}"
+        # Square brackets would read as a list here, so antisymmetrisation prints as <...>.
+        opening = {"(": "(", "[": "<", None: ""}[node.opens]
+        closing = {")": ")", "]": ">", None: ""}[node.closes]
+        return opening + text + closing
+
+    def _IndexList(self, node: IndexList) -> str:
+        rendered = [self.render(item) for item in node.items]
+        marker = None
+        for position, item in enumerate(node.items):
+            if item.derivative != marker:
+                marker = item.derivative
+                rendered[position] = f"{marker} {rendered[position]}"
+        return "[" + " ".join(rendered) + "]"
+
+    def _Script(self, node: Script) -> str:
+        prefer_indices = node.kind == "_" or node.body is None or not _is_simple(node.body)
+        if node.indices is not None and prefer_indices:
+            return node.kind + self.render(node.indices)
+        body = node.body
+        assert body is not None
+        return node.kind + self.render(body)
+
+    def _Scripted(self, node: Scripted) -> str:
+        if len(node.scripts) == 1 and node.scripts[0].kind == "^":
+            script = node.scripts[0]
+            if script.body is not None and (script.indices is None or _is_simple(script.body)):
+                return f"(^ {self.render(node.base)} {self.render(script.body)})"
+        scripts = " ".join(self.render(s) for s in node.scripts)
+        return f"({self.render(node.base)} {scripts})"
+
+    def _List(self, node: List) -> str:
+        return f"(list {self._many(node.items)})".replace("(list )", "(list)")
+
+    def _Tuple(self, node: Tuple) -> str:
+        return f"(tuple {self._many(node.items)})".replace("(tuple )", "(tuple)")
+
+    def _Matrix(self, node: Matrix) -> str:
+        rows = " ".join(f"({self._many(row)})" for row in node.rows)
+        return f"({node.environment} {rows})"
+
+    def _Piecewise(self, node: Piecewise) -> str:
+        pieces = " ".join(
+            f"({self.render(value)} if {self.render(condition) if condition else 'otherwise'})"
+            for value, condition in node.pieces
+        )
+        return f"(piecewise {pieces})"
+
+    def _Root(self, node: Root) -> str:
+        if node.degree is None:
+            return f"(sqrt {self.render(node.radicand)})"
+        return f"(root {self.render(node.degree)} {self.render(node.radicand)})"
+
+    def _Derivative(self, node: Derivative) -> str:
+        d = "∂" if node.partial else "d"
+        total = sum(order for _, order in node.variables)
+        top = d if total == 1 else f"{d}^{total}"
+        bottom = "".join(
+            f"{d}{self.render(var)}" + (f"^{order}" if order > 1 else "")
+            for var, order in node.variables
+        )
+        return f"({top}/{bottom} {self.render(node.expr)})"
+
+    def _Differential(self, node: Differential) -> str:
+        d = "d" if node.order == 1 else f"d^{node.order}"
+        return f"({d} {self.render(node.expr)})"
+
+    def _Bound(self, node: Bound) -> str:
+        if node.lower is None and node.upper is None:
+            return self.render(node.variable)
+        return f"({self.render(node.variable)} {self.render(node.lower)} {self.render(node.upper)})"
+
+    def _Integral(self, node: Integral) -> str:
+        return f"(int {self.render(node.integrand)} {self._many(node.bounds)})"
+
+    def _BigOperator(self, node: BigOperator) -> str:
+        bounds = (
+            f"({self.render(node.variable)} {self.render(node.lower)} {self.render(node.upper)})"
+        )
+        return f"({node.op} {bounds} {self.render(node.body)})"
+
+    def _Limit(self, node: Limit) -> str:
+        point = self.render(node.point) + (node.direction or "")
+        return f"(lim {self.render(node.variable)} {point} {self.render(node.body)})"
+
+    def _Evaluate(self, node: Evaluate) -> str:
+        return self.render(node.expr)
+
+    def _Define(self, node: Define) -> str:
+        return f"(:= {self._many(node.targets)} {self.render(node.value)})"
+
+    def _Block(self, node: Block) -> str:
+        return f"(block {self._many(node.statements)})"
+
+    def _FunctionDefinition(self, node: FunctionDefinition) -> str:
+        return f"(def {node.name} ({' '.join(node.params)}) {self.render(node.body)})"
+
+    def _Program(self, node: Program) -> str:
+        return "\n".join(self.render(statement) for statement in node.statements)
+
+
+def _is_simple(node: Expr) -> bool:
+    """A number: the script that is most naturally an exponent."""
+    return isinstance(node, Number)

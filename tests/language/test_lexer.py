@@ -173,6 +173,16 @@ class TestLatexTypesetting:
         assert lex(r"a\,b\;c\:d\!e\ f~g\quad h\qquad i") == "a b c d e f g h i"
         assert all(t.space_before for t in tokenize(r"a\,b")[1:-1])
 
+    def test_explicit_spacing_is_distinguished_from_whitespace(self):
+        tokens = tokenize(r"a b\,c\quad d~e")
+        assert [(t.value, t.space_before, t.explicit_space) for t in tokens[:-1]] == [
+            ("a", False, False),
+            ("b", True, False),
+            ("c", True, True),
+            ("d", True, True),
+            ("e", True, True),
+        ]
+
     def test_layout_commands_are_dropped_with_their_arguments(self):
         assert lex(r"x \label{eq:schwarzschild} \tag*{1} \vspace{5mm} \hspace*{1em} y") == "x y"
         assert lex(r"\displaystyle \sum\limits") == r"\sum"
@@ -193,6 +203,14 @@ class TestLatexTypesetting:
         assert lex(r"\mathrm{d}x") == "d x"
         assert lex(r"\mathbf{F}_{\mu} \boldsymbol{\nabla}") == r"F _ { mu } \nabla"
         assert lex(r"\mathcal{L} \mathrm{e}^{\mathrm{i}\pi}") == "L e ^ { i pi }"
+
+    def test_names_in_text_and_style_commands_are_verbatim(self):
+        tokens = tokenize(r"\mathrm{mass} \text{eff} m")
+        assert [(t.value, t.verbatim) for t in tokens[:-1]] == [
+            ("mass", True),
+            ("eff", True),
+            ("m", False),
+        ]
 
     def test_style_command_without_braces_styles_the_next_token(self):
         assert lex(r"\mathbf x") == "x"
@@ -373,3 +391,54 @@ class TestErrors:
     def test_layout_command_needs_its_argument(self):
         with pytest.raises(ParseError, match=r"\\label must be followed by a braced argument"):
             tokenize(r"\label x")
+
+
+class TestLexerDetails:
+    def test_braced_arguments_may_nest_and_escape(self):
+        assert lex(r"x \label{eq:{a}\%b} y") == "x y"
+
+    def test_operatorname_star(self):
+        assert lex(r"\operatorname*{argmax}") == "argmax"
+
+    def test_unclosed_style_argument(self):
+        with pytest.raises(ParseError, match="unclosed argument of a style command"):
+            tokenize(r"\mathrm{abc")
+
+    def test_left_with_an_unsupported_delimiter(self):
+        with pytest.raises(ParseError, match=r"\\left must be followed by a delimiter"):
+            tokenize(r"\left\alpha x \right)")
+
+    def test_sized_floor(self):
+        assert lex(r"\big\lfloor x \big\rfloor") == r"\lfloor x \rfloor"
+
+    def test_norm_bars(self):
+        assert lex(r"\|x\|") == "| x |"
+
+    def test_unclosed_optional_argument_is_left_alone(self):
+        assert lex(r"a \newline[ b") == "a ⏎ [ b"
+
+
+class TestTokenDescriptions:
+    @pytest.mark.parametrize(
+        ("text", "description"),
+        [
+            ("x", "name 'x'"),
+            ("42", "number '42'"),
+            ("'hi'", "string 'hi'"),
+            (r"\frac", r"\frac"),
+            (r"\begin{pmatrix}", r"\begin{pmatrix}"),
+            ("+", "'+'"),
+            ("\n", "line break"),
+        ],
+    )
+    def test_describe(self, text, description):
+        token = tokenize(text + (r"\end{pmatrix}" if "begin" in text else ""))[0]
+        assert token.describe() == description
+
+    def test_repr(self):
+        assert repr(tokenize("x")[0]) == "Token(IDENT, 'x', 0:1)"
+
+    def test_spans_from_different_sources_cannot_merge(self):
+        a, b = tokenize("x")[0].span, tokenize("x")[0].span
+        with pytest.raises(ValueError, match="different sources"):
+            a.to(b)

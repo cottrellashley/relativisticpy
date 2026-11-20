@@ -72,13 +72,20 @@ class Token:
     (``\\theta`` and ``θ`` both give ``theta``), the digits of a number, the
     name of a LaTeX command without its backslash, or the operator itself.
     ``space_before`` records whether whitespace (or anything typographic the
-    lexer discarded) separated this token from the previous one.
+    lexer discarded) separated this token from the previous one;
+    ``explicit_space`` whether that included deliberate LaTeX spacing such as
+    ``\\,`` or ``\\quad``, which ends the argument of ``\\sin`` in
+    ``\\sin\\theta\\, d\\phi``. ``verbatim`` marks a name written inside
+    ``\\mathrm{...}`` or ``\\text{...}``, which is always one symbol however many
+    letters it has.
     """
 
     kind: TokenKind
     value: str
     span: Span
     space_before: bool = False
+    explicit_space: bool = False
+    verbatim: bool = False
 
     def describe(self) -> str:
         """Describe the token for an error message, e.g. ``name 'x'`` or ``'+'``."""

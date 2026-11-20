@@ -1,0 +1,775 @@
+r"""The parser: what every piece of notation means, structurally.
+
+Each test states a reading as an S-expression (see ``to_sexpr``). Scripts
+print in index form, ``(g _[mu nu])``, when they can be read as indices and in
+power form, ``(^ x 2)``, when the exponent is a number.
+"""
+
+from textwrap import dedent
+
+import pytest
+
+from relativisticpy.errors import ParseError
+from relativisticpy.language import parse, parse_expression, to_sexpr
+from relativisticpy.language import syntax as ast
+from relativisticpy.language.parser import split_index_labels
+
+
+def sexpr(text: str) -> str:
+    return to_sexpr(parse_expression(text))
+
+
+def program(text: str) -> list[str]:
+    return [to_sexpr(statement) for statement in parse(text).statements]
+
+
+def error(text: str) -> ParseError:
+    with pytest.raises(ParseError) as caught:
+        parse(text)
+    return caught.value
+
+
+class TestArithmetic:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("1 + 2 * 3", "(+ 1 (* 2 3))"),
+            ("(1 + 2) * 3", "(* (+ 1 2) 3)"),
+            ("1 - 2 - 3", "(- (- 1 2) 3)"),
+            ("8 / 4 / 2", "(/ (/ 8 4) 2)"),
+            ("2 ** 3 ** 2", "(** 2 (** 3 2))"),
+            ("-x ** 2", "(- (** x 2))"),
+            ("-x^2", "(- (^ x 2))"),
+            ("2 ** -1", "(** 2 (- 1))"),
+            ("--x", "(- (- x))"),
+            ("+x", "(+ x)"),
+        ],
+    )
+    def test_precedence_and_associativity(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("2x", "(* 2 x)"),
+            ("2 x y", "(* (* 2 x) y)"),
+            ("2(x + 1)", "(* 2 (+ x 1))"),
+            ("(a + b)(c + d)", "(* (+ a b) (+ c d))"),
+            ("x^2 y^2", "(* (^ x 2) (^ y 2))"),
+            ("2|x|", "(* 2 (abs x))"),
+            ("a/2b", "(* (/ a 2) b)"),
+            ("x [1, 2]", "(* x (list 1 2))"),
+        ],
+    )
+    def test_juxtaposition_is_multiplication(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_juxtaposition_is_marked_implicit(self):
+        node = parse_expression("2x")
+        assert isinstance(node, ast.Binary)
+        assert node.implicit
+        assert not parse_expression("2*x").implicit  # type: ignore[attr-defined]
+
+    def test_calls_need_the_parenthesis_against_the_name(self):
+        assert sexpr("f(x, y)") == "(call f x y)"
+        assert sexpr("f()") == "(call f)"
+        assert sexpr("f (x)") == "(* f x)"
+
+    def test_nested_calls(self):
+        assert sexpr("f(g(x))") == "(call f (call g x))"
+
+    def test_primes_are_derivatives_of_functions(self):
+        assert sexpr("f'(x)") == "(call f' x)"
+        assert sexpr("f'''(x)") == "(call f''' x)"
+
+    def test_factorial(self):
+        assert sexpr("n!") == "(! n)"
+        assert sexpr("(n - k)!") == "(! (- n k))"
+        assert sexpr("n! / k!") == "(/ (! n) (! k))"
+
+    def test_absolute_value(self):
+        assert sexpr("|x - 3|") == "(abs (- x 3))"
+        assert sexpr("|-x^2|") == "(abs (- (^ x 2)))"
+        assert sexpr("|x| + |y|") == "(+ (abs x) (abs y))"
+        assert sexpr("||x| - 1|") == "(abs (- (abs x) 1))"
+        assert sexpr("|f(|x|)|") == "(abs (call f (abs x)))"
+
+    def test_numbers_are_kept_as_written(self):
+        node = parse_expression("6.674e-11")
+        assert node == ast.Number("6.674e-11", span=node.span)
+
+    def test_strings(self):
+        assert sexpr("symbols('x y')") == "(call symbols 'x y')"
+
+    def test_line_breaks_inside_brackets_are_ignored(self):
+        assert sexpr("f(\n  x,\n  y\n)") == "(call f x y)"
+
+    def test_a_trailing_operator_continues_the_line(self):
+        assert program("y := x +\n  1") == ["(:= y (+ x 1))"]
+
+
+class TestScripts:
+    def test_a_numeric_superscript_is_a_power(self):
+        assert sexpr("x^2") == "(^ x 2)"
+        assert sexpr("x^{-1}") == "(^ x (- 1))"
+        assert sexpr("x^-1") == "(^ x (- 1))"
+        assert sexpr("e^{x^2}") == "(^ e (^ x 2))"
+
+    def test_braced_scripts_keep_both_readings(self):
+        script = parse_expression("x^{a}").scripts[0]  # type: ignore[attr-defined]
+        assert script.body == ast.Name("a", span=script.body.span)
+        assert [item.label for item in script.indices.items] == ["a"]
+
+    def test_a_script_that_is_not_an_index_list_is_only_an_expression(self):
+        script = parse_expression("x^{n+1}").scripts[0]  # type: ignore[attr-defined]
+        assert script.indices is None
+        assert to_sexpr(script.body) == "(+ n 1)"
+
+    def test_a_script_that_is_not_an_expression_is_only_an_index_list(self):
+        script = parse_expression("T_{a:0}").scripts[0]  # type: ignore[attr-defined]
+        assert script.body is None
+        assert to_sexpr(script.indices) == "[a=0]"
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"g_{\mu\nu}", "(g _[mu nu])"),
+            ("g_{mu nu}", "(g _[mu nu])"),
+            ("g_{mu}_{nu}", "(g _[mu] _[nu])"),
+            ("R_{ab}", "(R _[a b])"),
+            ("R_{munu}", "(R _[mu nu])"),
+            ("R^{a}_{bcd}", "(R ^[a] _[b c d])"),
+            (r"R^{\rho}{}_{\sigma\mu\nu}", "(R ^[rho] _[sigma mu nu])"),
+            (r"\Gamma^\mu_{\nu\rho}", "(Gamma ^[mu] _[nu rho])"),
+            (r"\partial_\mu", "(∂ _[mu])"),
+            ("x_{0}", "(x _[0])"),
+            ("g_{01}", "(g _[0 1])"),
+            ("T_{a1}", "(T _[a1])"),
+        ],
+    )
+    def test_index_lists(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("Ric_{mu=0 nu=0}", "(Ric _[mu=0 nu=0])"),
+            ("C^{a:1}_{b:0 c:0}", "(C ^[a=1] _[b=0 c=0])"),
+            ("R^{a=0}_{b c n=3}", "(R ^[a=0] _[b c n=3])"),
+            ("C^{a=t}_{b=r c=r}", "(C ^[a=t] _[b=r c=r])"),
+            ("g_{0 0}", "(g _[0 0])"),
+        ],
+    )
+    def test_index_values(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_symmetrisation(self):
+        assert sexpr("T_{(ab)}") == "(T _[(a b)])"
+        assert sexpr(r"F_{[\mu\nu]}") == "(F _[<mu nu>])"
+        assert sexpr("T_{a(bc)}") == "(T _[a (b c)])"
+        items = parse_expression("T_{(ab)c}").scripts[0].indices.items  # type: ignore[attr-defined]
+        assert [(i.label, i.opens, i.closes) for i in items] == [
+            ("a", "(", None),
+            ("b", None, ")"),
+            ("c", None, None),
+        ]
+
+    def test_brackets_may_span_tensors(self):
+        assert sexpr(r"\nabla_{[\lambda} R_{\rho\sigma]\mu\nu}") == (
+            "(* (∇ _[<lambda]) (R _[rho sigma> mu nu]))"
+        )
+
+    def test_brackets_include_derivative_indices(self):
+        assert sexpr("F_{[ab,c]}") == "(F _[<a b , c>])"
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            ("T_{(a)}", "only two or more indices can be (anti)symmetrised"),
+            ("T_{((ab))}", "(anti)symmetrisation brackets cannot be nested"),
+            ("T_{(a(bc))}", "(anti)symmetrisation brackets cannot be nested"),
+            ("T_{()}", "brackets must enclose indices"),
+        ],
+    )
+    def test_why_a_script_is_not_an_index_list_is_recorded(self, text, message):
+        # Each of these is still a valid expression, so the parse succeeds; the
+        # compiler reports the index error if the script must be indices.
+        script = parse_expression(text).scripts[0]  # type: ignore[attr-defined]
+        assert script.indices is None
+        assert message in str(script.index_error)
+
+    def test_a_subscript_that_is_neither_reports_the_index_error(self):
+        assert "mismatched brackets" in str(error("T_{(ab]}"))
+
+    def test_comma_and_semicolon_mark_derivative_indices(self):
+        assert sexpr(r"T_{\mu\nu,\rho}") == "(T _[mu nu , rho])"
+        assert sexpr("V^{a}{}_{;b}") == "(V ^[a] _[; b])"
+        items = parse_expression(r"g_{ab,c}").scripts[0].indices.items  # type: ignore[attr-defined]
+        assert [(i.label, i.derivative) for i in items] == [("a", None), ("b", None), ("c", ",")]
+
+    def test_empty_groups_space_the_indices(self):
+        assert sexpr("R^{a}{}_{b}{}^{c}") == "(R ^[a] _[b] ^[c])"
+
+    def test_grouping_starts_new_scripts(self):
+        assert sexpr("(x^2)^3") == "(^ (^ x 2) 3)"
+        assert sexpr("{x^2}^3") == "(^ (^ x 2) 3)"
+        assert sexpr("x^2^3") == "(x ^2 ^3)"
+
+    def test_script_after_a_call(self):
+        assert sexpr("f(x)^2") == "(^ (call f x) 2)"
+
+    def test_index_items_have_their_own_spans(self):
+        items = parse_expression("R_{abc}").scripts[0].indices.items  # type: ignore[attr-defined]
+        assert [item.span.text for item in items] == ["a", "b", "c"]
+
+
+class TestIndexLabels:
+    @pytest.mark.parametrize(
+        ("name", "labels"),
+        [
+            ("a", ["a"]),
+            ("ab", ["a", "b"]),
+            ("abc", ["a", "b", "c"]),
+            ("mu", ["mu"]),
+            ("munu", ["mu", "nu"]),
+            ("theta", ["theta"]),
+            ("rtheta", ["r", "theta"]),
+            ("alphabeta", ["alpha", "beta"]),
+            ("a1", ["a1"]),
+            ("x_0", ["x_0"]),
+        ],
+    )
+    def test_split(self, name, labels):
+        assert split_index_labels(name) == labels
+
+
+class TestRelations:
+    def test_equation(self):
+        assert sexpr("y(x) = 10") == "(= (call y x) 10)"
+        assert sexpr(r"G_{\mu\nu} = 8 \pi T_{\mu\nu}") == (
+            "(= (G _[mu nu]) (* (* 8 pi) (T _[mu nu])))"
+        )
+
+    def test_only_one_equals_sign(self):
+        assert "an equation can have only one '='" in str(error("a = b = c"))
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("x > 0", "(> x 0)"),
+            ("x <= y + 1", "(<= x (+ y 1))"),
+            (r"x \geq 0", "(>= x 0)"),
+            ("x != 0", "(!= x 0)"),
+            ("x == 0", "(== x 0)"),
+            ("0 < x <= 1", "(chain 0 < x <= 1)"),
+        ],
+    )
+    def test_comparisons(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_logic(self):
+        assert sexpr("x > 0 and y > 0 or z") == "(or (and (> x 0) (> y 0)) z)"
+        assert sexpr("not x > 0") == "(not (> x 0))"
+
+    def test_substitution_binds_loosest(self):
+        assert sexpr("x^2 + 1 |_{x = 2}") == "(at (+ (^ x 2) 1) (x 2))"
+        assert sexpr("y(x) = 10 x |_{x = 10}") == "(at (= (call y x) (* 10 x)) (x 10))"
+
+    def test_several_substitutions(self):
+        assert sexpr("f(x, y) |_{x=1, y=2}") == "(at (call f x y) (x 1) (y 2))"
+
+    def test_latex_evaluation_bar(self):
+        assert sexpr(r"\left. x^2 \right|_{x=3}") == "(at (^ x 2) (x 3))"
+
+    def test_substitution_target_can_be_an_expression(self):
+        assert sexpr("y |_{diff(f(x), x) = 10}") == "(at y ((call diff (call f x) x) 10))"
+
+    def test_substitution_needs_an_equation(self):
+        assert "expected a substitution such as x = 2" in str(error("x |_{2}"))
+
+
+class TestCollections:
+    def test_lists_and_tuples(self):
+        assert sexpr("[1, 2, [3, 4]]") == "(list 1 2 (list 3 4))"
+        assert sexpr("[]") == "(list)"
+        assert sexpr("[1, 2,]") == "(list 1 2)"
+        assert sexpr("(x, 0, 1)") == "(tuple x 0 1)"
+        assert sexpr("(x,)") == "(tuple x)"
+        assert sexpr("()") == "(tuple)"
+
+    def test_multiline_list(self):
+        assert sexpr("[\n [1, 0],\n [0, 1]\n]") == "(list (list 1 0) (list 0 1))"
+
+    def test_braces_group(self):
+        assert sexpr("{x + 1}") == "(+ x 1)"
+
+    def test_braces_with_commas_are_piecewise(self):
+        assert sexpr("{ x**2, x > 0; -x, x <= 0 }") == (
+            "(piecewise ((** x 2) if (> x 0)) ((- x) if (<= x 0)))"
+        )
+        assert sexpr("{ 1, x > 0; 0, otherwise }") == (
+            "(piecewise (1 if (> x 0)) (0 if otherwise))"
+        )
+
+    @pytest.mark.parametrize("environment", ["matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix"])
+    def test_matrix_environments(self, environment):
+        source = rf"\begin{{{environment}}} 1 & 2 \\ 3 & 4 \end{{{environment}}}"
+        assert sexpr(source) == f"({environment} (1 2) (3 4))"
+
+    def test_matrix_layout_is_free(self):
+        source = r"""
+            \begin{pmatrix}
+                -(1 - \frac{2M}{r}) & 0 \\
+                0 & \frac{1}{1 - \frac{2M}{r}} \\
+            \end{pmatrix}
+        """
+        assert sexpr(source) == (
+            "(pmatrix ((- (- 1 (/ (* 2 M) r))) 0) (0 (/ 1 (- 1 (/ (* 2 M) r)))))"
+        )
+
+    def test_single_row_matrix(self):
+        assert sexpr(r"\begin{bmatrix} t & r & \theta & \phi \end{bmatrix}") == (
+            "(bmatrix (t r theta phi))"
+        )
+
+    def test_array_environment(self):
+        assert sexpr(r"\begin{array}{cc} 1 & 2 \end{array}") == "(array (1 2))"
+
+    def test_ragged_matrix_is_an_error(self):
+        message = str(error(r"\begin{matrix} 1 & 2 \\ 3 \end{matrix}"))
+        assert "row 2 of the matrix has 1 entries but row 1 has 2" in message
+
+    def test_cases(self):
+        source = r"\begin{cases} x^2 & \text{if } x > 0 \\ -x & \text{otherwise} \end{cases}"
+        assert sexpr(source) == "(piecewise ((^ x 2) if (> x 0)) ((- x) if otherwise))"
+
+    def test_cases_with_comma_before_the_condition(self):
+        source = r"\begin{cases} 1, & x \geq 0 \\ 0, & x < 0 \end{cases}"
+        assert sexpr(source) == "(piecewise (1 if (>= x 0)) (0 if (< x 0)))"
+
+
+class TestFractionsRootsAndFunctions:
+    def test_fractions(self):
+        assert sexpr(r"\frac{1}{2}") == "(/ 1 2)"
+        assert sexpr(r"\dfrac{a+b}{c}") == "(/ (+ a b) c)"
+        assert sexpr(r"\frac{1}{2} g^{ab}") == "(* (/ 1 2) (g ^[a b]))"
+
+    def test_single_character_arguments_follow_latex(self):
+        assert sexpr(r"\frac12") == "(/ 1 2)"
+        assert sexpr(r"\frac ab") == "(/ a b)"
+        assert sexpr(r"\frac12 x") == "(* (/ 1 2) x)"
+        assert sexpr(r"\frac\pi2") == "(/ pi 2)"
+
+    def test_roots(self):
+        assert sexpr(r"\sqrt{x}") == "(sqrt x)"
+        assert sexpr(r"\sqrt x") == "(sqrt x)"
+        assert sexpr(r"\sqrt[3]{x}") == "(root 3 x)"
+        assert sexpr(r"\sqrt{-g}") == "(sqrt (- g))"
+        assert sexpr("√(x + 1)") == "(sqrt (+ x 1))"
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\sin x", "(call sin x)"),
+            (r"\sin(x)", "(call sin x)"),
+            (r"\sin{x}", "(call sin x)"),
+            (r"\sin\theta\cos\phi", "(* (call sin theta) (call cos phi))"),
+            (r"\sin 2x", "(call sin (* 2 x))"),
+            (r"\sin\omega t", "(call sin (* omega t))"),
+            (r"\sin\theta \, r", "(* (call sin theta) r)"),
+            (r"\sin^2\theta", "(^ (call sin theta) 2)"),
+            (r"\sin^{-1} x", "(call asin x)"),
+            (r"\cosh^{-1}(x)", "(call acosh x)"),
+            (r"\arctan x", "(call atan x)"),
+            (r"\log_{2} x", "(call log x 2)"),
+            (r"\ln x + 1", "(+ (call ln x) 1)"),
+            (r"\exp(-x^2)", "(call exp (- (^ x 2)))"),
+            (r"\max(a, b)", "(call max a b)"),
+            (r"\det g", "(call det g)"),
+            (r"\Re(z)", "(call re z)"),
+        ],
+    )
+    def test_function_commands(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_a_function_argument_stops_at_a_differential(self):
+        assert sexpr(r"\sin^2\theta d\phi^2") == "(* (* (^ (call sin theta) 2) d) (^ phi 2))"
+        assert sexpr(r"\sin^2\theta\, d\phi^2") == "(* (* (^ (call sin theta) 2) d) (^ phi 2))"
+
+    def test_other_commands(self):
+        assert sexpr(r"\binom{n}{k}") == "(call binomial n k)"
+        assert sexpr(r"\lfloor x/2 \rfloor") == "(call floor (/ x 2))"
+        assert sexpr(r"\left\lceil x \right\rceil") == "(call ceiling x)"
+        assert sexpr(r"\infty") == "infty"
+
+    def test_operator_symbols(self):
+        assert sexpr(r"\partial_\mu \phi") == "(* (∂ _[mu]) phi)"
+        assert sexpr(r"\nabla_a \nabla_b T^{c}") == "(* (* (∇ _[a]) (∇ _[b])) (T ^[c]))"
+        assert sexpr(r"∂_μ φ") == "(* (∂ _[mu]) phi)"
+
+    def test_unknown_command_suggests_a_known_one(self):
+        message = str(error(r"\farc{1}{2}"))
+        assert r"unknown LaTeX command \farc" in message
+        assert r"did you mean \frac?" in message
+
+
+class TestDerivatives:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # Leibniz notation with \frac
+            (r"\frac{d}{dx} f(x)", "(* (d/dx _) (call f x))"),
+            (r"\frac{df}{dx}", "(d/dx f)"),
+            (r"\frac{dy}{dx}", "(d/dx y)"),
+            (r"\frac{d f(x)}{d x}", "(d/dx (call f x))"),
+            (r"\frac{d^2 y}{dx^2}", "(d^2/dx^2 y)"),
+            (r"\frac{d^2 y}{d x^2}", "(d^2/dx^2 y)"),
+            (r"\frac{d^2{x^2}}{d{\tau}^2}", "(d^2/dtau^2 (^ x 2))"),
+            (r"\frac{\mathrm{d} y}{\mathrm{d} t}", "(d/dt y)"),
+            (r"\frac{\partial f}{\partial x}", "(∂/∂x f)"),
+            (r"\frac{\partial^2 f}{\partial x^2}", "(∂^2/∂x^2 f)"),
+            (r"\frac{\partial^2 f}{\partial x \partial y}", "(∂^2/∂x∂y f)"),
+            (r"\frac{\partial^2{x^2}}{\partial{\tau}^2}", "(∂^2/∂tau^2 (^ x 2))"),
+            (r"\frac{\partial}{\partial r}", "(∂/∂r _)"),
+            # the physics package
+            (r"\pdv{f}{x}", "(∂/∂x f)"),
+            (r"\pdv[3]{f}{x}", "(∂^3/∂x^3 f)"),
+            (r"\pdv{f}{x}{y}", "(∂^2/∂x∂y f)"),
+            (r"\pdv{x}(x^2 y)", "(* (∂/∂x _) (* (^ x 2) y))"),
+            (r"\dv{f}{t}", "(d/dt f)"),
+            (r"\dv[2]{f}{t}", "(d^2/dt^2 f)"),
+            # plain-text differentials
+            ("d{f(x)}/d{x}", "(d/dx (call f x))"),
+            ("(d{f(x)})/(d{x})", "(d/dx (call f x))"),
+            ("d^3{f(x)}/d{x}^3", "(d^3/dx^3 (call f x))"),
+            ("d^{2}{f}/(d{x} d{y})", "(d^2/dxdy f)"),
+            # Lagrange notation
+            ("f'(x)", "(call f' x)"),
+        ],
+    )
+    def test_notations(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_a_fraction_that_is_not_a_derivative(self):
+        assert sexpr(r"\frac{d}{2}") == "(/ d 2)"
+        assert sexpr(r"\frac{dx}{2}") == "(/ dx 2)"
+        assert sexpr(r"\frac{a}{dx}") == "(/ a dx)"
+
+    def test_orders_must_agree(self):
+        message = str(error(r"\frac{d^2 f}{dx}"))
+        assert "order is 2 in the numerator but 1 in the denominator" in message
+        message = str(error("d^2{f}/d{x}"))
+        assert "order is 2 in the numerator but 1 in the denominator" in message
+
+    def test_d_and_partial_cannot_mix(self):
+        assert "cannot mix d and \\partial" in str(error(r"\frac{d f}{\partial x}"))
+
+
+class TestSumsLimitsIntegrals:
+    def test_sums_and_products(self):
+        assert sexpr(r"\sum_{n=0}^{10} n") == "(sum (n 0 10) n)"
+        assert sexpr(r"\sum^{N}_{i=1} a_i") == "(sum (i 1 N) a_i)"
+        assert sexpr(r"\sum_{n=1}^\infty \frac{1}{n^2}") == "(sum (n 1 infty) (/ 1 (^ n 2)))"
+        assert sexpr(r"\prod_{k=1}^{n} k") == "(prod (k 1 n) k)"
+        assert sexpr("∑_{i=0}^{9} i") == "(sum (i 0 9) i)"
+
+    def test_the_body_of_a_sum_is_a_term(self):
+        assert sexpr(r"\sum_{i=1}^{n} 2 i + 1") == "(+ (sum (i 1 n) (* 2 i)) 1)"
+
+    def test_sum_needs_its_limits(self):
+        assert r"\sum needs limits" in str(error(r"\sum x"))
+
+    def test_sum_needs_its_variable(self):
+        assert "must name its variable" in str(error(r"\sum_{0}^{1} x"))
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\lim_{x \to 0} \frac{\sin x}{x}", "(lim x 0 (/ (call sin x) x))"),
+            (r"\lim_{x -> 0} sin(x)/x", "(lim x 0 (/ (call sin x) x))"),
+            (r"\lim_{x \rightarrow \infty} 1/x", "(lim x infty (/ 1 x))"),
+            (r"\lim_{x \to 0^+} 1/x", "(lim x 0+ (/ 1 x))"),
+            (r"\lim_{x \to 0^{-}} 1/x", "(lim x 0- (/ 1 x))"),
+            (r"\lim_{r \to \infty} a r^2 + G M", "(+ (lim r infty (* a (^ r 2))) (* G M))"),
+        ],
+    )
+    def test_limits(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_limit_needs_an_arrow(self):
+        assert "expected a limit such as x \\to 0" in str(error(r"\lim_{x} x"))
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\int f(x) \, dx", "(int (call f x) x)"),
+            (r"\int f(x) dx", "(int (call f x) x)"),
+            (r"\int f(x)\, \mathrm{d}x", "(int (call f x) x)"),
+            (r"\int x^2 + 1 \, dx", "(int (+ (^ x 2) 1) x)"),
+            (r"\int_0^1 x \, dx", "(int x (x 0 1))"),
+            (r"\int_{0}^{\infty} e^{-x} dx", "(int (^ e (- x)) (x 0 infty))"),
+            (r"\int_{-1}^{1} x \, dx", "(int x (x (- 1) 1))"),
+            (r"\int \sin\theta \, d\theta", "(int (call sin theta) theta)"),
+            (r"\int dx \, e^{-x^2}", "(int (^ e (- (^ x 2))) x)"),
+            (r"\iint_0^1 f(x, y) \, dx \, dy", "(int (call f x y) (x 0 1) (y 0 1))"),
+            (r"\iiint f \, dx \, dy \, dz", "(int f x y z)"),
+            (r"\int_0^1 \int_0^2 x y \, dy \, dx", "(int (int (* x y) (y 0 2)) (x 0 1))"),
+            ("∫_0^1 f(x) dx", "(int (call f x) (x 0 1))"),
+            (r"\int f(x) dx + 1", "(+ (int (call f x) x) 1)"),
+            (r"2 \int x dx", "(* 2 (int x x))"),
+        ],
+    )
+    def test_integrals(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_integral_needs_a_differential(self):
+        message = str(error(r"\int x^2"))
+        assert "expected a differential such as dx to end the integral" in message
+
+
+class TestStatements:
+    def test_definitions(self):
+        assert program("x := 2") == ["(:= x 2)"]
+        assert program(r"x \equiv 2") == ["(:= x 2)"]
+        assert program(r"x \coloneqq 2") == ["(:= x 2)"]
+        assert program("x ≔ 2") == ["(:= x 2)"]
+
+    def test_tensor_definitions(self):
+        assert program("g_{mu nu} := [[1, 0], [0, 1]]") == [
+            "(:= (g _[mu nu]) (list (list 1 0) (list 0 1)))"
+        ]
+        assert program("ds^2 := -dt^2 + dx^2") == ["(:= (^ ds 2) (+ (- (^ dt 2)) (^ dx 2)))"]
+
+    def test_destructuring(self):
+        assert program("x, y := symbols('x y')") == ["(:= x y (call symbols 'x y'))"]
+
+    def test_function_definitions(self):
+        assert program("f(x) := x^2") == ["(def f (x) (^ x 2))"]
+        assert program("h(x, y) := x y") == ["(def h (x y) (* x y))"]
+        assert program("f() := 42") == ["(def f () 42)"]
+
+    def test_arrow_functions(self):
+        source = """
+            f : (x, y) -> {
+                m := x y
+                m^2
+            }
+        """
+        assert program(source) == ["(def f (x y) (block (:= m (* x y)) (^ m 2)))"]
+
+    def test_arrow_function_with_an_expression_body(self):
+        assert program("sq : (x) -> x^2") == ["(def sq (x) (^ x 2))"]
+
+    def test_nested_arrow_functions(self):
+        source = """
+            f : (x) -> {
+                g : (y) -> {
+                    y^2
+                }
+                x + g(x)
+            }
+        """
+        assert program(source) == [
+            "(def f (x) (block (def g (y) (block (^ y 2))) (+ x (call g x))))"
+        ]
+
+    def test_function_body_cannot_be_empty(self):
+        assert "a function body cannot be empty" in str(error("f : (x) -> { }"))
+
+    def test_statement_separators(self):
+        assert program("a\nb; c \\\\ d") == ["a", "b", "c", "d"]
+        assert program(r"a \newline b") == ["a", "b"]
+        assert program("\n\n a \n\n\n b \n\n") == ["a", "b"]
+
+    def test_comments(self):
+        source = """
+            # the metric
+            g_{mu nu} := [[1, 0], [0, 1]]  # flat
+            % a LaTeX comment
+            g_{mu nu}
+        """
+        assert program(source) == ["(:= (g _[mu nu]) (list (list 1 0) (list 0 1)))", "(g _[mu nu])"]
+
+    def test_alignment_environments_hold_statements(self):
+        source = r"""
+            \begin{align}
+                x &= 1 + 2 \\
+                  & + 3 \\
+                y &:= x^2
+            \end{align}
+        """
+        assert program(source) == ["(= x (+ 1 2))", "(+ 3)", "(:= y (^ x 2))"]
+
+    def test_an_equation_may_span_lines_inside_an_alignment(self):
+        source = r"""
+            \begin{equation}
+                G_{\mu\nu}
+                    = 8 \pi T_{\mu\nu}
+            \end{equation}
+        """
+        assert program(source) == ["(= (G _[mu nu]) (* (* 8 pi) (T _[mu nu])))"]
+
+    def test_math_delimiters_are_ignored(self):
+        assert program("$$ E = m c^2 $$") == ["(= E (* m (^ c 2)))"]
+        assert program(r"\[ x := 1 \]") == ["(:= x 1)"]
+
+    def test_latex_statements_are_marked(self):
+        statements = parse("a := GM\nb := \\frac{GM}{r}\nc := μ\nd := x").statements
+        assert [s.latex for s in statements] == [False, True, True, False]
+
+    def test_cannot_define_a_number(self):
+        message = str(error("2 := x"))
+        assert "cannot define a number" in message
+        assert "hint: the left of := must be a name" in message
+
+    def test_function_parameters_must_be_names(self):
+        assert "function parameters must be names" in str(error("f(2) := 1"))
+
+    def test_several_names_need_a_definition(self):
+        assert "expected ':=' after a list of names" in str(error("x, y"))
+
+
+class TestErrors:
+    def test_unclosed_parenthesis(self):
+        assert str(error("f(x, y")) == dedent("""\
+            expected ')' to close '(' from line 1, column 2, found end of input
+             --> <input>:1:7
+              |
+            1 | f(x, y
+              |       ^""")
+
+    def test_unexpected_token(self):
+        message = str(error("x := 1 )"))
+        assert message.startswith("unexpected ')'")
+        assert "hint: put each statement on its own line" in message
+
+    def test_missing_operand(self):
+        assert "expected an expression, found end of input" in str(error("x := 1 +"))
+
+    def test_missing_script(self):
+        assert "expected a superscript after '^', found end of input" in str(error("x^"))
+
+    def test_bad_index(self):
+        message = str(error("T_{a=}"))
+        assert "expected an index value (a whole number or a coordinate)" in message
+
+    def test_the_reading_that_got_further_reports_the_error(self):
+        assert "expected an expression, found '}'" in str(error("x^{2 +}"))
+
+    def test_error_points_into_multiline_source(self):
+        message = str(error("x := 1\ny := (2 +\nz := 3"))
+        assert "<input>:3:3" in message
+
+    def test_misplaced_alignment_environment(self):
+        message = str(error(r"x + \begin{align} y \end{align}"))
+        assert "cannot appear inside an expression" in message
+
+
+class TestSpans:
+    def test_nodes_know_their_source(self):
+        node = parse_expression("1 + f(x)")
+        assert node.span.text == "1 + f(x)"
+        assert node.right.span.text == "f(x)"  # type: ignore[attr-defined]
+
+    def test_spans_do_not_affect_equality(self):
+        assert parse_expression("x + 1") == parse_expression("x   +   1")
+
+    def test_statement_spans(self):
+        statement = parse("\n  x := 2 y\n").statements[0]
+        assert statement.span.text == "x := 2 y"
+
+
+class TestMoreNotation:
+    def test_parse_accepts_a_named_source(self):
+        from relativisticpy.language import Source
+
+        assert to_sexpr(parse(Source("x := 1", name="a.relpy"))) == "(:= x 1)"
+        assert to_sexpr(parse_expression(Source("x + 1"))) == "(+ x 1)"
+
+    def test_a_whole_program_prints_one_statement_per_line(self):
+        assert to_sexpr(parse("x := 1\ny")) == "(:= x 1)\ny"
+
+    def test_scripts_in_parentheses_and_commands(self):
+        assert sexpr("x^(n+1)") == "(^ x (+ n 1))"
+        assert sexpr(r"e^\frac{1}{2}") == "(^ e (/ 1 2))"
+        assert sexpr("x^1.5") == "(^ x 1.5)"
+
+    def test_an_empty_script(self):
+        script = parse_expression("x^{}").scripts[0]  # type: ignore[attr-defined]
+        assert script.body is None
+        assert script.indices.items == ()
+
+    def test_a_decimal_is_not_an_index(self):
+        script = parse_expression("T_{1.5}").scripts[0]  # type: ignore[attr-defined]
+        assert script.indices is None
+        assert "an index value must be a whole number" in str(script.index_error)
+
+    def test_trailing_commas_and_semicolons(self):
+        assert sexpr("f(x,)") == "(call f x)"
+        assert sexpr("{ 1, x > 0; 0, otherwise; }") == "(piecewise (1 if (> x 0)) (0 if otherwise))"
+
+    def test_juxtaposition_with_environments_and_bars(self):
+        assert sexpr(r"2 \begin{pmatrix} 1 \end{pmatrix}") == "(* 2 (pmatrix (1)))"
+        assert sexpr(r"\sin|x|") == "(call sin (abs x))"
+
+    def test_accents(self):
+        assert sexpr(r"\dot{a}") == "(dot a)"
+        assert sexpr(r"\ddot x") == "(ddot x)"
+        assert sexpr(r"\bar{z} + \hat{n} + \vec{v} + \tilde{\phi}") == (
+            "(+ (+ (+ (bar z) (hat n)) (vec v)) (tilde phi))"
+        )
+        assert sexpr(r"\dot{x}^\mu") == "((dot x) ^[mu])"
+
+    def test_plain_differentials(self):
+        assert sexpr("d{x}") == "(d x)"
+        assert sexpr("d^2{f}") == "(d^2 f)"
+        assert sexpr("d^{2}{f}/d{x}^2") == "(d^2/dx^2 f)"
+
+    def test_a_derivative_of_a_product(self):
+        assert sexpr(r"\frac{d f g}{dx}") == "(d/dx (* f g))"
+
+    def test_differential_in_braces_inside_an_integral(self):
+        assert sexpr(r"\int f d{x}") == "(int f x)"
+
+    def test_negative_integration_limit_without_braces(self):
+        assert sexpr(r"\int_-1^1 x dx") == "(int x (x (- 1) 1))"
+
+    def test_a_denominator_mixing_d_and_partial_is_a_plain_quotient(self):
+        assert sexpr(r"\frac{d f}{dx \partial y}") == "(/ (* d f) (* (* dx ∂) y))"
+
+    def test_norm_bars(self):
+        assert sexpr(r"\|x\|") == "(abs x)"
+
+
+class TestMoreErrors:
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            ("f'(x) := 1", "cannot define this"),
+            ("f : (x) x", "expected '->' after the parameters, found name 'x'"),
+            ("f : (x) -> { x", "expected '}' to close '{'"),
+            ("f : (x) -> {\n", "expected '}' to close '{'"),
+            (r"\frac{1}", r"\frac is missing an argument"),
+            (r"\frac{1", r"expected '}' to close '{' in the argument of \frac"),
+            (r"\frac{}{2}", r"the numerator of \frac is empty"),
+            (r"\frac{1 )}{2}", "unexpected ')' in the numerator"),
+            (r"\sum_{n=0}^", r"expected a limit after \sum"),
+            (r"\lim x", r"\lim needs a subscript"),
+            (r"\pdv[2]{f}{x}{y}", "a mixed derivative cannot also have an order"),
+            (r"\lfloor x", r"expected \rfloor to close \lfloor"),
+            (r"\sin^{} x", "expected an expression"),
+            (r"\sin + 1", "expected an argument, found '+'"),
+            (r"\begin{tabular} x \end{tabular}", "unsupported environment 'tabular'"),
+            (r"\begin{matrix} 1 , 2 \end{matrix}", r"expected '&', '\\' or \end{matrix}"),
+            (r"\begin{matrix} \end{matrix}", "a matrix needs at least one entry"),
+            (r"\begin{cases} 1 & x > 0 , 2 \end{cases}", r"expected '\\' or \end{cases}"),
+            (r"\begin{cases} \end{cases}", "cases needs at least one case"),
+            ("T_{a(}", "brackets must enclose indices"),
+        ],
+    )
+    def test_messages(self, text, message):
+        assert message in str(error(text))
+
+    def test_parse_expression_rejects_trailing_input(self):
+        with pytest.raises(ParseError, match=r"unexpected '\)'"):
+            parse_expression("x )")

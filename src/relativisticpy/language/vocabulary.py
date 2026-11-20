@@ -73,6 +73,16 @@ INVERSE_FUNCTIONS: Mapping[str, str] = MappingProxyType(
     }
 )  # fmt: skip
 
+#: Accents, mapped to the decoration they add. ``\\bar{x}`` is the symbol ``xbar``,
+#: which SymPy also prints as ``\\bar{x}``; ``\\dot{a}`` can denote a time derivative.
+ACCENT_COMMANDS: Mapping[str, str] = MappingProxyType(
+    {
+        "dot": "dot", "ddot": "ddot", "hat": "hat", "widehat": "hat", "bar": "bar",
+        "overline": "bar", "tilde": "tilde", "widetilde": "tilde", "vec": "vec",
+        "check": "check", "breve": "breve",
+    }
+)  # fmt: skip
+
 # --------------------------------------------------------------------------
 # Commands the lexer resolves on its own
 # --------------------------------------------------------------------------
@@ -133,6 +143,14 @@ LAYOUT_COMMANDS: frozenset[str] = frozenset(
         "quad", "qquad", "enspace", "thinspace", "medspace", "thickspace",
         "negthinspace", "negmedspace", "negthickspace", "hfill", "hline",
         "noindent", "centering",
+    }
+)  # fmt: skip
+
+#: The layout commands that insert horizontal space.
+SPACING_COMMANDS: frozenset[str] = frozenset(
+    {
+        "quad", "qquad", "enspace", "thinspace", "medspace", "thickspace",
+        "negthinspace", "negmedspace", "negthickspace",
     }
 )  # fmt: skip
 

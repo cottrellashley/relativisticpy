@@ -40,9 +40,6 @@ class Source:
         end = self.text.find("\n", start)
         return self.text[start:] if end == -1 else self.text[start:end]
 
-    def span(self, start: int, end: int) -> Span:
-        return Span(self, start, end)
-
 
 @dataclass(frozen=True)
 class Span:

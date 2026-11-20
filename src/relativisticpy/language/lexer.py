@@ -109,6 +109,7 @@ class Lexer:
         self.pos = 0
         self.tokens: list[Token] = []
         self.space_before = False
+        self.explicit_space = False
         self._open_left: list[tuple[str, Span]] = []  # pending \left delimiters
         self._environments: list[tuple[str, Span]] = []  # open \begin{...}
         self._transparent_braces: set[int] = set()  # offsets of '}' closing a style command
@@ -129,7 +130,7 @@ class Lexer:
     def _scan(self) -> None:
         char = self.text[self.pos]
         if char in _SPACE or char == "$":
-            self._skip(1)
+            self._skip(1, explicit=char == "~")
         elif char == "\n":
             self._emit(TokenKind.NEWLINE, "\n", self.pos, self.pos + 1)
         elif char in "#%":
@@ -156,15 +157,21 @@ class Lexer:
 
     # -- primitives -----------------------------------------------------------
 
-    def _emit(self, kind: TokenKind, value: str, start: int, end: int) -> None:
+    def _emit(
+        self, kind: TokenKind, value: str, start: int, end: int, *, verbatim: bool = False
+    ) -> None:
         span = Span(self.source, start, end)
-        self.tokens.append(Token(kind, value, span, self.space_before))
-        self.space_before = False
+        # Names inside a style command's braces, as in \mathrm{mass}, are verbatim.
+        verbatim = verbatim or (kind is TokenKind.IDENT and bool(self._transparent_braces))
+        token = Token(kind, value, span, self.space_before, self.explicit_space, verbatim)
+        self.tokens.append(token)
+        self.space_before = self.explicit_space = False
         self.pos = end
 
-    def _skip(self, count: int) -> None:
+    def _skip(self, count: int, *, explicit: bool = False) -> None:
         self.pos += count
         self.space_before = True
+        self.explicit_space = self.explicit_space or explicit
 
     def _peek(self, offset: int = 0) -> str:
         return self.text[self.pos + offset : self.pos + offset + 1]
@@ -253,7 +260,7 @@ class Lexer:
             self.pos = match.end()
             self._command(match.group(), start)
         elif follower in (" ", "\t", "\r", "\n", ",", ";", ":", "!", ">", "~"):
-            self._skip(2)  # spacing, or a backslash-newline line continuation
+            self._skip(2, explicit=True)  # spacing, or a backslash-newline line continuation
         elif follower in ("[", "]", "(", ")"):
             self._skip(2)  # display-math delimiters \[ \] \( \)
         elif follower == "{":
@@ -280,6 +287,7 @@ class Lexer:
             self._style_command()
         elif name in vocab.LAYOUT_COMMANDS:
             self.space_before = True
+            self.explicit_space = self.explicit_space or name in vocab.SPACING_COMMANDS
         elif name in vocab.LAYOUT_COMMANDS_WITH_ARGUMENT:
             if self._peek() == "*":
                 self.pos += 1
@@ -332,7 +340,7 @@ class Lexer:
         if not contents:
             self.space_before = True
         elif _TEXT_NAME.fullmatch(contents):
-            self._emit(TokenKind.IDENT, contents, start, self.pos)
+            self._emit(TokenKind.IDENT, contents, start, self.pos, verbatim=True)
         else:
             self._emit(TokenKind.STRING, contents, start, self.pos)
 
