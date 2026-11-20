@@ -80,6 +80,20 @@ class Session:
     metric: MetricState | None = None
     assumptions: dict[str, Symbol] = field(default_factory=dict)
     names: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_NAMES))
+    # Functions of the coordinates, written once with their arguments as in \alpha(t, r):
+    # as in physics texts, a bare \alpha then means \alpha(t, r).
+    functions: dict[str, tuple[Symbol, ...]] = field(default_factory=dict)
+    # Whether the coordinates were read from a line element's differentials rather than
+    # declared; only then may a later line element bring new ones.
+    coordinates_inferred: bool = False
+
+    def set_coordinates(self, coordinates: tuple[Symbol, ...], *, inferred: bool = False) -> None:
+        """Change coordinates, forgetting what belonged to the old ones."""
+        if coordinates != self.coordinates:
+            self.metric = None
+            self.functions.clear()
+        self.coordinates = coordinates
+        self.coordinates_inferred = inferred
 
     def symbol(self, name: str) -> Symbol:
         """The symbol called ``name``, with any assumptions declared for it."""
@@ -98,7 +112,7 @@ class Session:
         self.require_coordinates(span, why)
         if self.metric is None:
             raise CompileError(
-                f"{why} needs a metric",
+                "there is no metric yet" if why == "the metric" else f"{why} needs a metric",
                 span=span,
                 hint="define one first, for example  g_{\\mu\\nu} := diag(-1, 1, 1, 1)",
             )
@@ -159,7 +173,7 @@ def _describe(quantity: str) -> str:
         "metric": "the metric",
         "inverse": "raising an index",
         "determinant": "the metric determinant",
-        "christoffel": "the Christoffel symbols",
+        "christoffel": "the Christoffel connection",
         "riemann": "the Riemann tensor",
         "ricci": "the Ricci tensor",
         "ricci_scalar": "the Ricci scalar",

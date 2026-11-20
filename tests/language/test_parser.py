@@ -263,8 +263,31 @@ class TestRelations:
             "(= (G _[mu nu]) (* (* 8 pi) (T _[mu nu])))"
         )
 
-    def test_only_one_equals_sign(self):
-        assert "an equation can have only one '='" in str(error("a = b = c"))
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("a = b = c", "(chain a = b = c)"),
+            (r"a \approx b = c", "(chain a ≈ b = c)"),
+            (
+                r"x^\mu \rightarrow x^{\mu'} = x^\mu + a^\mu",
+                "(chain (x ^[mu]) → (x ^[mu']) = (+ (x ^[mu]) (a ^[mu])))",
+            ),
+        ],
+    )
+    def test_relations_chain(self, text, expected):
+        assert to_sexpr(parse_expression(text)) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\alpha \sim l_P^2", "(~ alpha (^ l_P 2))"),
+            (r"\rho \propto a^{-3}", "(∝ rho (^ a (- 3)))"),
+            (r"x \in M", "(∈ x M)"),
+            (r"\phi : M \rightarrow N", "(chain phi : M → N)"),
+        ],
+    )
+    def test_relations_that_are_not_computed(self, text, expected):
+        assert to_sexpr(parse_expression(text)) == expected
 
     @pytest.mark.parametrize(
         ("text", "expected"),
@@ -611,7 +634,18 @@ class TestStatements:
                 y &:= x^2
             \end{align}
         """
-        assert program(source) == ["(= x (+ 1 2))", "(+ 3)", "(:= y (^ x 2))"]
+        # A row that starts with an operator after '&' continues the row before.
+        assert program(source) == ["(= x (+ (+ 1 2) 3))", "(:= y (^ x 2))"]
+
+    def test_rows_of_a_derivation_chain(self):
+        source = r"""
+            \begin{eqnarray}
+                a &=& b + c \nonumber \\
+                  &=& d \ , \\
+                - e &=& f
+            \end{eqnarray}
+        """
+        assert program(source) == ["(chain a = (+ b c) = d)", "(= (- e) f)"]
 
     def test_an_equation_may_span_lines_inside_an_alignment(self):
         source = r"""
@@ -638,8 +672,12 @@ class TestStatements:
     def test_function_parameters_must_be_names(self):
         assert "function parameters must be names" in str(error("f(2) := 1"))
 
-    def test_several_names_need_a_definition(self):
-        assert "expected ':=' after a list of names" in str(error("x, y"))
+    def test_commas_separate_statements(self):
+        assert program(r"a = b, \quad c = d") == ["(= a b)", "(= c d)"]
+
+    @pytest.mark.parametrize("text", [r"E = m c^2 \ .", "E = m c^2,", r"E = m c^2 .\label{e}"])
+    def test_the_punctuation_of_a_sentence_is_ignored(self, text):
+        assert program(text) == ["(= E (* m (^ c 2)))"]
 
 
 class TestErrors:

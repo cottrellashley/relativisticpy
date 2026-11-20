@@ -47,7 +47,8 @@ class TensorEquation:
         result: dict[tuple[int, ...], Eq] = {}
         for index in product(range(dim), repeat=self.rank):
             lhs, rhs = self.lhs[index], self.rhs[index]
-            if not is_zero(lhs - rhs):
+            comparable = isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr)
+            if not (comparable and is_zero(lhs - rhs)):
                 result[index] = Eq(lhs, rhs, evaluate=False)
         return result
 

@@ -21,6 +21,7 @@ contractions with the metric or the connection.
 
 from __future__ import annotations
 
+import itertools
 import operator
 import re
 from collections.abc import Callable, Mapping, Sequence
@@ -33,11 +34,13 @@ from sympy import Symbol
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, Builtin
 from relativisticpy.compiler.scope import (
     Context,
+    Dalembertian,
     DifferentialMarker,
     FunctionBinding,
     FunctionReference,
     IndexDerivative,
     LeibnizDerivative,
+    LieDerivative,
     Operator,
     Output,
     Scope,
@@ -114,6 +117,7 @@ class Compiler:
         # Every component selection made, in order, so that a covariant derivative
         # can tell which components were chosen inside its operand.
         self._selections: list[Node] = []
+        self._fresh = itertools.count()  # for index labels no one wrote, as in □ = ∇^a ∇_a
 
     # ======================================================================
     # Statements
@@ -141,6 +145,8 @@ class Compiler:
             return []
         assert isinstance(statement, ast.Evaluate)
         expr = statement.expr
+        if isinstance(expr, ast.Chain):  # a = b = c: each link is a claim of its own
+            return [Output(self.value(link, scope, ctx), link.span) for link in expr.links()]
         if isinstance(expr, ast.Equation) and self._defines(expr.lhs, scope):
             self._define(expr.lhs, expr.rhs, scope, ctx)
             return []
@@ -210,10 +216,7 @@ class Compiler:
         names = _names(value, "Coordinates")
         if len(set(names)) != len(names):
             raise CompileError("coordinates must be distinct", span=value.span)
-        coordinates = tuple(self.session.symbol(name) for name in names)
-        if coordinates != self.session.coordinates:
-            self.session.metric = None
-        self.session.coordinates = coordinates
+        self.session.set_coordinates(tuple(self.session.symbol(name) for name in names))
 
     def _declare(self, value: ast.Expr, assumptions: dict[str, bool]) -> None:
         coordinates = {c.name for c in self.session.coordinates or ()}
@@ -280,10 +283,19 @@ class Compiler:
         metric = self.session.evaluate(self.value(value, scope, ctx))
         if not isinstance(metric, Metric):  # pragma: no cover - every capitalised builtin is one
             return None
-        self.session.coordinates = metric.coordinates
+        self.session.set_coordinates(metric.coordinates)
         return self.graph.const(metric.components, VALUE, value.span)
 
     def _define_line_element(self, value: ast.Expr, scope: Scope, ctx: Context, span: Span) -> None:
+        # Without declared coordinates, the differentials name them: dt, dr and d\Omega
+        # are t, r, \theta and \phi.
+        session = self.session
+        named = _line_element_coordinates(value)
+        current = {c.name for c in session.coordinates or ()}
+        replaceable = session.coordinates is None or session.coordinates_inferred
+        if named and replaceable and not set(named) <= current:
+            coordinates = tuple(session.symbol(name) for name in named)
+            session.set_coordinates(coordinates, inferred=True)
         coordinates = self.session.require_coordinates(span, "a line element")
         differentials = tuple(differential(c) for c in coordinates)
         inner = scope.child()
@@ -417,6 +429,11 @@ class Compiler:
             return FunctionReference(node.span, name)
         if ctx.line_element and name == "d":
             return DifferentialMarker(node.span)
+        if name == "d" and node.verbatim:  # {\rm d}t = ... outside a line element
+            raise CompileError(
+                "a relation between differentials such as {\\rm d}t is read but not computed",
+                span=node.span,
+            )
         session = self.session
         if name == "Coordinates" and session.coordinates is not None:
             return self.graph.const(list(session.coordinates), VALUE, node.span)
@@ -434,10 +451,15 @@ class Compiler:
             return self.graph.const(session.assumptions[name], SCALAR, node.span)
         if name in CONSTANTS:
             return self.graph.const(CONSTANTS[name], SCALAR, node.span)
-        if name in BUILTINS:
-            return FunctionReference(node.span, name)
+        if (arguments := session.functions.get(name)) is not None:  # \alpha is \alpha(t, r)
+            args = [self.graph.const(argument, SCALAR) for argument in arguments]
+            return self._call(sympy.Function(name), name, args, SCALAR, node.span)
+        # In LaTeX a run of letters is a product, as typeset maths reads it: re^{x} is
+        # r e^{x}. A builtin keeps its name when called, as in diff(f, x).
         if ctx.latex and _splittable(node):
             return self._latex_letters(node, scope, ctx)
+        if name in BUILTINS:
+            return FunctionReference(node.span, name)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
 
     def _latex_letters(self, node: ast.Name, scope: Scope, ctx: Context) -> Node:
@@ -452,7 +474,34 @@ class Compiler:
             factors.append(self.value(ast.Name(label, verbatim=True, span=span), scope, ctx))
         return self._multiply(factors, node.span)
 
+    def _Dots(self, node: ast.Dots, scope: Scope, ctx: Context) -> Node:
+        raise CompileError(
+            "⋯ stands for terms that are not written, so it cannot be computed", span=node.span
+        )
+
+    def _Relation(self, node: ast.Relation, scope: Scope, ctx: Context) -> Node:
+        if node.op == "≡":  # A \equiv B, where A cannot be defined: an identity
+            return self._Equation(ast.Equation(node.lhs, node.rhs, span=node.span), scope, ctx)
+        raise CompileError(
+            f"'{node.op}' is read but not computed: RelativisticPy decides equations and "
+            "inequalities",
+            span=node.span,
+        )
+
+    def _Chain(self, node: ast.Chain, scope: Scope, ctx: Context) -> Node:
+        raise CompileError(
+            "a chain of relations, a = b = c, is a statement of its own", span=node.span
+        )
+
     def _Operator(self, node: ast.Operator, scope: Scope, ctx: Context) -> Term:
+        if node.kind == "box":
+            return Dalembertian(node.span)
+        if node.kind == "lie":
+            raise CompileError(
+                "\\pounds needs the vector field it is along",
+                span=node.span,
+                hint="for example \\pounds_V T^{\\mu}",
+            )
         symbol = "\\partial" if node.kind == "partial" else "\\nabla"
         raise CompileError(
             f"{symbol} needs an index or a variable",
@@ -463,6 +512,12 @@ class Compiler:
     # -- arithmetic ----------------------------------------------------------
 
     def _Unary(self, node: ast.Unary, scope: Scope, ctx: Context) -> Node:
+        if node.op == "*":
+            raise CompileError("the Hodge dual is not supported yet", span=node.span)
+        if node.op in ("±", "∓"):  # ±x is both x and -x
+            negative = ast.Unary("-", node.operand, span=node.span)
+            pair = (node.operand, negative) if node.op == "±" else (negative, node.operand)
+            return self.value(ast.List(pair, span=node.span), scope, ctx)
         operand = self.value(_operand(node.operand), scope, ctx)
         if node.op == "+":
             return operand
@@ -476,6 +531,15 @@ class Compiler:
     def _Binary(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
         if node.op in ("+", "-"):
             return self._sum(node, scope, ctx)
+        if node.op in ("±", "∓"):  # a ± b is both a + b and a - b
+            plus = ast.Binary("+", node.left, node.right, span=node.span)
+            minus = ast.Binary("-", node.left, node.right, span=node.span)
+            pair = (plus, minus) if node.op == "±" else (minus, plus)
+            return self.value(ast.List(pair, span=node.span), scope, ctx)
+        if node.op == "∧":
+            return self._wedge(node, scope, ctx)
+        if node.op == "∘":
+            raise CompileError("the composition of maps is not supported", span=node.span)
         if node.op == "*":
             return self._product(node, scope, ctx)
         if node.op in ("and", "or"):
@@ -487,6 +551,36 @@ class Compiler:
         if node.op == "/":
             return self._divide(left, right, node.span)
         return self._power(left, right, node.span)
+
+    def _wedge(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
+        """The wedge product of forms written with indices:
+        :math:`(A \\wedge B)_{\\mu\\nu} = 2 A_{[\\mu} B_{\\nu]}`."""
+        left = self.value(_operand(node.left), scope, ctx)
+        right = self.value(_operand(node.right), scope, ctx)
+        ranks = [
+            len(value.type.indices) if isinstance(value.type, TensorType) else 0
+            for value in (left, right)
+        ]
+        if not any(ranks):
+            raise CompileError(
+                "a wedge product needs forms written with their indices",
+                span=node.span,
+                hint="for example A_{\\mu} \\wedge B_{\\nu}",
+            )
+        product = self._multiply([left, right], node.span)
+        assert isinstance(product.type, TensorType)
+        indices = product.type.indices
+        if len(indices) != sum(ranks) or any(index.upper for index in indices):
+            raise IndexNotationError(
+                "a wedge product is of forms: their indices are all down and all different",
+                span=node.span,
+            )
+        if 0 in ranks:
+            return product
+        result = self._symmetrize(product, "[", list(indices.names), node.span)
+        p, q = ranks
+        factor = sympy.factorial(p + q) / (sympy.factorial(p) * sympy.factorial(q))
+        return self._multiply([self.graph.const(factor, SCALAR), result], node.span)
 
     def _sum(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
         terms: list[tuple[int, ast.Expr]] = []
@@ -531,7 +625,12 @@ class Compiler:
         chosen: list[list[Node]] = []  # the components each factor selects
         for factor in factors:
             mark = len(self._selections)
-            terms.append(self.term(_operand(factor), scope, ctx))
+            inner = scope
+            if terms and isinstance(terms[-1], DifferentialMarker) and _names_omega(factor):
+                # in a line element d\Omega is the solid angle, whatever \Omega means
+                inner = scope.child()
+                inner.bind("Omega", VariableBinding(self.graph.const(Symbol("Omega"), SCALAR)))
+            terms.append(self.term(_operand(factor), inner, ctx))
             chosen.append(self._selections[mark:])
         # Operators act on what follows them, innermost (rightmost) first. As in
         # physics texts, ∂_μ acts on the next factor (∂_μφ ∂^μφ is (∂_μφ)(∂^μφ)) while
@@ -549,7 +648,8 @@ class Compiler:
                     stack = [self._apply(term, rest, node.span, scope, ctx)]
                     selected = [[s for group in selected for s in group]]
                 else:
-                    if isinstance(term, IndexDerivative) and term.covariant:
+                    whole = isinstance(term, Dalembertian | LieDerivative)
+                    if whole or (isinstance(term, IndexDerivative) and term.covariant):
                         self._require_whole(stack[-1], selected[-1], term.span)
                     stack[-1] = self._apply(term, stack[-1], node.span, scope, ctx)
             else:
@@ -643,10 +743,31 @@ class Compiler:
         if isinstance(binding, FunctionBinding):
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._inline(binding, args, node.span, ctx)
+        names = {c.name for c in self.session.coordinates or ()}
+        if isinstance(binding, VariableBinding) and all(
+            isinstance(a, ast.Name) and a.id in names for a in node.args
+        ):  # \alpha(r), once \alpha is defined: it says only what \alpha depends on
+            return binding.node
+        one_name = len(node.args) == 1 and isinstance(node.args[0], ast.Name)
+        product = (name in names and not one_name) or (
+            ctx.latex and (isinstance(binding, VariableBinding) or name in CONSTANTS)
+        )
+        if product:  # r(\partial_1 \beta - 1), with r a coordinate: as typeset, a product
+            group = node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
+            times = ast.Binary("*", func, group, implicit=True, span=node.span)
+            return self.value(times, scope, ctx)
         if binding is not None:
             raise CompileError(f"{name} is not a function", span=func.span)
         if name == "geodesic_equations":
             return self._geodesic_equations(node, scope, ctx)
+        if ctx.latex and binding is None and name not in BUILTINS and _splittable(func):
+            # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
+            labels = split_index_labels(name)
+            last = replace(func, id=labels[-1], verbatim=True)
+            leading = [ast.Name(label, verbatim=True, span=func.span) for label in labels[:-1]]
+            factors = [self.value(n, scope, ctx) for n in leading]
+            factors.append(self.value(replace(node, func=last), scope, ctx))
+            return self._multiply(factors, node.span)
         if name in BUILTINS:
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._builtin(BUILTINS[name], args, node.span)
@@ -654,6 +775,10 @@ class Compiler:
         for arg, source in zip(args, node.args, strict=True):
             if isinstance(arg.type, TensorType):
                 raise CompileError(f"cannot pass a tensor to {name}()", span=source.span)
+        values = [arg.op.value if isinstance(arg.op, ops.Const) else None for arg in args]
+        coordinates = self.session.coordinates or ()
+        if values and all(value in coordinates for value in values):
+            self.session.functions[name] = tuple(values)  # later, a bare name means this
         function = sympy.Function(name)
         return self._call(function, name, args, SCALAR, node.span)
 
@@ -779,6 +904,10 @@ class Compiler:
             return self._differentiate(operand, operator_.variables, span)
         if isinstance(operator_, DifferentialMarker):
             return self._differential(operand, span)
+        if isinstance(operator_, Dalembertian):
+            return self._dalembertian(operand, span)
+        if isinstance(operator_, LieDerivative):
+            return self._lie_derivative(operator_.vector, operand, span, scope)
         assert isinstance(operator_, IndexDerivative)
         result = operand
         for item, upper in reversed(operator_.items):
@@ -822,6 +951,11 @@ class Compiler:
         )
 
     def _Integral(self, node: ast.Integral, scope: Scope, ctx: Context) -> Node:
+        if node.domain is not None or any(bound.dimension for bound in node.bounds):
+            raise CompileError(
+                "integrals over regions of spacetime, as in d^4x, are not supported yet",
+                span=node.span,
+            )
         inner = scope.child()
         limits = []
         for bound in node.bounds:
@@ -847,6 +981,12 @@ class Compiler:
         )
 
     def _BigOperator(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node:
+        if node.lower is None or node.upper is None:
+            raise CompileError(
+                f"\\{node.op} needs its limits",
+                span=node.span,
+                hint=f"for example \\{node.op}_{{n=0}}^{{3}}",
+            )
         inner = scope.child()
         variable = self._bound_variable(node.variable, inner)
         lower = self.value(node.lower, scope, ctx)
@@ -957,6 +1097,10 @@ class Compiler:
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         base = node.base
+        if isinstance(base, ast.Operator) and base.kind == "lie":
+            return self._lie_operator(node)
+        if isinstance(base, ast.Operator) and base.kind == "box":
+            raise CompileError("\\Box takes no indices", span=node.span)
         if isinstance(base, ast.Operator):
             return self._derivative_operator(node, covariant=base.kind == "nabla")
         if isinstance(base, ast.Accent) and base.accent in ("dot", "ddot"):
@@ -1036,7 +1180,13 @@ class Compiler:
                 if script.index_error is not None:
                     raise script.index_error
                 raise IndexNotationError(f"expected indices in {purpose}", span=script.span)
-            entries.extend((item, script.kind == "^") for item in script.indices.items)
+            for item in script.indices.items:
+                if item.label == "⋯":
+                    raise CompileError(
+                        "⋯ stands for indices that are not written, so this cannot be computed",
+                        span=item.span,
+                    )
+                entries.append((item, script.kind == "^"))
         return entries
 
     def _access(self, source: TensorSource, node: ast.Scripted, scope: Scope, ctx: Context) -> Node:
@@ -1257,7 +1407,101 @@ class Compiler:
 
     # -- derivatives with indices ------------------------------------------------
 
+    def _lie_operator(self, node: ast.Scripted) -> LieDerivative:
+        """``\\pounds_V``: the subscript names the vector field."""
+        script = node.scripts[0]
+        name = script.body.id if isinstance(script.body, ast.Name) else None
+        if len(node.scripts) != 1 or script.kind != "_" or name is None:
+            raise CompileError(
+                "\\pounds needs one subscript, the vector field it is along",
+                span=node.span,
+                hint="for example \\pounds_V T^{\\mu}",
+            )
+        return LieDerivative(node.span, name)
+
+    def _dalembertian(self, operand: Node, span: Span) -> Node:
+        """``□X = ∇^a ∇_a X``."""
+        self.session.require_coordinates(span, "\\Box")
+        item = ast.IndexItem(f"#box{next(self._fresh)}", span=span)
+        inner = self._index_derivative(operand, item, False, True, span)
+        return self._index_derivative(inner, item, True, True, span)
+
+    def _lie_derivative(self, vector: str, operand: Node, span: Span, scope: Scope) -> Node:
+        """The Lie derivative along ``V``:
+        :math:`£_V T^{a}{}_{b} = V^c \\partial_c T^{a}{}_{b} - (\\partial_c V^a) T^{c}{}_{b}
+        + (\\partial_b V^c) T^{a}{}_{c}`, with one such term for every index."""
+        coordinates = self.session.require_coordinates(span, "a Lie derivative")
+        dim = len(coordinates)
+        binding = scope.lookup(vector)
+        if not isinstance(binding, TensorBinding) or len(binding.indices) != 1:
+            raise CompileError(
+                f"\\pounds_{vector} needs {vector} to be a vector field",
+                span=span,
+                hint=f"define it first, for example {vector}^{{\\mu}} := [1, 0, 0, 0]",
+            )
+        if not binding.indices[0].upper:
+            raise IndexNotationError(
+                f"\\pounds_{vector} is along a vector, with its index up", span=span
+            )
+        field_ = self.graph.retype(binding.node, TensorType(Indices([Index("#v", True)]), dim))
+        selection: tuple[tuple[int, int], ...] = ()
+        if isinstance(operand.op, ops.Select):  # as for ∇: differentiate, then select
+            selection, operand = operand.op.fixed, operand.args[0]
+        names = operand.type.indices if isinstance(operand.type, TensorType) else Indices()
+        current = Indices(Index(f"#{k}", i.upper) for k, i in enumerate(names))
+        if names:
+            operand = self.graph.retype(operand, TensorType(current, dim))
+        kind = TensorType(current, dim) if current else SCALAR
+        derivative = self._derivative_of(operand, current, "#c", False, span)
+        terms = [
+            (
+                1,
+                self._contract(
+                    [
+                        (field_, Indices([Index("#c", True)])),
+                        (derivative, Indices([Index("#c"), *current])),
+                    ],
+                    span,
+                    output=current,
+                ),
+            )
+        ]
+        field_derivative = self._derivative_of(
+            field_, Indices([Index("#v", True)]), "#c", False, span
+        )
+        for position, index in enumerate(current):
+            swapped = Indices(
+                Index("#e", index.upper) if p == position else i for p, i in enumerate(current)
+            )
+            if index.upper:  # - (∂_e V^a) T^{..e..}
+                field_indices, sign = Indices([Index("#e"), Index(index.name, True)]), -1
+            else:  # + (∂_b V^e) T_{..e..}
+                field_indices, sign = Indices([Index(index.name), Index("#e", True)]), 1
+            terms.append(
+                (
+                    sign,
+                    self._contract(
+                        [(field_derivative, field_indices), (operand, swapped)],
+                        span,
+                        output=current,
+                    ),
+                )
+            )
+        result = self.graph.add(
+            ops.Add(tuple(s for s, _ in terms)), [t for _, t in terms], kind, span
+        )
+        if not names:
+            return result
+        entries = [(ast.IndexItem(name.name, span=span), name.upper) for name in names]
+        return self._label(result, entries, coordinates, span, dict(selection))
+
     def _derivative_operator(self, node: ast.Scripted, *, covariant: bool) -> IndexDerivative:
+        scripts = node.scripts
+        power = scripts[-1].body if len(scripts) == 2 and scripts[-1].kind == "^" else None
+        if scripts[0].kind == "_" and isinstance(power, ast.Number) and power.text.isdigit():
+            # \partial_0^2 \beta is \partial_0 \partial_0 \beta
+            once = self._entries(replace(node, scripts=scripts[:1]), "a derivative")
+            return IndexDerivative(node.span, covariant, tuple(once * int(power.text)))
         entries = self._entries(node, "a derivative")
         for item, _ in entries:
             if item.derivative is not None:
@@ -1360,6 +1604,23 @@ class Compiler:
         """Scripts on something that is not a tensor: subscripts name a symbol
         (``r_{s}`` is ``r_s``) and superscripts are powers."""
         base, scripts = node.base, list(node.scripts)
+        if ctx.latex and isinstance(base, ast.Name) and _splittable(base):
+            whole = self.term(base, scope, ctx)
+            labels = split_index_labels(base.id)
+            if (
+                isinstance(whole, Node)
+                and isinstance(whole.op, ops.Mul)
+                and len(whole.args) == len(labels)
+            ):
+                # re^{x} is r e^{x}: in LaTeX a script binds to the last letter only
+                last = ast.Name(labels[-1], verbatim=True, span=base.span)
+                rest = self._script_math(replace(node, base=last), scope, ctx)
+                return self._multiply([*whole.args[:-1], rest], node.span)
+        decorations = [s for s in scripts if s.kind == "^" and _decoration(s)]
+        if decorations and isinstance(base, ast.Name):  # r^* is a name, not a power
+            marks = "".join(s.body.id for s in decorations if isinstance(s.body, ast.Name))
+            base = ast.Name(f"{base.id}^{marks}", verbatim=True, span=base.span)
+            scripts = [s for s in scripts if s not in decorations]
         subscripts = [s for s in scripts if s.kind == "_"]
         powers = [s for s in scripts if s.kind == "^"]
         if subscripts:
@@ -1721,3 +1982,56 @@ def _bracket_groups_across(
     if current is not None:
         raise IndexNotationError("an (anti)symmetrisation bracket is never closed")
     return groups
+
+
+def _decoration(script: ast.Script) -> bool:
+    """A script that marks a name rather than raising it to a power: ``r^*``, ``i^+``."""
+    body = script.body
+    return isinstance(body, ast.Name) and body.verbatim and body.id in ("*", "+", "-", "±", "∓")
+
+
+_DIFFERENTIAL_NAME = re.compile(
+    r"d(" + "|".join(sorted(GREEK, key=len, reverse=True)) + r"|[A-Za-z][0-9]*)"
+)
+
+
+def _line_element_coordinates(value: ast.Expr) -> list[str]:
+    r"""The coordinates a line element's differentials name, in the order they appear:
+    ``-dt^2 + dr^2 + r^2 d\Omega^2`` names t, r, θ and φ. Empty if a differential is
+    abstract, as in ``g_{\mu\nu} dx^\mu dx^\nu``, or if there are none."""
+    atoms: list[ast.Expr] = []
+
+    def visit(node: ast.Expr) -> None:
+        if isinstance(node, ast.Binary):
+            visit(node.left)
+            visit(node.right)
+        elif isinstance(node, ast.Unary):
+            visit(node.operand)
+        else:
+            atoms.append(node)
+
+    visit(value)
+    names: list[str] = []
+    for atom, following in zip(atoms, [*atoms[1:], None], strict=True):
+        base = atom.base if isinstance(atom, ast.Scripted) else atom
+        if isinstance(base, ast.Name) and base.id == "d" and following is not None:
+            target = following
+        elif isinstance(base, ast.Name) and (match := _DIFFERENTIAL_NAME.fullmatch(base.id)):
+            target = ast.Name(match.group(1), span=base.span)
+        else:
+            continue
+        if isinstance(target, ast.Scripted):
+            if not all(isinstance(s.body, ast.Number) for s in target.scripts):
+                return []  # dx^\mu: an abstract differential
+            target = target.base
+        if not isinstance(target, ast.Name):
+            continue
+        found = ["theta", "phi"] if target.id == "Omega" else [target.id]
+        names.extend(name for name in found if name not in names)
+    return names
+
+
+def _names_omega(node: ast.Expr) -> bool:
+    """``\\Omega`` or ``\\Omega^2``, as after the ``d`` of a solid angle."""
+    base = node.base if isinstance(node, ast.Scripted) else node
+    return isinstance(base, ast.Name) and base.id == "Omega"

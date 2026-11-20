@@ -116,5 +116,17 @@ class FunctionReference(Operator):
 
 
 @dataclass(frozen=True)
+class Dalembertian(Operator):
+    """``□``, the wave operator :math:`\\nabla^\\mu \\nabla_\\mu`."""
+
+
+@dataclass(frozen=True)
+class LieDerivative(Operator):
+    """``£_V``, the Lie derivative along the vector field ``V``."""
+
+    vector: str = ""
+
+
+@dataclass(frozen=True)
 class DifferentialMarker(Operator):
     """The ``d`` of ``d\\theta`` in a line element."""

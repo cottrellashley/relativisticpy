@@ -83,7 +83,7 @@ class TestBuiltInTensorNames:
 
     def test_without_a_metric(self, wb):
         wb.exe("Coordinates := [x, y]")
-        with pytest.raises(CompileError, match="the Christoffel symbols needs a metric"):
+        with pytest.raises(CompileError, match="the Christoffel connection needs a metric"):
             wb.expr("C^{a}_{bc}")
 
     def test_without_coordinates(self, wb):

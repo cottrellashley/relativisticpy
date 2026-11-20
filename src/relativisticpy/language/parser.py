@@ -66,8 +66,15 @@ _COMPARISONS: dict[TokenKind, Literal["<", ">", "<=", ">=", "==", "!="]] = {
     K.NOT_EQ: "!=",
 }
 _SEPARATORS = frozenset({K.NEWLINE, K.SEMICOLON, K.ROW_SEP})
+# What may follow a statement: a comma or full stop just before one of these is prose.
+_STATEMENT_ENDS = frozenset({K.EOF, K.NEWLINE, K.ROW_SEP, K.END, K.SEMICOLON, K.RBRACE})
+# Equality and the relations RelativisticPy reads but does not compute; they chain.
+_RELATIONS = frozenset({K.EQUAL, K.RELATION, K.ARROW, K.COLON})
+_OPERATORS = frozenset(
+    {K.PLUS, K.MINUS, K.STAR, K.SLASH, K.DOUBLE_STAR, K.PLUS_MINUS, K.MINUS_PLUS, K.WEDGE}
+)
 # A line that starts with one of these, indented beyond its statement, continues it.
-_CONTINUING = frozenset({K.PLUS, K.MINUS, K.STAR, K.SLASH, K.DOUBLE_STAR, K.EQUAL, *_COMPARISONS})
+_CONTINUING = _OPERATORS | _RELATIONS | frozenset(_COMPARISONS)
 _KEYWORDS = frozenset({"and", "or", "not"})
 _INTEGRALS = {"int": 1, "oint": 1, "iint": 2, "iiint": 3}
 # Commands that end the argument of a function written without parentheses.
@@ -82,6 +89,7 @@ _DIFFERENTIAL = re.compile(
 )
 _KNOWN_COMMANDS = sorted(
     {"frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "lim", "partial", "nabla"}
+    | {"Box", "square", "pounds", "over", "choose"}
     | {"pdv", "dv", "binom", "dbinom", "tbinom", "lfloor", "lceil", "begin", "end"}
     | set(_INTEGRALS)
     | set(vocab.FUNCTION_COMMANDS)
@@ -95,14 +103,14 @@ def parse(source: str | Source) -> ast.Program:
     """Parse a program: a sequence of statements separated by line breaks, ``;`` or ``\\\\``."""
     if isinstance(source, str):
         source = Source(source)
-    return Parser(tokenize(source), source).parse_program()
+    return Parser(_generalised_fractions(tokenize(source)), source).parse_program()
 
 
 def parse_expression(source: str | Source) -> ast.Expr:
     """Parse text that must consist of exactly one expression."""
     if isinstance(source, str):
         source = Source(source)
-    parser = Parser(tokenize(source), source)
+    parser = Parser(_generalised_fractions(tokenize(source)), source)
     parser.skip_separators()
     expr = parser.expression()
     parser.skip_separators()
@@ -156,6 +164,14 @@ class Parser:
         self._integral_depth = 0
         # The column the current statement starts at, for continuation lines.
         self._statement_column = 1
+        # Inside the rows of an alignment, a row can continue the one before.
+        self._rows = 0
+        # Inside a script, ':' gives an index its value (T_{a:0}) rather than relating.
+        self._in_script = False
+        # How deeply the current statement is nested, as inside an alignment.
+        self._statement_nesting = 0
+        # Inside the unbracketed argument of \sin and friends, brackets end it.
+        self._function_argument = False
 
     # -- cursor ---------------------------------------------------------------
 
@@ -222,13 +238,14 @@ class Parser:
     @contextmanager
     def _nested(self, nested: bool = True) -> Iterator[None]:
         """Enter brackets (line breaks insignificant) or, with ``nested=False``, a block."""
-        saved = (self._nesting, self._abs_depth, self._integral_depth)
+        saved = (self._nesting, self._abs_depth, self._integral_depth, self._function_argument)
         self._nesting = saved[0] + 1 if nested else 0
         self._abs_depth = self._integral_depth = 0
+        self._function_argument = False
         try:
             yield
         finally:
-            self._nesting, self._abs_depth, self._integral_depth = saved
+            (self._nesting, self._abs_depth, self._integral_depth, self._function_argument) = saved
 
     def _attempt(self, parse: Callable[[], _T]) -> tuple[_T, None] | tuple[None, ParseError]:
         """Run ``parse``; if it fails, rewind and return the error instead."""
@@ -267,39 +284,61 @@ class Parser:
         if token.kind is K.BEGIN and token.value in vocab.ALIGNMENT_ENVIRONMENTS:
             return self._alignment()
         start = self._significant(self.pos)
-        outer_column, self._statement_column = self._statement_column, token.span.column
+        outer = self._statement_column, self._statement_nesting
+        self._statement_column, self._statement_nesting = token.span.column, self._nesting
         try:
             return self._statement(token, start)
         finally:
-            self._statement_column = outer_column
+            self._statement_column, self._statement_nesting = outer
 
     def _statement(self, token: Token, start: int) -> list[ast.Statement]:
         if token.kind is K.IDENT and self.peek(1).kind is K.COLON and self.peek(2).kind is K.LPAREN:
-            statement: ast.Statement = self._arrow_function()
+            statements: list[ast.Statement] = [self._arrow_function()]
         else:
-            statement = self._expression_statement()
+            statements = self._expression_statements()
         latex = any(_is_latex(t) for t in self.tokens[start : self.pos])
-        return [replace(statement, latex=latex)]
+        return [replace(statement, latex=latex) for statement in statements]
 
-    def _expression_statement(self) -> ast.Statement:
+    def _expression_statements(self) -> list[ast.Statement]:
+        """An expression, a definition ``x, y := ...``, or expressions separated by commas,
+        as in ``a = b, \\quad c = d``. A comma or full stop that ends the statement is the
+        punctuation of the sentence the equation belongs to: ``E = mc^2 \\ .``"""
         first = self.expression()
         targets = [first]
-        while self.accept(K.COMMA):
+        while (self.check(K.COMMA) and not self._at_punctuation()) or self._at_wide_space():
+            self.accept(K.COMMA)
             targets.append(self.expression())
         if define := self.accept(K.DEFINE):
             self._skip_newlines()
             value = self.expression()
-            return self._definition(targets, value, define)
-        if len(targets) > 1:
-            raise ParseError(
-                "expected ':=' after a list of names",
-                span=self._span(first.span),
-                hint="to define several names at once, write  x, y := ...",
-            )
-        return ast.Evaluate(first, span=first.span)
+            self._skip_punctuation()
+            return [self._definition(targets, value, define)]
+        self._skip_punctuation()
+        return [ast.Evaluate(target, span=target.span) for target in targets]
+
+    def _at_wide_space(self) -> bool:
+        """Wide spacing at a statement's top level separates equations:
+        ``\\Gamma^0_{00} = \\partial_0 \\alpha \\qquad \\Gamma^0_{01} = \\partial_1 \\alpha``."""
+        token = self.peek()
+        return (
+            token.wide_space
+            and self._nesting == self._statement_nesting
+            and self._starts_operand(token)
+        )
+
+    def _at_punctuation(self) -> bool:
+        return self.peek().kind in (K.COMMA, K.PERIOD) and self.peek(1).kind in _STATEMENT_ENDS
+
+    def _skip_punctuation(self) -> None:
+        if self._at_punctuation():
+            self.advance()
 
     def _definition(self, targets: list[ast.Expr], value: ast.Expr, define: Token) -> ast.Statement:
         span = targets[0].span.to(value.span)
+        # A \equiv B, or in LaTeX A := B, where A cannot be defined, states an identity.
+        identity = define.span.text in ("\\equiv", "≡") or "\\" in targets[0].span.text
+        if len(targets) == 1 and identity and not _definable(targets[0]):
+            return ast.Evaluate(_identity(targets[0], value, span), span=span)
         if len(targets) == 1 and isinstance(call := targets[0], ast.Call):
             if not isinstance(call.func, ast.Name):
                 raise ParseError("cannot define this", span=call.func.span)
@@ -357,16 +396,20 @@ class Parser:
         """``\\begin{align} ... \\end{align}``: statements separated by ``\\\\``."""
         self.advance()
         statements: list[ast.Statement] = []
-        with self._nested():
-            while True:
-                while self.peek().kind in (K.ROW_SEP, K.SEMICOLON):
-                    self.advance()
-                if self.check(K.END):
-                    break
-                statements.extend(self.statement())
-                if not self.check(K.END):
-                    self._expect_separator()
-            self.advance()
+        self._rows += 1
+        try:
+            with self._nested():
+                while True:
+                    while self.peek().kind in (K.ROW_SEP, K.SEMICOLON):
+                        self.advance()
+                    if self.check(K.END):
+                        break
+                    statements.extend(self.statement())
+                    if not self.check(K.END):
+                        self._expect_separator()
+                self.advance()
+        finally:
+            self._rows -= 1
         return statements
 
     # -- expressions ----------------------------------------------------------
@@ -376,6 +419,11 @@ class Parser:
         while True:
             if self._continues():
                 self._skip_newlines()
+            elif self._continues_row():
+                self.pos = self._significant(self.pos) + 1  # past the row break
+                if self.check(K.LBRACE) and self.peek(1).kind is K.RBRACE:
+                    self.advance()  # and past an empty group, as in & & {} - c
+                    self.advance()
             token = self.peek()
             power = self._infix_power(token)
             if power <= min_power:
@@ -397,6 +445,25 @@ class Parser:
         token = self.tokens[index]
         return token.kind in _CONTINUING and token.span.column > self._statement_column
 
+    def _continues_row(self) -> bool:
+        """Whether an alignment's row break is followed by a row that continues this
+        expression: one that starts with a relation, as in ``a &= b \\\\ &= c``, or
+        with an operator after an alignment marker, as in ``a &= b \\\\ & + c``."""
+        if not self._rows:
+            return False
+        index = self._significant(self.pos)
+        if self.tokens[index].kind is not K.ROW_SEP:
+            return False
+        index = self._significant(index + 1)
+        token = self.tokens[index]
+        if token.kind is K.LBRACE and self.tokens[self._significant(index + 1)].kind is K.RBRACE:
+            aligned = token.aligned  # & & {} - c: the empty group only makes '-' binary
+            token = self.tokens[self._significant(self._significant(index + 1) + 1)]
+        else:
+            aligned = token.aligned
+        relation = token.kind in _RELATIONS or token.kind in _COMPARISONS
+        return relation or (aligned and token.kind in _OPERATORS)
+
     def _infix_power(self, token: Token) -> int:
         kind = token.kind
         if kind is K.BAR:
@@ -405,7 +472,7 @@ class Parser:
             if self.peek(1).kind is K.UNDERSCORE:
                 return Power.SUBSTITUTION
             return Power.PRODUCT  # 2|x|
-        if kind is K.EQUAL:
+        if kind in _RELATIONS and not (kind is K.COLON and self._in_script):
             return Power.EQUATION
         if kind is K.IDENT and token.value == "or":
             return Power.OR
@@ -413,13 +480,13 @@ class Parser:
             return Power.AND
         if kind in _COMPARISONS:
             return Power.COMPARISON
-        if kind in (K.PLUS, K.MINUS):
+        if kind in (K.PLUS, K.MINUS, K.PLUS_MINUS, K.MINUS_PLUS):
             return Power.SUM
-        if kind in (K.STAR, K.SLASH):
+        if kind in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
             return Power.PRODUCT
         if kind is K.DOUBLE_STAR:
             return Power.POWER
-        if self._starts_operand(token):
+        if self._starts_operand(token) and not self._at_wide_space():
             return Power.PRODUCT  # juxtaposition
         return Power.NONE
 
@@ -427,20 +494,13 @@ class Parser:
         kind = token.kind
         if kind is K.BAR and power == Power.SUBSTITUTION:
             return self._substitution(left)
-        if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH):
+        if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
         self.advance()
         self._skip_newlines()
-        if kind is K.EQUAL:
-            right = self.expression(Power.EQUATION)
-            if self.check(K.EQUAL):
-                raise ParseError(
-                    "an equation can have only one '='",
-                    span=self.peek().span,
-                    hint="write each equation as its own statement",
-                )
-            return ast.Equation(left, right, span=left.span.to(right.span))
+        if kind in _RELATIONS:
+            return self._relations(left, token)
         if kind in _COMPARISONS:
             operands, ops = [left], [_COMPARISONS[kind]]
             operands.append(self.expression(Power.COMPARISON))
@@ -454,17 +514,33 @@ class Parser:
             right = self.expression(Power.POWER - 1)  # right-associative
             return ast.Binary("**", left, right, span=left.span.to(right.span))
         right = self.expression(power)
-        op = cast(Literal["+", "-", "*", "/", "and", "or"], token.value)
+        op = cast(Literal["+", "-", "*", "/", "and", "or", "∧", "±", "∓", "∘"], token.value)
         if op == "/":
             return _quotient(left, right, left.span.to(right.span), leibniz=False)
         return ast.Binary(op, left, right, span=left.span.to(right.span))
+
+    def _relations(self, left: ast.Expr, first: Token) -> ast.Expr:
+        """``a = b``, ``a \\sim b``, or relations in a row: ``a = b = c``."""
+        operands, relations = [left], [_relation(first)]
+        while True:
+            operands.append(self.expression(Power.EQUATION))
+            if self.peek().kind not in _RELATIONS:
+                break
+            relations.append(_relation(self.advance()))
+            self._skip_newlines()
+        span = left.span.to(operands[-1].span)
+        if len(relations) > 1:
+            return ast.Chain(tuple(operands), tuple(relations), span=span)
+        if relations[0] == "=":
+            return ast.Equation(left, operands[1], span=span)
+        return ast.Relation(left, relations[0], operands[1], span=span)
 
     def _starts_operand(self, token: Token) -> bool:
         """Whether ``token`` can begin an operand, making juxtaposition a product."""
         kind = token.kind
         if self._integral_depth and self._at_differential():
             return False
-        if kind in (K.NUMBER, K.LPAREN, K.LBRACKET, K.LBRACE):
+        if kind in (K.NUMBER, K.LPAREN, K.LBRACKET, K.LBRACE, K.ELLIPSIS):
             return True
         if kind is K.IDENT:
             return token.value not in _KEYWORDS
@@ -488,14 +564,54 @@ class Parser:
             self.advance()
             operand = self.expression(Power.NOT)
             return ast.Unary("not", operand, span=token.span.to(operand.span))
+        if kind in (K.PLUS_MINUS, K.MINUS_PLUS):
+            self.advance()
+            operand = self.expression(Power.SIGN)
+            sign: Literal["±", "∓"] = "±" if kind is K.PLUS_MINUS else "∓"
+            return ast.Unary(sign, operand, span=token.span.to(operand.span))
+        if kind is K.STAR and not self._starts_operand(self.peek(1)):
+            self.advance()  # a lone \cdot, as in a column of dots
+            return ast.Dots(span=token.span)
+        if kind in (K.STAR, K.DOUBLE_STAR) and self._starts_operand(self.peek(1)):
+            self.advance()  # the Hodge dual, *F; **A is the dual of the dual
+            operand = self.expression(Power.SIGN)
+            node = ast.Unary("*", operand, span=token.span.to(operand.span))
+            return ast.Unary("*", node, span=node.span) if kind is K.DOUBLE_STAR else node
         if kind is K.STRING:
             self.advance()
             return ast.String(token.value, span=token.span)
+        if kind is K.LBRACE and self.peek(1).kind is K.RBRACE:
+            self.advance()  # {} -T: an empty group only spaces what follows
+            self.advance()
+            return self._prefix()
+        if kind in (K.CARET, K.UNDERSCORE):
+            return self._prescripted()
         return self._postfix(self._atom(), grouped=kind in (K.LPAREN, K.LBRACE))
+
+    def _prescripted(self) -> ast.Expr:
+        """A script before its symbol labels it: ``{}^{(3)}R`` is the curvature of space."""
+        marker = self.advance()
+        if self.check(K.LBRACE):
+            group = self._raw_group(K.LBRACE, K.RBRACE, marker)
+            label = self.source.text[group[0].span.end : group[-1].span.start].strip()
+        else:
+            label = self.advance().span.text
+        token = self.peek()
+        if token.kind is not K.IDENT:
+            raise ParseError(
+                f"expected a symbol after the prescript {marker.value}{{{label}}}",
+                span=token.span,
+            )
+        self.advance()
+        name = ast.Name(f"{marker.value}{{{label}}}{token.value}", True, span=self._span(marker))
+        return self._postfix(name)
 
     def _atom(self) -> ast.Expr:
         token = self.peek()
         kind = token.kind
+        if kind is K.ELLIPSIS:
+            self.advance()
+            return ast.Dots(span=token.span)
         if kind is K.NUMBER:
             self.advance()
             return ast.Number(token.value, span=token.span)
@@ -525,12 +641,14 @@ class Parser:
             token = self.peek()
             kind = token.kind
             if kind in (K.CARET, K.UNDERSCORE):
+                if isinstance(node, ast.Operator) and node.kind == "lie":
+                    self._one_letter_script()
                 node = self._attach_script(node, extend=not grouped)
                 grouped = False
             elif (
                 kind is K.LBRACE
-                and isinstance(node, ast.Scripted)
                 and self.peek(1).kind is K.RBRACE
+                and (isinstance(node, ast.Scripted) or self.peek(2).kind in (K.CARET, K.UNDERSCORE))
             ):
                 self.advance()  # R^{a}{}_{bcd}: the empty group only spaces the indices
                 self.advance()
@@ -538,6 +656,7 @@ class Parser:
                 kind is K.LPAREN
                 and not token.space_before
                 and isinstance(node, ast.Name | ast.Prime)
+                and not self._function_argument
             ):
                 node = self._call(node)
             elif kind is K.PRIME and isinstance(node, ast.Name):
@@ -545,11 +664,40 @@ class Parser:
                 while self.accept(K.PRIME):
                     order += 1
                 node = ast.Prime(node, order, span=self._span(node.span))
+            elif kind is K.PRIME and isinstance(node, ast.Scripted | ast.Operator):
+                primes = ""
+                while self.accept(K.PRIME):
+                    primes += "'"
+                if isinstance(node, ast.Scripted):  # x^\mu': the prime is on the index
+                    node = _primed_script(node, primes)
+            elif kind is K.COMMA and [self.peek(i).kind for i in (1, 2, 3)] == [
+                K.LBRACE,
+                K.RBRACE,
+                K.UNDERSCORE,
+            ]:  # \phi,{}_\mu is \phi_{,\mu}
+                for _ in range(3):
+                    self.advance()
+                script = self._script("_", self.advance())
+                if script.indices is not None:
+                    items = tuple(replace(i, derivative=",") for i in script.indices.items)
+                    script = replace(script, indices=replace(script.indices, items=items))
+                base, scripts = (
+                    (node.base, node.scripts) if isinstance(node, ast.Scripted) else (node, ())
+                )
+                node = ast.Scripted(base, (*scripts, script), span=self._span(base.span))
             elif kind is K.BANG:
                 self.advance()
                 node = ast.Factorial(node, span=self._span(node.span))
             else:
                 return node
+
+    def _one_letter_script(self) -> None:
+        """As LaTeX reads it, an unbraced script is one letter: ``\\pounds_VT`` is £_V T."""
+        index = self._significant(self.pos) + 1
+        token = self.tokens[index]
+        if token.kind is K.IDENT and len(token.value) > 1 and not _is_latex(token):
+            first, rest = _split_first_character(token, self.source)
+            self.tokens[index : index + 1] = [first, rest]
 
     def _call(self, func: ast.Expr) -> ast.Call:
         opener = self.advance()
@@ -662,6 +810,10 @@ class Parser:
         token = self.peek()
         if token.kind is K.LBRACE:
             return self._braced_script(kind, marker)
+        if token.kind is K.STAR:  # r^*, \phi_*: a name decoration, not a power
+            self.advance()
+            star = ast.Name("*", verbatim=True, span=token.span)
+            return ast.Script(kind, star, None, span=marker.span.to(token.span))
         if token.kind is K.IDENT:
             self.advance()
             name = ast.Name(token.value, token.verbatim, span=token.span)
@@ -675,6 +827,12 @@ class Parser:
             return ast.Script(
                 kind, number, self._numeric_indices(token), span=marker.span.to(token.span)
             )
+        if token.kind in (K.PLUS_MINUS, K.MINUS_PLUS) or (
+            token.kind in (K.MINUS, K.PLUS) and not self._starts_operand(self.peek(1))
+        ):  # r_+ and i^-: a label, not a sign
+            self.advance()
+            sign = ast.Name(token.value, verbatim=True, span=token.span)
+            return ast.Script(kind, sign, None, span=marker.span.to(token.span))
         if token.kind in (K.MINUS, K.PLUS):
             self.advance()
             operand = self._atom()
@@ -702,9 +860,13 @@ class Parser:
         self.pos, self.previous = start
 
         def braced_expression() -> ast.Expr:
-            with self._nested():
-                body = self.expression()
-                self.expect(K.RBRACE, opener=opener)
+            in_script, self._in_script = self._in_script, True
+            try:
+                with self._nested():
+                    body = self.expression()
+                    self.expect(K.RBRACE, opener=opener)
+            finally:
+                self._in_script = in_script
             return body
 
         body, body_error = self._attempt(braced_expression)
@@ -736,6 +898,13 @@ class Parser:
                         message = "(anti)symmetrisation brackets cannot be nested"
                         raise ParseError(message, span=token.span)
                     pending = self.advance()
+                elif token.kind is K.LBRACE:  # R_{\rho\sigma{\mu\nu}}
+                    group = self.advance()
+                    while not self.check(K.RBRACE):
+                        if self.check(K.EOF):
+                            self.expect(K.RBRACE, opener=group)
+                        items.extend(self._index_items(derivative))
+                    self.advance()
                 elif token.kind in (K.RPAREN, K.RBRACKET):
                     closer = self.advance()
                     if pending is not None or not items or items[-1].closes is not None:
@@ -758,6 +927,9 @@ class Parser:
 
     def _index_items(self, derivative: Literal[",", ";"] | None) -> list[ast.IndexItem]:
         token = self.peek()
+        if token.kind is K.ELLIPSIS:  # T^{\mu_1 \cdots \mu_k}
+            self.advance()
+            return [ast.IndexItem("⋯", derivative=derivative, span=token.span)]
         if token.kind is K.NUMBER:
             numeric = self._numeric_indices(token)
             if numeric is None:
@@ -769,10 +941,33 @@ class Parser:
         self.advance()
         labels = [token.value] if token.verbatim else split_index_labels(token.value)
         items = list(self._items_from_labels(labels, token))
+        if suffix := self._label_suffix():
+            last = items[-1]
+            items[-1] = replace(last, label=f"{last.label}{suffix}", span=self._span(last.span))
         if self.peek().kind in (K.EQUAL, K.COLON):
             self.advance()
             items[-1] = replace(items[-1], value=self._index_value())
         return [replace(item, derivative=derivative) for item in items]
+
+    def _label_suffix(self) -> str:
+        """A subscript or primes on an index label: ``\\mu_1``, ``\\nu'``, ``\\mu_{12}'``."""
+        suffix = ""
+        while True:
+            token = self.tokens[self.pos]
+            follower = self.tokens[self.pos + 1] if token.kind is not K.EOF else token
+            if token.kind in (K.PRIME, K.STAR):  # \mu', \phi_{t*}
+                suffix += "'" if token.kind is K.PRIME else "*"
+                self.advance()
+            elif token.kind is K.UNDERSCORE and follower.kind in (K.NUMBER, K.IDENT):
+                self.advance()
+                suffix += "_" + self.advance().value
+            elif token.kind is K.UNDERSCORE and follower.kind is K.LBRACE:
+                owner = self.advance()
+                group = self._raw_group(K.LBRACE, K.RBRACE, owner)
+                inner = self.source.text[group[0].span.end : group[-1].span.start].strip()
+                suffix += "_{" + inner + "}"
+            else:
+                return suffix
 
     def _index_value(self) -> ast.Expr:
         token = self.peek()
@@ -830,6 +1025,12 @@ class Parser:
         if name in ("partial", "nabla"):
             self.advance()
             return ast.Operator(cast(Literal["partial", "nabla"], name), span=token.span)
+        if name in ("Box", "square"):
+            self.advance()
+            return ast.Operator("box", span=token.span)
+        if name == "pounds":
+            self.advance()
+            return ast.Operator("lie", span=token.span)
         if name in ("pdv", "dv"):
             return self._physics_derivative()
         if name in ("binom", "dbinom", "tbinom"):
@@ -959,6 +1160,10 @@ class Parser:
         command = self.advance()
         op: Literal["sum", "prod"] = "sum" if command.value == "sum" else "prod"
         lower, upper = self._limits(command)
+        if lower is not None and upper is None and not any(t.kind is K.EQUAL for t in lower):
+            variable = self._subparse(lower, "index", command)  # \sum_b: over an index
+            body = self.expression(Power.SUM)
+            return ast.BigOperator(op, variable, None, None, body, span=self._span(command))
         if lower is None or upper is None:
             raise ParseError(
                 f"\\{op} needs limits",
@@ -984,18 +1189,21 @@ class Parser:
         upper = self._subparse(upper_tokens, "upper limit", command) if upper_tokens else None
         self._integral_depth += 1
         try:
-            variables: list[ast.Expr] = []
+            variables: list[tuple[ast.Expr, ast.Expr | None]] = []
             if self._at_differential():  # \int dx f(x)
                 while len(variables) < count and self._at_differential():
-                    variables.append(self._differential())
+                    variables.append(self._integration_variable())
                 integrand = self.expression(Power.SUM)
             else:
                 integrand = self.expression(Power.COMPARISON)
             while len(variables) < count and self._at_differential():
-                variables.append(self._differential())
+                variables.append(self._integration_variable())
             if len(variables) < count:  # \int \frac{dr}{1 - 2M/r}: the differential is on top
                 integrand, found = _take_differentials(integrand, count - len(variables))
-                variables.extend(found)
+                variables.extend((variable, None) for variable in found)
+            if not variables and count == 1 and lower is not None and upper is None:
+                # \int_M \omega: a form over a region, with no differential
+                return ast.Integral(integrand, (), lower, span=self._span(command))
             if len(variables) < count:
                 token = self.peek()
                 raise ParseError(
@@ -1006,21 +1214,54 @@ class Parser:
         finally:
             self._integral_depth -= 1
         bounds = tuple(
-            ast.Bound(variable, lower, upper, span=variable.span) for variable in variables
+            ast.Bound(variable, lower, upper, dimension, span=variable.span)
+            for variable, dimension in variables
         )
         return ast.Integral(integrand, bounds, span=self._span(command))
 
     def _at_differential(self) -> bool:
-        """Is the next token a differential: ``dx``, ``d x``, ``d\\theta``, ``\\mathrm{d}x``?"""
+        """Is the next token a differential: ``dx``, ``d x``, ``d\\theta``, ``\\mathrm{d}x``,
+        or a volume element such as ``d^4x``?"""
         token = self.peek()
         if token.kind is not K.IDENT:
             return False
+        if token.value == "d" and self._at_volume_element():
+            return True
         if token.value == "d":
             follower = self.peek(1)
             return follower.kind is K.IDENT or (
                 follower.kind is K.LBRACE and not follower.space_before
             )
         return not token.verbatim and _DIFFERENTIAL.fullmatch(token.value) is not None
+
+    def _at_volume_element(self) -> bool:
+        """``d^4x``, ``d^4 x``, ``d^nx``: a differential over several dimensions."""
+        caret, dimension, after = self.peek(1), self.peek(2), self.peek(3)
+        if caret.kind is not K.CARET:
+            return False
+        if dimension.kind is K.NUMBER:
+            return after.kind is K.IDENT
+        return dimension.kind is K.IDENT and (
+            len(dimension.value) == 2 or (len(dimension.value) == 1 and after.kind is K.IDENT)
+        )
+
+    def _integration_variable(self) -> tuple[ast.Expr, ast.Expr | None]:
+        """The variable of a differential, and its dimension if it is a volume element."""
+        if not self._at_volume_element():
+            return self._differential(), None
+        self.advance()  # d
+        self.advance()  # ^
+        token = self.advance()
+        dimension: ast.Expr
+        if token.kind is K.NUMBER:
+            dimension = ast.Number(token.value, span=token.span)
+        else:
+            first, rest = token.value[0], token.value[1:]
+            dimension = ast.Name(first, span=token.span)
+            if rest:  # d^nx
+                return ast.Name(rest, span=token.span), dimension
+        name = self.advance()
+        return ast.Name(name.value, name.verbatim, span=name.span), dimension
 
     def _differential(self) -> ast.Expr:
         token = self.advance()
@@ -1034,7 +1275,11 @@ class Parser:
                 self.expect(K.RBRACE, opener=opener)
             return variable
         name = self.advance()
-        return ast.Name(name.value, name.verbatim, span=name.span)
+        primes = ""
+        while self.tokens[self.pos].kind is K.PRIME:
+            primes += "'"
+            self.advance()
+        return ast.Name(name.value + primes, name.verbatim, span=self._span(name))
 
     def _limit(self) -> ast.Limit:
         command = self.advance()
@@ -1149,10 +1394,19 @@ class Parser:
             return (arg,)
         if not self._starts_operand(token):
             raise ParseError(f"expected an argument, found {token.describe()}", span=token.span)
+        outer, self._function_argument = self._function_argument, True
+        try:
+            return (self._unbracketed_argument(),)
+        finally:
+            self._function_argument = outer
+
+    def _unbracketed_argument(self) -> ast.Expr:
         arg = self.expression(Power.PRODUCT)
         while True:
             token = self.peek()
             if token.explicit_space or not self._starts_operand(token):
+                break
+            if token.kind is K.LPAREN:  # \cos\theta (\dot\phi)^2: brackets end the argument
                 break
             if token.kind is K.COMMAND and token.value in _ARGUMENT_STOPPERS:
                 break
@@ -1160,7 +1414,7 @@ class Parser:
                 break
             right = self.expression(Power.PRODUCT)
             arg = ast.Binary("*", arg, right, implicit=True, span=arg.span.to(right.span))
-        return (arg,)
+        return arg
 
     # -- derivatives in Leibniz notation ----------------------------------------
 
@@ -1217,7 +1471,16 @@ class Parser:
         row: list[ast.Expr] = []
         with self._nested():
             while not self.check(K.END):
-                row.append(self.expression())
+                if self.peek().kind in (K.AMPERSAND, K.ROW_SEP):  # an empty cell
+                    row.append(ast.Dots(span=self.peek().span))
+                else:
+                    row.append(self.expression())
+                if self.peek().kind in (K.COMMA, K.PERIOD) and self.peek(1).kind in (
+                    K.AMPERSAND,
+                    K.ROW_SEP,
+                    K.END,
+                ):
+                    self.advance()  # the punctuation of a sentence
                 if self.accept(K.AMPERSAND):
                     continue
                 if self.accept(K.ROW_SEP) or self.check(K.END):
@@ -1241,15 +1504,22 @@ class Parser:
                 )
         return ast.Matrix(begin.value, tuple(rows), span=self._span(begin))
 
-    def _cases(self) -> ast.Piecewise:
+    def _cases(self) -> ast.Expr:
         begin = self.advance()
         pieces: list[tuple[ast.Expr, ast.Expr | None]] = []
+        conditions = False
         with self._nested():
             while not self.check(K.END):
                 value = self.expression()
-                self.accept(K.COMMA)
+                if self.peek().kind in (K.COMMA, K.PERIOD):
+                    self.advance()
+                if self.peek().kind in (K.ROW_SEP, K.END):  # equations in a brace
+                    pieces.append((value, None))
+                    self.accept(K.ROW_SEP)
+                    continue
                 self.expect(K.AMPERSAND, after="a case's value")
                 pieces.append((value, self._condition()))
+                conditions = True
                 if not self.accept(K.ROW_SEP) and not self.check(K.END):
                     token = self.peek()
                     raise ParseError(
@@ -1259,6 +1529,8 @@ class Parser:
             self.advance()
         if not pieces:
             raise ParseError("cases needs at least one case", span=self._span(begin))
+        if not conditions:  # a brace gathering equations: \cases{a = ... \cr t = ...}
+            return ast.List(tuple(value for value, _ in pieces), span=self._span(begin))
         return ast.Piecewise(tuple(pieces), span=self._span(begin))
 
 
@@ -1470,3 +1742,133 @@ def _describe_node(node: ast.Expr) -> str:
         ast.Equation: "an equation",
     }
     return names.get(type(node), "this")
+
+
+def _relation(token: Token) -> str:
+    """The symbol of a relation token: ``=``, ``→``, or the relation's own symbol."""
+    if token.kind is K.EQUAL:
+        return "="
+    if token.kind is K.ARROW:
+        return "→"
+    if token.kind is K.COLON:
+        return ":"
+    return token.value
+
+
+# TeX's generalised fractions, and the LaTeX commands they become.
+_FRACTION_COMMANDS = {"over": "frac", "choose": "binom"}
+_OPENERS = frozenset({K.LBRACE, K.LPAREN, K.LBRACKET})
+_CLOSERS = frozenset({K.RBRACE, K.RPAREN, K.RBRACKET})
+_GROUP_LIMITS = frozenset({K.ROW_SEP, K.SEMICOLON, K.BEGIN, K.END, K.EOF})
+
+
+def _generalised_fractions(tokens: list[Token]) -> list[Token]:
+    r"""Rewrite TeX's ``{a \over b}`` as ``\frac{a}{b}``, and ``\choose`` as ``\binom``.
+
+    As in TeX, ``\over`` divides everything in the group it is in: the braces or
+    brackets around it, or else its alignment cell or line.
+    """
+    while True:
+        index = next(
+            (
+                i
+                for i, token in enumerate(tokens)
+                if token.kind is K.COMMAND and token.value in _FRACTION_COMMANDS
+            ),
+            None,
+        )
+        if index is None:
+            return tokens
+        start, end = _group_around(tokens, index)
+        over = tokens[index]
+        # The new tokens span the whole fraction, so that the fraction's span does too.
+        first = tokens[start].span if start < index else over.span
+        last = tokens[end - 1].span if end - 1 > index else over.span
+        opening = Span(first.source, first.start, first.start)
+        closing = Span(last.source, last.end, last.end)
+        replacement = [
+            Token(
+                K.COMMAND,
+                _FRACTION_COMMANDS[over.value],
+                first.to(last),
+                tokens[start].space_before,
+            ),
+            Token(K.LBRACE, "{", opening),
+            *tokens[start:index],
+            Token(K.RBRACE, "}", over.span),
+            Token(K.LBRACE, "{", over.span),
+            *tokens[index + 1 : end],
+            Token(K.RBRACE, "}", closing),
+        ]
+        tokens = [*tokens[:start], *replacement, *tokens[end:]]
+
+
+def _group_around(tokens: list[Token], index: int) -> tuple[int, int]:
+    """The extent ``[start, end)`` of the group the token at ``index`` is in."""
+    depth, start = 0, index
+    while start > 0:
+        token = tokens[start - 1]
+        if token.kind in _CLOSERS:
+            depth += 1
+        elif token.kind in _OPENERS:
+            if depth == 0:
+                break
+            depth -= 1
+        elif depth == 0 and token.kind in _GROUP_LIMITS:
+            break
+        start -= 1
+        if depth == 0 and tokens[start].aligned:
+            break  # an alignment cell starts here
+    depth, end = 0, index + 1
+    while end < len(tokens):
+        token = tokens[end]
+        if token.kind in _OPENERS:
+            depth += 1
+        elif token.kind in _CLOSERS:
+            if depth == 0:
+                break
+            depth -= 1
+        elif depth == 0 and (token.kind in _GROUP_LIMITS or token.aligned):
+            break
+        end += 1
+    return start, end
+
+
+def _definable(target: ast.Expr) -> bool:
+    """Whether ``target :=`` can define it: a name, a tensor, or a function of names."""
+    if isinstance(target, ast.Call):
+        return isinstance(target.func, ast.Name) and all(
+            isinstance(arg, ast.Name) for arg in target.args
+        )
+    return isinstance(target, ast.Name | ast.Scripted)
+
+
+def _identity(target: ast.Expr, value: ast.Expr, span: Span) -> ast.Expr:
+    r"""``A \equiv B``, where ``A`` cannot be defined, states that A is identically B."""
+    operands, relations = [target], ["≡"]
+    if isinstance(value, ast.Chain):
+        operands += value.operands
+        relations += value.relations
+    elif isinstance(value, ast.Equation):
+        operands += [value.lhs, value.rhs]
+        relations.append("=")
+    elif isinstance(value, ast.Relation):
+        operands += [value.lhs, value.rhs]
+        relations.append(value.op)
+    else:
+        return ast.Relation(target, "≡", value, span=span)
+    return ast.Chain(tuple(operands), tuple(relations), span=span)
+
+
+def _primed_script(node: ast.Scripted, primes: str) -> ast.Scripted:
+    """``x^\\mu'``: the primes belong to the last script's name and index."""
+    script = node.scripts[-1]
+    body = script.body
+    if isinstance(body, ast.Name):
+        body = replace(body, id=body.id + primes)
+    indices = script.indices
+    last = indices.items[-1] if indices is not None and indices.items else None
+    if indices is not None and last is not None and last.label is not None:
+        items = (*indices.items[:-1], replace(last, label=last.label + primes))
+        indices = replace(indices, items=items)
+    return replace(node, scripts=(*node.scripts[:-1], replace(script, body=body, indices=indices)))

@@ -168,13 +168,18 @@ class TestLatexSymbols:
         )
 
     def test_unknown_commands_are_left_for_the_parser(self):
-        assert lex(r"\otimes") == r"\otimes"
+        assert lex(r"\bowtie") == r"\bowtie"
 
 
 class TestLatexTypesetting:
-    def test_math_mode_delimiters_are_ignored(self):
-        assert lex("$x$ $$y$$") == "x y"
-        assert lex(r"\[ x \] \( y \)") == "x y"
+    def test_inline_math_delimiters_are_ignored(self):
+        assert lex(r"$x$ \( y \)") == "x y"
+
+    def test_a_display_is_one_formula(self):
+        # Line breaks inside \[ ... \] or $$ ... $$ do not end the statement.
+        assert lex("$$y$$") == "begin:displaymath y end:displaymath"
+        assert lex(r"\[ x \]") == "begin:displaymath x end:displaymath"
+        assert lex(r"\] x $$") == "x"  # unmatched delimiters are skipped
 
     def test_spacing_commands_are_whitespace(self):
         assert lex(r"a\,b\;c\:d\!e\ f~g\quad h\qquad i") == "a b c d e f g h i"
@@ -195,7 +200,10 @@ class TestLatexTypesetting:
         assert lex(r"\displaystyle \sum\limits") == r"\sum"
 
     def test_line_break_commands_end_the_line(self):
-        assert lex(r"a \newline b \linebreak[4] c \cr d") == "a ⏎ b ⏎ c ⏎ d"
+        assert lex(r"a \newline b \linebreak[4] c") == "a ⏎ b ⏎ c"
+
+    def test_plain_tex_rows_end_with_cr(self):
+        assert lex(r"\matrix{a & b \cr c & d}") == r"begin:matrix a & b \\ c & d end:matrix"
 
     def test_text_commands_become_names(self):
         assert lex(r"\text{otherwise} \operatorname{tr}(A) \text{if }") == "otherwise tr ( A ) if"

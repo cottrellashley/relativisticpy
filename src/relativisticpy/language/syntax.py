@@ -68,9 +68,15 @@ class Name(Expr):
 
 @dataclass(frozen=True)
 class Operator(Expr):
-    """A differential operator symbol: ``\\partial`` (``∂``) or ``\\nabla`` (``∇``)."""
+    """A differential operator symbol: ``\\partial`` (``∂``), ``\\nabla`` (``∇``), the
+    d'Alembertian ``\\Box`` (``□``) or the Lie derivative ``\\pounds`` (``£``)."""
 
-    kind: Literal["partial", "nabla"]
+    kind: Literal["partial", "nabla", "box", "lie"]
+
+
+@dataclass(frozen=True)
+class Dots(Expr):
+    """An ellipsis, ``\\cdots``: terms that are written only as a pattern."""
 
 
 # ---------------------------------------------------------------------------
@@ -80,7 +86,9 @@ class Operator(Expr):
 
 @dataclass(frozen=True)
 class Unary(Expr):
-    op: Literal["-", "+", "not"]
+    """A prefix operation. ``*`` is the Hodge dual, as in ``*F``."""
+
+    op: Literal["-", "+", "not", "*", "±", "∓"]
     operand: Expr
 
 
@@ -88,7 +96,7 @@ class Unary(Expr):
 class Binary(Expr):
     """A binary operation. ``implicit`` marks multiplication by juxtaposition (``2x``)."""
 
-    op: Literal["+", "-", "*", "/", "**", "and", "or"]
+    op: Literal["+", "-", "*", "/", "**", "and", "or", "∧", "±", "∓", "∘"]
     left: Expr
     right: Expr
     implicit: bool = False
@@ -108,6 +116,36 @@ class Equation(Expr):
 
     lhs: Expr
     rhs: Expr
+
+
+@dataclass(frozen=True)
+class Relation(Expr):
+    """A relation other than equality or order, such as ``a \\sim b``, ``a \\propto b``,
+    ``x \\in X`` or ``x \\to x'``. RelativisticPy reads relations but does not compute them."""
+
+    lhs: Expr
+    op: str
+    rhs: Expr
+
+
+@dataclass(frozen=True)
+class Chain(Expr):
+    """Relations in a row, as in a derivation: ``a = b = c`` or ``a \\approx b = c``.
+    Each link is a statement of its own."""
+
+    operands: tuple[Expr, ...]
+    relations: tuple[str, ...]
+
+    def links(self) -> list[Equation | Relation]:
+        """Each relation with its two operands: ``a = b`` and ``b = c``."""
+        links: list[Equation | Relation] = []
+        for left, op, right in zip(self.operands, self.relations, self.operands[1:], strict=False):
+            span = left.span.to(right.span)
+            if op == "=":
+                links.append(Equation(left, right, span=span))
+            else:
+                links.append(Relation(left, op, right, span=span))
+        return links
 
 
 @dataclass(frozen=True)
@@ -294,6 +332,7 @@ class Bound(Node):
     variable: Expr
     lower: Expr | None = None
     upper: Expr | None = None
+    dimension: Expr | None = None  # d^4x integrates over four dimensions
 
 
 @dataclass(frozen=True)
@@ -302,6 +341,7 @@ class Integral(Expr):
 
     integrand: Expr
     bounds: tuple[Bound, ...]
+    domain: Expr | None = None  # \\int_M \\omega: a form integrated over a region
 
 
 @dataclass(frozen=True)
@@ -310,8 +350,8 @@ class BigOperator(Expr):
 
     op: Literal["sum", "prod"]
     variable: Expr
-    lower: Expr
-    upper: Expr
+    lower: Expr | None  # None for a sum over an index, as in \\sum_b
+    upper: Expr | None
     body: Expr
 
 
@@ -415,7 +455,10 @@ class _Printer:
         return node.id
 
     def _Operator(self, node: Operator) -> str:
-        return "∂" if node.kind == "partial" else "∇"
+        return {"partial": "∂", "nabla": "∇", "box": "□", "lie": "£"}[node.kind]
+
+    def _Dots(self, node: Dots) -> str:
+        return "⋯"
 
     def _Unary(self, node: Unary) -> str:
         return f"({node.op} {self.render(node.operand)})"
@@ -433,6 +476,15 @@ class _Printer:
 
     def _Equation(self, node: Equation) -> str:
         return f"(= {self.render(node.lhs)} {self.render(node.rhs)})"
+
+    def _Relation(self, node: Relation) -> str:
+        return f"({node.op} {self.render(node.lhs)} {self.render(node.rhs)})"
+
+    def _Chain(self, node: Chain) -> str:
+        parts = [self.render(node.operands[0])]
+        for op, operand in zip(node.relations, node.operands[1:], strict=True):
+            parts += [op, self.render(operand)]
+        return f"(chain {' '.join(parts)})"
 
     def _Factorial(self, node: Factorial) -> str:
         return f"(! {self.render(node.operand)})"
@@ -527,16 +579,22 @@ class _Printer:
         return f"({d} {self.render(node.expr)})"
 
     def _Bound(self, node: Bound) -> str:
+        if node.dimension is not None:
+            return f"(d^{self.render(node.dimension)} {self.render(node.variable)})"
         if node.lower is None and node.upper is None:
             return self.render(node.variable)
         return f"({self.render(node.variable)} {self.render(node.lower)} {self.render(node.upper)})"
 
     def _Integral(self, node: Integral) -> str:
+        if node.domain is not None:
+            return f"(int {self.render(node.integrand)} over {self.render(node.domain)})"
         return f"(int {self.render(node.integrand)} {self._many(node.bounds)})"
 
     def _BigOperator(self, node: BigOperator) -> str:
         bounds = (
             f"({self.render(node.variable)} {self.render(node.lower)} {self.render(node.upper)})"
+            if node.lower is not None
+            else self.render(node.variable)
         )
         return f"({node.op} {bounds} {self.render(node.body)})"
 

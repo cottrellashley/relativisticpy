@@ -48,6 +48,8 @@ SYMBOL_COMMANDS: Mapping[str, str] = MappingProxyType(
         "ell": "ell",
         "hbar": "hbar",
         "infty": "infty",
+        "odot": "odot",  # the Sun, as in M_\odot
+        "star": "star",  # as in N_\star
     }
 )
 
@@ -117,14 +119,46 @@ OPERATOR_COMMANDS: Mapping[str, TokenKind] = MappingProxyType(
         "lvert": TokenKind.BAR,
         "rvert": TokenKind.BAR,
         "mid": TokenKind.BAR,
+        "langle": TokenKind.LPAREN,  # \langle x \rangle groups, as brackets do
+        "rangle": TokenKind.RPAREN,
+        "otimes": TokenKind.STAR,  # in index notation a tensor product is a product
+        "pm": TokenKind.PLUS_MINUS,
+        "mp": TokenKind.MINUS_PLUS,
+        "wedge": TokenKind.WEDGE,
+        "circ": TokenKind.COMPOSE,
     }
+)
+
+#: Relations other than equality and order, mapped to their symbol. RelativisticPy
+#: reads them, so that the equations around them run, but does not compute them.
+RELATION_COMMANDS: Mapping[str, str] = MappingProxyType(
+    {
+        "sim": "~", "simeq": "≃", "approx": "≈", "cong": "≅", "doteq": "≐",
+        "asymp": "≍", "propto": "∝", "ll": "≪", "gg": "≫",
+        "in": "∈", "notin": "∉", "subset": "⊂", "subseteq": "⊆", "supset": "⊃",
+        "supseteq": "⊇", "leftrightarrow": "↔", "longleftrightarrow": "↔",
+    }
+)  # fmt: skip
+
+#: Connectives between whole equations, such as ``a = b \Rightarrow c = d``. Each
+#: side is a statement of its own.
+CONNECTIVE_COMMANDS: frozenset[str] = frozenset(
+    {"Rightarrow", "Longrightarrow", "implies", "Leftrightarrow", "Longleftrightarrow", "iff"}
+)
+
+#: Ellipses, which stand for terms that are not written.
+ELLIPSIS_COMMANDS: frozenset[str] = frozenset(
+    {"cdots", "ldots", "dots", "dotsc", "dotsb", "dotsm", "dotsi", "dotso", "vdots", "ddots"}
 )
 
 #: Commands whose argument is prose, not mathematics. The argument becomes a
 #: single name (``\text{otherwise}``) or, if it contains spaces, a string.
 TEXT_COMMANDS: frozenset[str] = frozenset(
-    {"text", "textrm", "textit", "textbf", "textsf", "texttt", "textup", "mbox", "operatorname"}
-)
+    {
+        "text", "textrm", "textit", "textbf", "textsf", "texttt", "textup", "textnormal",
+        "mbox", "hbox", "operatorname",
+    }
+)  # fmt: skip
 
 #: Commands that only change the typeface of their argument. The argument is
 #: lexed as ordinary mathematics: ``\mathrm{d}x`` reads exactly like ``d x``.
@@ -132,6 +166,17 @@ STYLE_COMMANDS: frozenset[str] = frozenset(
     {
         "mathrm", "mathit", "mathbf", "mathsf", "mathtt", "mathcal", "mathbb",
         "mathfrak", "mathscr", "mathnormal", "boldsymbol", "bm", "pmb",
+        "mathop", "mathord", "mathrel", "mathbin", "mathpunct", "mathinner", "lefteqn",
+        "mathopen", "mathclose",
+    }
+)  # fmt: skip
+
+#: Plain TeX's font switches, which change the typeface of the rest of the group
+#: they are in: ``{\rm d}x`` reads like ``\mathrm{d}x``.
+FONT_DECLARATIONS: frozenset[str] = frozenset(
+    {
+        "rm", "bf", "it", "sl", "sf", "tt", "sc", "em", "cal", "mit", "boldmath",
+        "rmfamily", "bfseries", "itshape", "upshape", "mdseries", "normalfont",
     }
 )  # fmt: skip
 
@@ -142,7 +187,7 @@ LAYOUT_COMMANDS: frozenset[str] = frozenset(
         "limits", "nolimits", "nonumber", "notag", "allowbreak", "displaybreak",
         "quad", "qquad", "enspace", "thinspace", "medspace", "thickspace",
         "negthinspace", "negmedspace", "negthickspace", "hfill", "hline",
-        "noindent", "centering",
+        "noindent", "centering", "aftergroup",
     }
 )  # fmt: skip
 
@@ -154,13 +199,16 @@ SPACING_COMMANDS: frozenset[str] = frozenset(
     }
 )  # fmt: skip
 
+#: The spacing commands wide enough to separate equations: ``a = b \\qquad c = d``.
+WIDE_SPACING_COMMANDS: frozenset[str] = frozenset({"quad", "qquad", "hfill", "hfil"})
+
 #: Typesetting commands with one braced argument (``\label{eq:1}``); ignored.
 LAYOUT_COMMANDS_WITH_ARGUMENT: frozenset[str] = frozenset(
     {"label", "tag", "vspace", "hspace", "phantom", "hphantom", "vphantom"}
 )
 
 #: Commands that end a line, and therefore a statement.
-LINE_BREAK_COMMANDS: frozenset[str] = frozenset({"newline", "linebreak", "cr"})
+LINE_BREAK_COMMANDS: frozenset[str] = frozenset({"newline", "linebreak"})
 
 #: Delimiter sizing commands (``\big(``, ``\Bigl[`` ...).
 SIZE_COMMANDS: frozenset[str] = frozenset(
@@ -188,6 +236,10 @@ MATRIX_ENVIRONMENTS: frozenset[str] = frozenset(
 
 #: Piecewise definitions.
 CASES_ENVIRONMENTS: frozenset[str] = frozenset({"cases", "dcases"})
+
+#: Plain TeX's matrices and cases, written ``\matrix{a & b \cr c & d}``. They
+#: read as the environment of the same name, with ``\cr`` ending each row.
+PLAIN_ENVIRONMENTS: frozenset[str] = frozenset({"matrix", "pmatrix", "cases"})
 
 #: Environments followed by a mandatory argument that is not mathematics,
 #: such as the column specification of ``\begin{array}{cc}``.
@@ -241,8 +293,23 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
         "≡": TokenKind.DEFINE,
         "≔": TokenKind.DEFINE,
         "′": TokenKind.PRIME,
+        "±": TokenKind.PLUS_MINUS,
+        "∓": TokenKind.MINUS_PLUS,
+        "∧": TokenKind.WEDGE,
+        "∘": TokenKind.COMPOSE,
+        "⊗": TokenKind.STAR,
+        "…": TokenKind.ELLIPSIS,
+        "⋯": TokenKind.ELLIPSIS,
     }
 )
+
+#: Unicode relations, mapped to the symbol :data:`RELATION_COMMANDS` uses.
+UNICODE_RELATIONS: Mapping[str, str] = MappingProxyType(
+    {
+        "∼": "~", "≃": "≃", "≈": "≈", "≅": "≅", "∝": "∝", "≪": "≪", "≫": "≫",
+        "∈": "∈", "∉": "∉", "⊂": "⊂", "⊆": "⊆", "↔": "↔",
+    }
+)  # fmt: skip
 
 #: Unicode superscript characters (``r²``) and their plain equivalents.
 UNICODE_SUPERSCRIPTS: Mapping[str, str] = MappingProxyType(

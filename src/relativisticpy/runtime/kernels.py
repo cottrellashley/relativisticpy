@@ -16,6 +16,7 @@ from relativisticpy.errors import EvaluationError
 from relativisticpy.ir import ops
 from relativisticpy.tensors import arrays
 from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.simplification import is_zero
 
 if TYPE_CHECKING:
     from relativisticpy.runtime.executor import Executor
@@ -188,6 +189,8 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
             rhs if isinstance(rhs, sympy.NDimArray) else arrays.zeros(array.shape[0], array.rank())
         )
         return TensorEquation(lhs, rhs)
+    if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr) and is_zero(lhs - rhs):
+        return sympy.true  # an identity, decided exactly, as tensor equations are
     return sympy.Eq(lhs, rhs)
 
 

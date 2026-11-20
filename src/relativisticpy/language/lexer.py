@@ -85,8 +85,11 @@ _TWO_CHARACTER: dict[str, TokenKind] = {
 
 # A quote directly after one of these is a prime, as in f'(x); otherwise it starts a string.
 _PRIMEABLE = frozenset(
-    {TokenKind.IDENT, TokenKind.RPAREN, TokenKind.RBRACKET, TokenKind.RBRACE, TokenKind.PRIME}
-)
+    {
+        TokenKind.IDENT, TokenKind.NUMBER, TokenKind.COMMAND, TokenKind.RPAREN,
+        TokenKind.RBRACKET, TokenKind.RBRACE, TokenKind.PRIME,
+    }
+)  # fmt: skip
 
 # Delimiters that may follow \left, \right and the sizing commands, by role.
 _OPENING = frozenset({"(", "[", r"\{", r"\lbrace", r"\lbrack", r"\langle"})
@@ -112,9 +115,14 @@ class Lexer:
         self.tokens: list[Token] = []
         self.space_before = False
         self.explicit_space = False
+        self.wide_space = False  # \quad or wider precedes the next token
+        self.aligned = False  # an alignment marker '&' precedes the next token
         self._open_left: list[tuple[str, Span]] = []  # pending \left delimiters
         self._environments: list[tuple[str, Span]] = []  # open \begin{...}
         self._transparent_braces: set[int] = set()  # offsets of '}' closing a style command
+        self._font_ends: list[int] = []  # where the groups of font switches such as \rm end
+        self._closers: dict[int, str] = {}  # offsets of '}' closing \matrix{...} and friends
+        self._display_ends: dict[int, int] = {}  # offsets of the \] or $$ closing a display
 
     # -- driver ---------------------------------------------------------------
 
@@ -131,7 +139,13 @@ class Lexer:
 
     def _scan(self) -> None:
         char = self.text[self.pos]
-        if char in _SPACE or char == "$":
+        if self.pos in self._display_ends:
+            self._environments.pop()
+            end = self.pos + self._display_ends.pop(self.pos)
+            self._emit(TokenKind.END, "displaymath", self.pos, end)
+        elif self.text.startswith("$$", self.pos):
+            self._display("$$", "$$")
+        elif char in _SPACE or char == "$":
             self._skip(1, explicit=char == "~")
         elif char == "\n":
             self._emit(TokenKind.NEWLINE, "\n", self.pos, self.pos + 1)
@@ -139,6 +153,11 @@ class Lexer:
             self._skip_comment()
         elif (char.isascii() and char.isdigit()) or (char == "." and self._peek(1).isdigit()):
             self._match(_NUMBER, TokenKind.NUMBER)
+        elif char == ".":
+            if self.text.startswith("...", self.pos):
+                self._emit(TokenKind.ELLIPSIS, TokenKind.ELLIPSIS.value, self.pos, self.pos + 3)
+            else:
+                self._emit(TokenKind.PERIOD, ".", self.pos, self.pos + 1)
         elif char.isascii() and char.isalpha():
             self._identifier()
         elif char == "\\":
@@ -147,6 +166,11 @@ class Lexer:
             self._quote(char)
         elif char == "&" and self._in_alignment():
             self._skip(1)
+            self.aligned = True
+        elif char == "}" and self.pos in self._closers:
+            environment = self._closers.pop(self.pos)
+            self._environments.pop()
+            self._emit(TokenKind.END, environment, self.pos, self.pos + 1)
         elif char == "}" and self.pos in self._transparent_braces:
             self._transparent_braces.discard(self.pos)
             self.pos += 1
@@ -163,11 +187,27 @@ class Lexer:
         self, kind: TokenKind, value: str, start: int, end: int, *, verbatim: bool = False
     ) -> None:
         span = Span(self.source, start, end)
-        # Names inside a style command's braces, as in \mathrm{mass}, are verbatim.
-        verbatim = verbatim or (kind is TokenKind.IDENT and bool(self._transparent_braces))
-        token = Token(kind, value, span, self.space_before, self.explicit_space, verbatim)
+        while self._font_ends and start >= self._font_ends[-1]:
+            self._font_ends.pop()
+        # Names in a style command's braces (\mathrm{mass}) or after a font switch
+        # ({\rm Tr}) are verbatim.
+        styled = bool(self._transparent_braces or self._font_ends)
+        verbatim = verbatim or (kind is TokenKind.IDENT and styled)
+        token = Token(
+            kind,
+            value,
+            span,
+            self.space_before,
+            self.explicit_space,
+            verbatim,
+            self.aligned,
+            self.wide_space,
+        )
         self.tokens.append(token)
-        self.space_before = self.explicit_space = False
+        if kind is TokenKind.NEWLINE:  # spacing before a line break belongs to what follows
+            self.space_before = True
+        else:
+            self.space_before = self.explicit_space = self.aligned = self.wide_space = False
         self.pos = end
 
     def _skip(self, count: int, *, explicit: bool = False) -> None:
@@ -231,6 +271,8 @@ class Lexer:
         start = self.pos
         if (name := vocab.UNICODE_LETTERS.get(char)) is not None:
             self._emit(TokenKind.IDENT, name, start, start + 1)
+        elif (relation := vocab.UNICODE_RELATIONS.get(char)) is not None:
+            self._emit(TokenKind.RELATION, relation, start, start + 1)
         elif (command := vocab.UNICODE_COMMANDS.get(char)) is not None:
             self._emit(TokenKind.COMMAND, command, start, start + 1)
         elif (kind := vocab.UNICODE_OPERATORS.get(char)) is not None:
@@ -276,8 +318,10 @@ class Lexer:
             self._command(match.group(), start)
         elif follower in (" ", "\t", "\r", "\n", ",", ";", ":", "!", ">", "~"):
             self._skip(2, explicit=True)  # spacing, or a backslash-newline line continuation
-        elif follower in ("[", "]", "(", ")"):
-            self._skip(2)  # display-math delimiters \[ \] \( \)
+        elif follower == "[":
+            self._display("\\[", "\\]")
+        elif follower in ("]", "(", ")"):
+            self._skip(2)  # math delimiters \( \), and an unmatched \]
         elif follower == "{":
             self._emit(TokenKind.LPAREN, "(", start, start + 2)
         elif follower == "}":
@@ -300,9 +344,25 @@ class Lexer:
             self._text_command(start)
         elif name in vocab.STYLE_COMMANDS:
             self._style_command()
+        elif name in vocab.FONT_DECLARATIONS:
+            self._font_declaration()
+        elif name in vocab.PLAIN_ENVIRONMENTS and self._next_non_space() == "{":
+            self._plain_environment(name, start)
+        elif name in ("bgroup", "egroup"):  # plain TeX's braces
+            brace = TokenKind.LBRACE if name == "bgroup" else TokenKind.RBRACE
+            self._emit(brace, brace.value, start, self.pos)
+        elif name == "cr":
+            self._emit(TokenKind.ROW_SEP, "\\\\", start, self.pos)
+        elif name in vocab.ELLIPSIS_COMMANDS:
+            self._emit(TokenKind.ELLIPSIS, TokenKind.ELLIPSIS.value, start, self.pos)
+        elif (relation := vocab.RELATION_COMMANDS.get(name)) is not None:
+            self._emit(TokenKind.RELATION, relation, start, self.pos)
+        elif name in vocab.CONNECTIVE_COMMANDS:
+            self._emit(TokenKind.SEMICOLON, ";", start, self.pos)
         elif name in vocab.LAYOUT_COMMANDS:
             self.space_before = True
             self.explicit_space = self.explicit_space or name in vocab.SPACING_COMMANDS
+            self.wide_space = self.wide_space or name in vocab.WIDE_SPACING_COMMANDS
         elif name in vocab.LAYOUT_COMMANDS_WITH_ARGUMENT:
             if self._peek() == "*":
                 self.pos += 1
@@ -314,7 +374,8 @@ class Lexer:
         elif (kind := vocab.OPERATOR_COMMANDS.get(name)) is not None:
             self._emit(kind, kind.value, start, self.pos)
         elif (symbol := vocab.SYMBOL_COMMANDS.get(name)) is not None:
-            self._emit(TokenKind.IDENT, symbol, start, self.pos)
+            # \hbar is one symbol, whatever letters spell its name
+            self._emit(TokenKind.IDENT, symbol, start, self.pos, verbatim=True)
         else:
             self._emit(TokenKind.COMMAND, name, start, self.pos)
 
@@ -380,6 +441,64 @@ class Lexer:
                     return
             cursor += 1
         raise self._error("unclosed argument of a style command", self.pos)
+
+    def _display(self, opener: str, closer: str) -> None:
+        r"""``\[ ... \]`` and ``$$ ... $$`` hold one formula, however its lines break, so
+        they read as a ``displaymath`` environment. An unmatched delimiter is skipped."""
+        end = self.text.find(closer, self.pos + len(opener))
+        if end == -1:
+            self._skip(len(opener))
+            return
+        self._display_ends[end] = len(closer)
+        span = Span(self.source, self.pos, self.pos + len(opener))
+        self._environments.append(("displaymath", span))
+        self._emit(TokenKind.BEGIN, "displaymath", self.pos, self.pos + len(opener))
+
+    def _font_declaration(self) -> None:
+        r"""``{\rm d}``: the rest of the group is in the font, and its names are verbatim."""
+        depth, cursor = 0, self.pos
+        while cursor < len(self.text):
+            char = self.text[cursor]
+            if char == "\\":
+                cursor += 2
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                if depth == 0:
+                    break
+                depth -= 1
+            cursor += 1
+        self._font_ends.append(cursor)
+        self.space_before = True
+
+    def _next_non_space(self) -> str:
+        cursor = self.pos
+        while cursor < len(self.text) and self.text[cursor] in _ARGUMENT_SPACE:
+            cursor += 1
+        return self.text[cursor : cursor + 1]
+
+    def _plain_environment(self, name: str, start: int) -> None:
+        r"""``\matrix{a & b \cr c & d}`` lexes like ``\begin{matrix} ... \end{matrix}``."""
+        self._skip_whitespace()
+        depth, cursor = 0, self.pos
+        while cursor < len(self.text):
+            char = self.text[cursor]
+            if char == "\\":
+                cursor += 2
+                continue
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    break
+            cursor += 1
+        else:
+            raise self._error(f"unclosed argument of \\{name}", self.pos)
+        self._closers[cursor] = name
+        self._environments.append((name, Span(self.source, start, self.pos + 1)))
+        self._emit(TokenKind.BEGIN, name, start, self.pos + 1)
 
     def _environment(self, name: str, start: int) -> None:
         environment = self._read_group(start, name).strip()

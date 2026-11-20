@@ -31,6 +31,10 @@ class TokenKind(Enum):
     UNDERSCORE = "_"
     BANG = "!"
     PRIME = "'"
+    PLUS_MINUS = "±"
+    MINUS_PLUS = "∓"
+    WEDGE = "∧"
+    COMPOSE = "∘"
 
     # Relations and definitions
     EQUAL = "="
@@ -42,6 +46,7 @@ class TokenKind(Enum):
     LESS_EQ = "<="
     GREATER_EQ = ">="
     ARROW = "->"
+    RELATION = "relation"  # value: the relation, e.g. '~', '≈', '∝', '∈'
 
     # Brackets
     LPAREN = "("
@@ -57,6 +62,8 @@ class TokenKind(Enum):
     COLON = ":"
     SEMICOLON = ";"
     AMPERSAND = "&"
+    PERIOD = "."
+    ELLIPSIS = "⋯"
 
     # Layout
     NEWLINE = "line break"
@@ -77,7 +84,9 @@ class Token:
     ``\\,`` or ``\\quad``, which ends the argument of ``\\sin`` in
     ``\\sin\\theta\\, d\\phi``. ``verbatim`` marks a name written inside
     ``\\mathrm{...}`` or ``\\text{...}``, which is always one symbol however many
-    letters it has.
+    letters it has. ``aligned`` marks a token that follows an alignment marker
+    ``&``, as at the start of the continuation row of an ``align``. ``wide_space``
+    marks one after wide spacing such as ``\\quad``, which can separate equations.
     """
 
     kind: TokenKind
@@ -86,6 +95,8 @@ class Token:
     space_before: bool = False
     explicit_space: bool = False
     verbatim: bool = False
+    aligned: bool = False
+    wide_space: bool = False
 
     def describe(self) -> str:
         """Describe the token for an error message, e.g. ``name 'x'`` or ``'+'``."""
@@ -94,6 +105,8 @@ class Token:
             return f"{kind.value} {self.value!r}"
         if kind is TokenKind.COMMAND:
             return f"\\{self.value}"
+        if kind is TokenKind.RELATION:
+            return f"'{self.value}'"
         if kind in (TokenKind.BEGIN, TokenKind.END):
             return f"{kind.value}{{{self.value}}}"
         if kind in (TokenKind.NEWLINE, TokenKind.EOF):
