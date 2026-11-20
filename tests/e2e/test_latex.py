@@ -176,6 +176,11 @@ def test_letters_in_latex_are_products(wb):
     assert wb.expr(r"\mathrm{GM} + \theta") == Symbol("GM") + theta  # \mathrm keeps a name whole
 
 
+def test_a_script_on_letters_binds_to_the_last_even_a_tensor(wb):
+    wb.exe(r"g_{\mu\nu} := DeSitter(L)")  # Rg_{\mu\nu} is R g_{\mu\nu}, with R nonzero here
+    assert wb.expr(r"G_{\mu\nu} = R_{\mu\nu} - \frac{1}{2} Rg_{\mu\nu}")
+
+
 def test_functions_without_parentheses(wb):
     omega = Symbol("omega")
     assert wb.expr(r"\sin\omega t") == sin(omega * t)

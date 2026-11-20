@@ -1612,9 +1612,10 @@ class Compiler:
                 and isinstance(whole.op, ops.Mul)
                 and len(whole.args) == len(labels)
             ):
-                # re^{x} is r e^{x}: in LaTeX a script binds to the last letter only
+                # re^{x} is r e^{x}: in LaTeX a script binds to the last letter only, which
+                # may be a tensor, as in Rg_{\mu\nu}
                 last = ast.Name(labels[-1], verbatim=True, span=base.span)
-                rest = self._script_math(replace(node, base=last), scope, ctx)
+                rest = self.value(replace(node, base=last), scope, ctx)
                 return self._multiply([*whole.args[:-1], rest], node.span)
         decorations = [s for s in scripts if s.kind == "^" and _decoration(s)]
         if decorations and isinstance(base, ast.Name):  # r^* is a name, not a power
