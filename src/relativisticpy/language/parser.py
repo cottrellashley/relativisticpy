@@ -66,6 +66,8 @@ _COMPARISONS: dict[TokenKind, Literal["<", ">", "<=", ">=", "==", "!="]] = {
     K.NOT_EQ: "!=",
 }
 _SEPARATORS = frozenset({K.NEWLINE, K.SEMICOLON, K.ROW_SEP})
+# A line that starts with one of these, indented beyond its statement, continues it.
+_CONTINUING = frozenset({K.PLUS, K.MINUS, K.STAR, K.SLASH, K.DOUBLE_STAR, K.EQUAL, *_COMPARISONS})
 _KEYWORDS = frozenset({"and", "or", "not"})
 _INTEGRALS = {"int": 1, "oint": 1, "iint": 2, "iiint": 3}
 # Commands that end the argument of a function written without parentheses.
@@ -152,6 +154,8 @@ class Parser:
         self._abs_depth = 0
         # Inside an integrand a differential (dx) ends the expression.
         self._integral_depth = 0
+        # The column the current statement starts at, for continuation lines.
+        self._statement_column = 1
 
     # -- cursor ---------------------------------------------------------------
 
@@ -263,6 +267,13 @@ class Parser:
         if token.kind is K.BEGIN and token.value in vocab.ALIGNMENT_ENVIRONMENTS:
             return self._alignment()
         start = self._significant(self.pos)
+        outer_column, self._statement_column = self._statement_column, token.span.column
+        try:
+            return self._statement(token, start)
+        finally:
+            self._statement_column = outer_column
+
+    def _statement(self, token: Token, start: int) -> list[ast.Statement]:
         if token.kind is K.IDENT and self.peek(1).kind is K.COLON and self.peek(2).kind is K.LPAREN:
             statement: ast.Statement = self._arrow_function()
         else:
@@ -363,11 +374,28 @@ class Parser:
     def expression(self, min_power: int = Power.NONE) -> ast.Expr:
         left = self._prefix()
         while True:
+            if self._continues():
+                self._skip_newlines()
             token = self.peek()
             power = self._infix_power(token)
             if power <= min_power:
                 return left
             left = self._infix(left, token, power)
+
+    def _continues(self) -> bool:
+        """Whether a line break here is followed by a continuation line: one that
+        starts with an operator and is indented beyond the statement::
+
+            ds^2 = -(1 - 2M/r) dt^2
+                   + dr^2 / (1 - 2M/r)
+        """
+        if self._nesting or self.tokens[self.pos].kind is not K.NEWLINE:
+            return False
+        index = self.pos
+        while self.tokens[index].kind is K.NEWLINE:
+            index += 1
+        token = self.tokens[index]
+        return token.kind in _CONTINUING and token.span.column > self._statement_column
 
     def _infix_power(self, token: Token) -> int:
         kind = token.kind

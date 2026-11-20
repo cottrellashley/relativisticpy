@@ -107,6 +107,19 @@ class TestArithmetic:
     def test_a_trailing_operator_continues_the_line(self):
         assert program("y := x +\n  1") == ["(:= y (+ x 1))"]
 
+    def test_an_indented_line_starting_with_an_operator_continues_the_statement(self):
+        assert program("y := a\n  + b\n  - c") == ["(:= y (- (+ a b) c))"]
+        assert program("ds^2 = -dt^2\n       + dx^2") == ["(= (^ ds 2) (+ (- (^ dt 2)) (^ dx 2)))"]
+        assert program("  x\n      = y") == ["(= x y)"]
+
+    def test_an_unindented_line_starting_with_an_operator_is_a_new_statement(self):
+        assert program("y := a\n-b") == ["(:= y a)", "(- b)"]
+        assert program("  y := a\n  + b") == ["(:= y a)", "(+ b)"]
+
+    def test_continuation_inside_a_block(self):
+        source = "f : (x) -> {\n    y := x\n        + 1\n    y\n}"
+        assert program(source) == ["(def f (x) (block (:= y (+ x 1)) y))"]
+
 
 class TestScripts:
     def test_a_numeric_superscript_is_a_power(self):
