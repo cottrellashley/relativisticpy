@@ -103,6 +103,34 @@ def test_radial_infall_from_rest_speeds_up():
     assert numpy.all(numpy.diff(fall.u[1]) < 0)  # dr/dτ ever more negative
 
 
+def test_a_geodesic_can_stop_where_a_condition_is_met():
+    position = [0.0, 10.0, numpy.pi / 2, 0.0]
+    u0 = four_velocity(SCHWARZSCHILD, position, [0, 0, 0], M=1)
+    fall = geodesic(SCHWARZSCHILD, position, u0, (0, 100), M=1, stop=lambda x, u: x[1] - 3)
+    assert fall.stopped
+    assert fall["r"][-1] == pytest.approx(3)
+    assert numpy.all(fall["r"][:-1] > 3)
+    assert not geodesic(
+        SCHWARZSCHILD, position, u0, (0, 1), M=1, stop=lambda x, u: x[1] - 3
+    ).stopped
+
+
+def _photon(b, r0=1000.0):
+    """Light from radius r0, aimed inwards with impact parameter b (M = 1)."""
+    position = [0.0, r0, numpy.pi / 2, 0.0]
+    inward = -numpy.sqrt(1 - (1 - 2 / r0) * b**2 / r0**2)
+    u0 = four_velocity(SCHWARZSCHILD, position, [inward, 0, b / r0**2], kind="null", M=1)
+    return geodesic(SCHWARZSCHILD, position, u0, (0, 2.5 * r0), M=1, stop=lambda x, u: x[1] - 2.5)
+
+
+def test_light_closer_than_the_photon_sphere_is_captured():
+    critical = 3 * numpy.sqrt(3)  # 3√3 M
+    assert _photon(0.99 * critical).stopped
+    escaped = _photon(1.01 * critical)
+    assert not escaped.stopped
+    assert escaped["r"].min() > 3  # it passed outside the photon sphere
+
+
 def test_integration_failure_is_reported(monkeypatch):
     import scipy.integrate
 

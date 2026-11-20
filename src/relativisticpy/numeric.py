@@ -4,13 +4,12 @@ Symbolic results become fast, vectorised NumPy functions with :func:`lambdify`,
 and test particles and light rays follow geodesics with :func:`geodesic`::
 
     >>> from relativisticpy import spacetimes
-    >>> from relativisticpy.numeric import four_velocity, geodesic
     >>> g = spacetimes.schwarzschild()
-    >>> x0 = [0, 10, 3.14159 / 2, 0]                        # t, r, θ, φ
-    >>> u0 = four_velocity(g, x0, [0, 0, 0.0316], M=1)       # a circular orbit
+    >>> x0 = [0, 10, 3.141592653589793 / 2, 0]               # t, r, θ, φ
+    >>> u0 = four_velocity(g, x0, [0, 0, (1 / 700) ** 0.5], M=1)   # circular at r = 10M
     >>> orbit = geodesic(g, x0, u0, (0, 2000), M=1)
-    >>> orbit["r"].min(), orbit["r"].max()                  # stays at r = 10M
-    (9.999..., 10.000...)
+    >>> print(orbit["r"].min().round(6), orbit["r"].max().round(6))
+    10.0 10.0
 
 This module needs NumPy and SciPy: ``pip install "relativisticpy[numeric]"``.
 """
@@ -56,8 +55,11 @@ def lambdify(
     ``variables`` are the function's arguments; every other symbol must be given
     a value, in ``parameters`` or by name::
 
-        >>> f = lambdify(g.kretschmann, ["r"], M=1)
-        >>> f(np.linspace(3, 10, 5))
+        >>> import numpy as np
+        >>> from relativisticpy import spacetimes
+        >>> kretschmann = lambdify(spacetimes.schwarzschild().kretschmann, ["r"], M=1)
+        >>> kretschmann(np.array([1.0, 2.0]))
+        array([48.  ,  0.75])
 
     A tensor compiles to a function returning an array of its components'
     shape, with the variables' shape appended when they are arrays.
@@ -157,6 +159,11 @@ class Geodesic:
         values: np.ndarray = self.x[names.index(str(coordinate))]
         return values
 
+    @property
+    def stopped(self) -> bool:
+        """Whether the integration ended at its ``stop`` condition, before the end of its span."""
+        return bool(self.solution.status == 1)
+
 
 def geodesic(
     metric: Metric,
@@ -166,6 +173,7 @@ def geodesic(
     *,
     parameters: Mapping[Symbol | str, Any] | None = None,
     samples: int = 1000,
+    stop: Callable[[np.ndarray, np.ndarray], float] | None = None,
     method: str = "DOP853",
     rtol: float = 1e-10,
     atol: float = 1e-12,
@@ -175,8 +183,12 @@ def geodesic(
     :math:`\ddot x^a = -\Gamma^a{}_{bc}\, \dot x^b \dot x^c` from an initial
     position and four-velocity over the affine parameter interval ``span``.
 
-    Parameters of the metric (such as ``M``) are given by name. Extra options
-    go to :func:`scipy.integrate.solve_ivp`, which does the integration.
+    Parameters of the metric (such as ``M``) are given by name; ``method``,
+    ``rtol`` and ``atol`` go to :func:`scipy.integrate.solve_ivp`, which does
+    the integration. ``stop``, a function of the position and four-velocity,
+    ends the integration where its value crosses zero, for instance as a
+    particle nears a horizon: ``stop=lambda x, u: x[1] - 2.1``. The geodesic
+    then ends exactly there, and its :attr:`~Geodesic.stopped` is true.
     """
     numpy = _numpy()
     from scipy.integrate import solve_ivp
@@ -193,12 +205,27 @@ def geodesic(
         derivative: np.ndarray = numpy.concatenate([u, acceleration])
         return derivative
 
+    events = []
+    if stop is not None:
+
+        def crossing(_: float, state: np.ndarray) -> float:
+            return float(stop(state[:dim], state[dim:]))
+
+        crossing.terminal = True  # type: ignore[attr-defined]
+        events.append(crossing)
+
     initial = numpy.concatenate([numpy.asarray(position, float), numpy.asarray(velocity, float)])
     times = numpy.linspace(span[0], span[1], samples)
-    solution = solve_ivp(rates, span, initial, method=method, t_eval=times, rtol=rtol, atol=atol)
+    solution = solve_ivp(
+        rates, span, initial, method=method, t_eval=times, events=events, rtol=rtol, atol=atol
+    )
     if not solution.success:
         raise RuntimeError(f"the geodesic integration failed: {solution.message}")
-    return Geodesic(coordinates, solution.t, solution.y[:dim], solution.y[dim:], solution)
+    tau, states = solution.t, solution.y
+    if solution.status == 1:  # stopped: end exactly where the condition was met
+        tau = numpy.append(tau, solution.t_events[0][0])
+        states = numpy.column_stack([states, solution.y_events[0][0]])
+    return Geodesic(coordinates, tau, states[:dim], states[dim:], solution)
 
 
 def _point(metric: Metric, position: Sequence[float]) -> dict[Symbol, float]:
