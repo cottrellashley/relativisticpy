@@ -2,8 +2,8 @@ r"""The :class:`Workbook`: a session in which RelativisticPy programs run."""
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from types import TracebackType
 from typing import Any
@@ -11,27 +11,22 @@ from typing import Any
 import sympy
 from sympy import Symbol
 
+from relativisticpy import checking
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.compiler.compiler import _public
-from relativisticpy.compiler.scope import Output, TensorBinding, VariableBinding
+from relativisticpy.compiler.scope import Context, Output, TensorBinding, VariableBinding
 from relativisticpy.diffgeom import Metric
+from relativisticpy.documents import Document, find_math_blocks, math_blocks
+from relativisticpy.errors import RelativisticPyError
 from relativisticpy.ir import EquationType, ScalarType, TensorType, render
-from relativisticpy.language import Source, parse, tokenize
+from relativisticpy.language import Source, Span, parse, tokenize
+from relativisticpy.language import syntax as ast
 from relativisticpy.language.syntax import Program
 from relativisticpy.language.tokens import Token
 from relativisticpy.runtime import Executor
 from relativisticpy.tensors import Tensor, arrays
 from relativisticpy.tensors.equation import TensorEquation
-from relativisticpy.tensors.simplification import tidy
-
-# Display maths in Markdown, $$...$$, outside code. Fenced code blocks and code
-# spans are matched only so that what they contain is skipped, as when rendered.
-_MARKDOWN = re.compile(
-    r"^ {0,3}(?P<fence>`{3,}|~{3,}).*?^ {0,3}(?P=fence)[ \t]*$"
-    r"|(?P<ticks>`+).+?(?P=ticks)"
-    r"|\$\$(?P<math>.+?)\$\$",
-    re.DOTALL | re.MULTILINE,
-)
+from relativisticpy.tensors.simplification import is_zero, tidy
 
 
 class Workbook:
@@ -71,6 +66,57 @@ class Workbook:
 
     run = exe
 
+    def each(self, source: str | Source, *, name: str = "<input>") -> Iterator[Step]:
+        """Run a program one statement at a time, carrying on after errors.
+
+        Each :class:`Step` holds what one statement showed or the error it raised. A
+        chain of relations, ``a = b = c``, gives a step for each link. Errors in the
+        program's syntax are raised at once, before any statement runs.
+
+            >>> wb = Workbook()
+            >>> [(step.values, step.error) for step in wb.each("x := 2; y; x + 1")][1:]
+            [([y], None), ([3], None)]
+        """
+        program = self._parse(source, name)
+        for statement in program.statements:
+            for piece in _pieces(statement):
+                try:
+                    outputs = self._compiler.statement(piece, self._session.globals)
+                    values = [self._present(output) for output in outputs]
+                except RelativisticPyError as error:
+                    yield Step(piece.span, piece, error=error)
+                else:
+                    yield Step(piece.span, piece, values, sides=self._sides(piece))
+
+    def _sides(self, statement: ast.Statement) -> tuple[Any, Any] | None:
+        """The values of an equation's two sides, for saying how they differ."""
+        if not (isinstance(statement, ast.Evaluate) and isinstance(statement.expr, ast.Equation)):
+            return None
+        ctx = Context(latex=statement.latex)
+        scope = self._session.globals
+        try:
+            lhs, rhs = (
+                self._executor.evaluate(self._compiler.value(side, scope, ctx))
+                for side in (statement.expr.lhs, statement.expr.rhs)
+            )
+        except RelativisticPyError:
+            return None
+        return lhs, rhs
+
+    def check(
+        self,
+        document: str | Path | Document,
+        *,
+        lines: tuple[int, int] | None = None,
+        time_limit: float | None = None,
+    ) -> checking.Report:
+        """Run the equations of a LaTeX document, or of a Markdown notebook, in order and
+        say what became of each: whether it holds, defines something, or could not be
+        read. ``lines`` limits the check to part of the document, such as one chapter,
+        and ``time_limit`` each statement's time in seconds.
+        See :mod:`relativisticpy.checking`."""
+        return checking.check(self, document, lines=lines, time_limit=time_limit)
+
     def expr(self, source: str | Source, *, name: str = "<input>") -> Any:
         """Run a program and return the value of its last expression (``None`` if it has none)."""
         results = self.exe(source, name=name)
@@ -89,7 +135,7 @@ class Workbook:
         document with each block's results typeset after it."""
         pieces: list[str] = []
         done = 0
-        for block, end in _blocks(text, name):
+        for block, end in find_math_blocks(text, name):
             pieces.append(text[done:end])
             pieces.extend(f"\n\n$$\n{latex(result)}\n$$" for result in self.exe(block))
             done = end
@@ -175,19 +221,37 @@ class Workbook:
         return value
 
 
-def math_blocks(text: str, name: str = "<markdown>") -> list[Source]:
-    """The ``$$...$$`` blocks of a Markdown document, outside code, each a source that
-    knows where it is in the document, so that errors point at the right line."""
-    return [block for block, _ in _blocks(text, name)]
+@dataclass(frozen=True)
+class Step:
+    """One statement of a program, run by :meth:`Workbook.each`: the values it showed
+    (none for a definition), or the error it raised."""
+
+    span: Span
+    statement: ast.Statement
+    values: list[Any] | None = None
+    error: RelativisticPyError | None = None
+    sides: tuple[Any, Any] | None = None  # an equation's two sides, as computed
+
+    @property
+    def zero(self) -> bool:
+        """Whether this is an equation whose two sides are both zero."""
+        return self.sides is not None and all(_zero(side) for side in self.sides)
 
 
-def _blocks(text: str, name: str) -> Iterator[tuple[Source, int]]:
-    """Each block, and the offset just after its closing ``$$``."""
-    for match in _MARKDOWN.finditer(text):
-        if match.group("math") is not None:
-            start = match.start("math")
-            origin = (text.count("\n", 0, start) + 1, start - text.rfind("\n", 0, start))
-            yield Source(match.group("math"), name, origin), match.end()
+def _zero(value: Any) -> bool:
+    if isinstance(value, sympy.NDimArray):
+        return all(is_zero(component) for component in arrays.flatten(value))
+    return isinstance(value, sympy.Expr) and is_zero(value)
+
+
+def _pieces(statement: ast.Statement) -> list[ast.Statement]:
+    """A statement, or each link of a chain of relations as a statement of its own."""
+    if isinstance(statement, ast.Evaluate) and isinstance(statement.expr, ast.Chain):
+        return [
+            ast.Evaluate(link, span=link.span, latex=statement.latex)
+            for link in statement.expr.links()
+        ]
+    return [statement]
 
 
 def latex(value: Any) -> str:

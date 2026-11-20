@@ -7,6 +7,7 @@
     relativisticpy notes.md --render        print the document with results typeset
     relativisticpy -c "R_{abcd} R^{abcd}"   run code given on the command line
     relativisticpy --ir program.relpy       print the IR instead of computing
+    relativisticpy check paper.tex          check the equations of a LaTeX document
     relativisticpy                          start an interactive session
 """
 
@@ -14,21 +15,34 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import os
 import sys
 from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any, TextIO
 
 from relativisticpy import __version__
+from relativisticpy.checking import Verdict
+from relativisticpy.documents import math_blocks
 from relativisticpy.errors import RelativisticPyError
 from relativisticpy.language import Source
 from relativisticpy.tensors import Tensor
-from relativisticpy.workbook import Workbook, latex, math_blocks
+from relativisticpy.workbook import Workbook, latex
 
 _OPENING, _CLOSING = "([{", ")]}"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    try:
+        return _main(list(sys.argv[1:] if argv is None else argv))
+    except BrokenPipeError:  # the reader stopped reading, as `| head` does
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        return 1
+
+
+def _main(arguments: list[str]) -> int:
+    if arguments[:1] == ["check"]:
+        return check(arguments[1:])
     parser = argparse.ArgumentParser(
         prog="relativisticpy",
         description="General Relativity for physicists in a hurry.",
@@ -44,7 +58,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "-j", "--workers", type=int, default=1, help="processes for component-wise work"
     )
     parser.add_argument("--version", action="version", version=f"relativisticpy {__version__}")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
 
     with Workbook(workers=args.workers) as workbook:
         if args.code is None and args.file is None:
@@ -72,6 +86,46 @@ def main(argv: Sequence[str] | None = None) -> int:
         except OSError as error:
             print(f"error: {error}", file=sys.stderr)
             return 1
+    return 0
+
+
+def check(argv: Sequence[str]) -> int:
+    """``relativisticpy check``: what became of each equation of a document."""
+    parser = argparse.ArgumentParser(
+        prog="relativisticpy check",
+        description="Run the equations of a LaTeX document or Markdown notebook in order, "
+        "and report which hold, which differ, and which could not be read.",
+    )
+    parser.add_argument("file", help="a LaTeX document, or a Markdown notebook")
+    parser.add_argument("--lines", help="check only these lines, as FIRST:LAST")
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="list every statement, not only those that hold or differ",
+    )
+    parser.add_argument(
+        "--time-limit", type=float, default=30.0, help="seconds allowed for each statement"
+    )
+    args = parser.parse_args(argv)
+    lines = None
+    if args.lines:
+        first, _, last = args.lines.partition(":")
+        if not (first.isdigit() and last.isdigit()):
+            parser.error("--lines takes two line numbers, as in --lines 120:340")
+        lines = (int(first), int(last))
+    with Workbook() as workbook:
+        try:
+            report = workbook.check(args.file, lines=lines, time_limit=args.time_limit)
+        except OSError as error:
+            print(f"error: {error}", file=sys.stderr)
+            return 1
+    print(report.summary())
+    shown = {Verdict.HOLDS, Verdict.DIFFERS}
+    findings = [f for f in report.findings if args.all or f.verdict in shown]
+    if findings:
+        print()
+    for finding in findings:
+        print(finding.describe())
     return 0
 
 
