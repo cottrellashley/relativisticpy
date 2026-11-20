@@ -1,28 +1,115 @@
-[tool.poetry]
-name = "relativisticpy"
-version = "1.2.8"
-description = "You love General Relativity? You hate tedious hand calculations? You love RelativisticPy!"
-readme = "README.md"
-authors = ["Ashley Cottrell"]
-include = ["assets/*"]
-
 [build-system]
-requires = ["setuptools>=40.8.0", "wheel", "sympy"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
 
-[tool.poetry.dependencies]
-sympy = "^1.12"
-pytest = "7.4.3"
+[project]
+name = "relativisticpy"
+version = "2.0.0.dev0"
+description = "General Relativity for physicists in a hurry: write tensor equations the way they look on paper, or paste the LaTeX, and compute them."
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ashley Cottrell" }]
+keywords = [
+    "general relativity",
+    "tensors",
+    "einstein summation",
+    "differential geometry",
+    "latex",
+    "symbolic computation",
+    "physics",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Typing :: Typed",
+]
+dependencies = ["sympy>=1.12"]
+
+[project.optional-dependencies]
+numeric = ["numpy>=1.24", "scipy>=1.10"]
+
+[project.urls]
+Homepage = "https://relativisticpy.org"
+Source = "https://github.com/cottrellashley/relativisticpy"
+Issues = "https://github.com/cottrellashley/relativisticpy/issues"
+Changelog = "https://github.com/cottrellashley/relativisticpy/blob/main/CHANGELOG.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=5.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/relativisticpy"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/relativisticpy", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
 
 [tool.pytest.ini_options]
-addopts = "-ra -q"
-testpaths = [
-    "tests"
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+xfail_strict = true
+filterwarnings = ["error"]
+markers = ["slow: long-running symbolic computations (deselect with -m 'not slow')"]
+
+[tool.coverage.run]
+branch = true
+source = ["relativisticpy"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "raise NotImplementedError", "@overload"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "PIE", # flake8-pie
+    "PT",  # flake8-pytest-style
+    "RET", # flake8-return
+    "RUF", # ruff-specific rules
 ]
-python_files = ["test_*.py"]
-python_classes = ["Test*"]
-python_functions = ["test_*"]
-markers = [
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "network: tests that require network access"
+ignore = [
+    "RUF001", # Greek letters and maths symbols are deliberate in this codebase
+    "RUF002",
+    "RUF003",
 ]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+warn_unreachable = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+module = ["sympy.*"]
+ignore_missing_imports = true
