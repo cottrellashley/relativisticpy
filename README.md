@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./assets/logo.gif" alt="RelativisticPy" width="280">
+  <img src="https://raw.githubusercontent.com/cottrellashley/relativisticpy/main/assets/logo.gif" alt="RelativisticPy" width="280">
 </p>
 
 <h1 align="center">RelativisticPy</h1>
@@ -189,7 +189,7 @@ The guide at **[relativisticpy.org](https://relativisticpy.org)** covers
 [LaTeX](https://relativisticpy.org/latex/),
 [numerics](https://relativisticpy.org/numerics/) and
 [the Python API](https://relativisticpy.org/python/). The
-[examples](examples/) are Markdown notebooks you can read on GitHub and run
+[examples](https://github.com/cottrellashley/relativisticpy/tree/main/examples) are Markdown notebooks you can read on GitHub and run
 with `relativisticpy`.
 
 ## Development
@@ -201,8 +201,8 @@ uv run ruff check           # lint
 uv run mypy                 # type-check
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+See [CONTRIBUTING.md](https://github.com/cottrellashley/relativisticpy/blob/main/CONTRIBUTING.md).
 
 ## License
 
-MIT, see [LICENSE](LICENSE).
+MIT, see [LICENSE](https://github.com/cottrellashley/relativisticpy/blob/main/LICENSE).
