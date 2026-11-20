@@ -21,8 +21,9 @@ from typing import Any, TextIO
 
 from relativisticpy import __version__
 from relativisticpy.errors import RelativisticPyError
+from relativisticpy.language import Source
 from relativisticpy.tensors import Tensor
-from relativisticpy.workbook import Workbook, latex
+from relativisticpy.workbook import Workbook, latex, math_blocks
 
 _OPENING, _CLOSING = "([{", ")]}"
 
@@ -50,20 +51,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             return interact(workbook, latex_output=args.latex)
         try:
             if args.code is not None:
-                source, name = args.code, "<command line>"
+                text, name, notebook = args.code, "<command line>", False
             else:
                 path = Path(args.file)
-                source, name = path.read_text(encoding="utf-8"), str(path)
-                if path.suffix.lower() in (".md", ".markdown"):
-                    if args.render:
-                        print(workbook.markdown(source))
-                        return 0
-                    source = "\n".join(_math_blocks(source))
-            if args.ir:
-                print(workbook.ir(source))
+                text, name = path.read_text(encoding="utf-8"), str(path)
+                notebook = path.suffix.lower() in (".md", ".markdown")
+            if notebook and args.render:
+                print(workbook.markdown(text, name=name))
                 return 0
-            for result in workbook.exe(source, name=name):
-                print(display(result, latex_output=args.latex))
+            programs = math_blocks(text, name) if notebook else [Source(text, name)]
+            if args.ir:
+                print("\n".join(workbook.ir(program) for program in programs))
+                return 0
+            for program in programs:
+                for result in workbook.exe(program):
+                    print(display(result, latex_output=args.latex))
         except RelativisticPyError as error:
             print(f"{type(error).__name__}: {error}", file=sys.stderr)
             return 1
@@ -133,9 +135,3 @@ def _unfinished(source: str) -> bool:
     if stripped.endswith("\\\\"):
         return False
     return stripped.endswith(("\\", "+", "-", "*", "/", "=", ":="))
-
-
-def _math_blocks(text: str) -> list[str]:
-    import re
-
-    return re.findall(r"\$\$(.+?)\$\$", text, re.DOTALL)

@@ -1,5 +1,7 @@
 """The Workbook: the session API."""
 
+import re
+
 import pytest
 from sympy import Array, Symbol
 
@@ -77,6 +79,21 @@ def test_run_file(tmp_path):
     notes = tmp_path / "notes.md"
     notes.write_text("Some prose.\n\n$$ z := 3 $$\n\nMore.\n\n$$ z^2 $$\n")
     assert Workbook().run_file(notes) == [9]
+
+
+def test_notebook_errors_point_at_the_file(tmp_path):
+    notes = tmp_path / "notes.md"
+    notes.write_text("Prose.\n\n$$\ny := 2\n$$\n\nMore.\n\n$$\n\\farc{1}{2}\n$$\n")
+    with pytest.raises(ParseError, match=re.escape(f"--> {notes}:10:1")):
+        Workbook().run_file(notes)
+
+
+def test_maths_in_code_is_not_run(tmp_path):
+    document = "The `$$...$$` blocks run.\n\n```\n$$ 1/0 $$\n```\n\n$$ 1 + 1 $$\n"
+    assert Workbook().markdown(document) == document[:-1] + "\n\n$$\n2\n$$\n"
+    notes = tmp_path / "notes.md"
+    notes.write_text(document)
+    assert Workbook().run_file(notes) == [2]
 
 
 def test_markdown_typesets_results_after_each_block():

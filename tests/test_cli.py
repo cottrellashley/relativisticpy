@@ -29,6 +29,13 @@ def test_markdown(tmp_path, capsys):
     assert "$$\n3\n$$" in capsys.readouterr().out
 
 
+def test_notebook_errors_point_at_the_file(tmp_path, capsys):
+    notes = tmp_path / "notes.md"
+    notes.write_text("Prose.\n\n$$\ny := 2\n$$\n\nMore.\n\n$$\n\\farc{1}{2}\n$$\n")
+    assert main([str(notes)]) == 1
+    assert f"--> {notes}:10:1" in capsys.readouterr().err
+
+
 def test_latex_and_ir(capsys):
     assert main(["-c", r"\frac{1}{x}", "--latex"]) == 0
     assert capsys.readouterr().out == "\\frac{1}{x}\n"

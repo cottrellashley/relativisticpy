@@ -18,10 +18,15 @@ class Source:
 
     Sources compare by identity: two inputs with the same text are still
     different sources, and spans from one must never be merged with the other.
+
+    ``origin`` is the line and column at which the text begins in its file, for
+    text taken from a larger document such as a Markdown notebook. Positions
+    are then reported as the file has them.
     """
 
     text: str
     name: str = "<input>"
+    origin: tuple[int, int] = (1, 1)
 
     @cached_property
     def _line_starts(self) -> tuple[int, ...]:
@@ -30,15 +35,21 @@ class Source:
         return tuple(starts)
 
     def location(self, offset: int) -> tuple[int, int]:
-        """Return the 1-based ``(line, column)`` of a character offset."""
+        """Return the 1-based ``(line, column)`` in the file of a character offset."""
         index = bisect_right(self._line_starts, offset) - 1
-        return index + 1, offset - self._line_starts[index] + 1
+        column = offset - self._line_starts[index] + 1
+        if index == 0:
+            column += self.origin[1] - 1
+        return index + self.origin[0], column
 
     def line_text(self, line: int) -> str:
-        """Return the text of a 1-based line, without its line break."""
-        start = self._line_starts[line - 1]
+        """Return the text of a 1-based line of the file, without its line break. On
+        the first line, whatever comes before the source in the file is blank."""
+        index = line - self.origin[0]
+        start = self._line_starts[index]
         end = self.text.find("\n", start)
-        return self.text[start:] if end == -1 else self.text[start:end]
+        text = self.text[start:] if end == -1 else self.text[start:end]
+        return " " * (self.origin[1] - 1) + text if index == 0 else text
 
 
 @dataclass(frozen=True)
