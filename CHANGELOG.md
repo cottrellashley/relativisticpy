@@ -1,9 +1,69 @@
-# Change Log
+# Changelog
 
-All notable changes to the "relativisticpy" extension will be documented in this file.
+Notable changes to RelativisticPy. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/).
 
-Check [Keep a Changelog](http://keepachangelog.com/) for recommendations on how to structure this file.
+## 2.0.0 - Unreleased
 
-## [Unreleased]
+A rewrite of the whole project around its first idea: equations written as they
+are in papers, in LaTeX or in plain text, with an engine that computes them.
 
-- Initial release
+### Added
+
+- A language that reads LaTeX, plain text and Unicode mathematics alike, and
+  mixes them freely: paste an equation from a paper and it runs.
+- Index notation in full: Einstein summation, raising and lowering with the
+  metric, traces, partial and covariant derivatives in every notation
+  (`\partial_\mu`, `\nabla_\mu`, commas and semicolons), symmetric and
+  antisymmetric parts, including brackets that span tensors, and components
+  named by coordinate (`\Gamma^{r}_{\theta\theta}`, `g_{tt}`).
+- Checks of index notation before anything is computed, and errors that point at
+  the source, with a hint where one helps.
+- An intermediate representation. Programs compile to a typed graph that is
+  computed lazily, shares common subexpressions, remembers every value, and can
+  spread component-wise work over processes with `Workbook(workers=N)`.
+- The Weyl tensor and the Kretschmann scalar as built-ins.
+- Known spacetimes: Minkowski, Schwarzschild, Reissner–Nordström, Kerr,
+  Kerr–Newman, FLRW, de Sitter and anti-de Sitter.
+- Metrics from line elements, `ds^2 = ...`, including `d\Omega^2`.
+- Fast, exact simplification. Whether a component vanishes is decided without
+  polynomial GCDs, so the Kerr metric is verified to be a vacuum solution in
+  seconds.
+- The Python classes `Metric`, `Tensor` and `TensorEquation`, and the module
+  `relativisticpy.spacetimes`.
+- `relativisticpy.numeric`: NumPy functions from symbolic results, and geodesics
+  of particles and light integrated with SciPy
+  (`pip install "relativisticpy[numeric]"`).
+- The `relativisticpy` command, which runs a program or a Markdown notebook,
+  typesets the results with `--render`, and has an interactive prompt.
+- Documentation at [relativisticpy.org](https://relativisticpy.org), and worked
+  examples. Every example in both runs as part of the test suite.
+
+### Changed
+
+- Arithmetic is exact: `1/2` is one half, not `0.5`.
+- `Workbook.exe` always returns a list, the value of every expression in the
+  program; `Workbook.expr` returns the last.
+- Errors are raised as exceptions (`ParseError`, `CompileError`,
+  `IndexNotationError`, `EvaluationError`) rather than returned as strings.
+- `Workbook.markdown` takes the text of a document rather than a path, and
+  returns the document with the results typeset; `Workbook.run_file` runs a
+  file.
+- A bare `g` is the determinant of the metric, and `R` is the Riemann tensor,
+  the Ricci tensor or the Ricci scalar according to its number of indices.
+- In LaTeX, a run of letters is a product of symbols (`2GM` is `2 G M`); in
+  plain text it is one name.
+- In arithmetic, lists are vectors and matrices: `2 [1, 2]` is `[2, 4]`.
+- RelativisticPy needs Python 3.10 or later. SymPy is its only required
+  dependency.
+
+### Removed
+
+- The modules of version 1 (`relativisticpy.core`, `relativisticpy.gr`,
+  `relativisticpy.interpreter`, `relativisticpy.symengine` and others). The
+  package's entry point is still `relativisticpy.Workbook`.
+
+## 1.2.8 and earlier
+
+The original implementation, whose history is in the git log.

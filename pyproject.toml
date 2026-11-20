@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "relativisticpy"
-version = "2.0.0.dev0"
+version = "2.0.0"
 description = "General Relativity for physicists in a hurry: write tensor equations the way they look on paper, or paste the LaTeX, and compute them."
 readme = "README.md"
 requires-python = ">=3.10"
