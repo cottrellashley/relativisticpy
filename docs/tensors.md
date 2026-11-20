@@ -205,8 +205,10 @@ TensorEquation(_{lambda}_{rho}_{sigma}_{mu}_{nu}, 0 equations)
 
 ## Tensor equations
 
-An equation between tensors stands for one equation per component. Those that
-do not hold identically are listed, ready to solve. Here are the vacuum field
+With a metric in force, an equation between tensors stands for one equation per
+component. Those that do not hold identically are listed, ready to solve. (To
+rearrange and solve an equation between tensors as an equation, before there
+are components, see [Solving tensor equations](notation.md).) Here are the vacuum field
 equations for a general static, spherically symmetric metric:
 
 ```python

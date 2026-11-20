@@ -131,6 +131,32 @@ SymPy expressions, and `G` and `c` default to one:
 
 ```
 
+## Index notation
+
+An equation between tensors that have no components, such as
+`G_{\mu\nu} = 8\pi G T_{\mu\nu}`, is an `IndexEquation`, and an expression an
+`IndexExpression` (see [Solving tensor equations](notation.md)). They are
+`relativisticpy.abstract` values, built on `sympy.tensor.tensor`:
+
+| | |
+|---|---|
+| `E.lhs`, `E.rhs`, `X.value` | the sides of an equation, the value of an expression: SymPy tensor expressions |
+| `E.holds()` | whether an equation is an identity |
+| `E == F` | whether two equations say the same, or two expressions are equal |
+| `E.latex()`, `str(E)` | LaTeX |
+
+```python
+>>> efe = Workbook().expr(r"G_{\mu\nu} = 8\pi G T_{\mu\nu}")
+>>> efe.holds()
+False
+>>> print(efe.rhs)
+8*pi*G*T(-mu, -nu)
+
+```
+
+`relativisticpy.abstract` also offers the algebra on its own: `canonical`,
+`solve`, `trace` and `substitute`, over a `Space` of a given dimension.
+
 ## Errors
 
 Every error derives from `RelativisticPyError` and, when it comes from a

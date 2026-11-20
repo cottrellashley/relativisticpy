@@ -93,6 +93,16 @@ is a contraction of a tensor with itself; `T_{(ab)}` is a symmetrisation.
 User functions are inlined at their call sites, in a child of the scope they
 were defined in, which gives lexical scoping.
 
+A tensor without components, such as \(T_{\mu\nu}\) in Einstein's equations,
+is kept as notation instead: a constant of the graph holding a SymPy tensor
+expression, from `relativisticpy.abstract`. `solve`, `trace`, `simplify` and
+`subs` work on it as notation, through canonical forms computed by the
+Butler–Portugal algorithm, with the identities of General Relativity added.
+Where notation meets components, as when a tensor is defined from it with a
+metric in force, each of its terms is written back in the language, its scalar
+coefficient bound to a fresh name, and compiled like any other tensor
+expression.
+
 ## The IR
 
 The IR is a graph of nodes, each an operation applied to other nodes, with a

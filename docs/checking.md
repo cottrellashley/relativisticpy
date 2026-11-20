@@ -59,10 +59,10 @@ for each statement.
 
 | | Verdict | Meaning |
 |---|---|---|
-| ✓ | holds | an identity, verified exactly. If both sides are zero the finding says so: such an equation may hold only because space is flat there, or its quantities are not yet defined |
+| ✓ | holds | an identity, verified exactly: component by component, or, for an equation in [index notation](notation.md) without components, as notation. If both sides are zero the finding says so: such an equation may hold only because space is flat there, or its quantities are not yet defined |
 | ✗ | differs | the two sides are not identically equal: an error, or an equation to solve, such as a condition or an equation of motion. The finding shows the difference |
 | = | defines | a definition, which the equations after it use |
-| → | computes | an expression, computed |
+| → | computes | an expression, computed, or an equation in index notation that is not an identity, such as a field equation |
 | ~ | not computed | a relation that RelativisticPy reads but does not decide, such as ≈, ∝ or → |
 | ? | not understood | read, but needing context that RelativisticPy does not have, such as the components of an abstract tensor |
 | ! | not parsed | not yet RelativisticPy |

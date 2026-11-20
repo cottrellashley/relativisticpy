@@ -10,6 +10,7 @@ nav:
   - Getting started: getting-started.md
   - The language: language.md
   - Tensors and geometry: tensors.md
+  - Solving tensor equations: notation.md
   - LaTeX: latex.md
   - Checking papers: checking.md
   - Numerics: numerics.md

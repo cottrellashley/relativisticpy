@@ -39,6 +39,8 @@ copied from a paper or your own notes runs as it is, and a whole paper can be
 - [The language](language.md): definitions, functions, equations, calculus.
 - [Tensors and geometry](tensors.md): index notation, the built-in tensors and
   their conventions, line elements, spacetimes.
+- [Solving tensor equations](notation.md): rearrange, trace, simplify and solve
+  equations between tensors as notation, then take their components.
 - [LaTeX](latex.md): how LaTeX is read, and what is supported.
 - [Checking papers](checking.md): run the equations of a paper and see which
   hold.

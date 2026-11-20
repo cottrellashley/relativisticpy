@@ -28,6 +28,15 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   derivatives such as `\partial_0^2`.
 - The d'Alembertian `\Box`, the Lie derivative `\pounds_V`, the wedge product of
   forms, and `\pm`.
+- Tensor equations solved as tensor equations: an equation with a tensor that
+  has no components, such as \(T_{\mu\nu}\) in Einstein's equations, or any
+  tensor equation without a metric, is kept as index notation
+  (`relativisticpy.abstract`). `solve` (with trace reversal), `trace`,
+  `simplify`, `subs`, `LHS` and `RHS` work on it, using canonical forms under
+  the tensors' symmetries and the identities of General Relativity; `holds()`
+  says whether it is an identity; and with a metric in force, a tensor defined
+  from it has components. Checking a paper verifies its identities in index
+  notation.
 - `Workbook.each`, which runs a program one statement at a time and carries on
   after errors.
 - A corpus benchmark, `benchmarks/corpus.py`, measuring how much of real

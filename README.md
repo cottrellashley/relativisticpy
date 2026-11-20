@@ -152,6 +152,24 @@ the same thing.
   Kretschmann scalar, to be mistaken. See
   [Checking papers](https://relativisticpy.org/checking/).
 
+- **Tensor equations, solved as tensor equations.** Before there is a metric,
+  an equation between tensors is kept as one, and `solve`, `trace`, `simplify`
+  and `subs` rearrange it as you would on paper, with the identities of General
+  Relativity built in. Solving Einstein's equations for the Ricci tensor
+  reverses their trace:
+
+  ```python
+  >>> wb.exe(r"EFE := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}")
+  []
+  >>> wb.expr(r"solve(EFE, R_{\mu\nu})")
+  IndexEquation(R_{\mu\nu} = 8 \pi G T_{\mu\nu} + \left(\Lambda - 4 \pi G T\right) g_{\mu\nu})
+
+  ```
+
+  With a metric, the solution has components: for an FLRW universe, \(T_{tt}\)
+  is the Friedmann equation's energy density. See
+  [Solving tensor equations](https://relativisticpy.org/notation/).
+
 - **Notebooks in Markdown.** `relativisticpy notes.md --render` runs every
   `$$...$$` block of a Markdown file and typesets the results beneath it. The
   equations you write up *are* the computation.
@@ -195,6 +213,7 @@ Python 3.10 or newer.
 The guide at **[relativisticpy.org](https://relativisticpy.org)** covers
 [the language](https://relativisticpy.org/language/),
 [tensors and geometry](https://relativisticpy.org/tensors/),
+[solving tensor equations](https://relativisticpy.org/notation/),
 [LaTeX](https://relativisticpy.org/latex/),
 [checking papers](https://relativisticpy.org/checking/),
 [numerics](https://relativisticpy.org/numerics/) and
