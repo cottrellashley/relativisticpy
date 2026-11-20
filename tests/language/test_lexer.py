@@ -77,6 +77,13 @@ class TestPlainText:
     def test_identifiers(self, text, expected):
         assert lex(text) == expected
 
+    def test_escaped_underscores_join_a_name(self):
+        assert lex(r"geodesic\_equations(x) x\_0a") == "geodesic_equations ( x ) x_0a"
+
+    def test_an_escaped_underscore_needs_a_name_after_it(self):
+        with pytest.raises(ParseError, match=r"unsupported LaTeX escape '\\_'"):
+            lex(r"x\_θ")
+
     def test_single_character_operators(self):
         assert lex("+ - * / ^ _ ! = < > ( ) [ ] { } | , : ; &") == (
             "+ - * / ^ _ ! = < > ( ) [ ] { } | , : ; &"

@@ -37,6 +37,8 @@ _NUMBER = re.compile(r"(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?")
 # An underscore belongs to a name only when a letter or digit follows it:
 # ``x_0`` and ``abs_func`` are names, while ``g_{mu}`` is ``g`` with a subscript.
 _IDENT = re.compile(r"[A-Za-z](?:[A-Za-z0-9]|_(?=[A-Za-z0-9]))*")
+# What may follow an escaped underscore in a name, as in ``geodesic\_equations``.
+_NAME_TAIL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|_(?=[A-Za-z0-9]))*")
 _COMMAND_NAME = re.compile(r"[A-Za-z]+")
 _TEXT_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 # The optional spacing argument of a row break, as in ``\\[2pt]``.
@@ -138,7 +140,7 @@ class Lexer:
         elif (char.isascii() and char.isdigit()) or (char == "." and self._peek(1).isdigit()):
             self._match(_NUMBER, TokenKind.NUMBER)
         elif char.isascii() and char.isalpha():
-            self._match(_IDENT, TokenKind.IDENT)
+            self._identifier()
         elif char == "\\":
             self._backslash()
         elif char in "'\"":
@@ -186,6 +188,19 @@ class Lexer:
         match = pattern.match(self.text, self.pos)
         assert match is not None  # guaranteed by the caller's first-character check
         self._emit(kind, match.group(), self.pos, match.end())
+
+    def _identifier(self) -> None:
+        """A name; LaTeX's escaped underscore joins its parts: ``geodesic\\_equations``."""
+        start = self.pos
+        match = _IDENT.match(self.text, start)
+        assert match is not None
+        end = match.end()
+        while self.text.startswith("\\_", end):
+            tail = _NAME_TAIL.match(self.text, end + 2)
+            if tail is None:
+                break
+            end = tail.end()
+        self._emit(TokenKind.IDENT, self.text[start:end].replace("\\_", "_"), start, end)
 
     def _skip_comment(self) -> None:
         end = self.text.find("\n", self.pos)
