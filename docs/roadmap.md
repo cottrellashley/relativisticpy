@@ -28,9 +28,23 @@ that grew from it, and where each stands.
 - **An intermediate representation** with an executor that computes lazily,
   shares common subexpressions and works in parallel.
 - **Good errors**, located in the source, with hints.
+- **Checking papers**: run a paper's equations and see which hold. Sean
+  Carroll's lecture notes are the benchmark: 98.7% of their equations parse.
 
 ## Next
 
+- **A visual engine, with [Manim](https://www.manim.community).** The
+  animation library behind 3Blue1Brown, driven by RelativisticPy: derivations
+  that animate step by step, as chains of equalities already are; orbits and
+  light rays integrated by `relativisticpy.numeric`; light cones tilting
+  towards a horizon; embedding diagrams and Penrose diagrams. Visuals would be
+  a scene library, `relativisticpy.visual`, behind an optional
+  `relativisticpy[visual]` extra, so the core keeps SymPy as its only
+  dependency.
+- **More of physics' implicit conventions**: \(x^\mu\) as the coordinates
+  themselves, coordinates along a curve, \(x^\mu(\lambda)\), in geodesic
+  equations, and \(\eta_{\mu\nu}\) as the Minkowski metric, so that more of a
+  paper can be checked.
 - **Coordinate transformations**: transform tensors between coordinate systems
   with the Jacobian, e.g. Cartesian to spherical.
 - **Energy-momentum tensors** for common sources (perfect fluids, the

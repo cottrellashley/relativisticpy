@@ -111,3 +111,58 @@ spelled out, so `r²` is `r^{2}`.
 1/3
 
 ```
+
+## Notation from papers
+
+Papers are written in LaTeX that is older, looser and more personal than a
+notebook's, and RelativisticPy reads it too. That is what lets it
+[check a paper](checking.md) as it stands.
+
+**Derivations.** Relations chain, and each link is a claim. In an alignment, a
+row that starts with a relation (`&=&`), or with an operator after an
+alignment marker (`& & + c`), continues the row before it:
+
+```python
+>>> wb.exe(r"""
+...     \begin{eqnarray}
+...       E &=& {1 \over 2} m v^2 \nonumber \\
+...         &=& {m v^2 \over 2} \ ,
+...     \end{eqnarray}
+... """)
+[Eq(E, m*v**2/2), True]
+
+```
+
+**Sentences.** The punctuation that ends a sentence is ignored, as in
+`E = mc^2\ .`. Commas and wide spaces (`\quad`, `\qquad`) between equations
+separate them, as do `\Rightarrow`, `\implies` and `\iff`:
+
+```python
+>>> wb.exe(r"{\rm Tr}\,M + {n \choose 2} \qquad r_+ + r^* \qquad \hbar\omega \ .")
+[M*Tr + binomial(n, 2), r^* + r_+, hbar*omega]
+
+```
+
+| | Notation |
+|---|---|
+| Plain TeX | `{a \over b}`, `{n \choose k}`, the font switches `{\rm d}`, `{\bf x}`, `{\cal L}`, `\matrix{a & b \cr c & d}`, `\pmatrix`, `\cases`, `\bgroup` |
+| Relations read but not computed | `\sim` `\simeq` `\approx` `\cong` `\propto` `\ll` `\gg` `\in` `\subset` `\to` `\leftrightarrow`, and `:` as in `\phi : M \to N` |
+| Identities | `A \equiv B`, when A cannot be defined, states that the two are equal |
+| Labels on symbols | `r_+`, `i^-`, `r_\pm`, `r^*` and prescripts such as `{}^{(3)}R` name symbols rather than raising to powers |
+| Index labels | `\mu'`, `\mu_1`, `\mu_{p+1}`, `\phi_{t*}`, nested groups such as `R_{\rho\sigma{\mu\nu}}`, and `\phi,{}_\mu` for \(\phi_{,\mu}\) |
+| Operators | `\Box` (\(\nabla^\mu\nabla_\mu\)), the Lie derivative `\pounds_V`, the wedge product `A_{\mu} \wedge B_{\nu}`, `\otimes`, `\pm` and `\mp` (both values) |
+| Not computed | `\cdots` and `\ldots`, the Hodge dual `*F`, composition `\circ`, integrals over regions `\int d^4x`, and sums over indices without limits, `\sum_b`, are read, and say why they cannot be computed |
+
+A relation that is read but not computed says so:
+
+```python
+>>> wb.expr(r"\rho \propto a^{-3}")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.CompileError: '∝' is read but not computed: RelativisticPy decides equations and inequalities
+ --> <input>:1:1
+  |
+1 | \rho \propto a^{-3}
+  | ^^^^^^^^^^^^^^^^^^^
+
+```

@@ -143,6 +143,15 @@ the same thing.
 
   ```
 
+- **Papers that check themselves.** `relativisticpy check paper.tex` runs the
+  display equations of a LaTeX document in order, as a reader would, and says
+  which hold, which do not, and which it could not read. It reads 98.7% of the
+  equations in Sean Carroll's *Lecture Notes on General Relativity* as written,
+  confirms 24 of the 25 claims his notes make about the connection and
+  curvature of a spherically symmetric spacetime, and finds the 25th, and his
+  Kretschmann scalar, to be mistaken. See
+  [Checking papers](https://relativisticpy.org/checking/).
+
 - **Notebooks in Markdown.** `relativisticpy notes.md --render` runs every
   `$$...$$` block of a Markdown file and typesets the results beneath it. The
   equations you write up *are* the computation.
@@ -187,6 +196,7 @@ The guide at **[relativisticpy.org](https://relativisticpy.org)** covers
 [the language](https://relativisticpy.org/language/),
 [tensors and geometry](https://relativisticpy.org/tensors/),
 [LaTeX](https://relativisticpy.org/latex/),
+[checking papers](https://relativisticpy.org/checking/),
 [numerics](https://relativisticpy.org/numerics/) and
 [the Python API](https://relativisticpy.org/python/). The
 [examples](https://github.com/cottrellashley/relativisticpy/tree/main/examples) are Markdown notebooks you can read on GitHub and run

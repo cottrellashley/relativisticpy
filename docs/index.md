@@ -29,7 +29,8 @@ RelativisticPy asks nothing of the kind. Its input *is* the notation of the
 field: indices up and down, Einstein summation, Christoffel symbols written as
 \(\Gamma^\lambda{}_{\mu\nu}\), derivatives written as \(\partial_\mu\) or
 \(\nabla_\mu\). It reads both quick plain-text maths and LaTeX, so an equation
-copied from a paper or your own notes runs as it is.
+copied from a paper or your own notes runs as it is, and a whole paper can be
+[checked](checking.md), equation by equation.
 
 ## Where to go next
 
@@ -39,6 +40,8 @@ copied from a paper or your own notes runs as it is.
 - [Tensors and geometry](tensors.md): index notation, the built-in tensors and
   their conventions, line elements, spacetimes.
 - [LaTeX](latex.md): how LaTeX is read, and what is supported.
+- [Checking papers](checking.md): run the equations of a paper and see which
+  hold.
 - [Numerics](numerics.md): NumPy functions and geodesic integration.
 - [Python API](python.md): using the library directly from Python.
 - [How it works](architecture.md): lexer, parser, compiler, IR and executor.

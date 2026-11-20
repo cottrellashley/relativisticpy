@@ -15,7 +15,9 @@ results are ordinary Python values.
 |---|---|
 | `wb.expr(source)` | run a program; the value of its last expression, or `None` |
 | `wb.exe(source)` (also `wb.run`) | run a program; the value of every expression, as a list |
+| `wb.each(source)` | run a program one statement at a time, carrying on after errors; one `Step` per statement |
 | `wb.run_file(path)` | run a file; in a Markdown file the `$$...$$` blocks are the program |
+| `wb.check(document)` | run the equations of a LaTeX document or notebook and give a verdict on each: see [Checking papers](checking.md) |
 | `wb.markdown(text)` | run a Markdown document's `$$...$$` blocks and typeset the results after each |
 | `wb[name]` | the value bound to a name |
 | `wb.metric`, `wb.coordinates` | the metric in force (a `Metric`) and the coordinates |
@@ -38,6 +40,29 @@ stops its workers on exit.
 [y, -x]
 
 ```
+
+`each` is how a document can be run as a whole even where some of it fails:
+
+```python
+>>> for step in Workbook().each("x := 2; R_{ab}; x + 1"):
+...     print(step.error.message if step.error else step.values)
+[]
+the Ricci tensor needs coordinates
+[3]
+
+```
+
+Errors in syntax are raised before anything runs. Each `Step` has the
+statement's `span`, its `values` (an empty list for a definition) or its
+`error`, and for an equation the values of its two `sides`.
+
+## Documents
+
+`relativisticpy.documents.Document` reads a LaTeX document for its equations:
+`Document.read(path)` or `Document(text, name)`. Its `equations()` are the
+display equations in order, each with its `source` (the macros expanded, the
+position that of the file), its `environment` and its `section`. `macros` are
+the macros it defines.
 
 ## Tensor
 

@@ -13,6 +13,25 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 
 - A language that reads LaTeX, plain text and Unicode mathematics alike, and
   mixes them freely: paste an equation from a paper and it runs.
+- Checking papers: `relativisticpy check paper.tex` and `Workbook.check` run
+  the display equations of a LaTeX document, or a Markdown notebook, in order
+  and give each a verdict: holds, differs, defines, computes, not computed,
+  not understood or not parsed. `relativisticpy.documents` finds a document's
+  equations and expands its macros, including those of local packages.
+- The notation of papers: plain TeX (`{a \over b}`, `{\rm d}`, `\matrix`),
+  closing punctuation, equations separated by commas and wide spaces, chains of
+  relations and continued alignment rows, relations that are read but not
+  computed (`\sim`, `\approx`, `\propto`, `\to`, `\in`), ellipses, primed and
+  subscripted index labels, and labels on symbols such as `r_+` and `r^*`.
+- The context physicists leave implicit: coordinates named by a line element,
+  functions written once with their arguments, numbered indices, and repeated
+  derivatives such as `\partial_0^2`.
+- The d'Alembertian `\Box`, the Lie derivative `\pounds_V`, the wedge product of
+  forms, and `\pm`.
+- `Workbook.each`, which runs a program one statement at a time and carries on
+  after errors.
+- A corpus benchmark, `benchmarks/corpus.py`, measuring how much of real
+  papers RelativisticPy reads and what checking them finds.
 - Index notation in full: Einstein summation, raising and lowering with the
   metric, traces, partial and covariant derivatives in every notation
   (`\partial_\mu`, `\nabla_\mu`, commas and semicolons), symmetric and
@@ -55,6 +74,9 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - In LaTeX, a run of letters is a product of symbols (`2GM` is `2 G M`); in
   plain text it is one name.
 - In arithmetic, lists are vectors and matrices: `2 [1, 2]` is `[2, 4]`.
+- An equation that is an identity, such as `e^{2a}(1 + b) = e^{2a} + b e^{2a}`,
+  evaluates to `True`, decided exactly.
+- `\[ ... \]` and `$$ ... $$` hold one formula, however their lines break.
 - RelativisticPy needs Python 3.10 or later. SymPy is its only required
   dependency.
 
