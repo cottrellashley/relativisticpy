@@ -1,0 +1,263 @@
+# The language
+
+A RelativisticPy program is a sequence of statements: definitions, which
+give names to things, and expressions, whose values are the program's results.
+Everything below can be written in plain text or in LaTeX; the
+[LaTeX page](latex.md) explains how the two relate.
+
+```python
+>>> from relativisticpy import Workbook
+>>> wb = Workbook()
+
+```
+
+## Statements
+
+One statement per line. Semicolons, LaTeX's `\\` and `\newline` also separate
+statements. Comments start with `#` (or LaTeX's `%`).
+
+```python
+>>> wb.exe("n := 2; n^2   # a comment")
+[4]
+
+```
+
+A statement continues onto the next line when a bracket is open, when the line
+ends with an operator, or when the next line starts with an operator and is
+indented further, as long equations usually are:
+
+```python
+>>> wb.expr("""
+...     total := 1 + 2 +
+...              3
+...     total
+...        + 4
+... """)
+10
+
+```
+
+## Numbers and arithmetic
+
+Arithmetic is exact: `1/2` is one half, not `0.5`. Decimals stay decimals.
+Powers are written `^` or `**`, and juxtaposition is multiplication.
+
+```python
+>>> wb.exe("1/2 + 1/3\n2.5 * 2\n2^10\n3 p q")
+[5/6, 5.00000000000000, 1024, 3*p*q]
+
+```
+
+`pi`, `e` and `i` are the constants, and `oo` (or `\infty`) is infinity.
+
+```python
+>>> wb.exe("e^{i pi}\n1/oo")
+[-1, 0]
+
+```
+
+## Names and symbols
+
+A name that has not been defined is a symbol. Greek letters can be spelled
+`theta`, `\theta` or `θ`; all three are the same symbol.
+
+```python
+>>> wb.expr(r"theta + \theta + θ")
+3*theta
+
+```
+
+A subscript on a symbol makes a new symbol: `r_{s}` is the symbol `r_s`, and so
+is `r_s`.
+
+```python
+>>> wb.expr("r_{s} := 2 G M\nr_s / M")
+2*G
+
+```
+
+Declare assumptions about symbols *before* you use them, so that SymPy can
+simplify with them:
+
+```python
+>>> wb.exe("Positive := [a]\nsqrt(a^2)\nsqrt(b^2)")
+[a, sqrt(b**2)]
+
+```
+
+The declarations are `Constants`, `Reals`, `Integers`, `Complex` and `Positive`.
+
+## Definitions
+
+`:=` defines a name; LaTeX's `\equiv` and `\coloneqq` mean the same. With a
+plain name on the left, `=` defines it too.
+
+```python
+>>> wb.expr(r"E \equiv m c^2" "\n" "E")
+c**2*m
+
+```
+
+Functions are defined by writing their parameters:
+
+```python
+>>> wb.expr("h(x, y) := x^2 - y\nh(3, 1)")
+8
+
+```
+
+Longer functions are blocks. Names defined inside a function stay inside it,
+and a function sees the names of the scope it was defined in:
+
+```python
+>>> wb.expr("""
+...     k := 10
+...     energy : (v) -> {
+...         half := 1/2
+...         half k v^2
+...     }
+...     energy(2) + half
+... """)
+half + 20
+
+```
+
+## Equations
+
+`=` between anything other than a plain name and a value is an equation.
+
+```python
+>>> wb.expr("x^2 + y^2 = 1")
+Eq(x**2 + y**2, 1)
+
+```
+
+Equations are what `solve` and `dsolve` solve, and `RHS` and `LHS` take them
+apart:
+
+```python
+>>> wb.expr("solve(x^2 = 4, x)")
+[-2, 2]
+>>> wb.expr("RHS(dsolve(f'(x) = f(x), f(x)))")
+C1*exp(x)
+
+```
+
+## Evaluation
+
+An evaluation bar substitutes values, as on paper:
+
+```python
+>>> wb.expr(r"x^2 + y |_{x=3, y=1}")
+10
+>>> wb.expr(r"\left. \frac{d}{dx} x^3 \right|_{x=2}")
+12
+
+```
+
+## Calculus
+
+Derivatives can be written in every common notation:
+
+```python
+>>> wb.exe(r"""
+...     diff(sin(x), x)
+...     \frac{d}{dx} \sin x
+...     \frac{\partial^2}{\partial x \partial y} x^2 y^3
+...     \pdv{x^2 y}{y}
+...     d{x^3}/d{x}
+... """)
+[cos(x), cos(x), 6*x*y**2, x**2, 3*x**2]
+
+```
+
+Lagrange's primes differentiate a function you have defined, or an unknown one:
+
+```python
+>>> wb.exe("q(t) := t^3\nq''(t)\nu'(t)")
+[6*t, Derivative(u(t), t)]
+
+```
+
+Integrals end at their differential, which may also come first or sit in the
+numerator of a fraction:
+
+```python
+>>> wb.exe(r"""
+...     \int_0^1 x^2 \, dx
+...     \int_0^\infty e^{-x} dx
+...     \int \frac{dx}{x}
+...     integrate(x y, (x, 0, 1), (y, 0, 2))
+... """)
+[1/3, 1, log(x), 1]
+
+```
+
+Limits, sums and products follow LaTeX. Sums and products are kept as written
+until you ask for their value with `doit`:
+
+```python
+>>> wb.exe(r"""
+...     \lim_{x \to 0} \frac{\sin x}{x}
+...     \lim_{x \to 0^+} \frac{1}{x}
+...     \sum_{n=1}^{\infty} \frac{1}{n^2}
+...     doit(\sum_{n=1}^{\infty} \frac{1}{n^2})
+... """)
+[1, oo, Sum(n**(-2), (n, 1, oo)), pi**2/6]
+
+```
+
+## Functions you can call
+
+Elementary functions (`sin`, `cos`, `tan`, `exp`, `ln`, `log`, `sqrt`, the
+inverse and hyperbolic functions, `Abs`, `sign`, `floor`, `ceiling`,
+`factorial`, `binomial`, `gamma`, `re`, `im`, `conjugate`, ...), algebra
+(`simplify`, `expand`, `factor`, `collect`, `cancel`, `apart`, `together`,
+`trigsimp`, `subs`, `N`), calculus (`diff`, `integrate`, `limit`, `series`,
+`doit`), equations (`solve`, `dsolve`, `RHS`, `LHS`, `Eq`), matrices (`diag`,
+`det`, `inverse`, `transpose`, `trace`), `latex`, `symbols`, and the
+[spacetimes](tensors.md#spacetimes). A function without parentheses applies to
+what follows it: `sin x` is `sin(x)`.
+
+A function you call without defining it stays unknown, which is how to write
+an unknown function such as \(A(r)\) in a metric.
+
+## Piecewise functions and other notation
+
+```python
+>>> wb.exe(r"""
+...     H(x) := \begin{cases} 1 & \text{if } x \geq 0 \\ 0 & \text{otherwise} \end{cases}
+...     H(2) + H(-2)
+...     step(x) := { 1, x >= 0; 0, otherwise }
+...     step(-1)
+...     |-3| + 4! + \binom{5}{2} + \lfloor 2.7 \rfloor
+... """)
+[1, 0, 39]
+
+```
+
+Matrices are written as LaTeX environments, and `vmatrix` is a determinant:
+
+```python
+>>> wb.exe(r"""
+...     \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}
+...     \begin{vmatrix} a & b \\ c & d \end{vmatrix}
+... """)
+[[[1, 2], [3, 4]], a*d - b*c]
+
+```
+
+In arithmetic, lists and matrices are vectors and matrices: a number scales
+them, arrays of one shape add, matrices multiply as matrices, and a square
+matrix has integer powers, so \(A^{-1}\) is its inverse. Anything else, such as
+adding a number to a list, is an error.
+
+```python
+>>> wb.exe(r"""
+...     2 [1, 2] + [0, 1]
+...     \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix} \begin{pmatrix} u \\ v \end{pmatrix}
+...     \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}^{-1}
+... """)
+[[2, 5], [[u + 2*v], [3*u + 4*v]], [[-2, 1], [3/2, -1/2]]]
+
+```

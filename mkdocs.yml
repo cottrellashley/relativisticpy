@@ -1,0 +1,58 @@
+site_name: RelativisticPy
+site_description: General Relativity for physicists in a hurry. Write tensor equations the way they look in a paper, or paste the LaTeX, and compute them.
+site_url: https://relativisticpy.org
+repo_url: https://github.com/cottrellashley/relativisticpy
+repo_name: cottrellashley/relativisticpy
+edit_uri: edit/main/docs/
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - The language: language.md
+  - Tensors and geometry: tensors.md
+  - LaTeX: latex.md
+  - Numerics: numerics.md
+  - Python API: python.md
+  - How it works: architecture.md
+  - Roadmap: roadmap.md
+
+theme:
+  name: material
+  logo: logo.png
+  favicon: logo.png
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: black
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - content.code.copy
+    - navigation.footer
+    - navigation.sections
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js

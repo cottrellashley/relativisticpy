@@ -59,6 +59,7 @@ dev = [
     "numpy>=1.24",
     "scipy>=1.10",
 ]
+docs = ["mkdocs-material>=9.5"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/relativisticpy"]
@@ -68,9 +69,17 @@ include = ["src/relativisticpy", "tests", "README.md", "CHANGELOG.md", "LICENSE"
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests"]
+testpaths = ["tests", "src", "README.md", "docs"]
 pythonpath = ["tests"]
-addopts = ["-ra", "--strict-markers", "--strict-config", "--import-mode=importlib"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+    "--doctest-modules",
+    "--doctest-glob=*.md",
+]
+doctest_optionflags = ["ELLIPSIS", "NORMALIZE_WHITESPACE"]
 xfail_strict = true
 filterwarnings = ["error"]
 markers = ["slow: long-running symbolic computations (deselect with -m 'not slow')"]

@@ -5,8 +5,10 @@ coordinates its solution is usually written in. Parameters may be numbers,
 SymPy expressions or names; names become symbols. Units are geometric
 (:math:`G = c = 1`) unless you pass ``G`` and ``c``::
 
-    >>> schwarzschild()                       # ds² = -(1 - 2M/r) dt² + ...
-    >>> schwarzschild("M", G="G", c="c")      # ds² = -(1 - 2GM/(c²r)) c² dt² + ...
+    >>> schwarzschild().kretschmann
+    48*M**2/r**6
+    >>> schwarzschild("M", G="G", c="c").kretschmann
+    48*G**2*M**2/(c**4*r**6)
 
 In the language each is a function: ``g_{\mu\nu} := Schwarzschild(M)``.
 """

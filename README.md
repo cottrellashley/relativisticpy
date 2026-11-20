@@ -1,147 +1,208 @@
-
-# RelativisticPy
 <p align="center">
-  <img src="./assets/logo.gif" alt="RelativisticPy" width="300">
+  <img src="./assets/logo.gif" alt="RelativisticPy" width="280">
 </p>
 
-RelativisticPy - Genaral Relativity for physicists in a hurry. Simple equation looking User Interface. Write and Go! 
-It is not the most complex, conprehensive or fast symbolic calculator, but it is a symbolic calculator.
+<h1 align="center">RelativisticPy</h1>
 
-[PyPi](https://pypi.org/project/relativisticpy/)
-[Source](https://github.com/cottrellashley/relativisticpy)
+<p align="center">
+  <b>General Relativity for physicists in a hurry.</b><br>
+  Write tensor equations the way they look in a paper, or paste the LaTeX, and compute them.
+</p>
 
+<p align="center">
+  <a href="https://pypi.org/project/relativisticpy/"><img alt="PyPI" src="https://img.shields.io/pypi/v/relativisticpy"></a>
+  <a href="https://github.com/cottrellashley/relativisticpy/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/cottrellashley/relativisticpy/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="Python" src="https://img.shields.io/pypi/pyversions/relativisticpy">
+  <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
+</p>
 
-# TL;DR - Features & Installation: 
+---
 
-#### `install python environment`
-```
-pip install relativisticpy
-```
+Give RelativisticPy a line element, straight from a paper:
 
-## (Black Hole Solution in < 10 lines)
-
-
-#### `Schild_solution.py` file:
-``` 
-import relativisticpy as rel
-
-wb = rel.Workbook()
-
-wb.expr(
-'''python
-Coordinates := [t, r, theta, phi]
-
-g_{mu}_{nu} := [ 
-                 [-A(r),0,0,0], 
-                 [0,B(r),0,0], 
-                 [0,0,r**2,0], 
-                 [0,0,0,r**2*sin(theta)**2]
-               ]
-
-
-# Now we have defined the metric above, we can call any individual component of the Ricci tensor itself (as it is metric dependent)
-eq0 = Ric_{mu:0}_{nu:0}
-eq1 = Ric_{mu:1}_{nu:1}
-eq2 = Ric_{mu:2}_{nu:2}
-
-eq5 = (eq0*B(r) + eq1*A(r))*(r*B(r))
-
-B = RHS( dsolve(eq5, B(r)) )
-
-eq6 = simplify( subs(eq2, B(r), B) )
-
-A = RHS( dsolve(eq6, A(r)) )
-
-g_{mu}_{nu} := [
-                 [A,0,0,0], 
-                 [0,1/A,0,0], 
-                 [0,0,r**2,0], 
-                 [0,0,0,r**2*sin(theta)**2]
-               ]
-
-# Step 5: We prove that C_1 and C_2 equations are in terms of c, G, M by comparing with Newton at large radius
-
-a = C^{a:1}_{b:0 c:0}
-solve( a*c**2 + G*M/r**2 ) # This shows us what 
-
-              
-g_{mu}_{nu} := [
-                  [-(1 - (2 * G * M) / (c**2*r)), 0, 0, 0],
-                  [0, 1 / (1 - (2 * G * M) / (c**2*r)), 0, 0],
-                  [0, 0, r**2, 0],
-                  [0, 0, 0, r**2 * sin(theta) ** 2]
-              ]
-              
-Gamma^{a}_{c f} := (1/2)*g^{a b}*(d_{c}*g_{b f} + d_{f}*g_{b c} - d_{b}*g_{c f})
-
-Riemann^{a}_{m b n} := d_{b}*Gamma^{a}_{n m} + Gamma^{a}_{b l}*Gamma^{l}_{n m} - d_{n}*Gamma^{a}_{b m} - Gamma^{a}_{n l}*Gamma^{l}_{b m}
-
-Ricci_{m n} := Riemann^{a}_{m a n}
-
-T1^{a f h i} := g^{i d}*(g^{h c}*(g^{f b}*Riemann^{a}_{b c d}))
-T2_{a f h i} := g_{a n}*Riemann^{n}_{f h i}
-
-S =  T1^{a f h i}*T2_{a f h i}
-              
-tsimplify( S )
-''') # Will parse string and compute the equations
+```python
+>>> from relativisticpy import Workbook
+>>> wb = Workbook()
+>>> wb.expr(r"""
+...     Coordinates := [t, r, \theta, \phi]
+...     ds^2 = -\left(1 - \frac{2GM}{c^2 r}\right) c^2 dt^2
+...            + \frac{dr^2}{1 - \frac{2GM}{c^2 r}} + r^2 d\Omega^2
+... """)
 
 ```
 
+and ask it anything, in the same notation:
 
-This Python package is designed to assist in performing mathematical operations, particularly in the field of General Relativity. It includes a variety of tools for working with symbolic expressions, including a workflow module that allows users to create linear mathematical workflows and solve tensor expressions.
+```python
+>>> wb.expr(r"\Gamma^{\theta}_{\phi\phi}")
+-sin(theta)*cos(theta)
+>>> wb.expr(r"\Gamma^{r}_{tt}")
+G*M*(-2*G*M + c**2*r)/(c**2*r**3)
+>>> wb.expr(r"R_{\mu\nu} = 0")          # the vacuum field equations hold
+TensorEquation(_{mu}_{nu}, 0 equations)
+>>> wb.expr(r"R_{abcd} R^{abcd}")       # the Kretschmann scalar
+48*G**2*M**2/(c**4*r**6)
 
-# Features
+```
 
-Some of the key features of this package include:
+Or derive the black hole yourself. Start from a general static, spherically
+symmetric metric and let the Ricci tensor do the work:
 
-- **Variable Assignment:** Assign expressions to variables using equals sign, to use later on in your workflow.
-- **Integration:** Integrate expressions with respect to specified variables.
-- **Differentiation:** Differentiate expressions with respect to specified variables.
-- **Solve:** Solve a algebraic equation, or set of algebraic equations with repect to set of variables.
-- **Simplify:** Simplify a specified mathematical expression.
-- **Expand:** Expand expression raised to some power.
-- **Substitute:** Substitute a variable within an expression (if not already assigned.)
-- **Sum:** Find the descrete sum of an expression.
-- **Series:** Find the taylor series of some function/expr.
-- **Factor:** Factor an expression if possible.
-- **Limit:** Find the limit of an expression if possible.
-- **General Relativity Tensor Operations:**
-    - Define Metric and Basis using the assignment operation.
-    - Write Tensor Expressions using indices to represent the summation of the components (Einstein summation convention.)
-    - Get and Assign Specific Components from Tensors: Choice to assign indices to numbers, to return subset of components. And also assign those to other variables.
+```python
+>>> Workbook().expr("""
+...     Coordinates := [t, r, theta, phi]
+...     g_{mu nu} := [[-A(r), 0, 0, 0], [0, B(r), 0, 0], [0, 0, r**2, 0], [0, 0, 0, r**2*sin(theta)**2]]
+...
+...     eq0 := Ric_{mu=0 nu=0}
+...     eq1 := Ric_{mu=1 nu=1}
+...     eq2 := Ric_{mu=2 nu=2}
+...
+...     B1 := RHS(dsolve((eq0*B(r) + eq1*A(r))*(r*B(r)), B(r)))
+...     RHS(dsolve(simplify(subs(eq2, B(r), B1)), A(r)))
+... """)
+C1 + C2/r
 
-## Package Philosophy
+```
 
-1. Ease of use. The main reason for this package's existance is to make Einstein tensor equations look exactly like they do in mathematical papers, but with a computational engine which can actually compute those symbolic tensor equations.
+That is Schwarzschild: `A(r) = C1 + C2/r`, with the constants fixed by the
+Newtonian limit.
 
-2. Keep it very lightweight. The packge is meant to have all the main functionality of a mathematical symbolic compotational tool, but yet not big and cluncky. We leave it to Sympy to do all the symbolic calculation work for us.
+## One language, two notations
 
-To put it simply, keep it simple for devs and users.
+RelativisticPy reads plain-text maths and LaTeX, and the two mix freely. Copy
+an equation out of a paper and it parses; type it quickly by hand and it means
+the same thing.
 
-## Directory Breakdown
+| Plain text | LaTeX | Meaning |
+|---|---|---|
+| `g_{mu nu} := [[...]]` | `g_{\mu\nu} := \begin{pmatrix} ... \end{pmatrix}` | define the metric |
+| `C^{a}_{b c}` | `\Gamma^{\lambda}_{\mu\nu}` | Christoffel symbols |
+| `R^{a}_{b c d}` | `R^{\rho}{}_{\sigma\mu\nu}` | Riemann tensor |
+| `Ric_{a b}` | `R_{\mu\nu}` | Ricci tensor (and `Ric`, `R` the scalar) |
+| `G_{a b}` | `G_{\mu\nu}` | Einstein tensor |
+| `d_{a} * T^{b}` | `\partial_\mu T^{\nu}`, `T^{\nu}{}_{,\mu}` | partial derivative |
+| `D_{a} * T^{b}` | `\nabla_\mu T^{\nu}`, `T^{\nu}{}_{;\mu}` | covariant derivative |
+| `Ric_{mu=0 nu=0}` | `R_{tt}` | a single component |
+| `diff(f(x), x, 2)` | `\frac{d^2 f}{dx^2}`, `f''(x)`, `\pdv[2]{f}{x}` | derivatives |
+| `integrate(f, (x, 0, 1))` | `\int_0^1 f \, dx` | integrals |
+| `f(x) \|_{x = 2}` | `\left. f(x) \right\|_{x=2}` | evaluation |
+| `f(x) := x^2` | `f(x) \equiv x^2` | definitions |
 
-| Directory            | Description |
-|----------------------|-------------|
-| `core`               | Core Module. Contains logic for einstein summation convention of multi-indexed array like objects and descerialisation logic of tensors. |
-| `gr`                 | Defines all the main General Relativity Tensors, such as initialization logic and interation logic. Inherits core module logic (which provides the logic of einsum tensor manipulations.) |
-| `symengine`           | Interface module for symbolic engine dependencies of relativisticpy, which currently are: Sympy. Any module within RelativisticPy only imports relativisticpy.symengine module, they should now about what is implementing the methods, whether it is Sympy or another symbolic module we choose to swapt Sympy with in future. |
-| `workbook` | This modules is the module which 'brings it all together' if you will. It here to allow non-python users to use the RelativisticPy package. It handles all the parsing from strings, the object initializations, memory storage and workflow for the end-user.        |
-| `parser` | String -> Lexer(String) = Tokens -> Parser(Tokens) = AST -> SemanticAnalyzer(AST) = ActionTree -> Interpreter(ActionTree, ImplementerClass) = Result.  ImplementerClass dependent on whole package i.e. uses all Tensor implementations + Sympy + Worrkbook State -> Computes the language and returns answer.   |
-| `ft` | Future module -> Field Theory       |
+## What's inside
 
-### Package Tree-Structure
+- **Index notation that checks itself.** Einstein summation over repeated
+  indices; raising and lowering with the metric; traces, symmetrisation
+  `T_{(ab)}` and antisymmetrisation `F_{[ab]}`, even across tensors as in the
+  Bianchi identity. Mistakes are caught *before* anything is computed:
 
-TODO
+  ```python
+  >>> wb.expr(r"R_{\mu\nu} + g^{\mu\nu}")
+  Traceback (most recent call last):
+    ...
+  relativisticpy.errors.IndexNotationError: the free indices of a sum must agree: _{mu}_{nu} and ^{mu}^{nu}
+   --> <input>:1:14
+    |
+  1 | R_{\mu\nu} + g^{\mu\nu}
+    |              ^^^^^^^^^^
 
-## Project Dependencies
+  ```
 
-- Sympy: This package has a large dependency in Sympy to perform all it's symbolic calculations and functions.
+- **Geometry, cached and fast.** Christoffel symbols, the Riemann, Ricci,
+  Einstein and Weyl tensors, the Ricci and Kretschmann scalars, geodesic
+  equations, line elements, and a catalogue of spacetimes: `Minkowski`,
+  `Schwarzschild`, `ReissnerNordstrom`, `Kerr`, `KerrNewman`, `FLRW`, `DeSitter`,
+  `AntiDeSitter`. Checking that Kerr is a vacuum solution takes seconds.
 
-# License
+- **The rest of mathematics.** Every derivative notation, integrals, limits,
+  sums and products, `solve`, `dsolve`, `series`, `simplify` and friends,
+  piecewise functions and `cases`, matrices, complex numbers, and functions
+  of your own with proper lexical scope:
 
-This package is licensed. See the LICENSE file for more information.
+  ```python
+  >>> wb.expr(r"\int_0^\infty e^{-x^2} \, dx")
+  sqrt(pi)/2
+  >>> wb.expr(r"\lim_{x \to 0} \frac{\sin x}{x}")
+  1
+  >>> wb.expr(r"f(x) := x^2 e^{-x}" "\n" r"f'(x)")
+  (-x**2 + 2*x)*exp(-x)
 
-# Contributing
+  ```
 
-If you would like to contribute to the development of this package, please feel free to fork the repository and submit a pull request. All contributions are welcome!
+- **Numbers when you need them.** Compile any result to a NumPy function, or
+  send a particle around a black hole with SciPy:
+
+  ```python
+  >>> from relativisticpy import spacetimes
+  >>> from relativisticpy.numeric import four_velocity, geodesic
+  >>> g = spacetimes.schwarzschild()                       # geometric units, M = 1
+  >>> start = [0, 10, 3.141592653589793 / 2, 0]            # t, r, θ, φ
+  >>> u = four_velocity(g, start, [0, 0, (1 / 700) ** 0.5], M=1)
+  >>> orbit = geodesic(g, start, u, (0, 1000), M=1)
+  >>> print(orbit["r"].min().round(6), orbit["r"].max().round(6))   # circular, at r = 10M
+  10.0 10.0
+
+  ```
+
+- **Notebooks in Markdown.** `relativisticpy notes.md --render` runs every
+  `$$...$$` block of a Markdown file and typesets the results beneath it. The
+  equations you write up *are* the computation.
+
+## How it works
+
+```
+source text ─▶ lexer ─▶ parser ─▶ syntax tree ─▶ compiler ─▶ IR graph ─▶ executor ─▶ results
+               plain text        every reading     meaning, index     interned,     lazy, cached,
+               and LaTeX         of ambiguous      checks, lowering   typed         parallel
+               become one        notation kept     to a small core
+               token stream
+```
+
+The parser records what was *written*; the compiler, which knows what every
+name refers to, decides what it *means* (is `x^{a}` a power, or a component of
+the vector `x`?) and checks the index notation. Programs compile to a typed
+graph in which equal computations are shared, and the executor computes only
+what the results need, spreading component-wise work over processes with
+`Workbook(workers=N)`. SymPy does the algebra. Read more in
+[the architecture guide](https://relativisticpy.org/architecture/).
+
+## Philosophy
+
+1. **Ease of use.** Einstein's equations should look exactly as they do in
+   papers, with an engine that can actually compute them.
+2. **Lightweight.** The only dependency is SymPy, which does the symbolic
+   work. NumPy and SciPy are optional, for numerics.
+
+## Install
+
+```bash
+pip install relativisticpy               # symbolic
+pip install "relativisticpy[numeric]"    # with NumPy and SciPy for numerics
+```
+
+Python 3.10 or newer.
+
+## Documentation
+
+The guide at **[relativisticpy.org](https://relativisticpy.org)** covers
+[the language](https://relativisticpy.org/language/),
+[tensors and geometry](https://relativisticpy.org/tensors/),
+[LaTeX](https://relativisticpy.org/latex/),
+[numerics](https://relativisticpy.org/numerics/) and
+[the Python API](https://relativisticpy.org/python/). The
+[examples](examples/) are Markdown notebooks you can read on GitHub and run
+with `relativisticpy`.
+
+## Development
+
+```bash
+uv sync                     # install with the development tools
+uv run pytest               # the test suite, including every example in the docs
+uv run ruff check           # lint
+uv run mypy                 # type-check
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## License
+
+MIT, see [LICENSE](LICENSE).
