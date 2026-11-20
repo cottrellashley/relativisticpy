@@ -963,15 +963,18 @@ class Parser:
                 integrand = self.expression(Power.SUM)
             else:
                 integrand = self.expression(Power.COMPARISON)
-            while len(variables) < count:
-                if not self._at_differential():
-                    token = self.peek()
-                    raise ParseError(
-                        f"expected a differential such as dx to end the integral, "
-                        f"found {token.describe()}",
-                        span=token.span,
-                    )
+            while len(variables) < count and self._at_differential():
                 variables.append(self._differential())
+            if len(variables) < count:  # \int \frac{dr}{1 - 2M/r}: the differential is on top
+                integrand, found = _take_differentials(integrand, count - len(variables))
+                variables.extend(found)
+            if len(variables) < count:
+                token = self.peek()
+                raise ParseError(
+                    f"expected a differential such as dx to end the integral, "
+                    f"found {token.describe()}",
+                    span=token.span,
+                )
         finally:
             self._integral_depth -= 1
         bounds = tuple(
@@ -1384,6 +1387,25 @@ def _leibniz_denominator(node: ast.Expr) -> tuple[bool, list[tuple[ast.Expr, int
     if not variables or len(kinds) != 1:
         return None
     return kinds.pop(), variables
+
+
+def _take_differentials(integrand: ast.Expr, count: int) -> tuple[ast.Expr, list[ast.Expr]]:
+    """Take up to ``count`` differentials out of the numerator of a fraction:
+    ``\\frac{r^2 dr}{f(r)}`` is ``r^2 / f(r)`` integrated over ``r``."""
+    if not (isinstance(integrand, ast.Binary) and integrand.op == "/"):
+        return integrand, []
+    kept: list[ast.Expr] = []
+    variables: list[ast.Expr] = []
+    for factor in _factors(integrand.left):
+        joined = _joined_differential(factor)
+        if joined is not None and isinstance(joined, ast.Name) and len(variables) < count:
+            variables.append(joined)
+        else:
+            kept.append(factor)
+    if not variables:
+        return integrand, []
+    numerator = _product(kept) or ast.Number("1", span=integrand.left.span)
+    return ast.Binary("/", numerator, integrand.right, span=integrand.span), variables
 
 
 def _check_brackets(items: list[ast.IndexItem]) -> None:
