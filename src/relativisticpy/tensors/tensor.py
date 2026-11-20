@@ -116,16 +116,14 @@ class Tensor:
         if not nonzero:
             return f"{head}{self.indices.latex()} = 0"
         lines = [
-            f"{head}{self.indices.latex(labels)} &= {sympy.latex(value)}"
+            f"{head}{self.indices.latex([latex_label(n) for n in labels])} &= {sympy.latex(value)}"
             for labels, value in nonzero.items()
         ]
         return "\\begin{aligned}" + " \\\\ ".join(lines) + "\\end{aligned}"
 
     def nonzero(self) -> dict[tuple[str, ...], Expr]:
         """The nonzero components, keyed by coordinate names: ``{('t', 't', 'r'): ...}``."""
-        labels = [latex_label(str(c)) for c in self.coordinates] or [
-            str(i) for i in range(self.dim)
-        ]
+        labels = [str(c) for c in self.coordinates] or [str(i) for i in range(self.dim)]
         result = {}
         for index in product(range(self.dim), repeat=self.rank):
             value = self.components[index]

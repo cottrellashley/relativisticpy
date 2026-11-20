@@ -193,7 +193,7 @@ def metric_from_line_element(line_element: Expr, coordinates: Sequence[Symbol]) 
             g[i, i] = coefficient
         else:
             g[i, j] = g[j, i] = coefficient / 2
-    return ImmutableMatrix(g.applyfunc(sympy.factor_terms))
+    return ImmutableMatrix(g)
 
 
 def geodesic_equations(

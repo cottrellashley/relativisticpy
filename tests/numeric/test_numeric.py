@@ -1,0 +1,116 @@
+"""Numbers from symbols: NumPy functions and geodesics integrated with SciPy."""
+
+import pytest
+
+numpy = pytest.importorskip("numpy")
+pytest.importorskip("scipy")
+
+from relativisticpy import Tensor, spacetimes  # noqa: E402
+from relativisticpy.numeric import evaluate, four_velocity, geodesic, lambdify  # noqa: E402
+
+SCHWARZSCHILD = spacetimes.schwarzschild()
+
+
+def test_lambdify_a_scalar_is_vectorised():
+    kretschmann = lambdify(SCHWARZSCHILD.kretschmann, ["r"], M=1)
+    radii = numpy.array([2.0, 3.0, 10.0])
+    assert numpy.allclose(kretschmann(radii), 48 / radii**6)
+
+
+def test_lambdify_a_constant_still_broadcasts():
+    constant = lambdify(SCHWARZSCHILD.ricci_scalar, ["r"], M=1)
+    assert constant(numpy.array([2.0, 3.0])).shape == (2,)
+
+
+def test_lambdify_a_tensor():
+    metric = lambdify(SCHWARZSCHILD, ["t", "r", "theta", "phi"], M=1)
+    values = metric(0.0, 4.0, numpy.pi / 2, 0.0)
+    assert values.shape == (4, 4)
+    assert numpy.isclose(values[0, 0], -(1 - 2 / 4))
+    assert numpy.isclose(values[3, 3], 16.0)
+
+
+def test_lambdify_a_tensor_over_a_grid():
+    metric = lambdify(SCHWARZSCHILD, ["t", "r", "theta", "phi"], M=1)
+    radii = numpy.linspace(3, 10, 7)
+    assert metric(0.0, radii, numpy.pi / 2, 0.0).shape == (4, 4, 7)
+
+
+def test_evaluate():
+    assert evaluate(SCHWARZSCHILD.kretschmann, r=2, M=1) == pytest.approx(0.75)
+    gamma = evaluate(SCHWARZSCHILD.christoffel, r=10, theta=numpy.pi / 2, M=1)
+    assert gamma[1, 0, 0] == pytest.approx((1 / 100) * (1 - 2 / 10))
+    assert evaluate(Tensor([1, 2], "_a")).tolist() == [1, 2]
+
+
+def test_evaluate_names_what_is_missing():
+    with pytest.raises(ValueError, match="give a value for theta"):
+        evaluate(SCHWARZSCHILD.christoffel, r=10, M=1)
+
+
+def test_four_velocity_is_normalised():
+    position = [0.0, 10.0, numpy.pi / 2, 0.0]
+    u = four_velocity(SCHWARZSCHILD, position, [0.1, 0.0, 0.01], M=1)
+    g = evaluate(SCHWARZSCHILD, dict(zip(SCHWARZSCHILD.coordinates, position, strict=True)), M=1)
+    assert u @ g @ u == pytest.approx(-1)
+    assert u[0] > 0
+    light = four_velocity(SCHWARZSCHILD, position, [1.0, 0.0, 0.0], kind="null", M=1)
+    assert light @ g @ light == pytest.approx(0, abs=1e-12)
+
+
+def test_four_velocity_rejects_the_impossible():
+    with pytest.raises(ValueError, match="no real four-velocity"):
+        four_velocity(SCHWARZSCHILD, [0, 1.5, numpy.pi / 2, 0], [0, 0, 0], M=1)
+
+
+def test_a_circular_orbit_stays_circular():
+    radius = 10.0
+    position = [0.0, radius, numpy.pi / 2, 0.0]
+    angular = numpy.sqrt(1 / (radius**2 * (radius - 3)))
+    orbit = geodesic(
+        SCHWARZSCHILD,
+        position,
+        four_velocity(SCHWARZSCHILD, position, [0, 0, angular], M=1),
+        (0, 1000),
+        M=1,
+    )
+    assert numpy.allclose(orbit["r"], radius, atol=1e-6)
+    assert orbit["phi"][-1] > 2 * numpy.pi  # it really orbits
+    assert orbit.x.shape == (4, 1000)
+
+
+def test_the_norm_is_conserved_along_an_eccentric_orbit():
+    position = [0.0, 20.0, numpy.pi / 2, 0.0]
+    u0 = four_velocity(SCHWARZSCHILD, position, [0.0, 0.0, 0.011], M=1)  # below circular: bound
+    orbit = geodesic(SCHWARZSCHILD, position, u0, (0, 500), M=1, samples=50)
+    metric = lambdify(SCHWARZSCHILD, SCHWARZSCHILD.coordinates, M=1)
+    norms = [orbit.u[:, i] @ metric(*orbit.x[:, i]) @ orbit.u[:, i] for i in range(50)]
+    assert numpy.allclose(norms, -1, atol=1e-8)
+    assert orbit["r"].min() < 20 - 1  # it is eccentric
+    assert orbit["r"].max() == pytest.approx(20, abs=1e-6)  # starting at apoapsis
+
+
+def test_radial_infall_from_rest_speeds_up():
+    position = [0.0, 10.0, numpy.pi / 2, 0.0]
+    fall = geodesic(
+        SCHWARZSCHILD,
+        position,
+        four_velocity(SCHWARZSCHILD, position, [0, 0, 0], M=1),
+        (0, 20),
+        M=1,
+    )
+    assert fall["r"][-1] < 10
+    assert numpy.all(numpy.diff(fall.u[1]) < 0)  # dr/dτ ever more negative
+
+
+def test_integration_failure_is_reported(monkeypatch):
+    import scipy.integrate
+
+    class Failed:
+        success, message = False, "step size too small"
+
+    monkeypatch.setattr(scipy.integrate, "solve_ivp", lambda *args, **kwargs: Failed())
+    position = [0.0, 3.0, numpy.pi / 2, 0.0]
+    u0 = four_velocity(SCHWARZSCHILD, position, [-1.0, 0, 0], M=1)
+    with pytest.raises(RuntimeError, match="geodesic integration failed: step size too small"):
+        geodesic(SCHWARZSCHILD, position, u0, (0, 50), M=1)

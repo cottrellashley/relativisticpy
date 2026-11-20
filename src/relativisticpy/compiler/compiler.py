@@ -159,8 +159,11 @@ class Compiler:
         if not all(_plain_label(item) for item in items):
             return False
         name = target.base.id
-        if name == self.session.names["metric"] or isinstance(scope.lookup(name), TensorBinding):
+        if name == self.session.names["metric"]:
             return True
+        # A tensor that already exists is compared, not overwritten: use := to redefine it.
+        if scope.lookup(name) is not None:
+            return False
         return self._builtin_tensor(name, len(items)) is None
 
     def _define(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
@@ -323,9 +326,15 @@ class Compiler:
         result = self.value(value, scope, ctx)
         if isinstance(result.type, TensorType):
             node = self._align(result, indices, value.span, what="a definition")
-        elif _subscripted_symbol(target):
+        elif result.type == SCALAR and _subscripted_symbol(target):
             scope.bind(_subscripted_name(target), VariableBinding(result))
             return
+        elif result.type == SCALAR and not _is_zero(result):
+            raise CompileError(
+                f"the components of {name} must be a list, a matrix or 0",
+                span=value.span,
+                hint=f"for example {name}{_written(target.scripts)} := [...]",
+            )
         else:
             coordinates = self.session.require_coordinates(target.span, "a tensor")
             shape = (len(coordinates),) * len(indices)
@@ -387,7 +396,9 @@ class Compiler:
 
     def _Number(self, node: ast.Number, scope: Scope, ctx: Context) -> Node:
         text = node.text
-        number = sympy.Integer(int(text)) if _INTEGER.fullmatch(text) else sympy.Float(text)
+        number = (
+            sympy.Integer(int(text)) if _INTEGER.fullmatch(text.lstrip("-")) else sympy.Float(text)
+        )
         return self.graph.const(number, SCALAR, node.span)
 
     def _String(self, node: ast.String, scope: Scope, ctx: Context) -> Node:
@@ -451,6 +462,8 @@ class Compiler:
         operand = self.value(_operand(node.operand), scope, ctx)
         if node.op == "+":
             return operand
+        if node.op == "-" and isinstance(operand.op, ops.Const) and operand.type == SCALAR:
+            return self.graph.const(-operand.op.value, SCALAR, node.span)
         if node.op == "not":
             return self._call(sympy.Not, "not", [operand], SCALAR, node.span)
         minus_one = self.graph.const(sympy.S.NegativeOne, SCALAR)
@@ -509,6 +522,7 @@ class Compiler:
             factors.insert(0, left.right)
             left = left.left
         factors.insert(0, left)
+        factors = [part for factor in factors for part in _unsigned(factor)]
         terms = [self.term(_operand(factor), scope, ctx) for factor in factors]
         # Operators act on what follows them, innermost (rightmost) first. As in
         # physics texts, ∂_μ acts on the next factor (∂_μφ ∂^μφ is (∂_μφ)(∂^μφ)) while
@@ -581,6 +595,10 @@ class Compiler:
         return self.graph.add(ops.Equation(), (lhs, rhs), EquationType(SCALAR), node.span)
 
     def _zero_side(self, value: Node, tensor: TensorType, span: Span) -> Node:
+        """The side of a tensor equation that is not a tensor: zero, or components."""
+        if value.type == VALUE:
+            shape = (tensor.dim,) * tensor.rank
+            return self.graph.add(ops.ToArray(shape), (value,), tensor, span)
         if not _is_zero(value):
             raise IndexNotationError(
                 f"one side of this equation is a tensor with free indices {tensor.indices} "
@@ -924,7 +942,12 @@ class Compiler:
             ):
                 return self._derivative_operator(node, covariant=name == names["covariant"])
             rank = _rank(node)
-            source = self._tensor_source(name, binding, rank, node.span)
+            labels_only = rank is not None and all(
+                _plain_label(item)
+                for s in node.scripts
+                for item in s.indices.items  # type: ignore[union-attr]
+            )
+            source = self._tensor_source(name, binding, rank, node.span, strict=labels_only)
             if source is not None:
                 return self._access(source, node, scope, ctx)
         return self._script_math(node, scope, ctx)
@@ -945,8 +968,11 @@ class Compiler:
         return candidates.get(rank) if rank is not None else None
 
     def _tensor_source(
-        self, name: str, binding: object, rank: int | None, span: Span
+        self, name: str, binding: object, rank: int | None, span: Span, *, strict: bool = False
     ) -> TensorSource | None:
+        """What ``name`` with ``rank`` indices refers to, if it is a tensor. With
+        ``strict`` (the scripts are plain index labels), a built-in tensor given the
+        wrong number of indices is an error rather than an ordinary symbol."""
         if isinstance(binding, TensorBinding):
             return TensorSource(binding.node, binding.indices, name)
         if isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType):
@@ -955,6 +981,14 @@ class Compiler:
             return None
         quantity = self._builtin_tensor(name, rank)
         if quantity is None:
+            ranks = [n for n in range(1, 5) if self._builtin_tensor(name, n)]
+            if ranks and strict:
+                expected = " or ".join(str(n) for n in ranks)
+                raise IndexNotationError(
+                    f"{name} has {expected} indices, but {rank} "
+                    f"{'is' if rank == 1 else 'are'} given",
+                    span=span,
+                )
             return None
         node = self._geometry(quantity, span)
         assert isinstance(node.type, TensorType)
@@ -1290,7 +1324,7 @@ class Compiler:
             value = self.value(base, scope, ctx)
         exponents = []
         for script in powers:
-            if script.body is None:
+            if script.body is None or isinstance(script.body, ast.Equation):
                 name = base.id if isinstance(base, ast.Name) else "this"
                 raise CompileError(f"{name} is not a tensor", span=script.span)
             exponents.append(self.value(script.body, scope, ctx))
@@ -1415,6 +1449,14 @@ def _indices(node: Node) -> Indices:
 
 def _is_zero(node: Node) -> bool:
     return isinstance(node.op, ops.Const) and node.op.value == 0
+
+
+def _unsigned(factor: ast.Expr) -> list[ast.Expr]:
+    """Take the sign off a factor, so that ``-\\partial_\\mu \\phi`` and ``-d t^2`` let
+    the operator act on what follows: ``-x`` becomes ``-1``, ``x``."""
+    if isinstance(factor, ast.Unary) and factor.op == "-":
+        return [ast.Number("-1", span=factor.span), *_unsigned(factor.operand)]
+    return [factor]
 
 
 def _operand(node: ast.Expr) -> ast.Expr:

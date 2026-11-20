@@ -51,6 +51,11 @@ class TensorEquation:
                 result[index] = Eq(lhs, rhs, evaluate=False)
         return result
 
+    def subs(self, *args: Any) -> TensorEquation:
+        """Substitute into both sides, as SymPy's ``subs`` does."""
+        lhs, rhs = self.lhs.subs(*args), self.rhs.subs(*args)
+        return TensorEquation(lhs, rhs, self.indices, self.coordinates)
+
     def equations(self) -> list[Eq]:
         """The component equations that do not hold identically, in order."""
         return list(self.components().values())

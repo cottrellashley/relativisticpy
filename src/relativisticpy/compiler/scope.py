@@ -59,15 +59,6 @@ class Scope:
     def child(self) -> Scope:
         return Scope(self)
 
-    def names(self) -> list[str]:
-        """Every name visible from this scope."""
-        names: dict[str, None] = {}
-        scope: Scope | None = self
-        while scope is not None:
-            names.update(dict.fromkeys(scope._bindings))
-            scope = scope.parent
-        return list(names)
-
 
 @dataclass(frozen=True)
 class Context:

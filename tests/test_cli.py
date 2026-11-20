@@ -1,0 +1,73 @@
+"""The relativisticpy command."""
+
+import io
+
+import pytest
+
+from relativisticpy import Tensor, Workbook
+from relativisticpy.cli import display, interact, main
+
+
+def test_code(capsys):
+    assert main(["-c", "x := 3\nx^2"]) == 0
+    assert capsys.readouterr().out == "9\n"
+
+
+def test_file(tmp_path, capsys):
+    program = tmp_path / "flat.relpy"
+    program.write_text(r"g_{\mu\nu} := Minkowski()" "\n" r"R_{\mu\nu}" "\n")
+    assert main([str(program)]) == 0
+    assert capsys.readouterr().out == "R_{mu}_{nu} = 0\n"
+
+
+def test_markdown(tmp_path, capsys):
+    notes = tmp_path / "notes.md"
+    notes.write_text("Prose $$ y := 2 $$ and $$ y + 1 $$.\n")
+    assert main([str(notes)]) == 0
+    assert capsys.readouterr().out == "3\n"
+    assert main([str(notes), "--render"]) == 0
+    assert "$$\n3\n$$" in capsys.readouterr().out
+
+
+def test_latex_and_ir(capsys):
+    assert main(["-c", r"\frac{1}{x}", "--latex"]) == 0
+    assert capsys.readouterr().out == "\\frac{1}{x}\n"
+    assert main(["-c", "x^2", "--ir"]) == 0
+    assert "pow" in capsys.readouterr().out
+
+
+def test_errors_exit_with_one(capsys, tmp_path):
+    assert main(["-c", "x +"]) == 1
+    assert "ParseError" in capsys.readouterr().err
+    assert main([str(tmp_path / "missing.relpy")]) == 1
+    assert "error:" in capsys.readouterr().err
+
+
+def test_display():
+    tensor = Tensor([[1, 0], [0, 2]], "_{ab}", name="h")
+    assert display(tensor) == "h_{a}_{b}:\n  [0, 0] = 1\n  [1, 1] = 2"
+    assert display(Tensor([[0, 0], [0, 0]], "_{ab}")) == "T_{a}_{b} = 0"
+    assert display(3) == "3"
+
+
+def test_interactive_session():
+    lines = iter(["y := [1,", "2]", "y", "x )", "Coordinates := [t, x]", "", "\\delta^{a}_{a}"])
+
+    def read(prompt):
+        try:
+            return next(lines)
+        except StopIteration:
+            raise EOFError from None
+
+    out = io.StringIO()
+    assert interact(Workbook(), read=read, out=out) == 0
+    printed = out.getvalue()
+    assert "[1, 2]" in printed
+    assert "ParseError" in printed
+    assert printed.rstrip().endswith("2")
+
+
+def test_version(capsys):
+    with pytest.raises(SystemExit):
+        main(["--version"])
+    assert capsys.readouterr().out.startswith("relativisticpy ")

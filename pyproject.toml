@@ -47,12 +47,17 @@ Source = "https://github.com/cottrellashley/relativisticpy"
 Issues = "https://github.com/cottrellashley/relativisticpy/issues"
 Changelog = "https://github.com/cottrellashley/relativisticpy/blob/main/CHANGELOG.md"
 
+[project.scripts]
+relativisticpy = "relativisticpy.cli:main"
+
 [dependency-groups]
 dev = [
     "pytest>=8.3",
     "pytest-cov>=5.0",
     "ruff>=0.8",
     "mypy>=1.13",
+    "numpy>=1.24",
+    "scipy>=1.10",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -112,5 +117,5 @@ warn_unreachable = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["sympy.*"]
+module = ["sympy.*", "scipy.*"]
 ignore_missing_imports = true

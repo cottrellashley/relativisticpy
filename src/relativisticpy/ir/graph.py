@@ -101,9 +101,14 @@ def render(roots: Sequence[Node]) -> str:
     out %6
     """
     lines = []
+    computed: dict[Hashable, Node] = {}
     for node in dependencies(roots):
-        args = ", ".join(repr(arg) for arg in node.args)
-        text = f"{node!r} = {node.op.label()}" + (f"({args})" if args else "")
+        if node.key in computed:  # the same computation with differently named indices
+            text = f"{node!r} = {computed[node.key]!r} relabelled"
+        else:
+            computed[node.key] = node
+            args = ", ".join(repr(arg) for arg in node.args)
+            text = f"{node!r} = {node.op.label()}" + (f"({args})" if args else "")
         lines.append(f"{text:<56} {node.type}")
     lines.extend(f"out {root!r}" for root in roots)
     return "\n".join(lines)
