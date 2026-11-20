@@ -11,6 +11,9 @@ ambiguous notation; the compiler, knowing what each name refers to, chooses:
   the metric.
 * In LaTeX, an unknown run of letters is a product: ``\frac{2GM}{r}`` means
   :math:`2GM/r`. In plain text, ``GM`` is one name.
+* ``G_{\mu\nu} = 8\pi G T_{\mu\nu}``, before ``T`` has components, is kept as
+  index notation (:mod:`relativisticpy.abstract`), to be solved as notation and
+  turned into components where it meets them.
 
 It also checks index notation before anything is computed: the free indices of
 a sum must agree, an index may appear at most twice, and a summed index must
@@ -24,13 +27,17 @@ from __future__ import annotations
 import itertools
 import operator
 import re
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any
+from functools import reduce
+from typing import Any, Literal
 
 import sympy
 from sympy import Symbol
+from sympy.tensor import tensor as symbolic
 
+from relativisticpy import abstract
+from relativisticpy.abstract import IndexEquation, IndexExpression
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, Builtin
 from relativisticpy.compiler.scope import (
     Context,
@@ -71,6 +78,7 @@ from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.tensors import Index, Indices, Tensor
 from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.indices import latex_label
 
 Term = Node | Operator
 
@@ -146,10 +154,17 @@ class Compiler:
         assert isinstance(statement, ast.Evaluate)
         expr = statement.expr
         if isinstance(expr, ast.Chain):  # a = b = c: each link is a claim of its own
-            return [Output(self.value(link, scope, ctx), link.span) for link in expr.links()]
+            return [
+                Output(self._value_or_notation(link, scope, ctx), link.span)
+                for link in expr.links()
+            ]
         if isinstance(expr, ast.Equation) and self._defines(expr.lhs, scope):
+            if self._is_notation(expr.rhs, scope, ctx, equation=True):  # nothing to define it
+                return [Output(self._notation(expr, scope, ctx), expr.span)]
             self._define(expr.lhs, expr.rhs, scope, ctx)
             return []
+        if isinstance(expr, ast.Equation) and self._is_notation(expr, scope, ctx, equation=True):
+            return [Output(self._notation(expr, scope, ctx), expr.span)]
         name = (
             expr.base.id
             if isinstance(expr, ast.Scripted) and isinstance(expr.base, ast.Name)
@@ -186,7 +201,8 @@ class Compiler:
             elif name in RENAMING_STATEMENTS:
                 self._rename(RENAMING_STATEMENTS[name], value)
             else:
-                scope.bind(name, VariableBinding(self.value(value, scope, ctx)))
+                value_node = self._value_or_notation(value, scope, ctx, definition=True)
+                scope.bind(name, VariableBinding(value_node))
             return
         if _is_line_element(target):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
@@ -339,7 +355,7 @@ class Compiler:
             node = self.graph.retype(node, TensorType(indices, len(coordinates)))
             scope.bind(name, TensorBinding(node, indices))
             return
-        result = self.value(value, scope, ctx)
+        result = self._components_of(self.value(value, scope, ctx), scope, ctx, value.span)
         if isinstance(result.type, TensorType):
             node = self._align(result, indices, value.span, what="a definition")
         elif result.type == SCALAR and _subscripted_symbol(target):
@@ -593,7 +609,14 @@ class Compiler:
                 pending.append((sign, expr.left))
             else:
                 terms.append((sign, expr))
-        values = [(sign, self.value(_operand(term), scope, ctx), term) for sign, term in terms]
+        values = [
+            (
+                sign,
+                self._components_of(self.value(_operand(term), scope, ctx), scope, ctx, term.span),
+                term,
+            )
+            for sign, term in terms
+        ]
         tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         if not tensors:
             kind = VALUE if any(v.type == VALUE for _, v, _ in values) else SCALAR
@@ -630,7 +653,10 @@ class Compiler:
                 # in a line element d\Omega is the solid angle, whatever \Omega means
                 inner = scope.child()
                 inner.bind("Omega", VariableBinding(self.graph.const(Symbol("Omega"), SCALAR)))
-            terms.append(self.term(_operand(factor), inner, ctx))
+            term = self.term(_operand(factor), inner, ctx)
+            if isinstance(term, Node):
+                term = self._components_of(term, inner, ctx, factor.span)
+            terms.append(term)
             chosen.append(self._selections[mark:])
         # Operators act on what follows them, innermost (rightmost) first. As in
         # physics texts, ∂_μ acts on the next factor (∂_μφ ∂^μφ is (∂_μφ)(∂^μφ)) while
@@ -694,8 +720,8 @@ class Compiler:
     # -- relations -----------------------------------------------------------
 
     def _Equation(self, node: ast.Equation, scope: Scope, ctx: Context) -> Node:
-        lhs = self.value(node.lhs, scope, ctx)
-        rhs = self.value(node.rhs, scope, ctx)
+        lhs = self._components_of(self.value(node.lhs, scope, ctx), scope, ctx, node.lhs.span)
+        rhs = self._components_of(self.value(node.rhs, scope, ctx), scope, ctx, node.rhs.span)
         tensor = next((v.type for v in (lhs, rhs) if isinstance(v.type, TensorType)), None)
         if tensor is not None:
             assert isinstance(tensor, TensorType)
@@ -738,6 +764,8 @@ class Compiler:
         if isinstance(func, ast.Prime):
             return self._prime(func, node.args, node.span, scope, ctx)
         assert isinstance(func, ast.Name)
+        if func.id in _NOTATION_OPERATIONS and self._is_notation(node, scope, ctx, operation=True):
+            return self._notation(node, scope, ctx)
         name = func.id
         binding = scope.lookup(name)
         if isinstance(binding, FunctionBinding):
@@ -1651,6 +1679,474 @@ class Compiler:
             exponent = self._power(previous, exponent, node.span)
         return self._power(value, exponent, node.span)
 
+    # -- abstract index notation -------------------------------------------------------
+    #
+    # An equation with a tensor that has no components, such as T_{\mu\nu} in Einstein's
+    # equations before T is defined, is kept as notation (relativisticpy.abstract), and
+    # solve, trace, simplify and subs work on it as notation. Where components are needed,
+    # in a definition or a component equation, notation is turned into components with
+    # the metric in force.
+
+    def _value_or_notation(
+        self, node: ast.Expr, scope: Scope, ctx: Context, *, definition: bool = False
+    ) -> Node:
+        """The value of an expression, or of a link of a chain, or what a name is defined
+        as: notation if it can only be read as notation. Without a metric, an equation or
+        a definition of tensors can only be."""
+        equation = definition or isinstance(node, ast.Equation)
+        if self._is_notation(node, scope, ctx, equation=equation):
+            return self._notation(node, scope, ctx)
+        return self.value(node, scope, ctx)
+
+    def _is_notation(
+        self,
+        node: ast.Expr,
+        scope: Scope,
+        ctx: Context,
+        *,
+        equation: bool = False,
+        operation: bool = False,
+    ) -> bool:
+        """Whether an expression is to be read as notation: it mentions a new tensor (a
+        name with two or more indices and no components), or, without a metric, something
+        kept as notation.
+
+        In an ``equation`` or a definition, or the argument of an ``operation`` on
+        notation such as ``simplify``, built-in tensors count too when there is no
+        metric, and so do new tensors with one index when a contraction, as in
+        u^\\alpha u_\\alpha, shows that index notation is in use; but only where the
+        indices follow the rules of the notation and none is a coordinate, since
+        \\Gamma^\\theta_{r\\theta} = 1/r is a component. In an operation, something kept as
+        notation always counts."""
+        builtin = single = False
+        labels: set[str] = set()
+        for current in _walk(node):
+            if isinstance(current, ast.Name):
+                binding = scope.lookup(current.id)
+                notation = isinstance(binding, VariableBinding) and _notation_of(binding.node)
+                # With a metric, notation is computed where it meets components.
+                if notation and (operation or self.session.metric is None):
+                    return True
+            elif isinstance(current, ast.Scripted) and (pattern := _tensor_pattern(current)):
+                written = self._letter_run(current, scope, ctx)
+                if isinstance(written, ast.Binary):  # G T_{\mu\nu}: the tensor is the last
+                    assert isinstance(written.right, ast.Scripted)
+                    pattern = _tensor_pattern(written.right) or pattern
+                name, entries = pattern
+                labels.update(label for label, _ in entries)
+                if scope.lookup(name) is None and name not in BUILTINS and name not in CONSTANTS:
+                    if self._builtin_tensor(name, len(entries)) is not None:
+                        builtin = True
+                    elif any(self._builtin_tensor(name, rank) for rank in range(5)):
+                        pass  # a built-in with the wrong number of indices: an error
+                    elif len(entries) >= 2:
+                        return True
+                    else:
+                        single = True
+        builtin = builtin and self.session.metric is None
+        if not (equation or operation) or not (builtin or single):
+            return False
+        if any(c.name in labels for c in self.session.coordinates or ()):
+            return False
+        try:
+            _, summed = self._index_structure(node, scope)
+        except IndexNotationError:
+            return False
+        return builtin or summed
+
+    def _index_structure(
+        self, node: ast.Expr, scope: Scope
+    ) -> tuple[frozenset[tuple[str, bool]] | None, bool]:
+        """The free indices of notation, with their positions, read from its syntax, and
+        whether any index is summed. The free indices are ``None`` where the syntax cannot
+        tell them, as for the result of ``solve``.
+
+        Raises :class:`IndexNotationError` where the indices break the rules: an index
+        three times in one term, a summed index that is not once up and once down, a
+        division by a tensor, or terms or sides whose free indices differ."""
+        summed = False
+
+        def contract(entries: list[tuple[str, bool]], span: Span) -> frozenset[tuple[str, bool]]:
+            nonlocal summed
+            free: set[tuple[str, bool]] = set()
+            for label in dict.fromkeys(label for label, _ in entries):
+                positions = [up for other, up in entries if other == label]
+                text = latex_label(label)
+                if len(positions) > 2:
+                    raise IndexNotationError(
+                        f"the index {text} appears {len(positions)} times in one term",
+                        span=span,
+                        hint="an index appears once, or twice to be summed",
+                    )
+                if len(positions) == 2 and positions[0] == positions[1]:
+                    raise IndexNotationError(
+                        f"the index {text} appears twice in one term, both times "
+                        + ("up" if positions[0] else "down"),
+                        span=span,
+                        hint="a summed index is written once up and once down",
+                    )
+                if len(positions) == 2:
+                    summed = True
+                else:
+                    free.add((label, positions[0]))
+            return frozenset(free)
+
+        def side(node: ast.Expr) -> frozenset[tuple[str, bool]] | None:
+            if _zero_literal(node):  # zero has whatever indices the other side has
+                return None
+            found = uses(node)
+            return None if found is None else contract(found, node.span)
+
+        def uses(node: ast.Expr) -> list[tuple[str, bool]] | None:
+            """Every index written in a term, summed or free; ``None`` if unknown."""
+            node = _operand(node)
+            if isinstance(node, ast.Equation):
+                lhs, rhs = side(node.lhs), side(node.rhs)
+                if lhs is not None and rhs is not None and lhs != rhs:
+                    raise IndexNotationError(
+                        "the two sides have different free indices: "
+                        f"{_free_latex(lhs)} on the left, {_free_latex(rhs)} on the right",
+                        span=node.span,
+                    )
+                either = lhs if lhs is not None else rhs
+                return None if either is None else sorted(either)
+            if isinstance(node, ast.Binary) and node.op in ("+", "-"):
+                common: frozenset[tuple[str, bool]] | None = None
+                for _, term in _signed_terms(node):
+                    free = side(term)
+                    if free is None:
+                        continue
+                    if common is not None and free != common:
+                        raise IndexNotationError(
+                            "the terms of a sum have different free indices: "
+                            f"{_free_latex(common)} and {_free_latex(free)}",
+                            span=node.span,
+                        )
+                    common = free
+                return None if common is None else sorted(common)
+            if isinstance(node, ast.Binary) and node.op == "*":
+                entries: list[tuple[str, bool]] = []
+                known = True
+                for factor in _product_factors(node):
+                    written = uses(factor)
+                    if written is None:
+                        known = False
+                    else:
+                        entries.extend(written)
+                if not known:
+                    contract(entries, node.span)  # what the known factors break, still
+                    return None
+                return entries
+            if isinstance(node, ast.Binary) and node.op == "/":
+                if side(node.right):
+                    raise IndexNotationError("cannot divide by a tensor", span=node.right.span)
+                return uses(node.left)
+            if isinstance(node, ast.Unary) and node.op in ("-", "+", "±", "∓"):
+                return uses(node.operand)
+            if isinstance(node, ast.Scripted):
+                if pattern := _tensor_pattern(node):
+                    return pattern[1]
+                items = [
+                    (item, script.kind == "^")
+                    for script in node.scripts
+                    if script.indices is not None
+                    for item in script.indices.items
+                ]
+                if any(item.derivative or item.opens or item.closes for item, _ in items):
+                    return None  # derivatives and symmetrisations
+                plain = [(str(item.label), up) for item, up in items if _plain_label(item)]
+                if isinstance(node.base, ast.Operator):  # \partial_\mu, a factor of a product
+                    return plain
+                if isinstance(node.base, ast.Name) or not plain:  # a component, or a power
+                    return None if side(node.base) else []
+                return None
+            if isinstance(node, ast.Name):
+                binding = scope.lookup(node.id)
+                if isinstance(binding, VariableBinding) and (kept := _notation_of(binding.node)):
+                    if isinstance(kept, IndexEquation):
+                        return None
+                    return [(index.name, index.is_up) for index in abstract.free(kept.value)]
+                return []
+            if isinstance(node, ast.Call):
+                # An operator applied, as in \nabla_\mu(...), is a derivative.
+                if not isinstance(node.func, ast.Name):
+                    return None
+                arguments = [side(argument) for argument in node.args]
+                if node.func.id in _NOTATION_OPERATIONS or any(a is None or a for a in arguments):
+                    return None  # a function of tensors, or of what cannot be told
+                return []
+            if isinstance(node, ast.Number | ast.Accent | ast.Root | ast.Abs | ast.Factorial):
+                return []
+            return None
+
+        return side(node), summed
+
+    def _notation(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node:
+        return self.graph.const(self._abstract(node, scope, ctx), VALUE, node.span)
+
+    def _abstract(
+        self, node: ast.Expr, scope: Scope, ctx: Context
+    ) -> IndexEquation | IndexExpression:
+        node = _operand(node)
+        space = self.session.space()
+        if isinstance(node, ast.Name):
+            binding = scope.lookup(node.id)
+            if isinstance(binding, VariableBinding) and (found := _notation_of(binding.node)):
+                return found
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id in _NOTATION_OPERATIONS
+        ):
+            return self._notation_operation(node, scope, ctx)
+        if isinstance(node, ast.Chain):
+            raise CompileError("give the links of a chain one at a time", span=node.span)
+        self._index_structure(node, scope)  # what breaks the rules, before SymPy sees it
+        if isinstance(node, ast.Equation):
+            lhs = self._tensorial(node.lhs, scope, ctx)
+            return IndexEquation(lhs, self._tensorial(node.rhs, scope, ctx), space)
+        return IndexExpression(self._tensorial(node, scope, ctx), space)
+
+    def _notation_operation(
+        self, node: ast.Call, scope: Scope, ctx: Context
+    ) -> IndexEquation | IndexExpression:
+        assert isinstance(node.func, ast.Name)
+        name, args, space = node.func.id, node.args, self.session.space()
+        if not args:
+            raise CompileError(f"{name} needs an equation", span=node.span)
+        try:
+            subject = self._abstract(args[0], scope, ctx)
+            if name == "solve":
+                if len(args) != 2 or not isinstance(subject, IndexEquation):
+                    raise CompileError(
+                        "solve takes an equation and the tensor to solve it for",
+                        span=node.span,
+                        hint="for example solve(E, T_{\\mu\\nu})",
+                    )
+                self._index_structure(args[1], scope)
+                target = self._tensorial(args[1], scope, ctx)
+                if not isinstance(target, symbolic.Tensor):
+                    raise CompileError(
+                        "give the tensor to solve for with its indices, as in T_{\\mu\\nu}",
+                        span=args[1].span,
+                    )
+                return IndexEquation(
+                    target, abstract.solve(subject.lhs, subject.rhs, target, space), space
+                )
+            if name in ("LHS", "RHS"):
+                if not isinstance(subject, IndexEquation):
+                    raise CompileError(f"{name} takes an equation", span=node.span)
+                return IndexExpression(subject.lhs if name == "LHS" else subject.rhs, space)
+            transform: Callable[[Any], Any]
+            if name == "subs":
+                rule = self._abstract(args[1], scope, ctx) if len(args) == 2 else None
+                if not isinstance(rule, IndexEquation):
+                    raise CompileError(
+                        "subs takes an expression and a rule",
+                        span=node.span,
+                        hint="for example subs(E, u^\\alpha u_\\alpha = -1)",
+                    )
+
+                def transform(value: Any) -> Any:
+                    assert isinstance(rule, IndexEquation)
+                    return abstract.substitute(value, rule.lhs, rule.rhs, space)
+
+            elif name == "trace":
+
+                def transform(value: Any) -> Any:
+                    return abstract.trace(value, space)
+
+            else:
+
+                def transform(value: Any) -> Any:
+                    return abstract.canonical(value, space)
+
+            if isinstance(subject, IndexEquation):
+                return IndexEquation(transform(subject.lhs), transform(subject.rhs), space)
+            return IndexExpression(transform(subject.value), space)
+        except CompileError as error:
+            if error.span is None:
+                error.span = node.span
+            raise
+
+    def _tensorial(self, node: ast.Expr, scope: Scope, ctx: Context) -> Any:
+        """An expression read as abstract index notation: a SymPy tensor expression."""
+        node = _operand(node)
+        space = self.session.space()
+        if isinstance(node, ast.Binary) and node.op in ("+", "-"):
+            total: Any = sympy.S.Zero
+            for sign, term in _signed_terms(node):
+                value = self._tensorial(term, scope, ctx)
+                value = value if sign > 0 else -value
+                try:
+                    total = value if total == 0 else total + value
+                except ValueError as error:  # SymPy's own check of free indices
+                    raise IndexNotationError(
+                        f"the free indices of a sum must agree: {error}", span=node.span
+                    ) from None
+            return total
+        if isinstance(node, ast.Binary) and node.op == "*":
+            product: Any = sympy.S.One
+            for factor in _product_factors(node):
+                try:
+                    product = product * self._tensorial(factor, scope, ctx)
+                except ValueError as error:
+                    raise IndexNotationError(str(error), span=node.span) from None
+            return product
+        if isinstance(node, ast.Binary) and node.op == "/":
+            denominator = self._tensorial(node.right, scope, ctx)
+            if isinstance(denominator, symbolic.TensExpr):
+                raise IndexNotationError("cannot divide by a tensor", span=node.right.span)
+            return self._tensorial(node.left, scope, ctx) / denominator
+        if isinstance(node, ast.Unary) and node.op in ("-", "+"):
+            value = self._tensorial(node.operand, scope, ctx)
+            return -value if node.op == "-" else value
+        if (isinstance(node, ast.Scripted) and isinstance(node.base, ast.Operator)) or (
+            isinstance(node, ast.Derivative | ast.Differential) and _mentions_tensor(node)
+        ):
+            raise CompileError(
+                "derivatives are not yet part of tensor notation; they work on components",
+                span=node.span,
+            )
+        if isinstance(node, ast.Scripted) and (pattern := _tensor_pattern(node)):
+            written = self._letter_run(node, scope, ctx)
+            if written is not node:
+                return self._tensorial(written, scope, ctx)
+            return self._abstract_tensor(pattern, scope, node.span)
+        if isinstance(node, ast.Name):
+            binding = scope.lookup(node.id)
+            if isinstance(binding, VariableBinding) and (found := _notation_of(binding.node)):
+                if isinstance(found, IndexEquation):
+                    raise CompileError(f"{node.id} is an equation", span=node.span)
+                return found.value
+            if binding is None and node.id == "R":
+                return space.ricci_scalar
+            if isinstance(binding, TensorBinding):  # a tensor without indices: its trace
+                return Symbol(node.id)
+        if isinstance(node, ast.Equation):
+            raise CompileError("an equation cannot be part of an expression", span=node.span)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            name = node.func.id
+            if name in _NOTATION_OPERATIONS:
+                found = self._notation_operation(node, scope, ctx)
+                if isinstance(found, IndexEquation):
+                    raise CompileError(
+                        "an equation cannot be part of an expression", span=node.span
+                    )
+                return found.value
+            function = isinstance(scope.lookup(name), FunctionBinding) or name in BUILTINS
+            if not function and len(node.args) == 1 and _mentions_tensor(node):
+                # \kappa(T_{\mu\nu} - ...), as typeset: a product
+                times = ast.Binary("*", node.func, node.args[0], implicit=True, span=node.span)
+                return self._tensorial(times, scope, ctx)
+        if _mentions_tensor(node):  # not a scalar, though nothing else here reads it
+            raise IndexNotationError(
+                "tensor notation reads sums and products of tensors, and not yet this",
+                span=node.span,
+            )
+        value = self.value(node, scope, ctx)
+        if isinstance(value.type, TensorType):
+            raise IndexNotationError(
+                "in tensor notation, write a tensor with its indices", span=node.span
+            )
+        scalar = sympy.sympify(self.session.evaluate(value))
+        if not isinstance(scalar, sympy.Expr):
+            raise IndexNotationError(
+                "in tensor notation, each factor is a scalar or a tensor with indices",
+                span=node.span,
+            )
+        return scalar
+
+    def _letter_run(self, node: ast.Scripted, scope: Scope, ctx: Context) -> ast.Expr:
+        """In LaTeX, ``8\\pi GT_{\\mu\\nu}`` is G times T_{\\mu\\nu}: the indices on a run of
+        letters that names nothing belong to its last letter, as a script does."""
+        base = node.base
+        if not (ctx.latex and isinstance(base, ast.Name) and _splittable(base)):
+            return node
+        name = base.id
+        known = name in BUILTINS or name in CONSTANTS or scope.lookup(name) is not None
+        if known or any(self._builtin_tensor(name, rank) for rank in range(5)):
+            return node
+        letters = split_index_labels(name)
+        if len(letters) < 2:
+            return node
+        factors: list[ast.Expr] = [
+            ast.Name(letter, verbatim=True, span=base.span) for letter in letters[:-1]
+        ]
+        factors.append(replace(node, base=ast.Name(letters[-1], verbatim=True, span=base.span)))
+        return reduce(lambda a, b: ast.Binary("*", a, b, implicit=True, span=node.span), factors)
+
+    def _abstract_tensor(
+        self, pattern: tuple[str, list[tuple[str, bool]]], scope: Scope, span: Span
+    ) -> Any:
+        name, entries = pattern
+        space = self.session.space()
+        binding = scope.lookup(name)
+        if isinstance(binding, VariableBinding) and _notation_of(binding.node):
+            raise IndexNotationError(
+                f"{name} stands for notation, whose indices are its own",
+                span=span,
+                hint=f"write it without indices, as in trace({name})",
+            )
+        quantity = None
+        if not isinstance(binding, TensorBinding):
+            quantity = self._builtin_tensor(name, len(entries))
+        head = space.head(_NOTATION_NAMES.get(quantity or "", name), len(entries), quantity)
+        try:
+            return head(*(space.index(label, upper) for label, upper in entries))
+        except ValueError as error:
+            raise IndexNotationError(str(error), span=span) from None
+
+    def _components_of(self, node: Node, scope: Scope, ctx: Context, span: Span) -> Node:
+        """A value kept as notation, turned into components with the metric in force."""
+        found = _notation_of(node)
+        if found is None:
+            return node
+        if isinstance(found, IndexEquation):
+            raise CompileError(
+                "an equation in index notation has no components",
+                span=span,
+                hint="take one side of it, as in RHS(E)",
+            )
+        return self._lower(found.value, scope, ctx, span)
+
+    def _lower(self, value: Any, scope: Scope, ctx: Context, span: Span) -> Node:
+        """Turn notation into components: write each term in the language, with its
+        scalar coefficient bound to a name, and compile it."""
+        space = self.session.space()
+        traces = space.traces()
+        inner = scope.child()
+        fresh = itertools.count()
+        summands: list[ast.Expr] = []
+        for coefficient, tensors in abstract.terms(value):
+            present = [symbol for symbol in traces if coefficient.has(symbol)]
+            try:
+                monomials = (
+                    sympy.Poly(coefficient, *present).terms() if present else [((), coefficient)]
+                )
+            except sympy.PolynomialError:
+                raise CompileError(
+                    "cannot turn this into components: a trace appears other than as a factor",
+                    span=span,
+                ) from None
+            for powers, scalar in monomials:
+                name = f"#c{next(fresh)}"
+                inner.bind(name, VariableBinding(self.graph.const(sympy.sympify(scalar), SCALAR)))
+                factors: list[ast.Expr] = [ast.Name(name, verbatim=True, span=span)]
+                for symbol, power in zip(present, powers, strict=True):
+                    for _ in range(power):
+                        factors.append(_trace_syntax(symbol, traces[symbol], fresh, span))
+                labels: dict[str, str] = {}
+                for tensor in tensors:
+                    factors.append(_tensor_syntax(tensor, space, labels, fresh, span))
+                summands.append(
+                    reduce(lambda a, b: ast.Binary("*", a, b, implicit=True, span=span), factors)
+                )
+        if not summands:
+            return self.graph.const(sympy.S.Zero, SCALAR, span)
+        total = reduce(lambda a, b: ast.Binary("+", a, b, span=span), summands)
+        return self.value(total, inner, replace(ctx, latex=False))
+
     # -- helpers -------------------------------------------------------------
 
     def _call(
@@ -1850,24 +2346,25 @@ def _names(value: ast.Expr, what: str) -> list[str]:
     return names
 
 
+def _walk(node: ast.Node) -> Iterator[ast.Node]:
+    """Every node of a syntax tree, without recursion, for expressions of any length."""
+    pending: list[object] = [node]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, tuple):
+            pending.extend(current)
+        elif isinstance(current, ast.Node):
+            yield current
+            pending.extend(vars(current).values())
+
+
 def _mentioned(value: ast.Expr) -> frozenset[str]:
     """Every name written in an expression."""
     found: set[str] = set()
-    pending: list[object] = [value]
-    while pending:  # without recursion, for expressions of any length
-        node = pending.pop()
+    for node in _walk(value):
         if isinstance(node, ast.Name):
             found.add(node.id)
             found.update(split_index_labels(node.id))
-        if isinstance(node, ast.Node):
-            for field_value in vars(node).values():
-                if isinstance(field_value, tuple):
-                    for element in field_value:
-                        pending.append(element)
-                        if isinstance(element, tuple):
-                            pending.extend(element)
-                else:
-                    pending.append(field_value)
     return frozenset(found)
 
 
@@ -2033,3 +2530,127 @@ def _names_omega(node: ast.Expr) -> bool:
     """``\\Omega`` or ``\\Omega^2``, as after the ``d`` of a solid angle."""
     base = node.base if isinstance(node, ast.Scripted) else node
     return isinstance(base, ast.Name) and base.id == "Omega"
+
+
+# -- abstract index notation ---------------------------------------------------------
+
+_NOTATION_OPERATIONS = frozenset({"solve", "trace", "simplify", "subs", "LHS", "RHS"})
+# The names built-in tensors have in notation, whatever they were written as.
+_NOTATION_NAMES = {
+    "riemann": "R", "ricci": "R", "einstein": "G", "weyl": "C", "christoffel": "Gamma",
+}  # fmt: skip
+
+
+def _mentions_tensor(node: ast.Expr) -> bool:
+    """Whether a tensor with indices is written anywhere in an expression."""
+    return any(
+        isinstance(current, ast.Scripted) and _tensor_pattern(current) for current in _walk(node)
+    )
+
+
+def _zero_literal(node: ast.Expr) -> bool:
+    """A written 0, which has whatever free indices the other side of an equation has."""
+    node = _operand(node)
+    return isinstance(node, ast.Number) and float(node.text) == 0
+
+
+def _free_latex(free: frozenset[tuple[str, bool]]) -> str:
+    """Free indices as scripts, ``^{\\mu}_{\\nu}``, or ``none``."""
+    ordered = sorted(free)
+    upper = abstract.latex_labels([label for label, up in ordered if up])
+    lower = abstract.latex_labels([label for label, up in ordered if not up])
+    written = (f"^{{{upper}}}" if upper else "") + (f"_{{{lower}}}" if lower else "")
+    return written or "none"
+
+
+def _notation_of(node: Node) -> IndexEquation | IndexExpression | None:
+    """The notation a node holds, if it is a value kept as notation."""
+    if isinstance(node.op, ops.Const) and isinstance(
+        node.op.value, IndexEquation | IndexExpression
+    ):
+        return node.op.value
+    return None
+
+
+def _tensor_pattern(node: ast.Scripted) -> tuple[str, list[tuple[str, bool]]] | None:
+    """A name with index labels, as a tensor is written: ``T^{\\mu}{}_{\\nu}``."""
+    if not isinstance(node.base, ast.Name):
+        return None
+    entries = []
+    for script in node.scripts:
+        if script.indices is None or not script.indices.items:
+            return None
+        for item in script.indices.items:
+            if not _plain_label(item) or item.label == "⋯":
+                return None
+            entries.append((str(item.label), script.kind == "^"))
+    return node.base.id, entries
+
+
+def _signed_terms(node: ast.Expr) -> list[tuple[int, ast.Expr]]:
+    """The terms of a sum, with their signs, in order and without recursion."""
+    found: list[tuple[int, ast.Expr]] = []
+    pending: list[tuple[int, ast.Expr]] = [(1, node)]
+    while pending:
+        sign, expr = pending.pop()
+        if isinstance(expr, ast.Binary) and expr.op in ("+", "-"):
+            pending.append((sign if expr.op == "+" else -sign, expr.right))
+            pending.append((sign, expr.left))
+        else:
+            found.append((sign, expr))
+    return found
+
+
+def _product_factors(node: ast.Expr) -> list[ast.Expr]:
+    """The factors of a product, in order and without recursion."""
+    found: list[ast.Expr] = []
+    pending = [node]
+    while pending:
+        expr = pending.pop()
+        if isinstance(expr, ast.Binary) and expr.op == "*":
+            pending.append(expr.right)
+            pending.append(expr.left)
+        else:
+            found.append(expr)
+    return found
+
+
+def _tensor_syntax(
+    tensor: Any, space: Any, labels: dict[str, str], fresh: Iterator[int], span: Span
+) -> ast.Scripted:
+    """A tensor of notation, written as the language writes it, dummies renamed."""
+    name = tensor.head.name
+    if tensor.head == space.delta:
+        name = "delta"
+    scripts: list[ast.Script] = []
+    run: list[ast.IndexItem] = []
+    position: Literal["^", "_"] | None = None
+    for index in tensor.indices:
+        label = index.name
+        if label.startswith("L_"):
+            label = labels.setdefault(label, f"#l{next(fresh)}")
+        kind: Literal["^", "_"] = "^" if index.is_up else "_"
+        if position is not None and kind != position:
+            scripts.append(
+                ast.Script(position, None, ast.IndexList(tuple(run), span=span), span=span)
+            )
+            run = []
+        position = kind
+        run.append(ast.IndexItem(label, span=span))
+    if run and position is not None:
+        scripts.append(ast.Script(position, None, ast.IndexList(tuple(run), span=span), span=span))
+    return ast.Scripted(ast.Name(name, verbatim=True, span=span), tuple(scripts), span=span)
+
+
+def _trace_syntax(symbol: Symbol, head: Any, fresh: Iterator[int], span: Span) -> ast.Expr:
+    """The trace a scalar of notation stands for: R, or T^{a}{}_{a}."""
+    if head is None:
+        return ast.Name(symbol.name, verbatim=True, span=span)
+    label = f"#t{next(fresh)}"
+    up = ast.Script(
+        "^", None, ast.IndexList((ast.IndexItem(label, span=span),), span=span), span=span
+    )
+    down = ast.Script(
+        "_", None, ast.IndexList((ast.IndexItem(label, span=span),), span=span), span=span
+    )
+    return ast.Scripted(ast.Name(head.name, verbatim=True, span=span), (up, down), span=span)

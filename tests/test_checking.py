@@ -78,6 +78,19 @@ def test_part_of_a_document():
     ]
 
 
+def test_index_notation_is_checked_as_notation():
+    report = Workbook().check(
+        Document(r"""
+        \begin{equation} g^{\mu\nu} g_{\nu\sigma} = \delta^\mu_\sigma \end{equation}
+        \begin{equation} G_{\mu\nu} = 8\pi G T_{\mu\nu} \end{equation}
+        """)
+    )
+    assert [(finding.verdict, finding.detail) for finding in report.findings] == [
+        (Verdict.HOLDS, "an identity of index notation"),
+        (Verdict.COMPUTES, r"index notation, not an identity: G_{\mu\nu} = 8 \pi G T_{\mu\nu}"),
+    ]
+
+
 def test_the_summary_counts_verdicts():
     summary = Workbook().check(Document(PAPER, "paper.tex")).summary()
     assert summary.splitlines()[0] == "paper.tex: 5 equations, 7 statements"

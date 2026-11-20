@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING, Any
 
 import sympy
 
+from relativisticpy.abstract import IndexEquation
 from relativisticpy.documents import Document, Equation, math_blocks
 from relativisticpy.errors import CompileError, EvaluationError, ParseError
 from relativisticpy.language import Span
@@ -199,6 +200,10 @@ def _judge(value: Any) -> tuple[Verdict, str]:
         return Verdict.HOLDS, ""
     if value is False or value is sympy.false:
         return Verdict.DIFFERS, "the two sides are not equal"
+    if isinstance(value, IndexEquation):  # a law, such as Einstein's, need not be an identity
+        if value.holds():
+            return Verdict.HOLDS, "an identity of index notation"
+        return Verdict.COMPUTES, f"index notation, not an identity: {_short(value)}"
     if isinstance(value, TensorEquation):
         if value:
             return Verdict.HOLDS, ""

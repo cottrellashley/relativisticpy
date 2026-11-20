@@ -9,6 +9,7 @@ from typing import Any
 import sympy
 from sympy import Symbol
 
+from relativisticpy.abstract import Space
 from relativisticpy.compiler.scope import Scope
 from relativisticpy.errors import CompileError
 from relativisticpy.ir import SCALAR, Graph, Node, TensorType, ops
@@ -86,6 +87,15 @@ class Session:
     # Whether the coordinates were read from a line element's differentials rather than
     # declared; only then may a later line element bring new ones.
     coordinates_inferred: bool = False
+    _space: Space | None = field(default=None, repr=False)
+
+    def space(self) -> Space:
+        """The tensors of abstract index notation, in as many dimensions as there are
+        coordinates (four before there are any)."""
+        dim = len(self.coordinates) if self.coordinates else 4
+        if self._space is None or self._space.dim != dim:
+            self._space = Space(dim, metric=self.names["metric"])
+        return self._space
 
     def set_coordinates(self, coordinates: tuple[Symbol, ...], *, inferred: bool = False) -> None:
         """Change coordinates, forgetting what belonged to the old ones."""

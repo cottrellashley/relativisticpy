@@ -67,9 +67,13 @@ class Indices(tuple[Index, ...]):
 
 
 def latex_label(name: str) -> str:
-    """A symbol name as LaTeX: Greek names gain a backslash, ``x_0`` becomes ``x_{0}``."""
+    """A symbol name as LaTeX: Greek names gain a backslash, ``x_0`` becomes ``x_{0}``
+    and ``mu'`` becomes ``\\mu'``."""
     if name in GREEK:
         return "\\" + name
+    unprimed = name.rstrip("'")
+    if unprimed and unprimed != name:
+        return latex_label(unprimed) + name[len(unprimed) :]
     head, _, tail = name.partition("_")
     if tail:
         return f"{latex_label(head)}_{{{tail}}}"
