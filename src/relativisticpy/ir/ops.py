@@ -68,7 +68,12 @@ class Add(Op):
 
 @dataclass(frozen=True)
 class Mul(Op):
-    """Multiply scalars, or scale a tensor (the last argument) by scalars."""
+    """Multiply values: scalars, and matrices as matrices."""
+
+
+@dataclass(frozen=True)
+class Scale(Op):
+    """Multiply a tensor, the last argument, by scalars."""
 
 
 @dataclass(frozen=True)

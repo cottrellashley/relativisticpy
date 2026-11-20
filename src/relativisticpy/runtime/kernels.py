@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import operator
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import reduce, singledispatch
@@ -13,6 +12,7 @@ from sympy import ImmutableDenseNDimArray, ImmutableMatrix
 
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
+from relativisticpy.errors import EvaluationError
 from relativisticpy.ir import ops
 from relativisticpy.tensors import arrays
 from relativisticpy.tensors.equation import TensorEquation
@@ -36,22 +36,78 @@ def _call(op: ops.Call, args: list[Any], executor: Executor) -> Any:
     return op.func(*args)
 
 
+# Arithmetic follows mathematics, not Python: a list is a vector or a matrix, so
+# 2 [1, 2] is [2, 4] rather than [1, 2, 1, 2], and matrices multiply as matrices.
+
+
 @execute.register(ops.Add)
 def _add(op: ops.Add, args: list[Any], executor: Executor) -> Any:
-    total = args[0] if op.signs[0] > 0 else -args[0]
-    for sign, value in zip(op.signs[1:], args[1:], strict=True):
-        total = total + value if sign > 0 else total - value
+    terms = [_arithmetic(arg) for arg in args]
+    shapes = list(dict.fromkeys(_shape(term) for term in terms))
+    if len(shapes) > 1:
+        if () in shapes:
+            raise EvaluationError("cannot add a scalar and an array")
+        raise EvaluationError(f"cannot add arrays of shapes {' and '.join(map(str, shapes))}")
+    total = terms[0] if op.signs[0] > 0 else -terms[0]
+    for sign, term in zip(op.signs[1:], terms[1:], strict=True):
+        total = total + term if sign > 0 else total - term
     return total
 
 
 @execute.register(ops.Mul)
 def _mul(op: ops.Mul, args: list[Any], executor: Executor) -> Any:
-    return reduce(operator.mul, args)
+    return reduce(_times, [_arithmetic(arg) for arg in args])
+
+
+@execute.register(ops.Scale)
+def _scale(op: ops.Scale, args: list[Any], executor: Executor) -> Any:
+    *factors, components = args
+    factor = _mul(ops.Mul(), factors, executor)
+    if _shape(factor):
+        raise EvaluationError(
+            "a tensor can be multiplied by scalars, not by an array",
+            hint="to combine it with components, define a tensor and use index notation",
+        )
+    return factor * components
 
 
 @execute.register(ops.Pow)
 def _pow(op: ops.Pow, args: list[Any], executor: Executor) -> Any:
-    return args[0] ** args[1]
+    base, exponent = (_arithmetic(arg) for arg in args)
+    if not (_shape(base) or _shape(exponent)):
+        return base**exponent
+    square = len(_shape(base)) == 2 and base.shape[0] == base.shape[1]
+    if square and not _shape(exponent) and sympy.sympify(exponent).is_integer:
+        return arrays.to_array(base.tomatrix() ** exponent)
+    raise EvaluationError("only a square matrix can be raised to a power, and only an integer one")
+
+
+def _arithmetic(value: Any) -> Any:
+    """A value as arithmetic sees it: lists and tuples are arrays."""
+    if not isinstance(value, list | tuple):
+        return value
+    try:
+        return arrays.to_array(value)
+    except ValueError:
+        raise EvaluationError(
+            "only rectangular lists, such as vectors and matrices, have arithmetic"
+        ) from None
+
+
+def _shape(value: Any) -> tuple[int, ...]:
+    """An array's shape; a scalar's is ``()``."""
+    return tuple(value.shape) if isinstance(value, sympy.NDimArray) else ()
+
+
+def _times(left: Any, right: Any) -> Any:
+    if not (_shape(left) and _shape(right)):
+        return left * right
+    if len(left.shape) == len(right.shape) == 2 and left.shape[1] == right.shape[0]:
+        return arrays.to_array(left.tomatrix() * right.tomatrix())
+    raise EvaluationError(
+        f"cannot multiply arrays of shapes {left.shape} and {right.shape}",
+        hint="matrices multiply when their shapes match; for other products use index notation",
+    )
 
 
 @execute.register(ops.Contract)

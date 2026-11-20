@@ -1,10 +1,13 @@
 """Scalar expressions and calculus (ported from the original test suite)."""
 
+import re
+
 import pytest
 from sympy import (
     Array,
     E,
     Function,
+    Rational,
     Symbol,
     diff,
     dsolve,
@@ -17,6 +20,8 @@ from sympy import (
     sin,
     solve,
 )
+
+from relativisticpy import EvaluationError
 
 x, y = Symbol("x"), Symbol("y")
 f, P, Q = Function("f"), Function("P"), Function("Q")
@@ -77,6 +82,46 @@ def test_diag(wb):
     assert wb.expr("diag(x**2, y**x, 1, 10*x)") == Array(
         [[x**2, 0, 0, 0], [0, y**x, 0, 0], [0, 0, 1, 0], [0, 0, 0, 10 * x]]
     )
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("2 [1, 2]", Array([2, 4])),
+        ("-[1, 2]", Array([-1, -2])),
+        ("[2, 4]/2", Array([1, 2])),
+        ("x \\cdot (1, 2)", Array([x, 2 * x])),
+        ("[1, 2] + [3, 4]", Array([4, 6])),
+        ("[[1, 2], [3, 4]] [[0, 1], [1, 0]]", Array([[2, 1], [4, 3]])),
+        (
+            r"\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix} \begin{pmatrix} x \\ y \end{pmatrix}",
+            Array([[x + 2 * y], [3 * x + 4 * y]]),
+        ),
+        ("diag(1, 2)^2", Array([[1, 0], [0, 4]])),
+        ("[[1, 2], [3, 4]]^{-1}", Array([[-2, 1], [Rational(3, 2), Rational(-1, 2)]])),
+    ],
+)
+def test_lists_are_vectors_and_matrices(wb, source, expected):
+    assert wb.expr(source) == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "message"),
+    [
+        ("[1, 2] + 1", "cannot add a scalar and an array"),
+        ("[1, 2] + [1, 2, 3]", "cannot add arrays of shapes (2,) and (3,)"),
+        ("[1, 2] [3, 4]", "cannot multiply arrays of shapes (2,) and (2,)"),
+        ("[1, 2]^2", "only a square matrix can be raised to a power"),
+        ("[[1], [2, 3]] + 1", "only rectangular lists"),
+        (
+            "Coordinates := [x, y]\nT_{ab} := diag(1, 2)\ndiag(1, 2) T_{ab}",
+            "a tensor can be multiplied by scalars, not by an array",
+        ),
+    ],
+)
+def test_arithmetic_errors(wb, source, message):
+    with pytest.raises(EvaluationError, match=re.escape(message)):
+        wb.expr(source)
 
 
 def test_definitions_are_remembered(wb):

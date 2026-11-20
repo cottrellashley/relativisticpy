@@ -571,7 +571,7 @@ class Compiler:
             product = self._contract([(t, _indices(t)) for t in tensors], span)
         if not scalars:
             return product
-        return self.graph.add(ops.Mul(), [*scalars, product], product.type, span)
+        return self.graph.add(ops.Scale(), [*scalars, product], product.type, span)
 
     def _divide(self, numerator: Node, denominator: Node, span: Span) -> Node:
         if isinstance(denominator.type, TensorType):
