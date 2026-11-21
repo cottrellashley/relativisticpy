@@ -1,5 +1,7 @@
 r"""Checking documents: every statement gets a verdict, in the document's order."""
 
+import io
+import sys
 import time
 
 import pytest
@@ -354,3 +356,13 @@ class TestCommandLine:
         paper.write_text(PAPER)
         assert main(["check", "-j", "2", str(paper)]) == 0
         assert "line 13     ✗ differs" in capsys.readouterr().out
+
+    def test_output_that_cannot_show_the_marks(self, tmp_path, monkeypatch):
+        # Output redirected on Windows encodes with the ANSI code page, without ✓ or ✗.
+        paper = tmp_path / "paper.tex"
+        paper.write_text(PAPER)
+        output = io.TextIOWrapper(io.BytesIO(), encoding="cp1252")
+        monkeypatch.setattr(sys, "stdout", output)
+        assert main(["check", str(paper)]) == 0
+        output.flush()
+        assert "line 11     ? holds" in output.buffer.getvalue().decode("cp1252")

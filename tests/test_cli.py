@@ -50,6 +50,20 @@ def test_errors_exit_with_one(capsys, tmp_path):
     assert "error:" in capsys.readouterr().err
 
 
+def test_a_file_saved_with_a_byte_order_mark(tmp_path, capsys):
+    program = tmp_path / "square.relpy"
+    program.write_text("x := 3\nx^2\n", encoding="utf-8-sig")
+    assert main([str(program)]) == 0
+    assert capsys.readouterr().out == "9\n"
+
+
+def test_a_file_that_is_not_utf8(tmp_path, capsys):
+    program = tmp_path / "latin.relpy"
+    program.write_bytes("\\text{é}\n".encode("latin-1"))
+    assert main([str(program)]) == 1
+    assert f"error: {program} is not UTF-8 text" in capsys.readouterr().err
+
+
 def test_help_mentions_check(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])

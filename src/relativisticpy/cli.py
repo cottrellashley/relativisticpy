@@ -34,6 +34,8 @@ _OPENING, _CLOSING = "([{", ")]}"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    for stream in (sys.stdout, sys.stderr):
+        _replace_what_cannot_print(stream)
     try:
         return _main(list(sys.argv[1:] if argv is None else argv))
     except BrokenPipeError:  # the reader stopped reading, as `| head` does
@@ -42,6 +44,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     except KeyboardInterrupt:  # Ctrl-C: stop, as the shell expects, without a traceback
         print(file=sys.stderr)
         return 130
+
+
+def _replace_what_cannot_print(stream: TextIO) -> None:
+    """Let a stream that cannot encode the marks of a check, such as output redirected on
+    Windows, print ``?`` for a character it cannot encode rather than fail."""
+    try:
+        "✓✗→".encode(stream.encoding or "ascii")
+    except (UnicodeEncodeError, LookupError):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(errors="replace")
 
 
 def _main(arguments: list[str]) -> int:
@@ -74,7 +87,11 @@ def _main(arguments: list[str]) -> int:
                 text, name, notebook = args.code, "<command line>", False
             else:
                 path = Path(args.file)
-                text, name = path.read_text(encoding="utf-8"), str(path)
+                try:
+                    text, name = path.read_text(encoding="utf-8-sig"), str(path)  # BOM or not
+                except UnicodeDecodeError as error:
+                    print(f"error: {path} is not UTF-8 text: {error}", file=sys.stderr)
+                    return 1
                 notebook = path.suffix.lower() in (".md", ".markdown")
             if notebook and args.render:
                 print(workbook.markdown(text, name=name))
