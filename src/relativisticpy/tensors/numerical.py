@@ -364,14 +364,50 @@ def elementwise(name: str) -> bool:
 
 
 def apply(array: Any, func: Callable[..., Any], name: str, extra: Sequence[Any] = ()) -> Any:
-    """``func`` applied to every component: NumPy's own version where there is one."""
+    """``func`` applied to every component: NumPy's own version where there is one, and
+    otherwise its translation into NumPy and SciPy, made once from what it does to a
+    symbol, as ``erf`` becomes ``scipy.special.erf``; one component at a time, through
+    SymPy, only where there is none."""
     xp = _xp(array)
     array = dense(array)
     if not extra and (ufunc := _UFUNCS.get(name)) is not None:
         return getattr(xp, ufunc)(array)
     numbers = [number(e) for e in extra]
-    vectorised = numpy().vectorize(lambda x: number(func(sympy.sympify(x), *numbers)))
+    np = numpy()
+    if xp is np and (translated := _translated(func, tuple(numbers))) is not None:
+        try:
+            result = np.asarray(translated(array))
+        except (NameError, TypeError, ValueError, AttributeError):
+            pass  # SymPy wrote what NumPy cannot compute
+        else:
+            if result.dtype != object:  # a constant is one for every component
+                return np.broadcast_to(result, array.shape).copy() if result.ndim == 0 else result
+    vectorised = np.vectorize(lambda x: number(func(sympy.sympify(x), *numbers)))
     return vectorised(array)
+
+
+@functools.lru_cache(maxsize=256)
+def _translated(func: Callable[..., Any], extra: tuple[Any, ...]) -> Callable[[Any], Any] | None:
+    """``func`` as a function of NumPy arrays, through what it does to a symbol; ``None``
+    if it does not give an expression of the symbol."""
+    x = sympy.Dummy("x")
+    try:
+        expression = func(x, *extra)
+    except (TypeError, ValueError, AttributeError, sympy.SympifyError):
+        return None
+    if not isinstance(expression, sympy.Expr):
+        return None
+    modules = ["scipy", "numpy"] if _has_scipy() else ["numpy"]
+    translated: Callable[[Any], Any] = sympy.lambdify(x, expression, modules=modules)
+    return translated
+
+
+def _has_scipy() -> bool:
+    try:
+        import scipy.special  # noqa: F401
+    except ImportError:  # pragma: no cover - depends on the environment
+        return False
+    return True
 
 
 def close(lhs: Any, rhs: Any) -> bool:
