@@ -287,7 +287,10 @@ def positioned(value: Value, wanted: Sequence[TensorIndex], space: Algebra) -> V
 
 
 def trace(value: Value, space: Algebra) -> Value:
-    """Contract a value's two free indices with the metric."""
+    """Contract a value's two free indices with the metric. Zero, which has whatever
+    indices the other side of its equation has, traces to zero."""
+    if not isinstance(value, TensExpr) and value == 0:
+        return sympy.S.Zero
     indices = free(value)
     if len(indices) != 2:
         raise CompileError(
@@ -329,6 +332,12 @@ def solve(lhs: Value, rhs: Value, target: Tensor, space: Algebra) -> Value:
         coefficient += term_coefficient
     if coefficient == 0:
         raise CompileError(f"the equation does not contain {target.head.name} to solve for")
+    if trace_symbol is not None and coefficient.has(trace_symbol):
+        # T T_{ab} = S_{ab}: the trace of T times T, so not linear in T
+        raise CompileError(
+            f"{target.head.name} appears multiplied by its own trace, {trace_symbol}; "
+            "solve handles equations linear in it"
+        )
     rest = build(others)
     if trace_symbol is not None and _has(rest, trace_symbol):
         # a T_{ab} + rest(T) = 0; its trace is a T + trace(rest)(T) = 0, linear in T.
@@ -473,8 +482,36 @@ def _replace_contraction(
 
 def _vanishes(value: Value, space: Algebra) -> bool:
     """Whether a value is zero, with the Einstein tensor written out, so that
-    :math:`G_{ab}` and :math:`R_{ab} - \\tfrac12 R g_{ab}` count as equal."""
-    return bool(canonical(expand_einstein(canonical(value, space), space), space) == 0)
+    :math:`G_{ab}` and :math:`R_{ab} - \\tfrac12 R g_{ab}` count as equal, and each
+    coefficient with its common factors cancelled, which SymPy leaves as they are."""
+    reduced = canonical(expand_einstein(canonical(value, space), space), space)
+    if reduced == 0:
+        return True
+    totals: dict[str, Expr] = {}  # the coefficient of each product of tensors
+    for coefficient, tensors in terms(reduced):
+        product = _product_latex(tensors)
+        totals[product] = totals.get(product, sympy.S.Zero) + coefficient
+    return all(_cancelled(total) == 0 for total in totals.values())
+
+
+def _same_free(one: Value, other: Value) -> bool:
+    """Whether two values have the same free indices, in the same positions."""
+    return {(i.name, i.is_up) for i in free(one)} == {(i.name, i.is_up) for i in free(other)}
+
+
+def _cancelled(coefficient: Expr) -> Expr:
+    """A coefficient with the factors its numerator and denominator share cancelled, as
+    :math:`(a^2 - b^2)/(a - b)` is :math:`a + b`; any other as it is, so that
+    :math:`\\Lambda - R/2` is not put over a common denominator."""
+    together = sympy.together(coefficient)
+    numerator, denominator = sympy.fraction(together)
+    if denominator.is_number:
+        return coefficient
+    try:
+        common = sympy.gcd(numerator, denominator)
+    except sympy.PolynomialError:
+        return coefficient
+    return sympy.cancel(together) if common.free_symbols else coefficient
 
 
 def _has(value: Value, symbol: Symbol) -> bool:
@@ -506,6 +543,7 @@ def latex(value: Value) -> str:
             # Products of more tensors first, and terms of the metric alone last.
             ranks[placeholder] = (all(map(_is_metric, tensors)), -len(tensors))
         coefficients[placeholder] = coefficients.get(placeholder, sympy.S.Zero) + coefficient
+    coefficients = {tensor: _cancelled(c) for tensor, c in coefficients.items()}
     printer = _Printer(names, ranks)
     return str(printer.doprint(printer.factored(coefficients)))
 
@@ -585,9 +623,12 @@ def latex_labels(labels: Sequence[str]) -> str:
 
 
 def _product_latex(tensors: Sequence[Tensor]) -> str:
-    """Tensors multiplied, with dummy indices named as a physicist would."""
+    """Tensors multiplied, with dummy indices named as a physicist would: Greek letters,
+    then, for products with more dummies than those, the letters numbered."""
     used = {index.name for tensor in tensors for index in tensor.indices}
-    available = (label for label in _DUMMY_LABELS if label not in used)
+    numbered = (f"{label}_{n}" for n in itertools.count(1) for label in _DUMMY_LABELS)
+    candidates = itertools.chain(_DUMMY_LABELS, numbered)
+    available = (label for label in candidates if label not in used)
     labels: dict[str, str] = {}
     pieces = []
     for tensor in tensors:
@@ -629,6 +670,8 @@ class IndexExpression:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, IndexExpression):
             return NotImplemented
+        if not _same_free(self.value, other.value):
+            return False
         return _vanishes(self.value - other.value, self.space)
 
     __hash__ = object.__hash__
@@ -663,6 +706,8 @@ class IndexEquation:
         if not isinstance(other, IndexEquation):
             return NotImplemented
         mine, theirs = self.lhs - self.rhs, other.lhs - other.rhs
+        if not _same_free(mine, theirs):
+            return False
         return _vanishes(mine - theirs, self.space) or _vanishes(mine + theirs, self.space)
 
     __hash__ = object.__hash__

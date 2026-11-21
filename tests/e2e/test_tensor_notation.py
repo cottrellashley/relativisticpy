@@ -48,6 +48,13 @@ class TestNotation:
             r"R_{\mu\nu} - \frac{1}{2} R g_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}"
         )
 
+    def test_the_trace_of_an_equation_with_a_side_zero(self, wb):
+        assert str(wb.expr(r"trace(R_{\mu\nu} = 0)")) == "R = 0"
+        assert str(wb.expr(r"trace(0 = T_{ab})")) == "0 = T"
+
+    def test_equations_with_other_free_indices_differ(self, wb):
+        assert wb.expr(r"A_{ab} = B_{ab}") != wb.expr(r"A_{cd} = B_{cd}")
+
     def test_subs_with_a_scalar_rule(self, wb):
         wb.exe(EINSTEIN)
         assert str(wb.expr(r"subs(EFE, \Lambda = 0)")) == r"G_{\mu\nu} = 8 \pi G T_{\mu\nu}"

@@ -1,12 +1,16 @@
 r"""Abstract index notation: canonical forms, the identities of General Relativity,
 and solving tensor equations as tensor equations."""
 
+import operator
+from functools import reduce
+
 import pytest
 from sympy import Rational, Symbol, pi
 
 from relativisticpy.abstract import (
     Algebra,
     IndexEquation,
+    IndexExpression,
     canonical,
     latex,
     latex_labels,
@@ -96,6 +100,7 @@ class TestSolving:
             (T(mu, a) * T(up(a), nu), "linear in it"),
             (T(mu, a) * u(up(a)) * u(nu), "multiplied by other tensors"),
             (Einstein(mu, nu), "does not contain T"),
+            (Symbol("T") * T(mu, nu), "multiplied by its own trace"),  # T T_{ab}: not linear
         ],
     )
     def test_what_cannot_be_solved(self, lhs, message):
@@ -141,6 +146,20 @@ class TestRules:
     def test_a_trace(self):
         traced = trace(Ricci(mu, nu) - R / 2 * g(mu, nu), space)
         assert canonical(traced + R, space) == 0
+        assert trace(0, space) == 0  # the side of an equation that is zero
+
+
+class TestEquality:
+    def test_different_free_indices_are_not_equal(self):
+        written = IndexEquation(T(mu, nu), Lam * g(mu, nu), space)
+        assert written != IndexEquation(T(rho, sigma), Lam * g(rho, sigma), space)
+        assert IndexExpression(T(mu, nu), space) != IndexExpression(u(mu), space)
+
+    def test_coefficients_are_compared_with_common_factors_cancelled(self):
+        x, y = Symbol("x"), Symbol("y")
+        fraction = IndexExpression((x**2 - y**2) / (x - y) * T(mu, nu), space)
+        assert fraction == IndexExpression((x + y) * T(mu, nu), space)
+        assert latex(fraction.value) == r"\left(x + y\right) T_{\mu\nu}"
 
 
 class TestDisplay:
@@ -158,6 +177,11 @@ class TestDisplay:
         assert latex(Riemann(up(rho), sigma, mu, nu)) == r"R^{\rho}{}_{\sigma\mu\nu}"
         assert latex(canonical(T(mu, a) * u(up(a)), space)) == r"T_{\mu}{}^{\alpha} u_{\alpha}"
         assert latex(canonical(g(up(mu), up(a)) * g(a, nu), space)) == r"\delta^{\mu}{}_{\nu}"
+
+    def test_more_dummies_than_greek_letters(self):
+        dummies = [space.index(f"q{k}", False) for k in range(20)]
+        product = canonical(reduce(operator.mul, (u(up(i)) * u(i) for i in dummies)), space)
+        assert r"\alpha_{1}" in latex(product)  # twenty dummies: the letters numbered
 
     def test_labels(self):
         assert latex_labels(["mu", "nu"]) == r"\mu\nu"
