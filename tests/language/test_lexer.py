@@ -101,6 +101,32 @@ class TestPlainText:
     def test_identifiers(self, text, expected):
         assert lex(text) == expected
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a script without braces is one letter, as TeX reads it
+            ("R^a_b", "R ^ a _ b"),
+            ("G^t_t", "G ^ t _ t"),
+            (r"\delta^a_b", "delta ^ a _ b"),
+            ("A^i_j", "A ^ i _ j"),
+            ("x^a_b", "x ^ a _ b"),
+            (r"\Gamma^r_tt", "Gamma ^ r _ t t"),
+            ("x^ab", "x ^ a b"),
+            (r"\pounds_VT", r"\pounds _ V T"),
+            (r"\omega_\mu{}^a{}_cX^c", "omega _ mu { } ^ a { } _ c X ^ c"),
+            # or a Greek letter spelled out, as plain text writes \mu
+            ("x^mu + y^theta", "x ^ mu + y ^ theta"),
+            ("x^munu", "x ^ mu nu"),
+            # a number is whole, and so is a name in a style command's braces
+            ("x^10", "x ^ 10"),
+            (r"x_\mathrm{max} + y_{\rm eff}", "x _ max + y _ { eff }"),
+            # names written with an underscore are names, as plain text writes them
+            ("r_s^2 + x_0 + T_x_0", "r_s ^ 2 + x_0 + T_x_0"),
+        ],
+    )
+    def test_a_script_without_braces_is_one_letter(self, text, expected):
+        assert lex(text) == expected
+
     def test_escaped_underscores_join_a_name(self):
         assert lex(r"geodesic\_equations(x) x\_0a") == "geodesic_equations ( x ) x_0a"
 

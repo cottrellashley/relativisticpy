@@ -800,8 +800,6 @@ class Parser:
             token = self.peek()
             kind = token.kind
             if kind in (K.CARET, K.UNDERSCORE):
-                if isinstance(node, ast.Operator) and node.kind == "lie":
-                    self._one_letter_script()
                 staggered = braced and _without_script(node, "^" if kind is K.CARET else "_")
                 node = self._attach_script(node, extend=not grouped or staggered)
                 grouped = False
@@ -876,14 +874,6 @@ class Parser:
             name = ast.Name(f"{base.id}_{digits}", base.verbatim, span=node.span)
             return ast.Prime(name, order, span=span)
         return ast.Scripted(ast.Prime(base, order, span=span), node.scripts, span=span)
-
-    def _one_letter_script(self) -> None:
-        """As LaTeX reads it, an unbraced script is one letter: ``\\pounds_VT`` is £_V T."""
-        index = self._significant(self.pos) + 1
-        token = self.tokens[index]
-        if token.kind is K.IDENT and len(token.value) > 1 and not _is_latex(token):
-            first, rest = _split_first_character(token, self.source)
-            self.tokens[index : index + 1] = [first, rest]
 
     def _call(self, func: ast.Expr) -> ast.Call:
         opener = self.advance()

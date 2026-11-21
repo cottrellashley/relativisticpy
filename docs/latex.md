@@ -38,6 +38,25 @@ name, as in a programming language.
 
 ```
 
+**A script without braces is one letter, as in TeX.** `^` and `_` take one
+letter, one command or a braced group, so `R^a_b` is \(R^{a}{}_{b}\), and
+`\delta^a_b` and `G^t_t` mean what they look like when typeset. TeX sets
+`\Gamma^r_tt` as \(\Gamma^r{}_t\, t\), and so does RelativisticPy: write
+`\Gamma^{r}_{tt}`. A Greek letter spelled out is one letter, as its command
+is (`x^mu` is \(x^\mu\)), and a number is whole (`x^10` is \(x^{10}\)). A
+name written with an underscore in plain text, such as `r_s` or `x_0`, is one
+name, as in a programming language.
+
+```python
+>>> wb.exe(r"""
+...     x^ab + y^{ab}
+...     r_s := 2 G M
+...     1 - r_s/r
+... """)
+[b*x**a + y**ab, -2*G*M/r + 1]
+
+```
+
 **Functions take what follows them.** `\sin x` is \(\sin(x)\), `\sin^2\theta`
 is \(\sin^2(\theta)\) and `\sin^{-1} x` is \(\arcsin(x)\). Square brackets hold
 an argument as parentheses do: `\exp[-x^2]`. Without brackets a function's

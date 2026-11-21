@@ -124,6 +124,21 @@ _BARS = frozenset({"|", r"\|", r"\vert", r"\Vert", r"\lvert", r"\rvert", r"\lVer
 _FLOORS = {r"\lfloor": "lfloor", r"\rfloor": "rfloor", r"\lceil": "lceil", r"\rceil": "rceil"}
 
 
+_LETTERS = re.compile(r"[A-Za-z]+")
+_LONGEST_GREEK = max(map(len, vocab.GREEK))
+
+
+def _script_letters(text: str, start: int) -> int:
+    """How many letters at ``start`` a script without braces takes: one, or a Greek
+    letter's name, the longest that the letters begin with."""
+    match = _LETTERS.match(text, start)
+    letters = match.group() if match else text[start : start + 1]
+    for length in range(min(_LONGEST_GREEK, len(letters)), 1, -1):
+        if letters[:length] in vocab.GREEK:
+            return length
+    return 1
+
+
 def tokenize(source: str | Source) -> list[Token]:
     """Split source text into tokens. The last token is always ``EOF``."""
     if isinstance(source, str):
@@ -278,8 +293,16 @@ class Lexer:
         self._emit(TokenKind.NUMBER, digits, start, end)
 
     def _identifier(self) -> None:
-        """A name; LaTeX's escaped underscore joins its parts: ``geodesic\\_equations``."""
+        """A name; LaTeX's escaped underscore joins its parts: ``geodesic\\_equations``.
+
+        A name that is a script without braces is one letter, as TeX reads it, or a
+        Greek letter spelled out, as plain text writes ``\\mu``: ``R^a_b`` is
+        ``R^{a}_{b}``, ``x^ab`` is ``x^{a} b`` and ``x^mu`` is ``x^{mu}``."""
         start = self.pos
+        if self._at_script():
+            end = start + _script_letters(self.text, start)
+            self._emit(TokenKind.IDENT, self.text[start:end], start, end)
+            return
         match = _IDENT.match(self.text, start)
         assert match is not None
         end = match.end()
@@ -289,6 +312,16 @@ class Lexer:
                 break
             end = tail.end()
         self._emit(TokenKind.IDENT, self.text[start:end].replace("\\_", "_"), start, end)
+
+    def _at_script(self) -> bool:
+        """Whether what comes next is a script without braces: after ``^`` or ``_``, and
+        not in a style command's braces, where ``x_\\mathrm{max}`` keeps its name whole."""
+        previous = self.tokens[-1] if self.tokens else None
+        if previous is None or previous.kind not in (TokenKind.CARET, TokenKind.UNDERSCORE):
+            return False
+        while self._font_ends and self.pos >= self._font_ends[-1]:
+            self._font_ends.pop()
+        return not (self._transparent_braces or self._font_ends)
 
     def _skip_comment(self) -> None:
         end = self.text.find("\n", self.pos)
