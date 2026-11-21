@@ -88,13 +88,21 @@ def test_components_from_a_value(plane):
 
 def test_builtins_that_take_tensors(plane):
     assert plane.expr("det(g_{ab})") == x**2
-    assert plane.expr("trace(g_{ab})") == 1 + x**2
+    assert plane.expr("trace(g_{ab})") == 2  # g^{ab} g_{ab}, not the diagonal's sum 1 + x^2
+    assert plane.expr("trace([[1, 2], [3, x]])") == 1 + x  # a plain matrix's is its diagonal's
     assert plane.expr("inverse(g_{ab})") == Array([[1, 0], [0, 1 / x**2]])
     assert plane.expr("transpose(V_{a} V_{b})") == plane.expr("V_{b} V_{a}").components
     assert plane.expr("latex(V^{a})") == r"T^{a} = \left[\begin{matrix}y & x\end{matrix}\right]"
     assert plane.expr("det(5)") == 5
     with pytest.raises(CompileError, match="cannot pass a tensor to f"):
         plane.expr("f(V^{a})")
+
+
+def test_the_trace_of_a_tensor_is_taken_with_the_metric(wb):
+    wb.exe(r"g_{\mu\nu} := FLRW(k)")
+    assert wb.expr(r"trace(R_{\mu\nu}) = R") is sympy.true
+    assert wb.expr(r"trace(R^{\mu}{}_{\nu}) = R") is sympy.true
+    assert wb.expr(r"trace(R^{\mu\nu}) = R") is sympy.true
 
 
 def test_componentwise_builtins(plane):

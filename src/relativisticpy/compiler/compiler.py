@@ -1428,6 +1428,9 @@ class Compiler:
         if isinstance(binding, FunctionBinding):
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._inline(binding, args, node.span, ctx)
+        trace = binding is None and name == "trace" and len(node.args) == 1
+        if trace and (traced := self._metric_trace(node.args[0], scope, ctx)) is not None:
+            return traced
         if binding is None and name in _LINEAR_ALGEBRA and node.args:
             done = self._linear_algebra(name, node, scope, ctx)
             if done is not None:
@@ -1474,6 +1477,26 @@ class Compiler:
             self.session.functions[name] = tuple(values)
         function = sympy.Function(name)
         return self._call(function, name, args, SCALAR, node.span)
+
+    def _metric_trace(self, argument: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
+        """``trace(R_{\\mu\\nu})``: the two indices of a tensor on spacetime contracted with
+        the metric, as ``trace`` does for notation, rather than the sum of the diagonal
+        components, which depends on the coordinates. ``None`` for any other argument."""
+        if not self._names_tensor(argument, scope):
+            return None
+        tensor = self.value(argument, scope, ctx)
+        kind = tensor.type
+        if not (isinstance(kind, TensorType) and kind.rank == 2):
+            return None
+        if not all(space.spacetime for space in kind.spaces):
+            return None
+        indices = Indices(Index(f"#t{k}", index.upper) for k, index in enumerate(kind.indices))
+        node = self.graph.retype(tensor, kind.with_indices(indices))
+        if indices[0].upper == indices[1].upper:  # T^{a}{}_{a}, raised with the metric
+            node, indices = self._move_index(node, indices, 1, argument.span)
+        assert isinstance(node.type, TensorType)
+        paired = Indices([indices[0], Index(indices[0].name, indices[1].upper)])
+        return self._trace(self.graph.retype(node, node.type.with_indices(paired)), argument.span)
 
     def _builtin(self, builtin: Builtin, args: list[Node], span: Span) -> Node:
         if message := builtin.check_arity(len(args)):
