@@ -286,6 +286,18 @@ class TestLinearAlgebra:
         assert spectrum.to_numpy().shape == (40,)
         assert spectrum.spaces[0].dim == 40
 
+    def test_the_index_of_a_spectrum(self, wb):
+        form = np.array([[2.0, 0.5], [0.5, 1.0]])
+        wb["S_{ab}"] = form
+        wb.exe(r"s_k := \operatorname{spec}(S)")
+        assert np.allclose(wb["s"].to_numpy(), np.linalg.eigvalsh(form))
+        for written in (r"s_k 1^k", r"1^k s_k", r"1^k \operatorname{spec}(S^a{}_b)_k"):
+            assert wb.expr(written) == pytest.approx(3.0)
+        wb["x^i"] = np.array([1.0, 2.0, 3.0])
+        assert np.allclose(wb.expr(r"1^j \operatorname{diag}(x)_{ij}").to_numpy(), [1, 2, 3])
+        wb.exe(r"e_ab := \operatorname{diag}(x)")
+        assert np.allclose(wb["e"].to_numpy(), np.diag([1.0, 2.0, 3.0]))
+
     def test_singular_values(self, market):
         market.exe(r"U_{tk}, s_k, V_{ak} := \operatorname{svd}(R_{ta})")
         u, s, v = (market[name].to_numpy() for name in "UsV")

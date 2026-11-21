@@ -2476,28 +2476,18 @@ class Compiler:
     def _infer_labels(self, statement: ast.Statement, scope: Scope) -> dict[str, Space]:
         """The spaces of the labels written on tensors with spaces of their own in a
         statement, found before it is compiled, in the order they are written, so that
-        𝟙_c in 𝟙_c (\\Sigma^{-1})^{cd} knows its space from what comes after it."""
+        𝟙_c in 𝟙_c (\\Sigma^{-1})^{cd}, and 1^k in 1^k \\operatorname{spec}(S)_k, know their
+        spaces from what comes after them."""
         labels: dict[str, Space] = {}
-        scripted = (node for node in _walk(statement) if isinstance(node, ast.Scripted))
-        for current in sorted(scripted, key=lambda node: node.span.start):
-            base, inverse = current.base, False
-            if isinstance(base, ast.Scripted) and len(base.scripts) == 1:  # (\Sigma^{-1})^{cd}
-                if not _is_minus_one(base.scripts[0].body):
-                    continue
-                base, inverse = base.base, True
-            if not isinstance(base, ast.Name):
+        candidates = (
+            node for node in _walk(statement) if isinstance(node, ast.Scripted | ast.Name)
+        )
+        for current in sorted(candidates, key=lambda node: node.span.start):
+            found = self._written_on(current, scope, statement.latex, labels)
+            if found is None:
                 continue
-            binding = scope.lookup(base.id)
-            node = binding.node if isinstance(binding, VariableBinding | TensorBinding) else None
-            spaces = _spaces(node) if node is not None else None
-            if inverse:  # of two indices, and going the other way
-                if spaces is None or len(spaces) != 2:
-                    continue
-                spaces = spaces[::-1]
-            pattern = _tensor_pattern(replace(current, base=base))
-            if not spaces or pattern is None or len(pattern[1]) != len(spaces):
-                continue
-            for (label, _), space in zip(pattern[1], spaces, strict=True):
+            entries, spaces = found
+            for (label, _), space in zip(entries, spaces, strict=True):
                 if space.spacetime:
                     continue
                 expected = labels.get(label) or self.session.labels.get(label)
@@ -2510,6 +2500,45 @@ class Compiler:
                     )
                 labels[label] = space
         return labels
+
+    def _written_on(
+        self, node: ast.Scripted | ast.Name, scope: Scope, latex: bool, labels: dict[str, Space]
+    ) -> tuple[list[tuple[str, bool]], tuple[Space, ...]] | None:
+        """The index labels written on a tensor with spaces of its own, and those spaces:
+        a tensor defined or bound, ``y_t`` for ``y_{t}``, an inverse, whose spaces go the
+        other way, or the result of a call such as ``\\operatorname{diag}(k)_{ij}``, which
+        is compiled to find them; ``None`` for anything else."""
+        if isinstance(node, ast.Name):
+            indexed = _indexed_name(node, scope)
+            if indexed is None:
+                return None
+            node = indexed
+        base, inverse = node.base, False
+        if isinstance(base, ast.Scripted) and len(base.scripts) == 1:  # (\Sigma^{-1})^{cd}
+            if not _is_minus_one(base.scripts[0].body):
+                return None
+            base, inverse = base.base, True
+        pattern = _tensor_pattern(replace(node, base=ast.Name("#", span=node.span)))
+        spaces: tuple[Space, ...] | None = None
+        if isinstance(base, ast.Name):
+            binding = scope.lookup(base.id)
+            if isinstance(binding, VariableBinding | TensorBinding):
+                spaces = _spaces(binding.node)
+        elif isinstance(base, ast.Call) and pattern is not None and self._names_tensor(base, scope):
+            from relativisticpy.errors import RelativisticPyError
+
+            saved, self._labels = self._labels, labels  # its labels are this statement's
+            try:
+                spaces = _spaces(self.value(base, scope, Context(latex=latex)))
+            except RelativisticPyError:
+                return None  # said where it is compiled
+            finally:
+                self._labels = saved
+        if inverse:  # of two indices, and going the other way
+            spaces = spaces[::-1] if spaces is not None and len(spaces) == 2 else None
+        if not spaces or pattern is None or len(pattern[1]) != len(spaces):
+            return None
+        return pattern[1], spaces
 
     def _name_axes(self, value: Node, indices: Indices, span: Span) -> Node:
         """Name the axes of a value whose indices no one wrote, such as the eigenvectors
@@ -3615,12 +3644,16 @@ def _names(value: ast.Expr, what: str) -> list[str]:
 
 def _indexed_target(name: str, value: Node) -> tuple[str, Indices] | None:
     """``v_a := ...`` with a value whose free indices are exactly ``a``: the tensor
-    ``v_{a}``, with its indices where the value has them."""
+    ``v_{a}``, with its indices where the value has them. A value whose indices no one
+    named, as the eigenvalues of s_k := \\operatorname{spec}(S), takes them in order."""
     base, underscore, tail = name.partition("_")
     if not (underscore and tail.isalpha() and isinstance(value.type, TensorType)):
         return None
     labels = split_index_labels(tail)
-    have = {index.name: index for index in value.type.indices}
+    indices = value.type.indices
+    if len(labels) == len(indices) and all(index.name.startswith("#") for index in indices):
+        return base, indices  # named by the labels where they are written, s_k or s_{k}
+    have = {index.name: index for index in indices}
     if sorted(labels) != sorted(have):
         return None
     return base, Indices(have[label] for label in labels)
