@@ -155,6 +155,9 @@ class Lexer:
     # -- driver ---------------------------------------------------------------
 
     def tokenize(self) -> list[Token]:
+        if self.source.unreadable is not None:  # as a document's macros that do not expand
+            message, start, end = self.source.unreadable
+            raise ParseError(message, span=Span(self.source, start, end))
         while self.pos < len(self.text):
             self._scan()
         if self._open_left:

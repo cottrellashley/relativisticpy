@@ -461,6 +461,13 @@ class TestErrors:
         with pytest.raises(ParseError, match=r"unclosed argument of \\text"):
             tokenize(r"\text{abc")
 
+    def test_a_source_that_says_it_cannot_be_read(self):
+        source = Source(r"x = \loop", unreadable=(r"the macro \loop expands without end", 4, 9))
+        with pytest.raises(ParseError, match="expands without end") as error:
+            tokenize(source)
+        assert error.value.span is not None
+        assert error.value.span.text == r"\loop"
+
     def test_layout_command_needs_its_argument(self):
         with pytest.raises(ParseError, match=r"\\label must be followed by a braced argument"):
             tokenize(r"\label x")

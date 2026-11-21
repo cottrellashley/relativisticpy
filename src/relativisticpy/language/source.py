@@ -10,6 +10,18 @@ from __future__ import annotations
 from bisect import bisect_right
 from dataclasses import dataclass, field
 from functools import cached_property
+from typing import NamedTuple
+
+
+class Piece(NamedTuple):
+    """Where a part of a source's text came from, when the text is an expansion of
+    what was written: from ``start`` in the text on, ``written[written_start:written_end]``,
+    copied as it is, or, when not ``copied``, expanded, as a macro is."""
+
+    start: int
+    written_start: int
+    written_end: int
+    copied: bool
 
 
 @dataclass(frozen=True, eq=False)
@@ -25,21 +37,62 @@ class Source:
 
     ``latex`` says that the whole text is LaTeX, as the inside of a ``$$`` display
     is: every statement in it is then read as LaTeX, whatever its own tokens.
+
+    ``written`` is, for text made by expanding a document's macros, the text as the
+    file has it, and ``pieces`` says where each part of ``text`` came from in it, so
+    that positions and excerpts are still the file's.
+
+    ``unreadable`` says why the text cannot be read, and where in it: reading it
+    raises a :class:`~relativisticpy.errors.ParseError` there. A document gives
+    this to an equation whose macros do not expand.
     """
 
     text: str
     name: str = "<input>"
     origin: tuple[int, int] = (1, 1)
     latex: bool = False
+    written: str | None = None
+    pieces: tuple[Piece, ...] = ()
+    unreadable: tuple[str, int, int] | None = None
+
+    @property
+    def _file_text(self) -> str:
+        return self.text if self.written is None else self.written
 
     @cached_property
     def _line_starts(self) -> tuple[int, ...]:
         starts = [0]
-        starts.extend(i + 1 for i, char in enumerate(self.text) if char == "\n")
+        starts.extend(i + 1 for i, char in enumerate(self._file_text) if char == "\n")
         return tuple(starts)
+
+    @cached_property
+    def _piece_starts(self) -> tuple[int, ...]:
+        return tuple(piece.start for piece in self.pieces)
+
+    def written_range(self, start: int, end: int) -> tuple[int, int]:
+        """Where the characters ``[start, end)`` of the text are in the text as written:
+        the same characters, unless the text is an expansion of what was written."""
+        if self.written is None or not self.pieces:
+            return start, end
+        if start >= len(self.text):
+            return len(self.written), len(self.written)
+        first = self._piece(start)
+        written_start = first.written_start + (start - first.start if first.copied else 0)
+        if end <= start:
+            return written_start, written_start
+        last = self._piece(end - 1)
+        written_end = last.written_start + end - last.start if last.copied else last.written_end
+        return written_start, max(written_start, written_end)
+
+    def _piece(self, offset: int) -> Piece:
+        return self.pieces[max(0, bisect_right(self._piece_starts, offset) - 1)]
 
     def location(self, offset: int) -> tuple[int, int]:
         """Return the 1-based ``(line, column)`` in the file of a character offset."""
+        return self._position(self.written_range(offset, offset)[0])
+
+    def _position(self, offset: int) -> tuple[int, int]:
+        """The 1-based ``(line, column)`` in the file of an offset in the written text."""
         index = bisect_right(self._line_starts, offset) - 1
         column = offset - self._line_starts[index] + 1
         if index == 0:
@@ -49,10 +102,11 @@ class Source:
     def line_text(self, line: int) -> str:
         """Return the text of a 1-based line of the file, without its line break. On
         the first line, whatever comes before the source in the file is blank."""
+        text = self._file_text
         index = line - self.origin[0]
         start = self._line_starts[index]
-        end = self.text.find("\n", start)
-        text = self.text[start:] if end == -1 else self.text[start:end]
+        end = text.find("\n", start)
+        text = text[start:] if end == -1 else text[start:end]
         return " " * (self.origin[1] - 1) + text if index == 0 else text
 
 
@@ -92,10 +146,11 @@ class Span:
              3 | V_{a} + W_{b}
                |         ^^^^^
         """
-        line, column = self.source.location(self.start)
+        start, end = self.source.written_range(self.start, self.end)  # as the file has it
+        line, column = self.source._position(start)
         text = self.source.line_text(line)
-        last_line = self.source.location(max(self.start, self.end - 1))[0]
-        width = len(text) - (column - 1) if last_line > line else self.end - self.start
+        last_line = self.source._position(max(start, end - 1))[0]
+        width = len(text) - (column - 1) if last_line > line else end - start
         gutter = " " * len(str(line))
         # Tabs are expanded in the line and the carets alike, so the carets stay under
         # the text they mark, whatever the terminal's tab stops.

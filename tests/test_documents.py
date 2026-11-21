@@ -1,5 +1,7 @@
 r"""Reading LaTeX documents: their macros and display equations."""
 
+import time
+
 import pytest
 
 from relativisticpy import Workbook
@@ -11,6 +13,8 @@ from relativisticpy.documents import (
     math_blocks,
     strip_comments,
 )
+from relativisticpy.errors import ParseError
+from relativisticpy.language import parse
 
 
 def verdicts(text: str) -> list[str]:
@@ -67,6 +71,33 @@ class TestExpansion:
         with pytest.raises(ValueError, match="expands without end"):
             expand(r"\loop", find_macros(r"\def\loop{\loop}"))
 
+    def test_let_copies_what_its_target_means_then(self):
+        macros = find_macros(r"\newcommand{\a}{A} \let\b\a \renewcommand{\a}{B}")
+        assert expand(r"\a \b", macros) == "B A"
+
+    @pytest.mark.parametrize(
+        ("definitions", "text"),
+        [
+            (r"\let\old\vec \renewcommand{\vec}[1]{\old{\mathbf{#1}}}", r"\vec{x}"),
+            (r"\let\oldleft\left \renewcommand{\left}{\oldleft}", r"\left( x \right)"),
+        ],
+    )
+    def test_let_of_a_command_is_that_command_even_once_redefined(self, definitions, text):
+        # \old is the command \vec, which the new \vec does not expand again, endlessly
+        expected = {r"\vec{x}": r"\vec{\mathbf{x}}"}.get(text, text)
+        assert expand(text, find_macros(definitions)) == expected
+
+    @pytest.mark.parametrize(
+        ("definition", "text", "expected"),
+        [
+            (r"\newcommand{\abs}[1]{\lvert#1\rvert}", r"\abs{x}", r"\lvert x\rvert"),
+            (r"\newcommand{\pair}[2]{#1#2}", r"\pair{\alpha}{b}", r"\alpha b"),
+            (r"\newcommand{\R}{R}", r"\alpha\R", r"\alpha R"),
+        ],
+    )
+    def test_an_expansion_does_not_join_a_command_beside_it(self, definition, text, expected):
+        assert expand(text, find_macros(definition)) == expected
+
 
 class TestEquations:
     def test_every_kind_of_display(self):
@@ -119,6 +150,113 @@ class TestEquations:
         document = Document.read(path)
         assert document.name == str(path)
         assert len(document.equations()) == 1
+
+    def test_let_copies_a_macro_of_a_package(self, tmp_path):
+        (tmp_path / "macros.sty").write_text(r"\newcommand{\R}{\mathcal{R}}")
+        path = tmp_path / "paper.tex"
+        path.write_text(r"\usepackage{macros} \let\Ric\R \renewcommand{\R}{X} $$ \Ric $$")
+        [equation] = Document.read(path).equations()
+        assert equation.source.text == r"$$ \mathcal{R} $$"
+
+    def test_an_equation_whose_macros_do_not_expand_is_not_parsed(self):
+        document = Document(
+            "\\def\\loop{\\loop}\n"
+            "\\newcommand{\\foo}[2][a]{#1 #2}\n"
+            "$$ x = \\loop $$\n"
+            "$$ \\foo[b $$\n"
+            "$$ y = 2 $$\n"
+        )
+        findings = Workbook().check(document).findings  # the check goes on after them
+        assert [(f.verdict.value, f.line, f.detail) for f in findings] == [
+            ("not parsed", 3, "the macro \\loop expands without end"),
+            ("not parsed", 4, "cannot expand \\foo: unclosed '['"),
+            ("defines", 5, ""),
+        ]
+
+    def test_a_document_may_end_in_a_backslash(self):
+        assert len(Document("$$ x $$ \\").equations()) == 1
+
+    def test_positions_are_the_file_s_through_macros(self):
+        document = Document(
+            "\\newcommand{\\half}{\\frac{1}{2}}\n"
+            "\\newcommand{\\two}{a\n+ b}\n"
+            "Text \\[ \\half + \\two + @ \\]\n"
+        )
+        [equation] = document.equations()
+        with pytest.raises(ParseError) as error:
+            parse(equation.source)
+        span = error.value.span
+        assert (span.line, span.column) == (4, 24)  # where @ is in the file
+        assert span.render().splitlines()[2:] == [
+            r"4 |      \[ \half + \two + @ \]",
+            "  |                        ^",
+        ]
+
+    def test_an_error_in_a_macro_points_at_the_macro(self):
+        [equation] = Document("\\newcommand{\\bad}{\\oops}\nThen \\[ x = \\bad \\]").equations()
+        with pytest.raises(ParseError, match=r"unknown LaTeX command \\oops") as error:
+            parse(equation.source)
+        line, carets = error.value.span.render().splitlines()[2:]
+        assert line == r"2 |      \[ x = \bad \]"
+        assert carets.index("^") == line.index(r"\bad")
+        assert carets.count("^") == len(r"\bad")
+
+    def test_equations_are_found_in_linear_time(self):
+        lines = (rf"\section{{S{i}}} $$ x_{{{i}}} = {i} $$" for i in range(8000))
+        document = Document("\n".join(lines))
+        started = time.perf_counter()
+        equations = document.equations()
+        assert len(equations) == 8000
+        assert time.perf_counter() - started < 3  # eleven seconds when quadratic
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            r"\iffalse $$ a = 1 $$ \fi $$ b = 2 $$",
+            r"\iffalse \ifx\a\b $$ a = 1 $$ \fi $$ a = 1 $$ \fi $$ b = 2 $$",
+            r"\newif\ifdraft \iffalse \ifdraft $$ a $$ \fi $$ a $$ \fi $$ b = 2 $$",
+            r"\iffalse \ifthenelse{x}{y}{z} $$ a = 1 $$ \fi $$ b = 2 $$",  # a macro
+            r"\iffalse $$ a = 1 $$ \else $$ b = 2 $$ \fi",
+            r"\begin{comment} $$ a = 1 $$ \end{comment} $$ b = 2 $$",
+            r"\newenvironment{eq}{\begin{equation}}{\end{equation}} $$ b = 2 $$",
+            r"$$ b = 2 $$ \iff",  # the relation, not a conditional
+        ],
+    )
+    def test_text_tex_skips_has_no_equations(self, text):
+        assert [e.source.text for e in Document(text).equations()] == ["$$ b = 2 $$"]
+
+    def test_spaces_before_the_braces_of_an_environment(self):
+        document = Document(
+            r"\begin {equation} a = 1 \end {equation} \begin{equation} b \end{equation}"
+        )
+        assert [e.source.text for e in document.equations()] == [
+            r"\begin {equation} a = 1 \end {equation}",
+            r"\begin{equation} b \end{equation}",
+        ]
+
+    def test_an_unclosed_display_hides_nothing_after_it(self):
+        document = Document(r"$$ a = 1 \[ b = 2 \] \begin{equation} c \end{equation}")
+        assert [e.environment for e in document.equations()] == ["displaymath", "equation"]
+
+
+class TestMarkdown:
+    @pytest.mark.parametrize(
+        ("text", "blocks"),
+        [
+            ("A stray ` here.\n\n$$ x $$\n\nThen `code` and $$ y $$", [" x ", " y "]),
+            ("Code `$$ a $$` and ``a ` b $$ c $$`` but $$ x $$", [" x "]),
+            ("<!-- $$ hidden $$ -->\n$$ x $$", [" x "]),
+            ("Prose.\n\n    $$ code $$\n\n$$ x $$", [" x "]),
+            ("- an item\n\n    $$ x $$\n", [" x "]),  # in the item, not code
+            ("```\n$$ code $$\n```\n$$ x $$", [" x "]),
+        ],
+    )
+    def test_blocks_outside_code_and_comments(self, text, blocks):
+        assert [block.text for block in math_blocks(text)] == blocks
+
+    def test_blocks_know_their_lines(self):
+        blocks = math_blocks("a\n\n$$ x $$\n\nb\n$$\ny\n$$")
+        assert [block.origin for block in blocks] == [(3, 3), (6, 3)]
 
 
 class TestReading:
