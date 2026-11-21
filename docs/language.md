@@ -40,11 +40,13 @@ indented further, as long equations usually are:
 ## Numbers and arithmetic
 
 Arithmetic is exact: `1/2` is one half, not `0.5`. Decimals stay decimals.
-Powers are written `^` or `**`, and juxtaposition is multiplication.
+Powers are written `^` or `**`, and juxtaposition is multiplication, though
+not of two numbers: `10 000` is an error. Digits grouped in threes by thin
+spaces, as SI writes them, are one number: `299\,792\,458`.
 
 ```python
->>> wb.exe("1/2 + 1/3\n2.5 * 2\n2^10\n3 p q")
-[5/6, 5.00000000000000, 1024, 3*p*q]
+>>> wb.exe("1/2 + 1/3\n2.5 * 2\n2^10\n3 p q\n299\\,792\\,458")
+[5/6, 5.00000000000000, 1024, 3*p*q, 299792458]
 
 ```
 
@@ -180,16 +182,17 @@ Lagrange's primes differentiate a function you have defined, or an unknown one:
 ```
 
 Integrals end at their differential, which may also come first or sit in the
-numerator of a fraction:
+numerator of a fraction. A differential alone integrates 1:
 
 ```python
 >>> wb.exe(r"""
 ...     \int_0^1 x^2 \, dx
 ...     \int_0^\infty e^{-x} dx
 ...     \int \frac{dx}{x}
+...     \int_0^L dx
 ...     integrate(x y, (x, 0, 1), (y, 0, 2))
 ... """)
-[1/3, 1, log(x), 1]
+[1/3, 1, log(x), L, 1]
 
 ```
 

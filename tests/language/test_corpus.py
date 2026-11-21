@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from relativisticpy.errors import ParseError
 from relativisticpy.language import parse, to_sexpr
 
 TEXTBOOK = {
@@ -108,7 +109,17 @@ def test_textbook_equations(latex, reading):
 
 LEGACY = json.loads((Path(__file__).parent / "data" / "legacy_programs.json").read_text())
 
+# The original suite wrote this metric's row breaks as \\ in a Python string that was not
+# raw, so the program it ran ends each row with a single backslash, which continues the
+# line: its rows ran together, with zeros side by side. That is an error now, and the
+# matrix as it was meant, with \\, is read.
+ROWS_LOST = "test_tensor_subcomponets_expr.py:100"
+
 
 @pytest.mark.parametrize("program", LEGACY, ids=[p["origin"] for p in LEGACY])
 def test_original_programs_still_parse(program):
+    if program["origin"] == ROWS_LOST:
+        with pytest.raises(ParseError, match="two numbers side by side, 0 and 0"):
+            parse(program["source"])
+        program = {**program, "source": program["source"].replace("\\\n", "\\\\\n")}
     parse(program["source"])

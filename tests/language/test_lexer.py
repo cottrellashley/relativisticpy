@@ -58,6 +58,25 @@ class TestPlainText:
     def test_numbers(self, text, expected):
         assert lex(text) == expected
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"10\,000", "10000"),
+            (r"299\,792\,458", "299792458"),
+            ("10~000 10 000 10 000", "10000 10000 10000"),
+            (r"3.141\,592", "3.141592"),
+            (r"6.022\,140\,76", "6.02214076"),  # the last group of decimals may be shorter
+            (r"1\,000.5", "1000.5"),
+            (r"10\,00", "10 00"),  # not a group of three
+            (r"2\,x", "2 x"),
+        ],
+    )
+    def test_digits_grouped_in_threes_are_one_number(self, text, expected):
+        assert lex(text) == expected
+
+    def test_a_grouped_number_spans_its_groups(self):
+        assert tokenize(r"10\,000")[0].span.text == r"10\,000"
+
     def test_a_point_before_a_unicode_digit_is_a_full_stop(self):
         # ² and ₀ are digits to str.isdigit, but they are scripts, not part of a number
         assert lex("5.²") == "5 . ^ { 2 }"
@@ -361,7 +380,11 @@ class TestUnicode:
         assert lex("α β θ ϑ φ ϕ μ µ Γ Ω") == "alpha beta theta theta phi phi mu mu Gamma Omega"
 
     def test_symbols(self):
-        assert lex("∞ ℏ ℓ π") == "infty hbar ell pi"
+        assert lex("∞ ℏ ℓ π ⊙") == "infty hbar ell pi odot"
+
+    def test_symbols_are_one_symbol_as_their_commands_are(self):
+        # as \hbar is: hbar is not h b a r
+        assert all(t.verbatim for t in tokenize("∞ ℏ ℓ ϖ ⊙ θ")[:-1])
 
     def test_operators(self):
         assert lex("a·b×c÷d−e ≤ ≥ ≠ → ≡ ≔") == "a * b * c / d - e <= >= != -> := :="

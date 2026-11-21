@@ -35,6 +35,13 @@ from relativisticpy.language.tokens import Token, TokenKind
 
 _NUMBER = re.compile(r"(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
 _DIGITS = frozenset("0123456789")
+# A group of three digits after a thin space, \, or ~, continuing a number as SI
+# groups digits: 10\,000, and 3.141\,592, where the last group of decimals may be
+# shorter: 6.022\,140\,76.
+_GROUP_SPACE = r"(?:\\,|\\thinspace(?![A-Za-z])[ \t]*|~|[   ])"
+_DIGIT_GROUP = re.compile(_GROUP_SPACE + r"(?P<digits>[0-9]{3})(?![0-9])")
+_LAST_DIGIT_GROUP = re.compile(_GROUP_SPACE + r"(?P<digits>[0-9]{1,2})(?![0-9])")
+_FRACTION = re.compile(r"\.[0-9]+")
 # An underscore belongs to a name only when a letter or digit follows it:
 # ``x_0`` and ``abs_func`` are names, while ``g_{mu}`` is ``g`` with a subscript.
 _IDENT = re.compile(r"[A-Za-z](?:[A-Za-z0-9]|_(?=[A-Za-z0-9]))*")
@@ -175,7 +182,7 @@ class Lexer:
         elif char in "#%":
             self._skip_comment()
         elif char in _DIGITS or (char == "." and self._peek(1) in _DIGITS):
-            self._match(_NUMBER, TokenKind.NUMBER)
+            self._number()
         elif char == ".":
             if self.text.startswith("...", self.pos):
                 self._emit(TokenKind.ELLIPSIS, TokenKind.ELLIPSIS.value, self.pos, self.pos + 3)
@@ -250,10 +257,23 @@ class Lexer:
         end = start + 1 if end is None else end
         return ParseError(message, span=Span(self.source, start, end), hint=hint)
 
-    def _match(self, pattern: re.Pattern[str], kind: TokenKind) -> None:
-        match = pattern.match(self.text, self.pos)
+    def _number(self) -> None:
+        """A number. Digits grouped in threes by thin spaces are one number, as SI writes
+        them: ``299\\,792\\,458`` is 299792458, not a product."""
+        start = self.pos
+        match = _NUMBER.match(self.text, start)
         assert match is not None  # guaranteed by the caller's first-character check
-        self._emit(kind, match.group(), self.pos, match.end())
+        digits, end = match.group(), match.end()
+        _, point, decimals = digits.partition(".")
+        if "e" not in digits.lower() and (not point or len(decimals) == 3):
+            while group := _DIGIT_GROUP.match(self.text, end):
+                digits, end = digits + group.group("digits"), group.end()
+            grouped = end > match.end()
+            if grouped and point and (last := _LAST_DIGIT_GROUP.match(self.text, end)):
+                digits, end = digits + last.group("digits"), last.end()  # 6.022\,140\,76
+            if grouped and not point and (fraction := _FRACTION.match(self.text, end)):
+                digits, end = digits + fraction.group(), fraction.end()  # 1\,000.5
+        self._emit(TokenKind.NUMBER, digits, start, end)
 
     def _identifier(self) -> None:
         """A name; LaTeX's escaped underscore joins its parts: ``geodesic\\_equations``."""
@@ -305,9 +325,7 @@ class Lexer:
 
     def _unicode(self, char: str) -> None:
         start = self.pos
-        if (name := vocab.UNICODE_LETTERS.get(char)) is not None:
-            self._emit(TokenKind.IDENT, name, start, start + 1)
-        elif (name := vocab.DOUBLE_STRUCK.get(char)) is not None:
+        if (name := vocab.UNICODE_LETTERS.get(char) or vocab.DOUBLE_STRUCK.get(char)) is not None:
             self._emit(TokenKind.IDENT, name, start, start + 1, verbatim=True)
         elif (relation := vocab.UNICODE_RELATIONS.get(char)) is not None:
             self._emit(TokenKind.RELATION, relation, start, start + 1)

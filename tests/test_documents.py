@@ -131,6 +131,10 @@ class TestReading:
         assert block.latex
         assert Workbook().exe(block) == [0]
 
+    def test_unicode_symbols_are_one_symbol(self):
+        # ℏ is \hbar, not h b a r, though a LaTeX statement splits runs of letters
+        assert str(Workbook().expr("ℏ ω + ℓ")) == "ell + hbar*omega"
+
     def test_an_index_range_is_not_a_definition(self):
         document = r"""
             \begin{equation} \mu, \nu = 0, 1, 2, 3 \end{equation}

@@ -35,7 +35,6 @@ class TokenKind(Enum):
     MINUS_PLUS = "∓"
     WEDGE = "∧"
     COMPOSE = "∘"
-    HADAMARD = "⊙"
 
     # Relations and definitions
     EQUAL = "="

@@ -65,6 +65,12 @@ _COMPARISONS: dict[TokenKind, Literal["<", ">", "<=", ">=", "==", "!="]] = {
     K.EQ_EQ: "==",
     K.NOT_EQ: "!=",
 }
+_SIGNS: dict[TokenKind, Literal["-", "+", "±", "∓"]] = {
+    K.MINUS: "-",
+    K.PLUS: "+",
+    K.PLUS_MINUS: "±",
+    K.MINUS_PLUS: "∓",
+}
 _SEPARATORS = frozenset({K.NEWLINE, K.SEMICOLON, K.ROW_SEP})
 # What may follow a statement: a comma or full stop just before one of these is prose.
 _STATEMENT_ENDS = frozenset({K.EOF, K.NEWLINE, K.ROW_SEP, K.END, K.SEMICOLON, K.RBRACE})
@@ -590,9 +596,10 @@ class Parser:
             return self._substitution(left)
         if self._hadamard(token):
             self.advance()
-            right = self.expression(Power.PRODUCT)
+            right = self._elementwise_operand()
             return ast.Binary("⊙", left, right, span=left.span.to(right.span))
         if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
+            self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
         self.advance()
@@ -619,16 +626,49 @@ class Parser:
 
     def _hadamard(self, token: Token) -> bool:
         """``A \\odot B`` or ``A ⊙ B``: the elementwise product, where ``\\odot`` stands
-        between two operands. Elsewhere, as in ``M_\\odot``, it is the Sun."""
-        if token.kind is K.HADAMARD:
-            return True
-        return (
+        between two operands, the second maybe signed. Elsewhere, as in ``M_\\odot``, it
+        is the Sun."""
+        if not (
             token.kind is K.IDENT
             and token.value == "odot"
-            and token.span.text.startswith("\\")
+            and _is_latex(token)
             and not self._in_script
-            and self._starts_operand(self.peek(1))
-        )
+        ):
+            return False
+        follower = self.peek(1)
+        if follower.kind in _SIGNS:  # A \odot -B
+            return self._starts_operand(self.peek(2))
+        return self._starts_operand(follower)
+
+    def _numbers_apart(self, token: Token) -> None:
+        """Juxtaposed numbers, ``10 000`` or ``2\\,3``, are not a product: say so."""
+        if token.kind is K.NUMBER and self.previous.kind is K.NUMBER:
+            raise ParseError(
+                f"two numbers side by side, {self.previous.value} and {token.value}",
+                span=self.previous.span.to(token.span),
+                hint="multiply with \\cdot, or group digits in threes, as in 10\\,000",
+            )
+
+    def _elementwise_operand(self) -> ast.Expr:
+        """The right operand of ``\\odot``: the factors that follow it, maybe after a
+        sign, as in ``w_a \\odot \\mathbb{E}_t[X_{ta}]`` or ``A \\odot -B``."""
+        sign = self.peek()
+        if sign.kind in _SIGNS:
+            self.advance()
+            operand = self._elementwise_operand()
+            return ast.Unary(_SIGNS[sign.kind], operand, span=sign.span.to(operand.span))
+        operand = self.expression(Power.PRODUCT)
+        while (
+            self._starts_operand(token := self.peek())
+            and not self._at_wide_space()
+            and not self._hadamard(token)
+        ):
+            self._numbers_apart(token)
+            right = self.expression(Power.PRODUCT)
+            operand = ast.Binary(
+                "*", operand, right, implicit=True, span=operand.span.to(right.span)
+            )
+        return operand
 
     def _relations(self, left: ast.Expr, first: Token) -> ast.Expr:
         """``a = b``, ``a \\sim b``, or relations in a row: ``a = b = c``."""
@@ -780,11 +820,11 @@ class Parser:
                     order += 1
                 node = ast.Prime(node, order, span=self._span(node.span))
             elif kind is K.PRIME and isinstance(node, ast.Scripted | ast.Operator):
-                primes = ""
+                order = 0
                 while self.accept(K.PRIME):
-                    primes += "'"
-                if isinstance(node, ast.Scripted):  # x^\mu': the prime is on the index
-                    node = _primed_script(node, primes)
+                    order += 1
+                if isinstance(node, ast.Scripted):
+                    node = self._primed(node, order)
             elif kind is K.COMMA and [self.peek(i).kind for i in (1, 2, 3)] == [
                 K.LBRACE,
                 K.RBRACE,
@@ -810,6 +850,27 @@ class Parser:
                     node = ast.Factorial(node, span=self._span(node.span))
             else:
                 return node
+
+    def _primed(self, node: ast.Scripted, order: int) -> ast.Expr:
+        """Primes after scripts. After an unbraced index label they prime the label:
+        ``x^\\mu'`` is ``x^{\\mu'}``. A name with a number as its subscript is a name of
+        its own, so ``\\phi_0'`` primes it whole, as ``phi_0'`` does in plain text.
+        Otherwise they prime the symbol, as TeX sets ``R_{\\mu\\nu}'``: ``R'_{\\mu\\nu}``."""
+        span = self._span(node.span)
+        script = node.scripts[-1]
+        if isinstance(script.body, ast.Name) and not script.span.text[1:].lstrip().startswith("{"):
+            return _primed_script(node, "'" * order)
+        base = node.base
+        if not isinstance(base, ast.Name):
+            raise ParseError(
+                "a prime after these scripts is ambiguous",
+                span=span,
+                hint="write the prime on the symbol, as in x'_0, or in the script, as in x_{0'}",
+            )
+        if (digits := _numeric_subscripts(node)) is not None:
+            name = ast.Name(f"{base.id}_{digits}", base.verbatim, span=node.span)
+            return ast.Prime(name, order, span=span)
+        return ast.Scripted(ast.Prime(base, order, span=span), node.scripts, span=span)
 
     def _one_letter_script(self) -> None:
         """As LaTeX reads it, an unbraced script is one letter: ``\\pounds_VT`` is £_V T."""
@@ -1341,12 +1402,21 @@ class Parser:
         self._integral_depth += 1
         try:
             variables: list[tuple[ast.Expr, ast.Expr | None]] = []
-            if self._at_differential():  # \int dx f(x)
-                while len(variables) < count and self._at_differential():
-                    variables.append(self._integration_variable())
-                integrand = self.expression(Power.SUM)
-            else:
+            start = self.pos, self.previous
+            # \int dx f(x); as physics writes it, \int dx\, dy\, f(x, y) integrates over both
+            while self._at_differential():
+                variables.append(self._integration_variable())
+            if not variables:
                 integrand = self.expression(Power.COMPARISON)
+            elif self._starts_operand(self.peek()):
+                integrand = self.expression(Power.SUM)
+            elif count == 1 and lower is not None and upper is None:
+                # \int_M d\omega, the integral of the form d\omega over a region
+                (self.pos, self.previous), variables = start, []
+                integrand = self.expression(Power.COMPARISON)
+            else:  # \int_0^L dx: of 1
+                differentials = self._span(self.tokens[self._significant(start[0])])
+                integrand = ast.Number("1", span=differentials)
             while len(variables) < count and self._at_differential():
                 variables.append(self._integration_variable())
             if len(variables) < count:  # \int \frac{dr}{1 - 2M/r}: the differential is on top
@@ -1372,8 +1442,16 @@ class Parser:
 
     def _at_differential(self) -> bool:
         """Is the next token a differential: ``dx``, ``d x``, ``d\\theta``, ``\\mathrm{d}x``,
-        or a volume element such as ``d^4x``?"""
+        ``{\\rm d}x``, or a volume element such as ``d^4x`` or ``d^{4}x``?"""
         token = self.peek()
+        if token.kind is K.LBRACE:  # {\rm d}x
+            d, closer, after = self.peek(1), self.peek(2), self.peek(3)
+            return (
+                d.kind is K.IDENT
+                and d.value == "d"
+                and closer.kind is K.RBRACE
+                and after.kind is K.IDENT
+            )
         if token.kind is not K.IDENT:
             return False
         if token.value == "d" and self._at_volume_element():
@@ -1386,10 +1464,17 @@ class Parser:
         return not token.verbatim and _DIFFERENTIAL.fullmatch(token.value) is not None
 
     def _at_volume_element(self) -> bool:
-        """``d^4x``, ``d^4 x``, ``d^nx``: a differential over several dimensions."""
+        """``d^4x``, ``d^4 x``, ``d^{4}x``, ``d^nx``: a differential over several dimensions."""
         caret, dimension, after = self.peek(1), self.peek(2), self.peek(3)
         if caret.kind is not K.CARET:
             return False
+        if dimension.kind is K.LBRACE:  # d^{4}x
+            closer, variable = self.peek(4), self.peek(5)
+            return (
+                after.kind in (K.NUMBER, K.IDENT)
+                and closer.kind is K.RBRACE
+                and variable.kind is K.IDENT
+            )
         if dimension.kind is K.NUMBER:
             return after.kind is K.IDENT
         return dimension.kind is K.IDENT and (
@@ -1402,10 +1487,15 @@ class Parser:
             return self._differential(), None
         self.advance()  # d
         self.advance()  # ^
+        braced = self.accept(K.LBRACE)
         token = self.advance()
+        if braced:
+            self.expect(K.RBRACE)
         dimension: ast.Expr
         if token.kind is K.NUMBER:
             dimension = ast.Number(token.value, span=token.span)
+        elif braced:  # d^{n}x
+            dimension = ast.Name(token.value, token.verbatim, span=token.span)
         else:
             first, rest = token.value[0], token.value[1:]
             dimension = ast.Name(first, span=token.span)
@@ -1415,10 +1505,15 @@ class Parser:
         return ast.Name(name.value, name.verbatim, span=name.span), dimension
 
     def _differential(self) -> ast.Expr:
-        token = self.advance()
-        if token.value != "d":
+        if self.check(K.LBRACE):  # {\rm d}x
+            self.advance()
+            token = self.advance()
+            self.advance()
+        else:
+            token = self.advance()
+        if token.value != "d":  # dx, and dt' whose variable is t'
             span = Span(self.source, token.span.start + 1, token.span.end)
-            return ast.Name(token.value[1:], span=span)
+            return ast.Name(token.value[1:] + self._primes(), span=self._span(span))
         if self.check(K.LBRACE):
             opener = self.advance()
             with self._nested():
@@ -1426,11 +1521,16 @@ class Parser:
                 self.expect(K.RBRACE, opener=opener)
             return variable
         name = self.advance()
+        primes = self._primes()
+        return ast.Name(name.value + primes, name.verbatim, span=self._span(name))
+
+    def _primes(self) -> str:
+        """Primes directly after a name, as in ``dt'``."""
         primes = ""
         while self.tokens[self.pos].kind is K.PRIME:
             primes += "'"
             self.advance()
-        return ast.Name(name.value + primes, name.verbatim, span=self._span(name))
+        return primes
 
     def _limit(self) -> ast.Limit:
         command = self.advance()
@@ -1571,6 +1671,9 @@ class Parser:
                 break
             if self._at_differential() or (token.kind is K.IDENT and token.value == "d"):
                 break
+            if self._hadamard(token):  # \sin x \odot y: the product of sin x and y
+                break
+            self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)
             arg = ast.Binary("*", arg, right, implicit=True, span=arg.span.to(right.span))
         return arg
@@ -1728,6 +1831,18 @@ def _without_script(node: ast.Expr, kind: Literal["^", "_"]) -> bool:
     )
 
 
+def _numeric_subscripts(node: ast.Scripted) -> str | None:
+    """The digits of a name's scripts, when they are all whole-number subscripts:
+    ``\\phi_0`` → ``0``, ``T_{01}`` → ``01``."""
+    digits = []
+    for script in node.scripts:
+        body = script.body
+        if script.kind != "_" or not isinstance(body, ast.Number) or not body.text.isdigit():
+            return None
+        digits.append(body.text)
+    return "".join(digits)
+
+
 def _order(token: Token) -> int:
     """The order of a derivative, as in ``\\pdv[2]`` or ``d^{2}{f}``."""
     if not token.value.isdigit():
@@ -1828,10 +1943,16 @@ def _differential_marker(node: ast.Expr) -> tuple[bool, int | None] | None:
 
 
 def _joined_differential(node: ast.Expr) -> ast.Expr | None:
-    """A name that reads as a differential: ``dx`` → ``x``, ``dx^{\\mu}`` → ``x^{\\mu}``."""
+    """A name that reads as a differential: ``dx`` → ``x``, ``dx^{\\mu}`` → ``x^{\\mu}``,
+    ``dx'`` → ``x'``."""
     if isinstance(node, ast.Scripted) and isinstance(node.base, ast.Name):
         inner = _joined_differential(node.base)
         return None if inner is None else ast.Scripted(inner, node.scripts, span=node.span)
+    if isinstance(node, ast.Prime):
+        inner = _joined_differential(node.func)
+        if not isinstance(inner, ast.Name):
+            return None
+        return ast.Name(inner.id + "'" * node.order, span=inner.span.to(node.span))
     if (
         isinstance(node, ast.Name)
         and not node.verbatim

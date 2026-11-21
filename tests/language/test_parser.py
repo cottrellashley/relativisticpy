@@ -64,6 +64,17 @@ class TestArithmetic:
     def test_juxtaposition_is_multiplication(self, text, expected):
         assert sexpr(text) == expected
 
+    @pytest.mark.parametrize("text", ["10 000", r"2\,3", r"10\,00", "1.5.2", "[1 2 3]", "x^2 3"])
+    def test_numbers_side_by_side_are_not_a_product(self, text):
+        assert "two numbers side by side" in str(error(text))
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [(r"10\,000 x", "(* 10000 x)"), (r"299\,792\,458", "299792458"), (r"2\, x", "(* 2 x)")],
+    )
+    def test_digits_grouped_in_threes_are_one_number(self, text, expected):
+        assert sexpr(text) == expected
+
     def test_juxtaposition_is_marked_implicit(self):
         node = parse_expression("2x")
         assert isinstance(node, ast.Binary)
@@ -81,6 +92,25 @@ class TestArithmetic:
     def test_primes_are_derivatives_of_functions(self):
         assert sexpr("f'(x)") == "(call f' x)"
         assert sexpr("f'''(x)") == "(call f''' x)"
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a number as subscript makes a name of its own, primed whole, as phi_0' is
+            (r"\phi_0' - \phi_0", "(- phi_0' (phi _[0]))"),
+            ("y_{1}''", "y_1''"),
+            (r"\phi_0'(r)", "(call phi_0' r)"),
+            # after a braced script the prime marks the symbol, as TeX sets it
+            (r"R_{\mu\nu}'", "(R' _[mu nu])"),
+            # after an unbraced label, the label
+            (r"x^\mu'", "(x ^[mu'])"),
+        ],
+    )
+    def test_primes_after_scripts(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_a_prime_that_has_no_symbol_to_mark_is_an_error(self):
+        assert "a prime after these scripts is ambiguous" in str(error(r"\dot{x}_0'"))
 
     def test_factorial(self):
         assert sexpr("n!") == "(! n)"
@@ -586,6 +616,24 @@ class TestSumsLimitsIntegrals:
     def test_integral_needs_a_differential(self):
         message = str(error(r"\int x^2"))
         assert "expected a differential such as dx to end the integral" in message
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\int_0^L dx", "(int 1 (x 0 L))"),  # a differential alone integrates 1
+            (r"\int d^4x", "(int 1 (d^4 x))"),
+            (r"\int d^{4}x \sqrt{-g}", "(int (sqrt (- g)) (d^4 x))"),
+            (r"\int f(x) {\rm d}x", "(int (call f x) x)"),
+            (r"\int {\rm d}x\, f(x)", "(int (call f x) x)"),
+            (r"\int dx\, dy\, f(x, y)", "(int (call f x y) x y)"),
+            (r"\int f(t') dt'", "(int (call f t') t')"),
+            (r"\int_M d\omega", "(int (* d omega) over M)"),  # still a form over a region
+            (r"\frac{dx'}{dt}", "(d/dt x')"),
+            (r"\frac{dx}{dt'}", "(d/dt' x)"),
+        ],
+    )
+    def test_differentials(self, text, expected):
+        assert sexpr(text) == expected
 
 
 class TestStatements:

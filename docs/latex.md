@@ -109,8 +109,9 @@ hint: did you mean \frac?
 
 Unicode maths reads like the LaTeX it stands for: `θ` is `\theta`, `∂` is
 `\partial`, `∫` is `\int`, `·` is `\cdot`, `≤` is `\le`, and superscripts are
-spelled out, so `r²` is `r^{2}`. Unicode's spaces (the no-break space, the thin
-space) are spacing, like `~` and `\,`, and a byte order mark is ignored.
+spelled out, so `r²` is `r^{2}`. A symbol is one symbol, as its command is:
+`ℏ` is `\hbar` and `⊙` is `\odot`. Unicode's spaces (the no-break space, the
+thin space) are spacing, like `~` and `\,`, and a byte order mark is ignored.
 
 ```python
 >>> wb.expr("∫_0^1 θ² dθ")
@@ -164,6 +165,7 @@ but not computed, and defines nothing.
 | Relations read but not computed | `\sim` `\simeq` `\approx` `\cong` `\propto` `\ll` `\gg` `\in` `\subset` `\to` `\leftrightarrow`, `:` as in `\phi : M \to N`, and ranges such as `\mu, \nu = 0, 1, 2, 3` |
 | Identities | `A \equiv B`, when A cannot be defined, states that the two are equal |
 | Labels on symbols | `r_+`, `i^-`, `r_\pm`, `r^*` and prescripts such as `{}^{(3)}R` name symbols rather than raising to powers |
+| Primes | after a numeric subscript a prime marks the whole name, so `\phi_0'(r)` is the derivative of \(\phi_0\); after a braced script it marks the symbol, so `R_{\mu\nu}'` reads as `R'_{\mu\nu}`; after an unbraced index, the index: `x^\mu'` is `x^{\mu'}` |
 | Index labels | `\mu'`, `\mu_1`, `\mu_{p+1}`, `\phi_{t*}`, nested groups such as `R_{\rho\sigma{\mu\nu}}`, `\phi,{}_\mu` for \(\phi_{,\mu}\), and MTW's staggered `{\Gamma^r}_{tt}` |
 | Operators | `\Box` (\(\nabla^\mu\nabla_\mu\)), the Lie derivative `\pounds_V`, the wedge product `A_{\mu} \wedge B_{\nu}`, `\otimes`, `\pm` and `\mp` (both values) |
 | Not computed | `\cdots` and `\ldots`, the Hodge dual `*F`, composition `\circ`, integrals over regions `\int d^4x`, and sums over indices without limits, `\sum_b`, are read, and say why they cannot be computed |

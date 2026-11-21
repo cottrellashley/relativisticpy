@@ -262,7 +262,9 @@ ENVIRONMENTS_WITH_ARGUMENT: frozenset[str] = frozenset(
 # Unicode
 # --------------------------------------------------------------------------
 
-#: Unicode letters, mapped to the name of the symbol they denote.
+#: Unicode letters, mapped to the name of the symbol they denote. Each is one symbol,
+#: as the command it stands for is: ``ℏ`` is ``\hbar``, not h b a r, and ``⊙`` is
+#: ``\odot``, the Sun in ``M_⊙`` or the elementwise product in ``A ⊙ B``.
 UNICODE_LETTERS: Mapping[str, str] = MappingProxyType(
     {
         "α": "alpha", "β": "beta", "γ": "gamma", "δ": "delta", "ε": "epsilon",
@@ -276,7 +278,7 @@ UNICODE_LETTERS: Mapping[str, str] = MappingProxyType(
         "Ω": "Omega",
         "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K",
         "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X",
-        "∞": "infty", "ℏ": "hbar", "ℓ": "ell",
+        "∞": "infty", "ℏ": "hbar", "ℓ": "ell", "⊙": "odot",
     }
 )  # fmt: skip
 
@@ -330,7 +332,6 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
         "∓": TokenKind.MINUS_PLUS,
         "∧": TokenKind.WEDGE,
         "∘": TokenKind.COMPOSE,
-        "⊙": TokenKind.HADAMARD,
         "⊗": TokenKind.STAR,
         "…": TokenKind.ELLIPSIS,
         "⋯": TokenKind.ELLIPSIS,

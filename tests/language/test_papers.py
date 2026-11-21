@@ -224,6 +224,12 @@ class TestAnalysis:
             (r"A_{ab} \odot B_{ab} + C", "(+ (⊙ (A _[a b]) (B _[a b])) C)"),
             (r"M_\odot", "(M _[odot])"),  # a subscript: the Sun
             (r"2 M_\odot r", "(* (* 2 (M _[odot])) r)"),
+            ("M_⊙", "(M _[odot])"),
+            # the right operand is all the factors after it, maybe signed
+            (r"w_a \odot \mathbb{E}_t[X_{ta}]", "(⊙ w_a (* (𝔼 _[t]) (list (X _[t a]))))"),
+            (r"A \odot -B", "(⊙ A (- B))"),
+            ("A ⊙ B C + D", "(+ (⊙ A (* B C)) D)"),
+            (r"A \odot B \odot C", "(⊙ (⊙ A B) C)"),
         ],
     )
     def test_odot_between_operands_is_the_elementwise_product(self, text, expected):
