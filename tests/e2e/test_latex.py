@@ -49,6 +49,13 @@ def test_evaluation_bars(wb):
     assert wb.expr(r"\left. x^2 + y \right|_{x=3, y=1}") == 10
 
 
+def test_an_evaluation_bar_substitutes_at_once(wb):
+    assert wb.expr(r"x - y |_{x=y, y=x}") == y - x
+    boosted = wb.expr(r"t^2 - x^2 |_{t = \gamma (t - v x), x = \gamma (x - v t)}")
+    v, gamma = Symbol("v"), Symbol("gamma")
+    assert same(boosted, (gamma * (t - v * x)) ** 2 - (gamma * (x - v * t)) ** 2)
+
+
 def test_fractions_and_roots(wb):
     assert wb.expr(r"\frac{x}{10} * 1/x") == pi**0 / 10
     assert wb.expr(r"\frac{x}{oo} * x**2") == 0

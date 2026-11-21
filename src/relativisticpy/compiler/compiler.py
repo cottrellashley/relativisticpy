@@ -1737,11 +1737,17 @@ class Compiler:
         pairs = []
         for target, value in node.bindings:
             pairs += [self.value(target, scope, ctx), self.value(value, scope, ctx)]
+        return self._substituted(expr, pairs, node.span)
+
+    def _substituted(self, expr: Node, pairs: list[Node], span: Span) -> Node:
+        """``expr`` with every substitution made at once: in each component of a tensor,
+        and in each side of an equation."""
+        if isinstance(expr.op, ops.Equation):
+            sides = [self._substituted(side, pairs, span) for side in expr.args]
+            return self.graph.add(ops.Equation(), sides, expr.type, span)
         if isinstance(expr.type, TensorType):
-            return self.graph.add(
-                ops.Map(_substitute, "subs"), [expr, *pairs], expr.type, node.span
-            )
-        return self._call(_substitute, "subs", [expr, *pairs], expr.type, node.span)
+            return self.graph.add(ops.Map(_substitute, "subs"), [expr, *pairs], expr.type, span)
+        return self._call(_substitute, "subs", [expr, *pairs], expr.type, span)
 
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         if node.accent in ("dot", "ddot"):
@@ -3157,7 +3163,10 @@ def _gradient(expr: Any, vector: Any) -> Any:
 
 
 def _substitute(expr: Any, *pairs: Any) -> Any:
-    return expr.subs(list(zip(pairs[::2], pairs[1::2], strict=True)))
+    """An evaluation bar, ``x - y |_{x=y, y=x}``: every substitution at once, as a
+    change of variables is, rather than one after another."""
+    rules = list(zip(pairs[::2], pairs[1::2], strict=True))
+    return sympy.sympify(expr).subs(rules, simultaneous=True)
 
 
 def _piecewise(*args: Any) -> Any:
