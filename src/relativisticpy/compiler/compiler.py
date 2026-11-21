@@ -24,7 +24,9 @@ contractions with the metric or the connection.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
+import math
 import operator
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
@@ -76,9 +78,10 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
-from relativisticpy.tensors import Index, Indices, Tensor
+from relativisticpy.tensors import Index, Indices, Tensor, linalg
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.indices import latex_label
+from relativisticpy.tensors.spaces import Space, spacetime
 
 Term = Node | Operator
 
@@ -126,6 +129,10 @@ class Compiler:
         # can tell which components were chosen inside its operand.
         self._selections: list[Node] = []
         self._fresh = itertools.count()  # for index labels no one wrote, as in □ = ∇^a ∇_a
+        # The spaces the index labels of the statement being compiled range over, and
+        # the labels an expectation binds while its operand is compiled.
+        self._labels: dict[str, Space] = {}
+        self._bound: frozenset[str] = frozenset()
 
     # ======================================================================
     # Statements
@@ -141,6 +148,16 @@ class Compiler:
     def statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None = None
     ) -> list[Output]:
+        saved = self._labels
+        self._labels = self._infer_labels(statement, scope)
+        try:
+            return self._statement(statement, scope, outer)
+        finally:
+            self._labels = saved
+
+    def _statement(
+        self, statement: ast.Statement, scope: Scope, outer: Context | None
+    ) -> list[Output]:
         ctx = Context(latex=statement.latex, calls=outer.calls if outer else ())
         if isinstance(statement, ast.FunctionDefinition):
             scope.bind(statement.name, FunctionBinding(statement, scope))
@@ -153,6 +170,8 @@ class Compiler:
             return []
         assert isinstance(statement, ast.Evaluate)
         expr = statement.expr
+        if isinstance(expr, ast.Relation) and self._declares(expr):
+            return []
         if isinstance(expr, ast.Chain):  # a = b = c: each link is a claim of its own
             return [
                 Output(self._value_or_notation(link, scope, ctx), link.span)
@@ -200,9 +219,16 @@ class Compiler:
                 self._declare(value, ASSUMPTION_STATEMENTS[name])
             elif name in RENAMING_STATEMENTS:
                 self._rename(RENAMING_STATEMENTS[name], value)
+            elif (space := self._space_written(value, name, scope, ctx)) is not None:
+                self.session.spaces[name] = space
             else:
                 value_node = self._value_or_notation(value, scope, ctx, definition=True)
-                scope.bind(name, VariableBinding(value_node))
+                if (indexed := _indexed_target(name, value_node)) is not None:
+                    base, indices = indexed  # v_a := ..., a tensor with free index a: v_{a}
+                    node = self._align(value_node, indices, value.span, what="a definition")
+                    scope.bind(base, TensorBinding(node, indices))
+                else:
+                    scope.bind(name, VariableBinding(value_node))
             return
         if _is_line_element(target):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
@@ -218,6 +244,16 @@ class Compiler:
     def _destructure(
         self, targets: Sequence[ast.Expr], value: ast.Expr, scope: Scope, ctx: Context
     ) -> None:
+        parts = self._decomposition(value, scope, ctx)
+        if parts is not None:
+            if len(parts) != len(targets):
+                raise CompileError(
+                    f"this gives {len(parts)} values, but {len(targets)} are named",
+                    span=value.span,
+                )
+            for target, part in zip(targets, parts, strict=True):
+                self._bind_part(target, part, scope)
+            return
         values = self.value(value, scope, ctx)
         for position, target in enumerate(targets):
             if not isinstance(target, ast.Name):
@@ -227,6 +263,37 @@ class Compiler:
                 ops.Call(operator.getitem, "item"), (values, index), VALUE, target.span
             )
             scope.bind(target.id, VariableBinding(item))
+
+    def _bind_part(self, target: ast.Expr, part: Node, scope: Scope) -> None:
+        """Name one part of a decomposition: ``\\lambda_k``, ``v^a{}_k`` or a name."""
+        if isinstance(target, ast.Name):
+            base, underscore, tail = target.id.partition("_")
+            labels = split_index_labels(tail) if underscore and tail.isalpha() else []
+            if isinstance(part.type, TensorType) and len(labels) == part.type.rank:
+                # s_k: the tensor s, its index k where the part has it
+                indices = Indices(
+                    Index(label, index.upper)
+                    for label, index in zip(labels, part.type.indices, strict=True)
+                )
+                scope.bind(
+                    base, TensorBinding(self._name_axes(part, indices, target.span), indices)
+                )
+                return
+            scope.bind(target.id, VariableBinding(part))
+            return
+        if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
+            raise CompileError("only names and tensors can be defined together", span=target.span)
+        entries = self._entries(target, "a definition")
+        indices = Indices(Index(str(item.label), upper) for item, upper in entries)
+        if not isinstance(part.type, TensorType) or part.type.rank != len(indices):
+            raise IndexNotationError(
+                f"{target.base.id} is given {len(indices)} indices for a value with "
+                f"{part.type.rank if isinstance(part.type, TensorType) else 0}",
+                span=target.span,
+            )
+        named = self._name_axes(part, indices, target.span)
+        node = self._align(named, indices, target.span, what="a definition")
+        scope.bind(target.base.id, TensorBinding(node, indices))
 
     def _define_coordinates(self, value: ast.Expr) -> None:
         names = _names(value, "Coordinates")
@@ -262,6 +329,11 @@ class Compiler:
             raise IndexNotationError(
                 "the metric has two indices", span=target.span, hint="write g_{\\mu\\nu} := ..."
             )
+        first = str(entries[0][0].label)
+        space = self._labels.get(first) or self.session.labels.get(first)
+        if space is not None and not space.spacetime:
+            self._define_space_metric(space, target, entries, value, scope, ctx)
+            return
         positions = {upper for _, upper in entries}
         if len(positions) != 1:
             raise IndexNotationError(
@@ -271,7 +343,7 @@ class Compiler:
         components = self._spacetime(value, scope, ctx)
         coordinates = self.session.require_coordinates(target.span, "a metric")
         if components is None:
-            components = self._components(value, len(coordinates), 2, scope, ctx)
+            components = self._components(value, (len(coordinates),) * 2, scope, ctx)
         if positions == {True}:
             components = self.graph.add(
                 ops.Geometry("inverse", coordinates), (components,), VALUE, value.span
@@ -280,10 +352,90 @@ class Compiler:
         metric = self.graph.add(
             ops.Geometry("metric", coordinates),
             (components,),
-            TensorType(indices, len(coordinates)),
+            TensorType(indices, (spacetime(coordinates),) * 2),
             target.span.to(value.span),
         )
         self.session.metric = MetricState(metric, _mentioned(value))
+
+    def _define_space_metric(
+        self,
+        space: Space,
+        target: ast.Scripted,
+        entries: list[tuple[ast.IndexItem, bool]],
+        value: ast.Expr,
+        scope: Scope,
+        ctx: Context,
+    ) -> None:
+        """``g_{ab} := \\Sigma_{ab}``: the metric of the space a and b range over, which
+        raises and lowers their indices from then on. Given with both indices up, it is the
+        inverse metric."""
+        indices = Indices(Index(str(item.label), upper) for item, upper in entries)
+        if indices[0].upper != indices[1].upper:
+            raise IndexNotationError(
+                "give a metric with both indices down, g_{ab}, or both up, g^{ab}",
+                span=target.span,
+            )
+        node = self.value(value, scope, ctx)
+        if not isinstance(node.type, TensorType):
+            node = self.graph.add(
+                ops.ToArray((space.dim, space.dim)),
+                (node,),
+                TensorType(indices, (space, space)),
+                value.span,
+            )
+        node = self._align(self._name_axes(node, indices, value.span), indices, value.span)
+        assert isinstance(node.type, TensorType)
+        if node.type.spaces != (space, space):
+            raise IndexNotationError(
+                f"the metric of {space} has both indices over {space}", span=target.span
+            )
+        if indices[0].upper:
+            node = self._inverse(node, value.span)
+        assert isinstance(node.type, TensorType)
+        lower = Indices([Index("a"), Index("b")])
+        self.session.space_metrics[space] = self.graph.retype(node, node.type.with_indices(lower))
+
+    def _space_written(
+        self, value: ast.Expr, name: str, scope: Scope, ctx: Context
+    ) -> Space | None:
+        """The space ``\\mathbb{R}^{n}`` or ``\\mathbb{C}^{n}`` describes, named ``name``;
+        ``None`` for any other value."""
+        if not (
+            isinstance(value, ast.Scripted)
+            and isinstance(value.base, ast.Name)
+            and value.base.id in ("ℝ", "ℂ")
+            and len(value.scripts) == 1
+            and value.scripts[0].kind == "^"
+            and value.scripts[0].body is not None
+        ):
+            return None
+        size = self.session.evaluate(self.value(value.scripts[0].body, scope, ctx))
+        if not (sympy.sympify(size).is_integer and size >= 0):
+            raise CompileError(
+                f"the dimension of a space is a whole number, not {size}", span=value.span
+            )
+        return Space(name, int(size), field="complex" if value.base.id == "ℂ" else "real")
+
+    def _declares(self, relation: ast.Relation) -> bool:
+        """``a, b \\in \\mathcal{A}``: declare that the labels range over a space, and say
+        so; ``False`` for any other relation, which is read but not computed."""
+        names = relation.lhs.items if isinstance(relation.lhs, ast.Tuple) else (relation.lhs,)
+        if relation.op != "∈" or not all(isinstance(n, ast.Name) for n in names):
+            return False
+        rhs = relation.rhs
+        space = self.session.spaces.get(rhs.id) if isinstance(rhs, ast.Name) else None
+        if space is None and isinstance(rhs, ast.Scripted):
+            written = rhs.span.text.strip()
+            scope = self.session.globals
+            space = self._space_written(rhs, written, scope, Context(latex=True))
+            if space is not None:
+                space = self.session.spaces.setdefault(written, space)
+        if space is None:
+            return False
+        for label in names:
+            assert isinstance(label, ast.Name)
+            self.session.labels[label.id] = space
+        return True
 
     def _spacetime(self, value: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """Components of a spacetime such as ``Schwarzschild(M)``, which also brings its
@@ -325,7 +477,7 @@ class Compiler:
         metric = self.graph.add(
             ops.Geometry("metric", coordinates),
             (components,),
-            TensorType(indices, len(coordinates)),
+            TensorType(indices, (spacetime(coordinates),) * 2),
             span,
         )
         self.session.metric = MetricState(metric, _mentioned(value))
@@ -350,13 +502,14 @@ class Compiler:
             raise IndexNotationError("the indices of a definition must differ", span=target.span)
         indices = Indices(Index(str(item.label), upper) for item, upper in entries)
         if _is_literal(value):
-            coordinates = self.session.require_coordinates(target.span, "a tensor")
-            node = self._components(value, len(coordinates), len(indices), scope, ctx)
-            node = self.graph.retype(node, TensorType(indices, len(coordinates)))
+            spaces = self._spaces_of(indices.names, target.span, "a tensor")
+            kind = TensorType(indices, spaces)
+            node = self.graph.retype(self._components(value, kind.shape, scope, ctx), kind)
             scope.bind(name, TensorBinding(node, indices))
             return
         result = self._components_of(self.value(value, scope, ctx), scope, ctx, value.span)
         if isinstance(result.type, TensorType):
+            result = self._name_axes(result, indices, value.span)
             node = self._align(result, indices, value.span, what="a definition")
         elif result.type == SCALAR and _subscripted_symbol(target):
             scope.bind(_subscripted_name(target), VariableBinding(result))
@@ -368,25 +521,30 @@ class Compiler:
                 hint=f"for example {name}{_written(target.scripts)} := [...]",
             )
         else:
-            coordinates = self.session.require_coordinates(target.span, "a tensor")
-            shape = (len(coordinates),) * len(indices)
-            node = self.graph.add(
-                ops.ToArray(shape), (result,), TensorType(indices, len(coordinates)), value.span
-            )
+            kind = TensorType(indices, self._spaces_of(indices.names, target.span, "a tensor"))
+            node = self.graph.add(ops.ToArray(kind.shape), (result,), kind, value.span)
         scope.bind(name, TensorBinding(node, indices))
 
-    def _components(self, value: ast.Expr, dim: int, rank: int, scope: Scope, ctx: Context) -> Node:
-        """Components of shape ``(dim,) * rank`` from a list or matrix literal, checked
-        as written, or from any value, checked when computed."""
-        shape = (dim,) * rank
+    def _components(
+        self, value: ast.Expr, shape: tuple[int, ...], scope: Scope, ctx: Context
+    ) -> Node:
+        """Components of ``shape`` from a list or matrix literal, checked as written, or
+        from any value, checked when computed."""
+        rank = len(shape)
         if _is_literal(value):
             cells = _literal_cells(value, rank)
             if cells is None:
                 raise CompileError(f"expected {_shape_text(shape)} components", span=value.span)
             found, entries = cells
             if found != shape:
+                coordinates = self.session.coordinates
+                where = (
+                    f"for {shape[0]} coordinates"
+                    if coordinates and set(shape) == {len(coordinates)}
+                    else "for the spaces of its indices"
+                )
                 raise CompileError(
-                    f"expected {_shape_text(shape)} components for {dim} coordinates, "
+                    f"expected {_shape_text(shape)} components {where}, "
                     f"but found {_shape_text(found)}",
                     span=value.span,
                 )
@@ -441,6 +599,8 @@ class Compiler:
         binding = scope.lookup(name)
         if isinstance(binding, VariableBinding | TensorBinding):
             return binding.node
+        if binding is None and (indexed := _indexed_name(node, scope)) is not None:
+            return self.term(indexed, scope, ctx)  # y_t, where y is a tensor: y_{t}
         if isinstance(binding, FunctionBinding):
             return FunctionReference(node.span, name)
         if ctx.line_element and name == "d":
@@ -556,6 +716,8 @@ class Compiler:
             return self._wedge(node, scope, ctx)
         if node.op == "∘":
             raise CompileError("the composition of maps is not supported", span=node.span)
+        if node.op == "⊙":
+            return self._hadamard(node, scope, ctx)
         if node.op == "*":
             return self._product(node, scope, ctx)
         if node.op in ("and", "or"):
@@ -567,6 +729,18 @@ class Compiler:
         if node.op == "/":
             return self._divide(left, right, node.span)
         return self._power(left, right, node.span)
+
+    def _hadamard(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
+        """``A_{ta} \\odot B_{ta}``: the elementwise product, of tensors with the same free
+        indices, summing nothing. Index notation has no other way to say it."""
+        left = self.value(_operand(node.left), scope, ctx)
+        right = self.value(_operand(node.right), scope, ctx)
+        if not (isinstance(left.type, TensorType) and isinstance(right.type, TensorType)):
+            return self._multiply([left, right], node.span)
+        right = self._align(right, left.type.indices, node.span, what="an elementwise product")
+        return self.graph.add(
+            ops.Call(linalg.hadamard, "hadamard"), (left, right), left.type, node.span
+        )
 
     def _wedge(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
         """The wedge product of forms written with indices:
@@ -622,6 +796,12 @@ class Compiler:
             kind = VALUE if any(v.type == VALUE for _, v, _ in values) else SCALAR
             signs = tuple(sign for sign, _, _ in values)
             return self.graph.add(ops.Add(signs), [v for _, v, _ in values], kind, node.span)
+        if self._bound:
+            spread = self._broadcast([value for _, value, _ in values], node.span)
+            values = [
+                (sign, new, term) for (sign, _, term), new in zip(values, spread, strict=True)
+            ]
+            tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         reference = tensors[0].type
         assert isinstance(reference, TensorType)
         kept: list[tuple[int, Node]] = []
@@ -636,6 +816,185 @@ class Compiler:
         signs = tuple(sign for sign, _ in kept)
         return self.graph.add(ops.Add(signs), [value for _, value in kept], reference, node.span)
 
+    def _broadcast(self, values: list[Node], span: Span) -> list[Node]:
+        """Inside an expectation over t, a term without t is constant in t, as \\mu_a is
+        in R_{ta} - \\mu_a: it is spread along t, so that the terms can be added."""
+        widest: dict[str, tuple[Index, Space]] = {}
+        for value in values:
+            if isinstance(value.type, TensorType):
+                for index, space in zip(value.type.indices, value.type.spaces, strict=True):
+                    widest.setdefault(index.name, (index, space))
+        spread: list[Node] = []
+        for value in values:
+            have = value.type.indices.names if isinstance(value.type, TensorType) else ()
+            missing = [name for name in widest if name not in have]
+            if missing and all(name in self._bound for name in missing):
+                factors = [(value, _indices(value))] if have else []
+                for name in missing:
+                    index, space = widest[name]
+                    ones = self._ones((name, index.upper), span, space)
+                    factors.append((ones, Indices([index])))
+                if have:
+                    value = self._contract(factors, span)
+                else:
+                    product = self._contract(factors, span) if len(factors) > 1 else factors[0][0]
+                    value = self._multiply([value, product], span)
+            spread.append(value)
+        return spread
+
+    def _statistic_factors(
+        self, factors: list[ast.Expr], scope: Scope, ctx: Context
+    ) -> list[ast.Expr | Node]:
+        """Each statistic, 𝔼_t, Var_t or Cov_t, with the factor after it it acts on,
+        compiled to one node; the other factors as they are."""
+        grouped: list[ast.Expr | Node] = []
+        position = 0
+        while position < len(factors):
+            factor = factors[position]
+            statistic = _statistic(factor)
+            if statistic is None:
+                grouped.append(factor)
+                position += 1
+                continue
+            if position + 1 == len(factors):
+                raise CompileError(
+                    f"{factor.span.text} needs something to act on, as in "
+                    f"{factor.span.text}[X_{{{statistic[1]}}}]",
+                    span=factor.span,
+                )
+            operand = factors[position + 1]
+            span = factor.span.to(operand.span)
+            grouped.append(self._statistic(*statistic, operand, span, scope, ctx))
+            position += 2
+        return grouped
+
+    def _statistic(
+        self, kind: str, label: str, operand: ast.Expr, span: Span, scope: Scope, ctx: Context
+    ) -> Node:
+        r"""``\mathbb{E}_t[X]``, ``\operatorname{Var}_t(X)``, ``\operatorname{Cov}_t(X, Y)``
+        and the Ledoit–Wolf covariance, ``\operatorname{LedoitWolf}_t(R_{ta})``. The
+        statistic binds ``t`` as a sum does: inside it, every factor shares ``t``."""
+        operand = _operand(operand)
+        items = operand.items if isinstance(operand, ast.Tuple) else (operand,)
+        expected = 2 if kind == "covariance" else 1
+        if len(items) != expected:
+            raise CompileError(
+                f"{span.text.split('(')[0].split('[')[0]} takes {expected} "
+                f"argument{'s' if expected > 1 else ''}",
+                span=span,
+            )
+        with self._binding(label):
+            nodes = [self.value(_operand(item), scope, ctx) for item in items]
+        for node in nodes:
+            if not (isinstance(node.type, TensorType) and label in node.type.indices.names):
+                raise IndexNotationError(
+                    f"a statistic over {latex_label(label)} needs the index "
+                    f"{latex_label(label)} in what it acts on",
+                    span=span,
+                )
+        if kind == "expectation":
+            return self._expectation(nodes[0], label, span)
+        if kind == "ledoit-wolf":
+            return self._ledoit_wolf(nodes[0], label, span)
+        centered = [self._centered(node, label, span) for node in nodes]
+        if kind == "variance":
+            square = self.graph.add(
+                ops.Call(linalg.hadamard, "hadamard"),
+                (centered[0], centered[0]),
+                centered[0].type,
+                span,
+            )
+            return self._expectation(square, label, span)
+        with self._binding(label):
+            product = self._multiply(centered, span)
+        return self._expectation(product, label, span)
+
+    def _centered(self, node: Node, label: str, span: Span) -> Node:
+        """``X - \\mathbb{E}_t[X]``, the mean spread along ``t`` again."""
+        mean = self._expectation(node, label, span)
+        with self._binding(label):
+            kept, subtracted = self._broadcast([node, mean], span)
+            assert isinstance(kept.type, TensorType)
+            subtracted = self._align(subtracted, kept.type.indices, span)
+            return self.graph.add(ops.Add((1, -1)), (kept, subtracted), kept.type, span)
+
+    def _expectation(self, node: Node, label: str, span: Span) -> Node:
+        """The average over ``label`` with its space's measure: a contraction with the
+        measure, fused with the contraction that made ``node``, so that the product of
+        everything averaged is never formed."""
+        assert isinstance(node.type, TensorType)
+        names = node.type.indices.names
+        if label not in names:
+            return node
+        index = node.type.indices[names.index(label)]
+        space = node.type.space(label)
+        measure = self._measure(space, Index(label, not index.upper), span)
+        remaining = Indices(i for i in node.type.indices if i.name != label)
+        spaces = tuple(
+            s for i, s in zip(node.type.indices, node.type.spaces, strict=True) if i.name != label
+        )
+        kind: Type = TensorType(remaining, spaces) if remaining else SCALAR
+        if isinstance(node.op, ops.Contract):
+            number = node.op.output[names.index(label)]
+            op = ops.Contract(
+                (*node.op.labels, (number,)),
+                tuple(n for n in node.op.output if n != number),
+                node.op.sizes,
+            )
+            return self.graph.add(op, (*node.args, measure), kind, span)
+        assert isinstance(measure.type, TensorType)
+        with self._unbinding(label):
+            return self._contract(
+                [(node, node.type.indices), (measure, measure.type.indices)], span
+            )
+
+    def _measure(self, space: Space, index: Index, span: Span) -> Node:
+        """The weights an expectation over ``space`` averages with: those declared for it,
+        or the same for every element."""
+        kind = TensorType(Indices([index]), (space,))
+        declared = self.session.measures.get(space)
+        if declared is not None:
+            return self.graph.retype(declared, kind)
+        return self.graph.add(
+            ops.Call(_uniform, "uniform"), (self.graph.const(space.dim, VALUE),), kind, span
+        )
+
+    def _ledoit_wolf(self, node: Node, label: str, span: Span) -> Node:
+        """The Ledoit–Wolf shrinkage estimate of the covariance of ``node`` over
+        ``label``, from scikit-learn: better conditioned than the sample covariance when
+        there are few samples for the number of variables."""
+        assert isinstance(node.type, TensorType)
+        if node.type.rank != 2:
+            raise IndexNotationError(
+                "the Ledoit–Wolf covariance is of samples of a vector, X_{ta}", span=span
+            )
+        names = node.type.indices.names
+        other = 1 - names.index(label)
+        if other == 0:
+            node = self._permute(node, (1, 0), Indices(reversed(node.type.indices)))
+        assert isinstance(node.type, TensorType)
+        space = node.type.spaces[1]
+        kind = TensorType(Indices([Index("#a"), Index("#b")]), (space, space))
+        return self.graph.add(ops.Call(_ledoit_wolf, "ledoit-wolf"), (node,), kind, span)
+
+    @contextlib.contextmanager
+    def _binding(self, label: str) -> Iterator[None]:
+        saved = self._bound
+        self._bound = saved | {label}
+        try:
+            yield
+        finally:
+            self._bound = saved
+
+    @contextlib.contextmanager
+    def _unbinding(self, label: str) -> Iterator[None]:
+        saved = self._bound
+        self._bound = saved - {label}
+        try:
+            yield
+        finally:
+            self._bound = saved
+
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
         factors: list[ast.Expr] = []
         left: ast.Expr = node
@@ -644,10 +1003,17 @@ class Compiler:
             left = left.left
         factors.insert(0, left)
         factors = [part for factor in factors for part in _unsigned(factor)]
+        grouped = self._statistic_factors(factors, scope, ctx)
+        if len(grouped) == 1 and isinstance(grouped[0], Node):
+            return grouped[0]
         terms: list[Term] = []
         chosen: list[list[Node]] = []  # the components each factor selects
-        for factor in factors:
+        for factor in grouped:
             mark = len(self._selections)
+            if isinstance(factor, Node):  # a statistic, already compiled
+                terms.append(factor)
+                chosen.append([])
+                continue
             inner = scope
             if terms and isinstance(terms[-1], DifferentialMarker) and _names_omega(factor):
                 # in a line element d\Omega is the solid angle, whatever \Omega means
@@ -692,12 +1058,242 @@ class Compiler:
         if not tensors:
             kind = VALUE if any(o.type == VALUE for o in scalars) else SCALAR
             return self.graph.add(ops.Mul(), scalars, kind, span)
+        tensors = self._solves(tensors, span)
         product = tensors[0]
         if len(tensors) > 1:
             product = self._contract([(t, _indices(t)) for t in tensors], span)
         if not scalars:
             return product
         return self.graph.add(ops.Scale(), [*scalars, product], product.type, span)
+
+    def _solves(self, tensors: list[Node], span: Span) -> list[Node]:
+        """Replace an inverse and what it multiplies, :math:`(A^{-1})^{ab} b_b`, by the
+        solution of :math:`A x = b`: solving is faster and more accurate than inverting,
+        and with a symmetric :math:`A` it is a Cholesky solve."""
+        tensors = list(tensors)
+        while True:
+            inverse = next(
+                (
+                    t
+                    for t in tensors
+                    if isinstance(t.op, ops.Inverse)
+                    and any(o is not t and _shares(o, t) for o in tensors)
+                ),
+                None,
+            )
+            if inverse is None or self._bound:
+                return tensors
+            assert isinstance(inverse.type, TensorType)
+            first, second = inverse.type.indices
+            others = [t for t in tensors if t is not inverse]
+            along, transpose = (second, False)
+            if not any(along.name in _indices(t).names for t in others):
+                along, transpose = (first, True)
+            connected = [t for t in others if along.name in _indices(t).names]
+            rhs = connected[0]
+            if len(connected) > 1:
+                rhs = self._contract([(t, _indices(t)) for t in connected], span)
+            assert isinstance(rhs.type, TensorType)
+            names = rhs.type.indices.names
+            axis = names.index(along.name)
+            order = [axis, *(i for i in range(len(names)) if i != axis)]
+            rhs = self._permute(rhs, order, Indices(rhs.type.indices[i] for i in order))
+            assert isinstance(rhs.type, TensorType)
+            kept = first if not transpose else second
+            space = inverse.type.space(kept.name)
+            indices = Indices([kept, *rhs.type.indices[1:]])
+            kind = TensorType(indices, (space, *rhs.type.spaces[1:]))
+            solution = self.graph.add(
+                ops.Call(linalg.solve, "solve"),
+                (inverse.args[0], rhs, self.graph.const(transpose, VALUE)),
+                kind,
+                span,
+            )
+            tensors = [t for t in others if all(t is not c for c in connected)] + [solution]
+
+    def _linear_algebra(self, name: str, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
+        """Linear algebra on a tensor: ``eig`` and ``spec`` (its spectrum), ``svd``,
+        ``det``, ``tr``, ``inv``, ``diag`` of a vector, and ``exp``, ``sqrt`` and ``log``
+        of a map named without indices, :math:`e^{-iHt}`. ``None`` leaves the call to the
+        builtins, as for a matrix written as a list."""
+        argument = node.args[0]
+        if name in ("exp", "sqrt", "log") and _mentions_tensor(argument):
+            return None  # written with its indices: one component at a time
+        if name not in ("eig", "spec", "svd", "tr") and not self._names_tensor(argument, scope):
+            return None  # a builtin of plain matrices and numbers, as diag(1, x^2)
+        tensor = self.value(argument, scope, ctx)
+        if not isinstance(tensor.type, TensorType):
+            return None
+        span = node.span
+        if name == "diag":
+            if tensor.type.rank != 1:
+                raise IndexNotationError("diag makes a matrix of a vector", span=span)
+            index = tensor.type.indices[0]
+            indices = Indices([Index("#r", index.upper), Index("#c", index.upper)])
+            space = tensor.type.spaces[0]
+            kind = TensorType(indices, (space, space))
+            return self.graph.add(ops.Call(linalg.diag, "diag"), (tensor,), kind, span)
+        if name == "inv":
+            if tensor.type.rank != 2:
+                raise IndexNotationError("only a tensor with two indices has an inverse", span=span)
+            return self._inverse(tensor, span)
+        if name in ("eig", "svd"):
+            parts = self._decomposition(node, scope, ctx)
+            assert parts is not None
+            return self.graph.add(ops.Call(_tuple, name), parts, VALUE, span)
+        operator, rows, metric = self._as_map(tensor, span, form=name == "spec")
+        if name in ("det", "tr", "trace"):
+            func = linalg.det if name == "det" else linalg.trace
+            return self.graph.add(
+                ops.Call(_matrix_call(func), name),
+                (operator, self.graph.const(rows, VALUE)),
+                SCALAR,
+                span,
+            )
+        if name in ("exp", "sqrt", "log"):
+            return self.graph.add(
+                ops.Call(_matrix_function, name),
+                (self.graph.const(name, VALUE), operator, self.graph.const(rows, VALUE)),
+                operator.type,
+                span,
+            )
+        parts = self._eig(operator, rows, metric, node, scope, ctx, values_only=True)
+        return parts[0]
+
+    def _as_map(
+        self, tensor: Node, span: Span, *, form: bool = True
+    ) -> tuple[Node, int, Node | None]:
+        """A tensor as a map, its upper indices first: the tensor, the number of its row
+        axes and, for a bilinear form with both indices down, the metric its eigenvalues
+        are taken relative to; without ``form``, such a tensor is its matrix of
+        components, as for the determinant of g_{ab}."""
+        assert isinstance(tensor.type, TensorType)
+        indices, spaces = tensor.type.indices, tensor.type.spaces
+        upper = [i for i, index in enumerate(indices) if index.upper]
+        lower = [i for i, index in enumerate(indices) if not index.upper]
+        if len(indices) == 2 and len(upper) != 1 and not form:
+            return tensor, 1, None
+        if not upper and len(lower) == 2:  # a bilinear form
+            space = spaces[0]
+            if spaces[1] != space:
+                raise IndexNotationError(
+                    "a bilinear form takes two vectors of one space", span=span
+                )
+            if space.spacetime:
+                metric: Node | None = self._geometry("metric", span)
+            else:
+                metric = self.session.space_metrics.get(space)
+            return tensor, 1, metric
+        if [spaces[i] for i in upper] != [spaces[i] for i in lower]:
+            raise IndexNotationError(
+                "a map takes its upper indices to its lower ones over the same spaces, "
+                "as A^{a}{}_{b} does",
+                span=span,
+                hint="raise or lower an index, as in eig(\\Sigma^{a}{}_{b})",
+            )
+        order = upper + lower
+        permuted = self._permute(tensor, order, Indices(indices[i] for i in order))
+        return permuted, len(upper), None
+
+    def _names_tensor(self, node: ast.Expr, scope: Scope) -> bool:
+        """Whether an expression mentions a tensor: written with indices, or by a name."""
+        for current in _walk(node):
+            if isinstance(current, ast.Scripted) and _tensor_pattern(current):
+                return True
+            if isinstance(current, ast.Name):
+                binding = scope.lookup(current.id)
+                if isinstance(binding, TensorBinding) or (
+                    isinstance(binding, VariableBinding)
+                    and isinstance(binding.node.type, TensorType)
+                ):
+                    return True
+        return False
+
+    def _decomposition(self, value: ast.Expr, scope: Scope, ctx: Context) -> list[Node] | None:
+        """The parts of ``eig`` (eigenvalues and eigenvectors) or ``svd`` (U, s and V),
+        as typed tensors; ``None`` for any other value."""
+        if not (
+            isinstance(value, ast.Call)
+            and isinstance(value.func, ast.Name)
+            and value.func.id in ("eig", "svd")
+            and scope.lookup(value.func.id) is None
+            and value.args
+        ):
+            return None
+        tensor = self.value(value.args[0], scope, ctx)
+        if not isinstance(tensor.type, TensorType):
+            raise CompileError(
+                f"{value.func.id} takes a tensor written with its indices", span=value.span
+            )
+        if value.func.id == "svd":
+            return self._svd(tensor, value)
+        operator, rows, metric = self._as_map(tensor, value.span)
+        return self._eig(operator, rows, metric, value, scope, ctx, values_only=False)
+
+    def _eig(
+        self,
+        operator: Node,
+        rows: int,
+        metric: Node | None,
+        call: ast.Call,
+        scope: Scope,
+        ctx: Context,
+        *,
+        values_only: bool,
+    ) -> list[Node]:
+        assert isinstance(operator.type, TensorType)
+        count = None
+        if len(call.args) > 1:
+            count = self.session.evaluate(self.value(call.args[1], scope, ctx))
+            if not sympy.sympify(count).is_integer:
+                raise CompileError("the number of eigenvalues is a whole number", span=call.span)
+            count = int(count)
+        size = math.prod(space.dim for space in operator.type.spaces[:rows])
+        modes = Space(f"eigenvectors of {call.args[0].span.text}", abs(count) if count else size)
+        args = [operator, self.graph.const(rows, VALUE), metric or self.graph.const(None, VALUE)]
+        args.append(self.graph.const(count, VALUE))
+        both = self.graph.add(ops.Call(linalg.eig, "eig"), args, VALUE, call.span)
+        values = self._part(both, 0, TensorType(Indices([Index("#k")]), (modes,)), call.span)
+        if values_only:
+            return [values]
+        row_indices = Indices(Index(f"#r{i}", True) for i in range(rows))
+        kind = TensorType(
+            Indices([*row_indices, Index("#k")]), (*operator.type.spaces[:rows], modes)
+        )
+        return [values, self._part(both, 1, kind, call.span)]
+
+    def _svd(self, tensor: Node, call: ast.Call) -> list[Node]:
+        """``U_{tk}, s_k, V_{ak} := \\operatorname{svd}(R_{ta})``: the first index's
+        space, the singular values and the second's."""
+        assert isinstance(tensor.type, TensorType)
+        if tensor.type.rank != 2:
+            raise IndexNotationError("svd takes a tensor with two indices", span=call.span)
+        first, second = tensor.type.indices
+        rows, columns = tensor.type.spaces
+        modes = Space(f"singular vectors of {call.args[0].span.text}", min(rows.dim, columns.dim))
+        both = self.graph.add(
+            ops.Call(linalg.svd, "svd"), (tensor, self.graph.const(1, VALUE)), VALUE, call.span
+        )
+        mode = Index("#k")
+        return [
+            self._part(
+                both,
+                0,
+                TensorType(Indices([Index("#r", first.upper), mode]), (rows, modes)),
+                call.span,
+            ),
+            self._part(both, 1, TensorType(Indices([mode]), (modes,)), call.span),
+            self._part(
+                both,
+                2,
+                TensorType(Indices([Index("#c", second.upper), mode]), (columns, modes)),
+                call.span,
+            ),
+        ]
+
+    def _part(self, whole: Node, position: int, kind: Type, span: Span) -> Node:
+        index = self.graph.const(position, VALUE)
+        return self.graph.add(ops.Call(operator.getitem, "item"), (whole, index), kind, span)
 
     def _divide(self, numerator: Node, denominator: Node, span: Span) -> Node:
         if isinstance(denominator.type, TensorType):
@@ -737,8 +1333,7 @@ class Compiler:
     def _zero_side(self, value: Node, tensor: TensorType, span: Span) -> Node:
         """The side of a tensor equation that is not a tensor: zero, or components."""
         if value.type == VALUE:
-            shape = (tensor.dim,) * tensor.rank
-            return self.graph.add(ops.ToArray(shape), (value,), tensor, span)
+            return self.graph.add(ops.ToArray(tensor.shape), (value,), tensor, span)
         if not _is_zero(value):
             raise IndexNotationError(
                 f"one side of this equation is a tensor with free indices {tensor.indices} "
@@ -771,6 +1366,10 @@ class Compiler:
         if isinstance(binding, FunctionBinding):
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._inline(binding, args, node.span, ctx)
+        if binding is None and name in _LINEAR_ALGEBRA and node.args:
+            done = self._linear_algebra(name, node, scope, ctx)
+            if done is not None:
+                return done
         names = {c.name for c in self.session.coordinates or ()}
         if isinstance(binding, VariableBinding) and all(
             isinstance(a, ast.Name) and a.id in names for a in node.args
@@ -965,7 +1564,7 @@ class Compiler:
                     "only a scalar can be differentiated with respect to a vector", span=span
                 )
             index = vector.type.indices[0].flip()
-            kind = TensorType(Indices([index]), vector.type.dim)
+            kind = TensorType(Indices([index]), vector.type.spaces)
             return self.graph.add(ops.Call(_gradient, "gradient"), (expr, vector), kind, span)
         orders = self.graph.const(tuple(order for _, order in variables), VALUE)
         args = [expr, orders, *(v for v, _ in variables)]
@@ -1056,7 +1655,21 @@ class Compiler:
         )
 
     def _Abs(self, node: ast.Abs, scope: Scope, ctx: Context) -> Node:
-        return self._builtin(BUILTINS["Abs"], [self.value(node.operand, scope, ctx)], node.span)
+        operand = self.value(node.operand, scope, ctx)
+        if isinstance(operand.type, TensorType) and operand.type.rank == 1:
+            return self._norm(operand, node.span)
+        return self._builtin(BUILTINS["Abs"], [operand], node.span)
+
+    def _norm(self, vector: Node, span: Span) -> Node:
+        """``\\|v\\|``, the length of a vector with the metric of its space:
+        :math:`\\sqrt{g_{ab} v^a v^b}`."""
+        assert isinstance(vector.type, TensorType)
+        index = vector.type.indices[0]
+        lowered, _ = self._move_index(vector, vector.type.indices, 0, span)
+        twin = Indices([Index(index.name, not index.upper)])
+        square = self._contract([(vector, vector.type.indices), (lowered, twin)], span)
+        half = self.graph.const(sympy.Rational(1, 2), SCALAR)
+        return self.graph.add(ops.Pow(), (square, half), SCALAR, span)
 
     def _Substitution(self, node: ast.Substitution, scope: Scope, ctx: Context) -> Node:
         expr = self.value(node.expr, scope, ctx)
@@ -1134,6 +1747,10 @@ class Compiler:
         if isinstance(base, ast.Accent) and base.accent in ("dot", "ddot"):
             inner = ast.Scripted(base.base, node.scripts, span=node.span)
             return self._time_derivative(self.value(inner, scope, ctx), base.accent, node.span)
+        if (inverse := self._inverse_access(node, scope, ctx)) is not None:
+            return inverse
+        if (result := self._indexed_result(node, scope, ctx)) is not None:
+            return result
         if isinstance(base, ast.Name):
             name = base.id
             binding = scope.lookup(name)
@@ -1150,10 +1767,87 @@ class Compiler:
                 for s in node.scripts
                 for item in s.indices.items  # type: ignore[union-attr]
             )
-            source = self._tensor_source(name, binding, rank, node.span, strict=labels_only)
+            source = None
+            if binding is None and labels_only and (pattern := _tensor_pattern(node)):
+                source = self._space_tensor(name, pattern[1], node.span)
+            if source is None:
+                source = self._tensor_source(name, binding, rank, node.span, strict=labels_only)
             if source is not None:
                 return self._access(source, node, scope, ctx)
+        if (ones := _tensor_pattern_of_one(node)) is not None:  # 𝟙_a, or 1_a
+            return self._ones(ones, node.span)
         return self._script_math(node, scope, ctx)
+
+    def _inverse_access(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
+        """``(\\Sigma^{-1})^{ab}``: the inverse of a two-index tensor, written with indices
+        of its own, in the positions opposite to the tensor's."""
+        base = node.base
+        if not (
+            isinstance(base, ast.Scripted)
+            and len(base.scripts) == 1
+            and base.scripts[0].kind == "^"
+            and _is_minus_one(base.scripts[0].body)
+            and isinstance(base.base, ast.Name)
+        ):
+            return None
+        matrix = self.value(base.base, scope, ctx)
+        if not isinstance(matrix.type, TensorType) or matrix.type.rank != 2:
+            return None
+        inverse = self._inverse(matrix, base.span)
+        assert isinstance(inverse.type, TensorType)
+        source = TensorSource(inverse, inverse.type.indices, f"{base.base.id}^{{-1}}")
+        return self._access(source, node, scope, ctx)
+
+    def _indexed_result(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
+        """``\\operatorname{diag}(k)_{ij}``: the tensor a call gives, with indices written
+        on it, by position. ``f(x)^2`` stays a power: its script is not index labels."""
+        base = node.base
+        plain = all(
+            script.indices is not None and all(_plain_label(item) for item in script.indices.items)
+            for script in node.scripts
+        )
+        if not (plain and isinstance(base, ast.Call) and self._names_tensor(base, scope)):
+            return None
+        value = self.value(base, scope, ctx)
+        if not isinstance(value.type, TensorType):
+            return None
+        return self._access(
+            TensorSource(value, value.type.indices, base.span.text), node, scope, ctx
+        )
+
+    def _space_tensor(
+        self, name: str, entries: Sequence[tuple[str, bool]], span: Span
+    ) -> TensorSource | None:
+        """The Kronecker delta and the metric of a space other than spacetime: the
+        identity, or the metric declared for the space, as in g_{ab} := \\Sigma_{ab}."""
+        quantity = self._builtin_tensor(name, len(entries))
+        if quantity not in ("kronecker", "metric"):
+            return None
+        space = self._labels.get(entries[0][0]) or self.session.labels.get(entries[0][0])
+        if space is None or space.spacetime:
+            return None
+        declared = self.session.space_metrics.get(space)
+        if quantity == "metric" and declared is not None:
+            assert isinstance(declared.type, TensorType)
+            return TensorSource(declared, declared.type.indices, name)
+        upper = quantity == "kronecker"
+        indices = Indices([Index("a", upper), Index("b")])
+        node = self.graph.add(
+            ops.Call(_identity, "identity"),
+            (self.graph.const(space.dim, VALUE),),
+            TensorType(indices, (space, space)),
+            span,
+        )
+        return TensorSource(node, indices, name)
+
+    def _ones(self, label: tuple[str, bool], span: Span, space: Space | None = None) -> Node:
+        """𝟙_a: the covector whose components are all one, which sums what it meets."""
+        name, upper = label
+        space = space or self._space_of(name, span)
+        kind = TensorType(Indices([Index(name, upper)]), (space,))
+        return self.graph.add(
+            ops.Call(_ones, "ones"), (self.graph.const(space.dim, VALUE),), kind, span
+        )
 
     def _builtin_tensor(self, name: str, rank: int | None) -> str | None:
         """The geometric quantity a built-in tensor name denotes with ``rank`` indices."""
@@ -1236,9 +1930,16 @@ class Compiler:
                 span=node.span,
                 hint=f"for example {example}",
             )
-        coordinates = self.session.require_coordinates(node.span)
+        spaces = _spaces(source.node)
+        if spaces is None or any(space.spacetime for space in spaces):
+            self.session.require_coordinates(node.span)
+        if spaces is None:
+            spaces = (self.session.spacetime(node.span),) * rank
+        for (item, _), space in zip(main, spaces, strict=True):
+            if _plain_label(item):
+                self._check_label(str(item.label), space, node.span)
         current = Indices(Index(f"#{k}", index.upper) for k, index in enumerate(source.indices))
-        result = self.graph.retype(source.node, TensorType(current, len(coordinates)))
+        result = self.graph.retype(source.node, TensorType(current, spaces))
         for position, (_, upper) in enumerate(main):
             if current[position].upper != upper:
                 result, current = self._move_index(result, current, position, node.span)
@@ -1251,13 +1952,12 @@ class Compiler:
             result = self._permute(result, moved, current)
             if upper:
                 result, current = self._move_index(result, current, len(current) - 1, node.span)
-        return self._label(result, [*main, *derivatives], coordinates, node.span)
+        return self._label(result, [*main, *derivatives], node.span)
 
     def _label(
         self,
         result: Node,
         entries: Sequence[tuple[ast.IndexItem, bool]],
-        coordinates: Sequence[Symbol],
         span: Span,
         fixed: Mapping[int, int] | None = None,
     ) -> Node:
@@ -1265,19 +1965,21 @@ class Compiler:
         then fix components: those the items name, and any already ``fixed`` by position.
         Components are fixed last so that a covariant derivative of the result can still
         reach the whole tensor (see :meth:`_index_derivative`)."""
+        assert isinstance(result.type, TensorType)
+        spaces = result.type.spaces
         labels: list[Index] = []
         values: dict[str, int] = {}
         for position, (item, upper) in enumerate(entries):
             if fixed and position in fixed:
                 value: int | None = fixed[position]
             else:
-                value = self._index_value(item, coordinates)
+                value = self._index_value(item, spaces[position])
             if value is not None:
                 values[f"#v{position}"] = value
                 labels.append(Index(f"#v{position}", upper))
             else:
                 labels.append(Index(str(item.label), upper))
-        result = self.graph.retype(result, TensorType(Indices(labels), len(coordinates)))
+        result = self.graph.retype(result, TensorType(Indices(labels), spaces))
         result = self._trace(result, span)
         result = self._brackets(result, [item for item, _ in entries], span)
         return self._select(result, values, span)
@@ -1291,51 +1993,64 @@ class Compiler:
             (axis, values[index.name]) for axis, index in enumerate(indices) if index.name in values
         )
         remaining = Indices(index for index in indices if index.name not in values)
-        kind: Type = TensorType(remaining, node.type.dim) if remaining else SCALAR
+        spaces = tuple(s for s, i in zip(node.type.spaces, indices, strict=True) if i in remaining)
+        kind: Type = TensorType(remaining, spaces) if remaining else SCALAR
         selection = self.graph.add(ops.Select(fixed), (node,), kind, span)
         self._selections.append(selection)
         return selection
 
-    def _index_value(self, item: ast.IndexItem, coordinates: Sequence[Symbol]) -> int | None:
-        """The component an index item fixes: ``a=0``, ``a:t``, or a coordinate's name."""
-        names = [c.name for c in coordinates]
+    def _index_value(self, item: ast.IndexItem, space: Space) -> int | None:
+        """The component an index item fixes: ``a=0``, ``a:t``, or the name of an element
+        of the space's basis, a coordinate's name in spacetime."""
+        names = list(space.basis or ())
+        what = "coordinates" if space.spacetime else f"elements of {space.name}"
         value = item.value
         if value is None:
             return names.index(item.label) if item.label in names else None
         if isinstance(value, ast.Number):
             number = int(value.text)
-            if number >= len(coordinates):
+            if number >= space.dim:
                 raise IndexNotationError(
-                    f"index value {number} is out of range for {len(coordinates)} coordinates",
+                    f"index value {number} is out of range for {space.dim} {what}",
                     span=value.span,
                 )
             return number
         assert isinstance(value, ast.Name)
         if value.id not in names:
+            noun = "a coordinate" if space.spacetime else f"an element of {space.name}"
             raise IndexNotationError(
-                f"{value.id} is not a coordinate",
+                f"{value.id} is not {noun}",
                 span=value.span,
-                hint=f"the coordinates are {', '.join(names)}",
+                hint=f"the {what} are {', '.join(names)}" if names else None,
             )
         return names.index(value.id)
 
     def _move_index(
         self, node: Node, indices: Indices, position: int, span: Span
     ) -> tuple[Node, Indices]:
-        """Raise or lower one index with the metric."""
+        """Raise or lower one index with the metric of its space: spacetime's metric, one
+        declared for the space, or the identity, which leaves the components as they are."""
         index = indices[position]
-        metric = self._geometry("metric" if index.upper else "inverse", span)
+        assert isinstance(node.type, TensorType)
+        space = node.type.spaces[position]
+        if space.spacetime:
+            metric = self._geometry("metric" if index.upper else "inverse", span)
+        elif (declared := self.session.space_metrics.get(space)) is not None:
+            metric = declared if index.upper else self._inverse(declared, span)
+        else:
+            renamed = Indices([index.flip() if p == position else i for p, i in enumerate(indices)])
+            return self.graph.retype(node, node.type.with_indices(renamed)), renamed
         placeholder = Index(f"#m{position}", not index.upper)
         metric_indices = Indices([placeholder, index.flip()])
         output = Indices([placeholder if p == position else i for p, i in enumerate(indices)])
         moved = self._contract([(node, indices), (metric, metric_indices)], span, output=output)
         renamed = Indices([index.flip() if p == position else i for p, i in enumerate(indices)])
         assert isinstance(moved.type, TensorType)
-        return self.graph.retype(moved, TensorType(renamed, moved.type.dim)), renamed
+        return self.graph.retype(moved, moved.type.with_indices(renamed)), renamed
 
     def _permute(self, node: Node, axes: Sequence[int], indices: Indices) -> Node:
         assert isinstance(node.type, TensorType)
-        kind = TensorType(indices, node.type.dim)
+        kind = TensorType(indices, tuple(node.type.spaces[axis] for axis in axes))
         if list(axes) == list(range(len(axes))):
             return self.graph.retype(node, kind)
         return self.graph.add(ops.Permute(tuple(axes)), (node,), kind, node.span)
@@ -1356,35 +2071,141 @@ class Compiler:
         span: Span,
         output: Indices | None = None,
     ) -> Node:
-        """Multiply tensors, summing each index that appears once up and once down."""
-        seen: dict[str, list[Index]] = {}
-        for _, indices in factors:
-            for index in indices:
-                seen.setdefault(index.name, []).append(index)
+        """Multiply tensors, summing each index that appears once up and once down, or,
+        in a space whose metric is the identity, twice in any position. An index ranges
+        over one space. A label an expectation binds is shared by every factor and kept."""
+        seen: dict[str, list[tuple[Index, Space]]] = {}
+        for node, indices in factors:
+            spaces = _spaces(node)
+            assert spaces is not None
+            assert len(spaces) == len(indices)
+            for index, space in zip(indices, spaces, strict=True):
+                seen.setdefault(index.name, []).append((index, space))
         for name, found in seen.items():
             label = _display(name)
+            over = list(dict.fromkeys(space for _, space in found))
+            if len(over) > 1:
+                raise IndexNotationError(
+                    f"index {label} ranges over {over[0]} in one place and {over[1]} in "
+                    "another; an index ranges over one space",
+                    span=span,
+                )
+            if name in self._bound:
+                continue
             if len(found) > 2:
                 raise IndexNotationError(
                     f"index {label} appears {len(found)} times; an index may appear at most twice",
                     span=span,
                 )
-            if len(found) == 2 and found[0].upper == found[1].upper:
-                position = "an upper" if found[0].upper else "a lower"
+            positions = {index.upper for index, _ in found}
+            if len(found) == 2 and len(positions) == 1 and not self._euclidean(over[0]):
+                position = "an upper" if found[0][0].upper else "a lower"
                 raise IndexNotationError(
                     f"index {label} appears twice as {position} index; "
                     "a summed index must appear once up and once down",
                     span=span,
                 )
         if output is None:
-            output = Indices(
-                index for _, indices in factors for index in indices if len(seen[index.name]) == 1
-            )
+            kept = {
+                name: found[0][0]
+                for name, found in seen.items()
+                if len(found) == 1 or name in self._bound
+            }
+            output = Indices(kept.values())
         numbers = {name: number for number, name in enumerate(seen)}
         labels = tuple(tuple(numbers[i.name] for i in indices) for _, indices in factors)
-        dim = len(self.session.require_coordinates(span))
-        kind: Type = TensorType(output, dim) if output else SCALAR
-        op = ops.Contract(labels, tuple(numbers[i.name] for i in output), dim)
+        sizes = tuple(found[0][1].dim for found in seen.values())
+        spaces = tuple(seen[index.name][0][1] for index in output)
+        kind: Type = TensorType(output, spaces) if output else SCALAR
+        op = ops.Contract(labels, tuple(numbers[i.name] for i in output), sizes)
         return self.graph.add(op, [node for node, _ in factors], kind, span)
+
+    def _euclidean(self, space: Space) -> bool:
+        """Whether the space's metric is the identity, so that an index may be summed in
+        any position: neither spacetime nor a space given a metric."""
+        return not space.spacetime and space not in self.session.space_metrics
+
+    def _inverse(self, node: Node, span: Span) -> Node:
+        """The inverse of a two-index tensor: its indices change position."""
+        assert isinstance(node.type, TensorType)
+        assert node.type.rank == 2
+        flipped = Indices(index.flip() for index in node.type.indices)
+        return self.graph.add(ops.Inverse(), (node,), node.type.with_indices(flipped), span)
+
+    # -- spaces ----------------------------------------------------------------------
+    #
+    # An index label ranges over a space: one it was declared in (a, b \in \mathcal{A}),
+    # or, within a statement, the space of the first axis it is written on. Labels that
+    # neither declare nor infer range over spacetime.
+
+    def _space_of(self, name: str, span: Span, why: str = "index notation") -> Space:
+        space = self._labels.get(name) or self.session.labels.get(name)
+        return space if space is not None else self.session.spacetime(span, why)
+
+    def _spaces_of(self, names: Sequence[str], span: Span, why: str) -> tuple[Space, ...]:
+        return tuple(self._space_of(name, span, why) for name in names)
+
+    def _check_label(self, name: str, space: Space, span: Span) -> None:
+        """That an index written on an axis over ``space`` may range over it; the first
+        time in a statement, it then does, for the rest of the statement."""
+        expected = self._labels.get(name) or self.session.labels.get(name)
+        if expected is None:
+            self._labels[name] = space
+        elif expected != space:
+            raise IndexNotationError(
+                f"the index {latex_label(name)} ranges over {expected}, but is written "
+                f"here on an axis over {space}",
+                span=span,
+            )
+
+    def _infer_labels(self, statement: ast.Statement, scope: Scope) -> dict[str, Space]:
+        """The spaces of the labels written on tensors with spaces of their own in a
+        statement, found before it is compiled, so that 𝟙_c in 𝟙_c (\\Sigma^{-1})^{cd}
+        knows its space from what comes after it."""
+        labels: dict[str, Space] = {}
+        for current in _walk(statement):
+            if not isinstance(current, ast.Scripted):
+                continue
+            base = current.base
+            if isinstance(base, ast.Scripted) and len(base.scripts) == 1:  # (\Sigma^{-1})^{cd}
+                if not _is_minus_one(base.scripts[0].body):
+                    continue
+                base = base.base
+            if not isinstance(base, ast.Name):
+                continue
+            binding = scope.lookup(base.id)
+            node = binding.node if isinstance(binding, VariableBinding | TensorBinding) else None
+            spaces = _spaces(node) if node is not None else None
+            pattern = _tensor_pattern(replace(current, base=base))
+            if not spaces or pattern is None or len(pattern[1]) != len(spaces):
+                continue
+            for (label, _), space in zip(pattern[1], spaces, strict=True):
+                if space.spacetime:
+                    continue
+                expected = labels.get(label) or self.session.labels.get(label)
+                if expected is not None and expected != space:
+                    raise IndexNotationError(
+                        f"the index {latex_label(label)} ranges over {expected}, but is "
+                        f"written here on an axis over {space}",
+                        span=current.span,
+                    )
+                labels[label] = space
+        return labels
+
+    def _name_axes(self, value: Node, indices: Indices, span: Span) -> Node:
+        """Name the axes of a value whose indices no one wrote, such as the eigenvectors
+        eig returns, by position after the indices of a definition."""
+        assert isinstance(value.type, TensorType)
+        current = value.type.indices
+        if len(current) != len(indices) or not all(i.name.startswith("#") for i in current):
+            return value
+        for position, wanted in enumerate(indices):
+            if current[position].upper != wanted.upper:
+                value, current = self._move_index(value, current, position, span)
+        assert isinstance(value.type, TensorType)
+        for wanted, space in zip(indices, value.type.spaces, strict=True):
+            self._check_label(wanted.name, space, span)
+        return self.graph.retype(value, value.type.with_indices(indices))
 
     def _trace(self, node: Node, span: Span) -> Node:
         """Sum over indices repeated within one tensor: ``R^{a}{}_{bac}``."""
@@ -1458,8 +2279,7 @@ class Compiler:
         """The Lie derivative along ``V``:
         :math:`£_V T^{a}{}_{b} = V^c \\partial_c T^{a}{}_{b} - (\\partial_c V^a) T^{c}{}_{b}
         + (\\partial_b V^c) T^{a}{}_{c}`, with one such term for every index."""
-        coordinates = self.session.require_coordinates(span, "a Lie derivative")
-        dim = len(coordinates)
+        space = self.session.spacetime(span, "a Lie derivative")
         binding = scope.lookup(vector)
         if not isinstance(binding, TensorBinding) or len(binding.indices) != 1:
             raise CompileError(
@@ -1471,15 +2291,16 @@ class Compiler:
             raise IndexNotationError(
                 f"\\pounds_{vector} is along a vector, with its index up", span=span
             )
-        field_ = self.graph.retype(binding.node, TensorType(Indices([Index("#v", True)]), dim))
+        field_ = self.graph.retype(binding.node, TensorType(Indices([Index("#v", True)]), (space,)))
         selection: tuple[tuple[int, int], ...] = ()
         if isinstance(operand.op, ops.Select):  # as for ∇: differentiate, then select
             selection, operand = operand.op.fixed, operand.args[0]
         names = operand.type.indices if isinstance(operand.type, TensorType) else Indices()
         current = Indices(Index(f"#{k}", i.upper) for k, i in enumerate(names))
         if names:
-            operand = self.graph.retype(operand, TensorType(current, dim))
-        kind = TensorType(current, dim) if current else SCALAR
+            assert isinstance(operand.type, TensorType)
+            operand = self.graph.retype(operand, operand.type.with_indices(current))
+        kind = TensorType(current, (space,) * len(current)) if current else SCALAR
         derivative = self._derivative_of(operand, current, "#c", False, span)
         terms = [
             (
@@ -1521,7 +2342,7 @@ class Compiler:
         if not names:
             return result
         entries = [(ast.IndexItem(name.name, span=span), name.upper) for name in names]
-        return self._label(result, entries, coordinates, span, dict(selection))
+        return self._label(result, entries, span, dict(selection))
 
     def _derivative_operator(self, node: ast.Scripted, *, covariant: bool) -> IndexDerivative:
         scripts = node.scripts
@@ -1547,7 +2368,7 @@ class Compiler:
         ):
             variable = self.graph.const(self.session.symbol(item.label), SCALAR)
             return self._differentiate(operand, [(variable, 1)], span)
-        coordinates = self.session.require_coordinates(span, "a derivative with an index")
+        self.session.require_coordinates(span, "a derivative with an index")
         selection: tuple[tuple[int, int], ...] = ()
         if covariant and isinstance(operand.op, ops.Select):
             # ∇ acts on the whole tensor and the components asked for are taken after:
@@ -1556,7 +2377,7 @@ class Compiler:
         if isinstance(operand.type, TensorType):
             current = Indices(Index(f"#{k}", i.upper) for k, i in enumerate(operand.type.indices))
             names = operand.type.indices
-            operand = self.graph.retype(operand, TensorType(current, len(coordinates)))
+            operand = self.graph.retype(operand, operand.type.with_indices(current))
         else:
             current, names = Indices(), Indices()
         result = self._derivative_of(operand, current, "#d", covariant, span)
@@ -1567,7 +2388,7 @@ class Compiler:
             (ast.IndexItem(name.name, span=span), name.upper) for name in names
         ]
         fixed = {axis + 1: value for axis, value in selection}
-        return self._label(result, entries, coordinates, span, fixed)
+        return self._label(result, entries, span, fixed)
 
     def _derivative_of(
         self, operand: Node, indices: Indices, label: str, covariant: bool, span: Span
@@ -1575,9 +2396,9 @@ class Compiler:
         """The derivative of ``operand`` (with axes ``indices``) as a new first axis
         labelled ``label``; covariant derivatives add one connection term per index."""
         coordinates = self.session.require_coordinates(span, "a derivative")
-        dim = len(coordinates)
         new = Index(label)
-        kind = TensorType(Indices([new, *indices]), dim)
+        own = _spaces(operand) or ()
+        kind = TensorType(Indices([new, *indices]), (spacetime(coordinates), *own))
         result = self.graph.add(ops.Partial(coordinates), (operand,), kind, span)
         if not covariant or not indices:
             return result
@@ -1888,7 +2709,7 @@ class Compiler:
         self, node: ast.Expr, scope: Scope, ctx: Context
     ) -> IndexEquation | IndexExpression:
         node = _operand(node)
-        space = self.session.space()
+        space = self.session.algebra()
         if isinstance(node, ast.Name):
             binding = scope.lookup(node.id)
             if isinstance(binding, VariableBinding) and (found := _notation_of(binding.node)):
@@ -1911,7 +2732,7 @@ class Compiler:
         self, node: ast.Call, scope: Scope, ctx: Context
     ) -> IndexEquation | IndexExpression:
         assert isinstance(node.func, ast.Name)
-        name, args, space = node.func.id, node.args, self.session.space()
+        name, args, space = node.func.id, node.args, self.session.algebra()
         if not args:
             raise CompileError(f"{name} needs an equation", span=node.span)
         try:
@@ -1972,7 +2793,7 @@ class Compiler:
     def _tensorial(self, node: ast.Expr, scope: Scope, ctx: Context) -> Any:
         """An expression read as abstract index notation: a SymPy tensor expression."""
         node = _operand(node)
-        space = self.session.space()
+        space = self.session.algebra()
         if isinstance(node, ast.Binary) and node.op in ("+", "-"):
             total: Any = sympy.S.Zero
             for sign, term in _signed_terms(node):
@@ -2080,7 +2901,7 @@ class Compiler:
         self, pattern: tuple[str, list[tuple[str, bool]]], scope: Scope, span: Span
     ) -> Any:
         name, entries = pattern
-        space = self.session.space()
+        space = self.session.algebra()
         binding = scope.lookup(name)
         if isinstance(binding, VariableBinding) and _notation_of(binding.node):
             raise IndexNotationError(
@@ -2113,7 +2934,7 @@ class Compiler:
     def _lower(self, value: Any, scope: Scope, ctx: Context, span: Span) -> Node:
         """Turn notation into components: write each term in the language, with its
         scalar coefficient bound to a name, and compile it."""
-        space = self.session.space()
+        space = self.session.algebra()
         traces = space.traces()
         inner = scope.child()
         fresh = itertools.count()
@@ -2344,6 +3165,160 @@ def _names(value: ast.Expr, what: str) -> list[str]:
             raise CompileError("expected a name", span=item.span)
         names.append(item.id)
     return names
+
+
+def _indexed_target(name: str, value: Node) -> tuple[str, Indices] | None:
+    """``v_a := ...`` with a value whose free indices are exactly ``a``: the tensor
+    ``v_{a}``, with its indices where the value has them."""
+    base, underscore, tail = name.partition("_")
+    if not (underscore and tail.isalpha() and isinstance(value.type, TensorType)):
+        return None
+    labels = split_index_labels(tail)
+    have = {index.name: index for index in value.type.indices}
+    if sorted(labels) != sorted(have):
+        return None
+    return base, Indices(have[label] for label in labels)
+
+
+def _indexed_name(node: ast.Name, scope: Scope) -> ast.Scripted | None:
+    """``y_t`` as ``y_{t}`` when ``y`` is a tensor and ``y_t`` names nothing: data
+    notation writes the indices of a tensor without braces."""
+    base, underscore, tail = node.id.partition("_")
+    binding = scope.lookup(base) if underscore and tail.isalpha() else None
+    if not (
+        isinstance(binding, TensorBinding)
+        or (isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType))
+    ):
+        return None
+    span = node.span
+    items = tuple(ast.IndexItem(label, span=span) for label in split_index_labels(tail))
+    script = ast.Script("_", None, ast.IndexList(items, span=span), span=span)
+    return ast.Scripted(ast.Name(base, span=span), (script,), span=span)
+
+
+#: Functions that are linear algebra when given a tensor.
+_LINEAR_ALGEBRA = frozenset(
+    {"eig", "spec", "svd", "det", "tr", "trace", "inv", "diag", "exp", "sqrt", "log"}
+)
+
+
+@dataclass(frozen=True)
+class _matrix_call:
+    """``func(components, rows)``: picklable, for worker processes."""
+
+    func: Callable[..., Any]
+
+    def __call__(self, components: Any, rows: int) -> Any:
+        return self.func(components, rows)
+
+
+def _matrix_function(name: str, components: Any, rows: int) -> Any:
+    return linalg.function(name, components, rows)
+
+
+def _is_minus_one(node: ast.Expr | None) -> bool:
+    return (
+        isinstance(node, ast.Unary)
+        and node.op == "-"
+        and isinstance(node.operand, ast.Number)
+        and node.operand.text == "1"
+    )
+
+
+def _shares(one: Node, other: Node) -> bool:
+    """Whether two tensors have an index label in common."""
+    return bool(set(_indices(one).names) & set(_indices(other).names))
+
+
+def _identity(dim: int) -> Any:
+    """The identity matrix: SymPy's for a few dimensions, NumPy's for many."""
+    if dim <= _SMALL:
+        return sympy.ImmutableDenseNDimArray(sympy.eye(dim).tolist())
+    from relativisticpy.tensors import numerical
+
+    return numerical.numpy().eye(dim)
+
+
+def _ones(dim: int) -> Any:
+    if dim <= _SMALL:
+        return sympy.ImmutableDenseNDimArray([1] * dim)
+    from relativisticpy.tensors import numerical
+
+    return numerical.numpy().ones(dim)
+
+
+def _uniform(dim: int) -> Any:
+    """The uniform measure: weight 1/n on each of n elements."""
+    if dim <= _SMALL:
+        return sympy.ImmutableDenseNDimArray([sympy.Rational(1, dim)] * dim)
+    from relativisticpy.tensors import numerical
+
+    return numerical.numpy().full(dim, 1.0 / dim)
+
+
+def _ledoit_wolf(samples: Any) -> Any:
+    """The Ledoit–Wolf covariance of samples in rows, from scikit-learn."""
+    from relativisticpy.tensors import numerical
+
+    try:
+        from sklearn.covariance import LedoitWolf
+    except ImportError as error:  # pragma: no cover - depends on the environment
+        raise ImportError(
+            'the Ledoit–Wolf covariance needs scikit-learn: pip install "relativisticpy[data]"'
+        ) from error
+    data = numerical.dense(numerical.as_array(samples))
+    return LedoitWolf(assume_centered=False).fit(data).covariance_
+
+
+#: The statistics written with the index they are over, as \mathbb{E}_t.
+_STATISTICS = {
+    "𝔼": "expectation",
+    "Var": "variance",
+    "var": "variance",
+    "Cov": "covariance",
+    "cov": "covariance",
+    "LedoitWolf": "ledoit-wolf",
+}
+
+
+def _statistic(node: ast.Expr) -> tuple[str, str] | None:
+    """``\\mathbb{E}_t``, ``\\operatorname{Var}_t``, ...: the statistic and its index."""
+    if not (
+        isinstance(node, ast.Scripted)
+        and isinstance(node.base, ast.Name)
+        and node.base.id in _STATISTICS
+        and len(node.scripts) == 1
+        and node.scripts[0].kind == "_"
+        and node.scripts[0].indices is not None
+        and len(node.scripts[0].indices.items) == 1
+        and _plain_label(node.scripts[0].indices.items[0])
+    ):
+        return None
+    return _STATISTICS[node.base.id], str(node.scripts[0].indices.items[0].label)
+
+
+# Spaces up to this size get SymPy's identity and ones, which stay exact with symbols.
+_SMALL = 16
+
+
+def _tensor_pattern_of_one(node: ast.Scripted) -> tuple[str, bool] | None:
+    """``𝟙_a`` or ``1_a``: the ones covector, with its single index label."""
+    base = node.base
+    ones = (isinstance(base, ast.Number) and base.text == "1") or (
+        isinstance(base, ast.Name) and base.id == "𝟙"
+    )
+    if not ones or len(node.scripts) != 1:
+        return None
+    script = node.scripts[0]
+    items = script.indices.items if script.indices is not None else ()
+    if len(items) != 1 or not _plain_label(items[0]):
+        return None
+    return str(items[0].label), script.kind == "^"
+
+
+def _spaces(node: Node) -> tuple[Space, ...] | None:
+    """The spaces of a tensor's axes; ``None`` for anything else."""
+    return node.type.spaces if isinstance(node.type, TensorType) else None
 
 
 def _walk(node: ast.Node) -> Iterator[ast.Node]:

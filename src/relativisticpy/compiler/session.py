@@ -9,13 +9,14 @@ from typing import Any
 import sympy
 from sympy import Symbol
 
-from relativisticpy.abstract import Space
+from relativisticpy.abstract import Algebra
 from relativisticpy.compiler.scope import Scope
 from relativisticpy.errors import CompileError
 from relativisticpy.ir import SCALAR, Graph, Node, TensorType, ops
 from relativisticpy.language.source import Span
 from relativisticpy.runtime import Executor
 from relativisticpy.tensors import Index, Indices
+from relativisticpy.tensors.spaces import Space, spacetime
 
 #: The names of the built-in tensors and derivatives, by role, and the
 #: statement that renames each: ``MetricSymbol := G`` makes the metric ``G``.
@@ -87,15 +88,26 @@ class Session:
     # Whether the coordinates were read from a line element's differentials rather than
     # declared; only then may a later line element bring new ones.
     coordinates_inferred: bool = False
-    _space: Space | None = field(default=None, repr=False)
+    # Spaces other than spacetime, by name, and the index labels declared to range over
+    # them, as by a, b \in \mathcal{A}. A space may be given a metric, by the node of
+    # the tensor that is its metric, and a measure, by the node of its weights.
+    spaces: dict[str, Space] = field(default_factory=dict)
+    labels: dict[str, Space] = field(default_factory=dict)
+    space_metrics: dict[Space, Node] = field(default_factory=dict)
+    measures: dict[Space, Node] = field(default_factory=dict)
+    _algebra: Algebra | None = field(default=None, repr=False)
 
-    def space(self) -> Space:
+    def algebra(self) -> Algebra:
         """The tensors of abstract index notation, in as many dimensions as there are
         coordinates (four before there are any)."""
         dim = len(self.coordinates) if self.coordinates else 4
-        if self._space is None or self._space.dim != dim:
-            self._space = Space(dim, metric=self.names["metric"])
-        return self._space
+        if self._algebra is None or self._algebra.dim != dim:
+            self._algebra = Algebra(dim, metric=self.names["metric"])
+        return self._algebra
+
+    def spacetime(self, span: Span, why: str = "index notation") -> Space:
+        """The space of the coordinates in force."""
+        return spacetime(self.require_coordinates(span, why))
 
     def set_coordinates(self, coordinates: tuple[Symbol, ...], *, inferred: bool = False) -> None:
         """Change coordinates, forgetting what belonged to the old ones."""
@@ -138,18 +150,19 @@ class Session:
             coordinates = self.require_coordinates(span, _describe(quantity))
             indices = Indices([Index("a", True), Index("b")])
             kronecker = ops.Geometry("kronecker", coordinates)
-            return self.graph.add(kronecker, (), TensorType(indices, len(coordinates)), span)
+            kind = TensorType(indices, (spacetime(coordinates),) * 2)
+            return self.graph.add(kronecker, (), kind, span)
         metric = self.require_metric(span, _describe(quantity)).node
         assert self.coordinates is not None
         patch = self.coordinates
-        dim = len(patch)
+        space = spacetime(patch)
 
         def build(name: str, *args: Node) -> Node:
             if name in _GEOMETRY_TYPES:
                 positions = _GEOMETRY_TYPES[name]
                 labels = "abcd"
                 indices = Indices(Index(labels[i], up) for i, up in enumerate(positions))
-                kind: Any = TensorType(indices, dim)
+                kind: Any = TensorType(indices, (space,) * len(indices))
             else:
                 kind = SCALAR
             return self.graph.add(ops.Geometry(name, patch), args, kind, metric.span)

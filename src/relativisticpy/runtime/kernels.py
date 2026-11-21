@@ -1,4 +1,5 @@
-"""Kernels: what each IR operation computes, on SymPy values."""
+"""Kernels: what each IR operation computes, on SymPy values or on numerical arrays,
+which :mod:`relativisticpy.tensors.numerical` computes with NumPy."""
 
 from __future__ import annotations
 
@@ -14,7 +15,7 @@ from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
 from relativisticpy.errors import EvaluationError
 from relativisticpy.ir import ops
-from relativisticpy.tensors import arrays
+from relativisticpy.tensors import arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import is_zero
 
@@ -34,6 +35,8 @@ def _const(op: ops.Const, args: list[Any], executor: Executor) -> Any:
 
 @execute.register(ops.Call)
 def _call(op: ops.Call, args: list[Any], executor: Executor) -> Any:
+    if len(args) == 1 and numerical.is_numerical(args[0]) and numerical.elementwise(op.name):
+        return numerical.apply(args[0], op.func, op.name)  # NumPy's sqrt, or JAX's
     return op.func(*args)
 
 
@@ -44,6 +47,8 @@ def _call(op: ops.Call, args: list[Any], executor: Executor) -> Any:
 @execute.register(ops.Add)
 def _add(op: ops.Add, args: list[Any], executor: Executor) -> Any:
     terms = [_arithmetic(arg) for arg in args]
+    if numerical.involves(terms):
+        terms = [numerical.as_array(term) for term in terms]
     shapes = list(dict.fromkeys(_shape(term) for term in terms))
     if len(shapes) > 1:
         if () in shapes:
@@ -60,7 +65,10 @@ def _add(op: ops.Add, args: list[Any], executor: Executor) -> Any:
 
 @execute.register(ops.Mul)
 def _mul(op: ops.Mul, args: list[Any], executor: Executor) -> Any:
-    return reduce(_times, [_arithmetic(arg) for arg in args])
+    values = [_arithmetic(arg) for arg in args]
+    if numerical.involves(values) and not any(_shape(value) for value in values):
+        values = [numerical.number(value) for value in values]  # numbers, or JAX's
+    return reduce(_times, values)
 
 
 @execute.register(ops.Scale)
@@ -72,12 +80,16 @@ def _scale(op: ops.Scale, args: list[Any], executor: Executor) -> Any:
             "a tensor can be multiplied by scalars, not by an array",
             hint="to combine it with components, define a tensor and use index notation",
         )
+    if numerical.is_numerical(components) or numerical.is_numerical(factor):
+        return numerical.number(factor) * numerical.as_array(components)
     return factor * components
 
 
 @execute.register(ops.Pow)
 def _pow(op: ops.Pow, args: list[Any], executor: Executor) -> Any:
     base, exponent = (_arithmetic(arg) for arg in args)
+    if numerical.involves([base, exponent]) and not (_shape(base) or _shape(exponent)):
+        return numerical.number(base) ** numerical.number(exponent)
     if not (_shape(base) or _shape(exponent)):
         return base**exponent
     square = len(_shape(base)) == 2 and base.shape[0] == base.shape[1]
@@ -100,7 +112,9 @@ def _arithmetic(value: Any) -> Any:
 
 def _shape(value: Any) -> tuple[int, ...]:
     """An array's shape; a scalar's is ``()``."""
-    return tuple(value.shape) if isinstance(value, sympy.NDimArray) else ()
+    if isinstance(value, sympy.NDimArray) or numerical.is_numerical(value):
+        return tuple(getattr(value, "shape", ()))
+    return ()
 
 
 def _times(left: Any, right: Any) -> Any:
@@ -116,7 +130,7 @@ def _times(left: Any, right: Any) -> Any:
 
 @execute.register(ops.Contract)
 def _contract(op: ops.Contract, args: list[Any], executor: Executor) -> Any:
-    return arrays.contract(list(zip(args, op.labels, strict=True)), op.output, op.dim)
+    return arrays.contract(list(zip(args, op.labels, strict=True)), op.output, op.sizes)
 
 
 @execute.register(ops.Permute)
@@ -153,6 +167,8 @@ class ComponentCall:
 @execute.register(ops.Map)
 def _map(op: ops.Map, args: list[Any], executor: Executor) -> Any:
     target, extra = args[0], tuple(args[1:])
+    if numerical.is_numerical(target):
+        return numerical.apply(target, op.func, op.name, extra)
     call = ComponentCall(op.func, extra)
     if not isinstance(target, sympy.NDimArray):
         return call(target)
@@ -168,6 +184,10 @@ def _make_array(op: ops.MakeArray, args: list[Any], executor: Executor) -> Any:
 @execute.register(ops.ToArray)
 def _to_array(op: ops.ToArray, args: list[Any], executor: Executor) -> Any:
     value = args[0]
+    if numerical.is_numerical(value):
+        if tuple(value.shape) != op.shape:
+            raise ValueError(f"expected components of shape {op.shape}, got {value.shape}")
+        return value
     if isinstance(value, sympy.NDimArray | sympy.MatrixBase | list | tuple):
         array = arrays.to_array(value)
         if array.shape != op.shape and len(array) == len(ImmutableDenseNDimArray.zeros(*op.shape)):
@@ -183,6 +203,10 @@ def _to_array(op: ops.ToArray, args: list[Any], executor: Executor) -> Any:
 @execute.register(ops.Equation)
 def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
     lhs, rhs = args
+    if numerical.involves([lhs, rhs]):  # numbers agree to rounding error, or they differ
+        if _shape(lhs) or _shape(rhs):
+            return TensorEquation(lhs, rhs)
+        return sympy.true if numerical.close(lhs, rhs) else sympy.Eq(lhs, rhs, evaluate=False)
     if isinstance(lhs, sympy.NDimArray) or isinstance(rhs, sympy.NDimArray):
         array = lhs if isinstance(lhs, sympy.NDimArray) else rhs
         lhs = (
@@ -195,6 +219,11 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
     if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr) and is_zero(lhs - rhs):
         return sympy.true  # an identity, decided exactly, as tensor equations are
     return sympy.Eq(lhs, rhs)
+
+
+@execute.register(ops.Inverse)
+def _inverse(op: ops.Inverse, args: list[Any], executor: Executor) -> Any:
+    return linalg.inverse(args[0])
 
 
 @execute.register(ops.LineElement)

@@ -9,8 +9,10 @@ from typing import Any
 import sympy
 from sympy import Eq, Symbol
 
+from relativisticpy.tensors import arrays, numerical
 from relativisticpy.tensors.indices import Indices, latex_label
 from relativisticpy.tensors.simplification import is_zero
+from relativisticpy.tensors.spaces import Space
 
 
 class TensorEquation:
@@ -22,7 +24,8 @@ class TensorEquation:
 
         R_{tt} = 0, R_{rr} = 0, ...
 
-    An equation whose every component holds is ``True`` in a boolean context.
+    An equation whose every component holds is ``True`` in a boolean context. Numerical
+    components hold when they agree to rounding error.
     """
 
     def __init__(
@@ -31,18 +34,36 @@ class TensorEquation:
         rhs: Any,
         indices: Indices | None = None,
         coordinates: Sequence[Symbol] = (),
+        spaces: Sequence[Space] | None = None,
     ) -> None:
+        if numerical.involves([lhs, rhs]):  # one side may be the number 0
+            np = numerical.numpy()
+            lhs, rhs = (numerical.dense(numerical.as_array(side)) for side in (lhs, rhs))
+            lhs, rhs = np.broadcast_arrays(lhs, rhs)
         self.lhs = lhs
         self.rhs = rhs
         self.indices = indices
         self.coordinates = tuple(coordinates)
+        self.spaces = tuple(spaces) if spaces is not None else None
 
     @property
     def rank(self) -> int:
-        return int(self.lhs.rank())
+        return arrays.rank(self.lhs)
 
     def components(self) -> dict[tuple[int, ...], Eq]:
         """Every component that does not hold identically, keyed by position."""
+        if numerical.is_numerical(self.lhs):
+            np = numerical.numpy()
+            scale = max(1.0, float(np.max(np.abs(self.lhs), initial=0.0)))
+            wrong = ~np.isclose(self.lhs, self.rhs, rtol=1e-9, atol=1e-12 * scale)
+            return {
+                tuple(int(i) for i in index): Eq(
+                    sympy.sympify(self.lhs[tuple(index)]),
+                    sympy.sympify(self.rhs[tuple(index)]),
+                    evaluate=False,
+                )
+                for index in np.argwhere(wrong)
+            }
         dim = self.lhs.shape[0] if self.rank else 0
         result: dict[tuple[int, ...], Eq] = {}
         for index in product(range(dim), repeat=self.rank):
@@ -62,6 +83,8 @@ class TensorEquation:
         return list(self.components().values())
 
     def __bool__(self) -> bool:
+        if numerical.is_numerical(self.lhs):
+            return numerical.close(self.lhs, self.rhs)
         return not self.components()
 
     def __eq__(self, other: object) -> bool:
@@ -69,6 +92,8 @@ class TensorEquation:
             return bool(self) is other
         if not isinstance(other, TensorEquation):
             return NotImplemented
+        if numerical.involves([self.lhs, other.lhs]):
+            return numerical.close(self.lhs, other.lhs) and numerical.close(self.rhs, other.rhs)
         return bool(self.lhs == other.lhs and self.rhs == other.rhs)
 
     __hash__ = None  # type: ignore[assignment]
@@ -83,6 +108,11 @@ class TensorEquation:
         return f"TensorEquation({self.indices or ''}, {len(self.components())} equations)"
 
     def _label(self, index: tuple[int, ...]) -> str:
+        if self.spaces is not None:
+            return ",".join(
+                space.basis[i] if space.basis else str(i)
+                for i, space in zip(index, self.spaces, strict=True)
+            )
         names = [str(c) for c in self.coordinates] or [str(i) for i in range(self.lhs.shape[0])]
         return ",".join(names[i] for i in index)
 

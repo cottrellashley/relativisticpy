@@ -10,8 +10,9 @@ import sympy
 from sympy import Expr, Symbol
 
 from relativisticpy.errors import IndexNotationError
-from relativisticpy.tensors import arrays
+from relativisticpy.tensors import arrays, numerical
 from relativisticpy.tensors.indices import Index, Indices, latex_label
+from relativisticpy.tensors.spaces import Space
 
 
 class Tensor:
@@ -30,9 +31,13 @@ class Tensor:
         Tensor('_{a}', [-2, 3])
 
     ``str`` gives the components, as RelativisticPy has always printed them.
+
+    Components may also be numerical, a NumPy array, with each axis ranging over one of
+    ``spaces``: assets, days, a qubit. :meth:`to_numpy` and :meth:`to_pandas` give them
+    back, labelled by the bases of their spaces.
     """
 
-    __slots__ = ("components", "coordinates", "indices", "name")
+    __slots__ = ("components", "coordinates", "indices", "name", "spaces")
 
     def __init__(
         self,
@@ -41,12 +46,24 @@ class Tensor:
         coordinates: Sequence[Symbol] = (),
         *,
         name: str | None = None,
+        spaces: Sequence[Space] | None = None,
     ) -> None:
         self.indices = indices if isinstance(indices, Indices) else _indices(indices)
-        self.components = arrays.to_array(components) if self.indices else sympy.sympify(components)
         self.coordinates = tuple(coordinates)
         self.name = name
-        if self.indices:
+        self.spaces = tuple(spaces) if spaces is not None else None
+        if numerical.is_numerical(components):
+            self.components = components
+            if len(getattr(components, "shape", ())) != len(self.indices):
+                raise ValueError(
+                    f"components of shape {components.shape} do not fit {len(self.indices)} indices"
+                )
+            return
+        self.components = arrays.to_array(components) if self.indices else sympy.sympify(components)
+        if self.indices and self.spaces is not None:
+            if tuple(self.components.shape) != tuple(space.dim for space in self.spaces):
+                raise ValueError(f"components of shape {self.components.shape} do not fit")
+        elif self.indices:
             shape = self.components.shape
             if len(shape) != len(self.indices) or len(set(shape)) != 1:
                 raise ValueError(
@@ -74,6 +91,37 @@ class Tensor:
     def shape(self) -> tuple[int, ...]:
         return tuple(self.components.shape) if self.indices else ()
 
+    @property
+    def numerical(self) -> bool:
+        """Whether the components are numbers in an array, rather than SymPy's."""
+        return numerical.is_numerical(self.components)
+
+    def to_numpy(self) -> Any:
+        """The components as a NumPy array."""
+        return numerical.numpy().asarray(numerical.dense(numerical.as_array(self.components)))
+
+    def to_pandas(self) -> Any:
+        """The components as a pandas Series (one index) or DataFrame (two), labelled by
+        the bases of their spaces."""
+        import pandas as pd
+
+        data = self.to_numpy()
+        names = [self._basis(axis) for axis in range(self.rank)]
+        if self.rank == 1:
+            return pd.Series(data, index=names[0], name=self.name)
+        if self.rank == 2:
+            return pd.DataFrame(data, index=names[0], columns=names[1])
+        raise ValueError("only a tensor with one or two indices is a Series or a DataFrame")
+
+    def _basis(self, axis: int) -> list[str]:
+        """The names of the components along an axis."""
+        space = self.spaces[axis] if self.spaces is not None else None
+        if space is not None and space.basis is not None:
+            return list(space.basis)
+        if self.coordinates and (space is None or space.spacetime):
+            return [str(c) for c in self.coordinates]
+        return [str(i) for i in range(self.shape[axis])]
+
     def __getitem__(self, key: Any) -> Any:
         return self.components[key]
 
@@ -88,9 +136,15 @@ class Tensor:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Tensor):
             return NotImplemented
+        if self.numerical or other.numerical:
+            return self.indices == other.indices and numerical.close(
+                self.components, other.components
+            )
         return self.indices == other.indices and self.components == other.components
 
     def __hash__(self) -> int:
+        if self.numerical:
+            return hash((self.indices, id(self.components)))
         return hash((self.indices, self.components))
 
     def __str__(self) -> str:
@@ -107,6 +161,20 @@ class Tensor:
         head = latex_label(self.name) if self.name else "T"
         if self.rank == 0:
             return str(sympy.latex(self.components))
+        if self.numerical:
+            if max(self.shape) > 8 or self.rank > 2:
+                sizes = " \\times ".join(str(n) for n in self.shape)
+                field = (
+                    "\\mathbb{C}"
+                    if numerical.numpy().iscomplexobj(self.to_numpy())
+                    else "\\mathbb{R}"
+                )
+                return f"{head}{self.indices.latex()} \\in {field}^{{{sizes}}}"
+            data = self.to_numpy().tolist()
+            matrix = sympy.Matrix(data if self.rank == 2 else [data]).applyfunc(
+                lambda value: sympy.N(sympy.sympify(value), 6)  # six significant figures
+            )
+            return f"{head}{self.indices.latex()} = {sympy.latex(matrix)}"
         if self.rank <= 2:
             matrix = sympy.Matrix(self.components.tolist())
             if self.rank == 1:
@@ -123,6 +191,14 @@ class Tensor:
 
     def nonzero(self) -> dict[tuple[str, ...], Expr]:
         """The nonzero components, keyed by coordinate names: ``{('t', 't', 'r'): ...}``."""
+        if self.numerical:
+            np = numerical.numpy()
+            names = [self._basis(axis) for axis in range(self.rank)]
+            data = self.to_numpy()
+            return {
+                tuple(names[axis][int(i)] for axis, i in enumerate(index)): data[tuple(index)]
+                for index in np.argwhere(data != 0)
+            }
         labels = [str(c) for c in self.coordinates] or [str(i) for i in range(self.dim)]
         result = {}
         for index in product(range(self.dim), repeat=self.rank):
@@ -148,7 +224,7 @@ class Tensor:
         new = indices if isinstance(indices, Indices) else _indices(indices)
         if [i.upper for i in new] != [i.upper for i in self.indices]:
             raise IndexNotationError(f"cannot relabel {self.indices} as {new}: positions differ")
-        return Tensor(self.components, new, self.coordinates, name=self.name)
+        return Tensor(self.components, new, self.coordinates, name=self.name, spaces=self.spaces)
 
     def _like(self, components: Any, indices: Indices | None = None) -> Tensor:
         return Tensor(
@@ -156,6 +232,7 @@ class Tensor:
             self.indices if indices is None else indices,
             self.coordinates,
             name=self.name,
+            spaces=self.spaces,
         )
 
     # -- arithmetic --------------------------------------------------------------

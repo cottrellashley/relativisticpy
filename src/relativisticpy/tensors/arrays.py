@@ -1,7 +1,8 @@
 """Kernels on the component arrays of tensors.
 
 Components are SymPy arrays (``ImmutableDenseNDimArray``) for tensors of rank
-one and above, and plain SymPy expressions for scalars. These functions know
+one and above, and plain SymPy expressions for scalars; or numerical arrays, which
+are handed to :mod:`relativisticpy.tensors.numerical`. These functions know
 nothing about index names or positions: the compiler and :class:`Tensor` work
 those out and call these with axes and labels.
 
@@ -22,6 +23,8 @@ import sympy
 from sympy import Expr, ImmutableDenseNDimArray, derive_by_array, permutedims
 from sympy.combinatorics import Permutation
 
+from relativisticpy.tensors import numerical
+
 Array: TypeAlias = ImmutableDenseNDimArray
 #: A tensor's components: an array, or an expression for a scalar.
 Components: TypeAlias = Any
@@ -30,8 +33,9 @@ _Sparse: TypeAlias = dict[tuple[int, ...], Expr]
 
 
 def to_array(value: Any) -> Array:
-    """Convert nested lists, a SymPy matrix or array to an immutable SymPy array."""
-    if isinstance(value, ImmutableDenseNDimArray):
+    """Convert nested lists, a SymPy matrix or array to an immutable SymPy array;
+    numerical arrays stay as they are."""
+    if isinstance(value, ImmutableDenseNDimArray) or numerical.is_numerical(value):
         return value
     if isinstance(value, sympy.MatrixBase):
         return ImmutableDenseNDimArray(value.tolist())
@@ -39,11 +43,15 @@ def to_array(value: Any) -> Array:
 
 
 def rank(components: Components) -> int:
+    if numerical.is_numerical(components):
+        return len(getattr(components, "shape", ()))
     return components.rank() if isinstance(components, sympy.NDimArray) else 0
 
 
 def flatten(components: Components) -> list[Expr]:
     """The components in row-major order."""
+    if numerical.is_numerical(components):
+        return list(numerical.numpy().ravel(numerical.dense(components)))
     if not isinstance(components, sympy.NDimArray):
         return [components]
     return list(components.reshape(len(components))) if components.rank() else [components[()]]
@@ -63,6 +71,8 @@ def from_flat(values: Sequence[Expr], dim: int, rank: int) -> Components:
 
 def apply(components: Components, func: Callable[[Expr], Expr]) -> Components:
     """Apply ``func`` to every component."""
+    if numerical.is_numerical(components):
+        return numerical.apply(components, func, getattr(func, "__name__", ""))
     if isinstance(components, sympy.NDimArray):
         return components.applyfunc(func)
     return func(components)
@@ -72,11 +82,15 @@ def permute(components: Components, axes: Sequence[int]) -> Components:
     """Reorder the axes: the result's axis ``i`` is the input's axis ``axes[i]``."""
     if list(axes) == sorted(axes):
         return components
+    if numerical.is_numerical(components):
+        return numerical.permute(components, axes)
     return permutedims(components, list(axes))
 
 
 def select(components: Array, fixed: Mapping[int, int]) -> Components:
     """Fix some axes to a component: ``select(T, {0: 1})`` is ``T[1, :, :]``."""
+    if numerical.is_numerical(components):
+        return numerical.select(components, fixed)
     key = tuple(fixed.get(axis, slice(None)) for axis in range(components.rank()))
     result = components[key]
     return result if isinstance(result, sympy.NDimArray) else sympy.sympify(result)
@@ -92,6 +106,8 @@ def symmetrize(components: Array, axes: Sequence[int], *, antisymmetric: bool) -
 
     ``T_{(ab)} = (T_{ab} + T_{ba}) / 2`` and ``T_{[ab]} = (T_{ab} - T_{ba}) / 2``.
     """
+    if numerical.is_numerical(components):
+        return numerical.symmetrize(components, axes, antisymmetric=antisymmetric)
     axes = list(axes)
     terms = []
     for order in permutations(range(len(axes))):
@@ -116,7 +132,7 @@ def symmetrize(components: Array, axes: Sequence[int], *, antisymmetric: bool) -
 def contract(
     operands: Sequence[tuple[Components, Sequence[Label]]],
     output: Sequence[Label],
-    dim: int,
+    dim: int | Sequence[int],
 ) -> Components:
     """Einstein summation over labelled operands.
 
@@ -127,9 +143,14 @@ def contract(
         contract([(g, "ab"), (ginv, "bc")], "ac", 4)   # g_{ab} g^{bc}
         contract([(riemann, "abac")], "bc", 4)          # R^{a}{}_{bac}
 
+    ``dim`` is the size of every axis, or, with axes of different sizes, a sequence
+    giving the size of the axes of each integer label.
+
     Only nonzero components are multiplied, and operands are contracted
     pairwise in a greedy order that keeps intermediate results small.
     """
+    if numerical.involves([components for components, _ in operands]):
+        return numerical.contract(operands, output, dim)
     output = tuple(output)
     terms = [(_sparse(components), tuple(labels)) for components, labels in operands]
     for position, (_, labels) in enumerate(terms):
@@ -147,10 +168,13 @@ def contract(
     if missing := set(output) - set(labels):
         raise ValueError(f"output labels {sorted(map(str, missing))} are not in any operand")
     positions = [labels.index(label) for label in output]
-    flat = [sympy.S.Zero] * dim ** len(output)
+    shape = tuple(dim if isinstance(dim, int) else dim[int(label)] for label in output)  # type: ignore[call-overload]
+    if not shape:
+        return entries.get((), sympy.S.Zero)
+    flat = [sympy.S.Zero] * math.prod(shape)
     for index, value in entries.items():
-        flat[_flat_position([index[p] for p in positions], dim)] = value
-    return from_flat(flat, dim, len(output))
+        flat[_flat_position([index[p] for p in positions], shape)] = value
+    return ImmutableDenseNDimArray(flat, shape)
 
 
 def _sparse(components: Components) -> _Sparse:
@@ -243,8 +267,8 @@ def _total(accumulated: Mapping[tuple[int, ...], list[Expr]]) -> _Sparse:
     return {index: value for index, value in totals.items() if value != 0}
 
 
-def _flat_position(index: Sequence[int], dim: int) -> int:
+def _flat_position(index: Sequence[int], shape: Sequence[int]) -> int:
     position = 0
-    for i in index:
-        position = position * dim + i
+    for i, size in zip(index, shape, strict=True):
+        position = position * size + i
     return position

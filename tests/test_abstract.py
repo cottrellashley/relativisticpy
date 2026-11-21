@@ -5,8 +5,8 @@ import pytest
 from sympy import Rational, Symbol, pi
 
 from relativisticpy.abstract import (
+    Algebra,
     IndexEquation,
-    Space,
     canonical,
     latex,
     latex_labels,
@@ -16,7 +16,7 @@ from relativisticpy.abstract import (
 )
 from relativisticpy.errors import CompileError
 
-space = Space(4)
+space = Algebra(4)
 mu, nu, rho, sigma, a = (space.index(name, False) for name in ("mu", "nu", "rho", "sigma", "a"))
 g, delta = space.metric, space.delta
 Riemann = space.head("R", 4, "riemann")
@@ -65,7 +65,7 @@ class TestCanonicalForms:
         assert canonical(contraction - expected, space) == 0
 
     def test_the_trace_of_the_metric_is_the_dimension(self):
-        three = Space(3)
+        three = Algebra(3)
         b = three.index("b", True)
         assert canonical(three.metric(b, -b), three) == 3
 

@@ -3,7 +3,7 @@
 import sympy
 
 from relativisticpy.ir import SCALAR, VALUE, Graph, TensorType, dependencies, ops, render
-from relativisticpy.tensors import Index, Indices
+from relativisticpy.tensors import Index, Indices, Space
 
 
 def test_equal_computations_are_one_node():
@@ -23,8 +23,9 @@ def test_constants_are_never_merged():
 def test_retyping_keeps_the_computation():
     graph = Graph()
     x = graph.const(sympy.Array([1, 2]), VALUE)
-    vector = TensorType(Indices([Index("a")]), 2)
-    renamed = TensorType(Indices([Index("b")]), 2)
+    plane = Space("plane", 2)
+    vector = TensorType(Indices([Index("a")]), (plane,))
+    renamed = TensorType(Indices([Index("b")]), (plane,))
     node = graph.add(ops.ToArray((2,)), (x,), vector)
     relabelled = graph.retype(node, renamed)
     assert relabelled is not node
@@ -56,7 +57,7 @@ def test_render():
 
 
 def test_operation_labels():
-    assert ops.Contract(((0, 1), (1, 2)), (0, 2), 4).label() == "contract ab,bc->ac"
+    assert ops.Contract(((0, 1), (1, 2)), (0, 2), (4, 4, 4)).label() == "contract ab,bc->ac"
     assert ops.Select(((0, 1),)).label() == "select 0=1"
     assert ops.Symmetrize((0, 1), antisymmetric=True).label() == "antisymmetrize (0, 1)"
     assert ops.Add((1, -1)).label() == "add + -"

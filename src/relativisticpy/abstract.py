@@ -59,7 +59,7 @@ _DUMMY_LABELS = (
 )  # fmt: skip
 
 
-class Space:
+class Algebra:
     """The tensors of a computation in ``dim`` dimensions: their indices, the metric
     and Kronecker delta, and a head for every tensor by name and rank."""
 
@@ -149,7 +149,7 @@ def build(pieces: Sequence[tuple[Expr, Sequence[Value]]]) -> Value:
     return total
 
 
-def canonical(value: Value, space: Space) -> Value:
+def canonical(value: Value, space: Algebra) -> Value:
     """A canonical form: expanded, with metrics and deltas contracted, the tensors'
     symmetries and dummy indices in canonical order, and the identities of General
     Relativity applied. Two values are equal exactly when their difference is 0."""
@@ -171,7 +171,7 @@ def canonical(value: Value, space: Space) -> Value:
     return value
 
 
-def _identities(value: Value, space: Space) -> tuple[bool, Value]:
+def _identities(value: Value, space: Algebra) -> tuple[bool, Value]:
     """Replace contractions within a single tensor by what they are."""
     pieces = []
     changed = False
@@ -192,7 +192,7 @@ def _identities(value: Value, space: Space) -> tuple[bool, Value]:
     return changed, build(pieces) if changed else value
 
 
-def _self_contraction(tensor: Tensor, space: Space) -> Value | None:
+def _self_contraction(tensor: Tensor, space: Algebra) -> Value | None:
     """What a tensor contracted with itself is, if an identity says: ``R^a_a = R``."""
     indices = list(tensor.indices)
     pair = next(
@@ -222,7 +222,7 @@ def _self_contraction(tensor: Tensor, space: Space) -> Value | None:
     return trace if trace is not None else None
 
 
-def _mixed_metric(tensor: Tensor, space: Space) -> Value | None:
+def _mixed_metric(tensor: Tensor, space: Algebra) -> Value | None:
     """The metric with one index up and one down is the Kronecker delta."""
     if tensor.head != space.metric:
         return None
@@ -232,7 +232,7 @@ def _mixed_metric(tensor: Tensor, space: Space) -> Value | None:
     return space.delta(first, second) if first.is_up else space.delta(second, first)
 
 
-def _cyclic(tensor: Tensor, space: Space) -> Value | None:
+def _cyclic(tensor: Tensor, space: Algebra) -> Value | None:
     """The first Bianchi identity, :math:`R_{a[bcd]} = 0`, as a choice of basis.
 
     Four distinct indices can be paired in three ways, and the identity relates
@@ -268,7 +268,7 @@ def free(value: Value) -> list[TensorIndex]:
     return list(value.get_free_indices()) if isinstance(value, TensExpr) else []
 
 
-def positioned(value: Value, wanted: Sequence[TensorIndex], space: Space) -> Value:
+def positioned(value: Value, wanted: Sequence[TensorIndex], space: Algebra) -> Value:
     """``value`` with its free indices raised or lowered to the positions in ``wanted``."""
     for index in free(value):
         target = next((w for w in wanted if w.name == index.name), None)
@@ -284,7 +284,7 @@ def positioned(value: Value, wanted: Sequence[TensorIndex], space: Space) -> Val
     return canonical(value, space)
 
 
-def trace(value: Value, space: Space) -> Value:
+def trace(value: Value, space: Algebra) -> Value:
     """Contract a value's two free indices with the metric."""
     indices = free(value)
     if len(indices) != 2:
@@ -295,7 +295,7 @@ def trace(value: Value, space: Space) -> Value:
     return canonical(value * space.metric(-first, -second), space)
 
 
-def solve(lhs: Value, rhs: Value, target: Tensor, space: Space) -> Value:
+def solve(lhs: Value, rhs: Value, target: Tensor, space: Algebra) -> Value:
     """Solve ``lhs = rhs`` for the tensor ``target``, in which it must be linear.
 
     When the trace of the target appears too, as the Ricci scalar does beside
@@ -340,7 +340,7 @@ def solve(lhs: Value, rhs: Value, target: Tensor, space: Space) -> Value:
     return canonical(-rest / coefficient, space)
 
 
-def expand_einstein(value: Value, space: Space) -> Value:
+def expand_einstein(value: Value, space: Algebra) -> Value:
     """Write the Einstein tensor out: :math:`G_{ab} = R_{ab} - \\tfrac12 R g_{ab}`."""
     einstein = space.head("G", 2, "einstein")
     if not _mentions(value, einstein):
@@ -355,7 +355,7 @@ def _mentions(value: Value, head: TensorHead) -> bool:
     return any(tensor.head == head for _, tensors in terms(value) for tensor in tensors)
 
 
-def substitute(value: Value, rule_lhs: Value, rule_rhs: Value, space: Space) -> Value:
+def substitute(value: Value, rule_lhs: Value, rule_rhs: Value, space: Algebra) -> Value:
     """Replace what ``rule_lhs`` matches in ``value`` by ``rule_rhs``.
 
     The rule is a definition of one tensor, ``G_{ab} = R_{ab} - \\tfrac12 R g_{ab}``,
@@ -378,7 +378,7 @@ def substitute(value: Value, rule_lhs: Value, rule_rhs: Value, space: Space) -> 
     return canonical(result, space)
 
 
-def _replace_tensor(value: Value, pattern: Tensor, replacement: Value, space: Space) -> Value:
+def _replace_tensor(value: Value, pattern: Tensor, replacement: Value, space: Algebra) -> Value:
     pieces = []
     for coefficient, tensors in terms(canonical(value, space)):
         factors: list[Value] = []
@@ -412,7 +412,7 @@ def _replace_tensor(value: Value, pattern: Tensor, replacement: Value, space: Sp
 
 
 def _replace_contraction(
-    value: Value, pattern: Value, pattern_tensors: list[Tensor], replacement: Value, space: Space
+    value: Value, pattern: Value, pattern_tensors: list[Tensor], replacement: Value, space: Algebra
 ) -> Value:
     heads = sorted(t.head.name for t in pattern_tensors)
     pieces = []
@@ -437,7 +437,7 @@ def _replace_contraction(
     return build(pieces)
 
 
-def _vanishes(value: Value, space: Space) -> bool:
+def _vanishes(value: Value, space: Algebra) -> bool:
     """Whether a value is zero, with the Einstein tensor written out, so that
     :math:`G_{ab}` and :math:`R_{ab} - \\tfrac12 R g_{ab}` count as equal."""
     return bool(canonical(expand_einstein(canonical(value, space), space), space) == 0)
@@ -578,7 +578,7 @@ class IndexExpression:
     """An expression in abstract index notation, such as :math:`8\\pi G\\,T_{\\mu\\nu}`."""
 
     value: Value
-    space: Space
+    space: Algebra
 
     def latex(self) -> str:
         return latex(self.value)
@@ -606,7 +606,7 @@ class IndexEquation:
 
     lhs: Value
     rhs: Value
-    space: Space
+    space: Algebra
 
     def latex(self) -> str:
         return f"{latex(self.lhs)} = {latex(self.rhs)}"

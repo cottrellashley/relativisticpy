@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from relativisticpy.tensors.indices import Indices
+from relativisticpy.tensors.spaces import Space
 
 
 class Type:
@@ -26,14 +27,31 @@ class ScalarType(Type):
 
 @dataclass(frozen=True)
 class TensorType(Type):
-    """Components of shape ``(dim,) * len(indices)`` whose axes follow ``indices``."""
+    """Components whose axes follow ``indices``, each ranging over its space in
+    ``spaces``: spacetime for General Relativity, or assets, days, a qubit."""
 
     indices: Indices
-    dim: int
+    spaces: tuple[Space, ...]
+
+    def __post_init__(self) -> None:
+        if len(self.spaces) != len(self.indices):
+            raise ValueError(f"{len(self.indices)} indices but {len(self.spaces)} spaces")
 
     @property
     def rank(self) -> int:
         return len(self.indices)
+
+    @property
+    def shape(self) -> tuple[int, ...]:
+        return tuple(space.dim for space in self.spaces)
+
+    def space(self, name: str) -> Space:
+        """The space the index called ``name`` ranges over."""
+        return self.spaces[self.indices.names.index(name)]
+
+    def with_indices(self, indices: Indices) -> TensorType:
+        """The same spaces, with the indices renamed or moved."""
+        return TensorType(indices, self.spaces)
 
     def __str__(self) -> str:
         return f"Tensor{self.indices}"

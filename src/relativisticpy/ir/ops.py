@@ -91,12 +91,17 @@ class Contract(Op):
 
     labels: tuple[tuple[int, ...], ...]
     output: tuple[int, ...]
-    dim: int
+    sizes: tuple[int, ...]  # the size of each label's axes, by label
 
     def label(self) -> str:
         letters = "abcdefghijklmnopqrstuvwxyz"
         operands = ",".join("".join(letters[i % 26] for i in group) for group in self.labels)
         return f"contract {operands}->{''.join(letters[i % 26] for i in self.output)}"
+
+
+@dataclass(frozen=True)
+class Inverse(Op):
+    """The inverse of a two-index tensor, as a matrix: :math:`(A^{-1})^{ab}`."""
 
 
 @dataclass(frozen=True)
