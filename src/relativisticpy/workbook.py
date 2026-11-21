@@ -14,7 +14,7 @@ from sympy import Symbol
 from relativisticpy import checking
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.compiler.compiler import _public
-from relativisticpy.compiler.scope import Context, Output, TensorBinding, VariableBinding
+from relativisticpy.compiler.scope import Context, Output, Scope, TensorBinding, VariableBinding
 from relativisticpy.diffgeom import Metric
 from relativisticpy.documents import Document, find_math_blocks, math_blocks
 from relativisticpy.errors import CompileError, EvaluationError, RelativisticPyError
@@ -24,6 +24,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.syntax import Program
 from relativisticpy.language.tokens import Token
+from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS
 from relativisticpy.runtime import Executor
 from relativisticpy.tensors import Index, Indices, Space, Tensor, arrays, numerical
 from relativisticpy.tensors.equation import TensorEquation
@@ -182,9 +183,24 @@ class Workbook:
         ``wb["J"] = 1.5`` a number.
 
         The data may be a NumPy array, a pandas DataFrame or Series, a SciPy sparse
-        matrix, a SymPy array or nested lists. An index already in a space must fit it;
-        one that is not gets a space of its own, the size of its axis, named after the
-        pandas axis if it has a name, with the pandas labels as its basis::
+        matrix, a SymPy array or nested lists, and is copied. Each axis ranges over:
+
+        - the space of its index, if the index was declared, as by
+          ``a, b \in \mathcal{A}`` or :meth:`space`;
+        - the space a pandas axis's name names, if there is one;
+        - the space of a like index of the same data: both indices of a covariance
+          :math:`\Sigma_{ab}` range over one space, but :math:`t` and :math:`a` of
+          returns :math:`R_{ta}` over two, as indices from the same run of the alphabet
+          (a to h, i to n, o to z, or Greek) are alike;
+        - the space of the same index of a tensor already bound, as ``w^a`` takes the
+          assets of ``R_{ta}``;
+        - otherwise a space of its own, the size of the axis, named after the pandas axis
+          if it has a name, with the pandas labels as its basis.
+
+        Each needs the axis's size. Data labelled by pandas is put in the order of its
+        space's basis, by label. Binding declares nothing: the labels of ``R_{ta}`` range
+        over its spaces in statements that write them on it, and are free everywhere
+        else, so that ``t`` may still be a coordinate in ``\Gamma^{t}_{tr}``::
 
             >>> import numpy as np
             >>> wb = Workbook()
@@ -204,12 +220,6 @@ class Workbook:
             return
         name, entries = target
         components, bases, axis_names = _data(value)
-        if self._backend == "jax" and numerical.is_numerical(components):
-            import jax
-            import jax.numpy as jnp
-
-            _double_precision(jax)
-            components = jnp.asarray(numerical.dense(components))
         shape = tuple(getattr(components, "shape", ()))
         if len(shape) != len(entries):
             raise CompileError(
@@ -220,28 +230,28 @@ class Workbook:
         )
         field: Literal["real", "complex"] = "complex" if complex_data else "real"
         spaces: list[Space] = []
-        known = [session.labels.get(label) for label, _ in entries]
-        for (label, _), size, basis, axis in zip(entries, shape, bases, axis_names, strict=True):
-            space = session.labels.get(label)
-            if space is None:
-                # A new index ranges over the space of another index of the same tensor
-                # with the same size and basis, as both of a covariance's do; a named
-                # pandas axis names its space.
-                others = [s for s in [*known, *spaces] if s is not None]
-                same = (s for s in others if s.dim == size and s.basis == basis and not axis)
-                space = (
-                    next(same, None)
-                    or session.spaces.get(axis or "")
-                    or Space(axis or f"the space of {label}", size, basis=basis, field=field)
-                )
-                session.spaces[space.name] = space
-                session.labels[label] = space
+        for axis, ((label, _), size, basis, axis_name) in enumerate(
+            zip(entries, shape, bases, axis_names, strict=True)
+        ):
+            earlier = [(entries[k][0], space) for k, space in enumerate(spaces)]
+            space = _axis_space(session, name, label, size, basis, axis_name, field, earlier)
             if space.dim != size:
                 raise CompileError(
                     f"the index {label} ranges over {space}, of dimension {space.dim}, "
                     f"but this axis of the data has {size} components"
                 )
+            if space.name == axis_name:  # a space a pandas axis names, for later data
+                session.spaces.setdefault(axis_name, space)
+            if basis is not None and space.basis is not None and basis != space.basis:
+                what = f"axis {axis + 1} of {written}"
+                components = _in_basis_order(components, axis, basis, space, what)
             spaces.append(space)
+        if self._backend == "jax" and numerical.is_numerical(components):
+            import jax
+            import jax.numpy as jnp
+
+            _double_precision(jax)
+            components = jnp.asarray(numerical.dense(components))
         indices = Indices(Index(label, upper) for label, upper in entries)
         node = session.graph.const(components, TensorType(indices, tuple(spaces)))
         session.globals.bind(name, TensorBinding(node, indices))
@@ -301,7 +311,7 @@ class Workbook:
         r"""Declare a space for indices to range over, as ``\mathcal{A} :=
         \mathbb{R}^{500}`` does: its ``dim``, or the names of its ``basis``; index
         ``labels`` that range over it; and a ``measure``, weights for its expectations
-        (uniform otherwise)::
+        (uniform otherwise), taken by label from a pandas Series::
 
             >>> wb = Workbook()
             >>> wb.space("assets", basis=["AAPL", "MSFT"], labels="ab")
@@ -314,14 +324,18 @@ class Workbook:
         kind: Literal["real", "complex"] = "complex" if field == "complex" else "real"
         space = Space(name, size, basis=names, field=kind)
         session = self._session
+        if measure is not None:
+            weights, labelled, _ = _data(measure)
+            weights = numerical.numpy().asarray(numerical.dense(weights), dtype=float)
+            if weights.shape != (size,):
+                raise ValueError(f"a measure on {name} has {size} weights")
+            if labelled[0] is not None and names is not None:
+                what = f"the measure on {name}"
+                weights = _in_basis_order(weights, 0, labelled[0], space, what)
+            session.measures[space] = session.graph.const(weights / weights.sum(), SCALAR)
         session.spaces[name] = space
         for label in labels:
             session.labels[label] = space
-        if measure is not None:
-            weights = numerical.numpy().asarray(measure, dtype=float)
-            if weights.shape != (size,):
-                raise ValueError(f"a measure on {name} has {size} weights")
-            session.measures[space] = session.graph.const(weights / weights.sum(), SCALAR)
         return space
 
     @property
@@ -506,6 +520,96 @@ def _copy(array: Any) -> Any:
     if numerical.is_sparse(array):
         return array.copy()
     return numerical.numpy().array(array)
+
+
+def _axis_space(
+    session: Session,
+    name: str,
+    label: str,
+    size: int,
+    basis: tuple[str, ...] | None,
+    axis_name: str | None,
+    field: Literal["real", "complex"],
+    earlier: Sequence[tuple[str, Space]],
+) -> Space:
+    """The space an axis of the data bound to the tensor ``name`` ranges over, given its
+    index ``label`` and the name of its pandas axis, after the ``earlier`` axes' labels
+    and spaces: the rules of :meth:`Workbook.__setitem__`."""
+    declared = session.labels.get(label)
+    if declared is not None:
+        return declared
+    if axis_name is not None:
+        named = session.spaces.get(axis_name)
+        return named if named is not None else Space(axis_name, size, basis=basis, field=field)
+    candidates = [space for other, space in earlier if _alike(other, label)]
+    candidates += _spaces_of_label(session.globals, name, label)
+    for space in candidates:
+        if space.dim == size and _same_elements(space.basis, basis):
+            return space
+    return Space(f"the space of {label}", size, basis=basis, field=field)
+
+
+def _alike(one: str, other: str) -> bool:
+    """Whether two index labels are of a kind: from the same run of the alphabet, a to h
+    as assets a and b are, i to n as nodes i and j, o to z as times s and t; or Greek."""
+    return _run(one) == _run(other)
+
+
+def _run(label: str) -> str:
+    if label in GREEK or label in GREEK_VARIANTS:
+        return "Greek"
+    first = label[:1].lower()
+    for start, end in (("a", "h"), ("i", "n"), ("o", "z")):
+        if start <= first <= end:
+            return start
+    return label  # alike only to itself
+
+
+def _spaces_of_label(scope: Scope, name: str, label: str) -> list[Space]:
+    """The spaces the index ``label`` ranges over in tensors already bound, other than
+    spacetime: in the tensor ``name`` first, then in the others, the latest first."""
+    bindings = list(scope._bindings.items())
+    ordered = [b for n, b in bindings if n == name] + [b for n, b in bindings[::-1] if n != name]
+    return [
+        space
+        for binding in ordered
+        if isinstance(binding, TensorBinding) and isinstance(binding.node.type, TensorType)
+        for index, space in zip(binding.indices, binding.node.type.spaces, strict=True)
+        if index.name == label and not space.spacetime
+    ]
+
+
+def _same_elements(one: tuple[str, ...] | None, other: tuple[str, ...] | None) -> bool:
+    """Whether two bases may name the same elements: they do, or one has no names."""
+    return one is None or other is None or sorted(one) == sorted(other)
+
+
+def _in_basis_order(
+    components: Any, axis: int, basis: tuple[str, ...], space: Space, what: str
+) -> Any:
+    """Data labelled by pandas along ``axis``, put in the order of its space's basis; an
+    error if its labels are not the space's elements."""
+    assert space.basis is not None
+    if sorted(basis) != sorted(space.basis):
+        foreign = [element for element in basis if element not in space.basis]
+        missing = [element for element in space.basis if element not in basis]
+        details = []
+        if foreign:
+            details.append(f"{_listed(foreign)} {'is' if len(foreign) == 1 else 'are'} not one")
+        if missing:
+            details.append(f"{_listed(missing)} {'is' if len(missing) == 1 else 'are'} missing")
+        raise CompileError(
+            f"the labels of {what} are not the elements of {space}: "
+            + ("; ".join(details) if details else "some appear more than once")
+        )
+    position = {element: number for number, element in enumerate(basis)}
+    order = [position[element] for element in space.basis]
+    return numerical.numpy().take(components, order, axis=axis)
+
+
+def _listed(names: Sequence[str]) -> str:
+    shown = ", ".join(names[:3])
+    return shown + (f" and {len(names) - 3} more" if len(names) > 3 else "")
 
 
 def _is_range(axis: Any) -> bool:

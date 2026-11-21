@@ -47,9 +47,15 @@ Space(name='H', dim=2, basis=None, field='complex', spacetime=False)
 
 Data brings its own spaces. Binding `R_{ta}` says that `t` ranges over the rows and
 `a` over the columns, and a label used on a tensor ranges over that tensor's space
-for the rest of the statement, so it need not be declared. With pandas, an axis's
-name names its space and its labels name the space's basis, by which components can
-be taken, as coordinates name the components of a metric:
+for the rest of the statement, so it need not be declared. Binding declares nothing
+beyond that, so `t` can still be a coordinate in \(\Gamma^{t}{}_{tr}\). Data bound
+later shares the space of the same index of a tensor already bound, as `w^a` would
+share the assets of `R_{ta}`, and like indices of one tensor share one space, as both
+of a covariance's do; `t` and `a` are not alike, even when there are as many days as
+assets. With pandas, an axis's name names its space and its labels name the space's
+basis, by which components can be taken, as coordinates name the components of a
+metric. Data is aligned with a space's basis by label, and refused when its labels
+are not the space's:
 
 ```python
 >>> import pandas as pd

@@ -2271,8 +2271,9 @@ class Compiler:
             label = _display(name)
             over = list(dict.fromkeys(space for _, space in found))
             if len(over) > 1:
+                one, other = _apart(over[0], over[1])
                 raise IndexNotationError(
-                    f"index {label} ranges over {over[0]} in one place and {over[1]} in "
+                    f"index {label} ranges over {one} in one place and {other} in "
                     "another; an index ranges over one space",
                     span=span,
                 )
@@ -2338,20 +2339,20 @@ class Compiler:
         if expected is None:
             self._labels[name] = space
         elif expected != space:
+            ranges, written = _apart(expected, space)
             raise IndexNotationError(
-                f"the index {latex_label(name)} ranges over {expected}, but is written "
-                f"here on an axis over {space}",
+                f"the index {latex_label(name)} ranges over {ranges}, but is written "
+                f"here on an axis over {written}",
                 span=span,
             )
 
     def _infer_labels(self, statement: ast.Statement, scope: Scope) -> dict[str, Space]:
         """The spaces of the labels written on tensors with spaces of their own in a
-        statement, found before it is compiled, so that 𝟙_c in 𝟙_c (\\Sigma^{-1})^{cd}
-        knows its space from what comes after it."""
+        statement, found before it is compiled, in the order they are written, so that
+        𝟙_c in 𝟙_c (\\Sigma^{-1})^{cd} knows its space from what comes after it."""
         labels: dict[str, Space] = {}
-        for current in _walk(statement):
-            if not isinstance(current, ast.Scripted):
-                continue
+        scripted = (node for node in _walk(statement) if isinstance(node, ast.Scripted))
+        for current in sorted(scripted, key=lambda node: node.span.start):
             base = current.base
             if isinstance(base, ast.Scripted) and len(base.scripts) == 1:  # (\Sigma^{-1})^{cd}
                 if not _is_minus_one(base.scripts[0].body):
@@ -2370,9 +2371,10 @@ class Compiler:
                     continue
                 expected = labels.get(label) or self.session.labels.get(label)
                 if expected is not None and expected != space:
+                    ranges, written = _apart(expected, space)
                     raise IndexNotationError(
-                        f"the index {latex_label(label)} ranges over {expected}, but is "
-                        f"written here on an axis over {space}",
+                        f"the index {latex_label(label)} ranges over {ranges}, but is "
+                        f"written here on an axis over {written}",
                         span=current.span,
                     )
                 labels[label] = space
@@ -3627,6 +3629,26 @@ def _tensor_pattern_of_one(node: ast.Scripted) -> tuple[str, bool] | None:
     if len(items) != 1 or not _plain_label(items[0]):
         return None
     return str(items[0].label), script.kind == "^"
+
+
+def _apart(one: Space, other: Space) -> tuple[str, str]:
+    """Two different spaces in words that tell them apart: their names, or, where they
+    share a name, as the spaces of one label in two sets of data do, their sizes,
+    elements or fields."""
+    if str(one) != str(other):
+        return str(one), str(other)
+    if one.dim != other.dim:
+        return f"{one}, of dimension {one.dim}", f"{other}, of dimension {other.dim}"
+    if one.basis != other.basis:
+        return f"{one}, {_elements(one)}", f"{other}, {_elements(other)}"
+    return f"{one}, {one.field}", f"{other}, {other.field}"
+
+
+def _elements(space: Space) -> str:
+    if space.basis is None:
+        return "its elements unnamed"
+    shown = ", ".join(space.basis[:3])
+    return f"of {shown}{', ...' if len(space.basis) > 3 else ''}"
 
 
 def _spaces(node: Node) -> tuple[Space, ...] | None:

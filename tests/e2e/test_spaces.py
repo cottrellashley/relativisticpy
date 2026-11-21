@@ -53,11 +53,61 @@ class TestSpaces:
         with pytest.raises(IndexNotationError, match="ranges over"):
             wb.expr(r"R_{\mu a} w^a")
 
+    def test_binding_declares_nothing(self, wb):
+        # t ranges over days where it is written on R, and is a coordinate elsewhere.
+        wb["R_{ta}"] = RETURNS
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        m, r = sympy.symbols("M r")
+        assert sympy.simplify(wb.expr(r"\Gamma^{t}_{tr}") - m / (r * (r - 2 * m))) == 0
+        # and the same label may range over another number of days in other data
+        wb["X_{ta}"] = RETURNS[:20]
+        assert wb["X"].spaces[0].dim == 20
+        message = "the space of t, of dimension 300, but is written here on an axis over the"
+        with pytest.raises(IndexNotationError, match=message):
+            wb.expr(r"R_{ta} X_{tb}")
+
+    def test_a_square_matrix_of_data_keeps_its_spaces_apart(self, wb):
+        wb["R_{ta}"] = np.eye(3)  # three days of three assets
+        assert wb["R"].spaces[0] != wb["R"].spaces[1]
+        with pytest.raises(IndexNotationError, match="ranges over"):
+            wb.expr(r"R_{ta} R_{at}")
+        wb["S_{ab}"] = np.eye(3)  # a and b are alike: a covariance is over one space
+        assert wb["S"].spaces[0] == wb["S"].spaces[1]
+
+    def test_like_indices_of_other_tensors_share_a_space(self, wb):
+        wb["S_{ab}"] = np.diag([1.0, 2.0])
+        wb["v^b"] = np.array([1.0, 1.0])
+        assert wb.expr(r"v^a S_{ab} v^b") == pytest.approx(3.0)
+
     def test_component_names_come_from_the_basis(self, wb):
         tickers = ["AAPL", "MSFT", "NVDA"]
         wb["w^a"] = pd.Series([0.5, 0.3, 0.2], index=pd.Index(tickers, name="assets"))
         assert wb.expr(r"w^{a:MSFT}") == pytest.approx(0.3)
         assert wb["w"].to_pandas().index.tolist() == tickers
+
+    def test_pandas_data_is_aligned_by_label(self, wb):
+        tickers = pd.Index(["AAPL", "MSFT", "NVDA"], name="assets")
+        wb["w^a"] = pd.Series([0.5, 0.3, 0.2], index=tickers)
+        reordered = pd.Index(["NVDA", "AAPL", "MSFT"], name="assets")
+        wb["v_b"] = pd.Series([1.0, 2.0, 3.0], index=reordered)
+        assert wb.expr(r"v_{b:NVDA}") == pytest.approx(1.0)
+        assert wb.expr(r"w^a v_a") == pytest.approx(0.5 * 2 + 0.3 * 3 + 0.2 * 1)
+        frame = pd.DataFrame([[1.0, 2.0], [3.0, 4.0]], columns=pd.Index(["x", "y"], name="pair"))
+        wb["P_{tc}"] = frame
+        wb["Q_{tc}"] = frame[["y", "x"]]
+        assert np.allclose(wb.expr(r"P_{tc} - Q_{tc}").to_numpy(), 0)
+        other = pd.Index(["AAPL", "MSFT", "GOOG"], name="assets")
+        with pytest.raises(CompileError, match="not the elements of assets: GOOG is not one"):
+            wb["x_a"] = pd.Series([1.0, 2.0, 3.0], index=other)
+
+    def test_a_measure_is_taken_by_label(self, wb):
+        days = ["d1", "d2", "d3"]
+        weights = pd.Series([1.0, 0.0, 0.0], index=["d3", "d2", "d1"])
+        wb.space("days", basis=days, labels="t", measure=weights)
+        wb["R_{ta}"] = pd.DataFrame([[1.0], [2.0], [4.0]], index=pd.Index(days, name="days"))
+        assert wb.expr(r"\mathbb{E}_t[R_{ta}]").to_numpy() == pytest.approx([4.0])
+        with pytest.raises(CompileError, match="x is not one; d3 is missing"):
+            wb.space("days", basis=days, measure=pd.Series([1.0, 1.0, 1.0], ["d1", "d2", "x"]))
 
 
 class TestData:
