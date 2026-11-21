@@ -106,8 +106,8 @@ Sean Carroll's *Lecture Notes on General Relativity*
 ([arXiv:gr-qc/9712019](https://arxiv.org/abs/gr-qc/9712019)) are the
 benchmark for this feature. Of their 797 display equations, 787 (98.7%)
 parse. The other ten are mostly words laid out as matrices. Checked from end
-to end, in under three seconds, 103 statements hold, 44 of them with sides
-that are not both zero.
+to end, in about four seconds, 91 statements hold, 48 of them with sides that
+are not both zero.
 
 The notes' chapter on the Schwarzschild solution makes 25 claims about the
 general spherically symmetric metric: twelve Christoffel symbols, eight
@@ -124,11 +124,16 @@ metric as \(12G^2M^2/r^6\). The check finds \(48G^2M^2/r^6\), the established
 value. The conclusion drawn from it, that \(r = 0\) is a true singularity,
 stands.
 
-Most of the notes concern tensors on general manifolds, without components, so
-most of their statements are not understood: there is nothing to compute. Two
-conventions that would let more of them be checked are not read yet: \(x^\mu\)
-as the coordinates themselves, and coordinates as functions along a curve,
-\(x^\mu(\lambda)\), in the geodesic equation.
+Most of the notes concern tensors on general manifolds, without components.
+Their equations are read as [index notation](notation.md), and those that are
+identities are verified as such: four, among them
+\(g^{\mu\nu} g_{\nu\sigma} = \delta^\mu_\sigma\) and the definition of the
+Einstein tensor. Laws, such as Einstein's equation, are read but are not
+identities. Many more statements take derivatives of tensors without
+components, which index notation does not take yet, and so are not understood.
+Two conventions that would let more of them be checked are not read yet either:
+\(x^\mu\) as the coordinates themselves, and coordinates as functions along a
+curve, \(x^\mu(\lambda)\), in the geodesic equation.
 
 ## The corpus
 
