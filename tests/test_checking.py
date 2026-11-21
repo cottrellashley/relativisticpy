@@ -1,6 +1,7 @@
 r"""Checking documents: every statement gets a verdict, in the document's order."""
 
 import io
+import re
 import runpy
 import sys
 import tarfile
@@ -17,6 +18,7 @@ from relativisticpy.documents import Document
 from relativisticpy.runtime import executor
 
 BENCHMARKS = Path(__file__).parent.parent / "benchmarks"
+DOCS = Path(__file__).parent.parent / "docs"
 PAPER = r"""
 \documentclass{article}
 \newcommand{\be}{\begin{equation}}
@@ -313,6 +315,17 @@ def test_the_corpus_is_unpacked_on_pythons_without_extraction_filters(tmp_path, 
     corpus["unpack"](archive.getvalue(), tmp_path / "src")
     assert (tmp_path / "src" / "notes" / "paper.tex").read_bytes() == paper
     assert not (tmp_path / "outside.tex").exists()
+
+
+def test_the_table_of_the_corpus_agrees_with_its_prose():
+    # docs/checking.md gives the numbers of benchmarks/corpus.py for Carroll's notes twice.
+    text = (DOCS / "checking.md").read_text(encoding="utf-8")
+    row = re.search(r"\| Carroll, .* \| (\d+) \| ([\d.]+)% \| (\d+) \| \d+ \|", text)
+    assert row is not None
+    equations, parsed, hold = row.groups()
+    assert f"Of their {equations} display equations" in text
+    assert f"({parsed}%)\nparse" in text
+    assert f" {hold} statements hold" in text
 
 
 def test_a_statement_can_be_given_a_time_limit():

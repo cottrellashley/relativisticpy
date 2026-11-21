@@ -73,8 +73,8 @@ fails in one statement is a finding about it, and the check goes on.
 | ✗ | differs | the two sides are not identically equal: an error, or an equation to solve, such as a condition or an equation of motion. The finding shows the difference |
 | = | defines | a definition, which the equations after it use |
 | → | computes | an expression, computed, or an equation in index notation that is not an identity, such as a field equation |
-| ~ | not computed | a relation that RelativisticPy reads but does not decide, such as ≈, ∝ or →, or an equation that is neither proven nor shown to differ |
-| ? | not understood | read, but needing context that RelativisticPy does not have, such as the components of an abstract tensor |
+| ~ | not computed | a relation that RelativisticPy reads but does not decide, such as ≈, ∝ or →; an equation that is neither proven nor shown to differ; or a statement over its time limit |
+| ? | not understood | read, but needing context that RelativisticPy does not have, such as the components of an abstract tensor, or failing in RelativisticPy itself |
 | ! | not parsed | not yet RelativisticPy |
 
 An equation holds when it is proven. Its sums, products and integrals are carried
@@ -126,7 +126,7 @@ Sean Carroll's *Lecture Notes on General Relativity*
 ([arXiv:gr-qc/9712019](https://arxiv.org/abs/gr-qc/9712019)) are the
 benchmark for this feature. Of their 797 display equations, 787 (98.7%)
 parse. The other ten are mostly words laid out as matrices. Checked from end
-to end, in about four seconds, 91 statements hold, 48 of them with sides that
+to end, in under five seconds, 95 statements hold, 52 of them with sides that
 are not both zero.
 
 The notes' chapter on the Schwarzschild solution makes 25 claims about the
@@ -167,12 +167,12 @@ uv run python benchmarks/corpus.py
 
 | Paper | Equations | Parse | Hold | Differ |
 |---|---:|---:|---:|---:|
-| Carroll, *Lecture Notes on General Relativity* | 797 | 98.7% | 103 | 162 |
-| gr-qc 2611.26560 | 31 | 71.0% | 0 | 11 |
-| gr-qc 2611.26576 | 305 | 43.0% | 0 | 81 |
+| Carroll, *Lecture Notes on General Relativity* | 797 | 98.7% | 95 | 132 |
+| gr-qc 2611.26560 | 31 | 71.0% | 1 | 11 |
+| gr-qc 2611.26576 | 305 | 43.0% | 0 | 61 |
 | gr-qc 2611.26585 | 270 | 63.0% | 2 | 30 |
-| gr-qc 2611.26591 | 27 | 88.9% | 0 | 11 |
-| gr-qc 2611.26594 | 63 | 85.7% | 1 | 8 |
+| gr-qc 2611.26591 | 27 | 88.9% | 0 | 10 |
+| gr-qc 2611.26594 | 63 | 87.3% | 1 | 9 |
 | gr-qc 2611.26620 | 47 | 72.3% | 0 | 8 |
 
 The recent papers lean on their own notation, from physics packages to
