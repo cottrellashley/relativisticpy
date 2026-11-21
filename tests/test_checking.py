@@ -195,19 +195,20 @@ def test_no_statement_stops_a_check():
 
 
 def test_a_failure_of_relativisticpy_is_a_finding(monkeypatch):
-    def broken(self, output):
+    def broken(self, source, *, name="<input>"):
         raise RuntimeError("something broke")
+        yield  # a generator, as Workbook.each is
 
-    monkeypatch.setattr(Workbook, "_present", broken)
+    monkeypatch.setattr(Workbook, "each", broken)
     report = Workbook().check(Document(PAPER))
     assert verdicts(report) == [
-        (8, Verdict.DEFINES),  # definitions present nothing
+        (8, Verdict.NOT_UNDERSTOOD),
         (10, Verdict.NOT_UNDERSTOOD),
         (16, Verdict.NOT_UNDERSTOOD),
-        (17, Verdict.NOT_COMPUTED),
-        (19, Verdict.NOT_PARSED),
+        (17, Verdict.NOT_UNDERSTOOD),
+        (19, Verdict.NOT_PARSED),  # whose equation does not parse
     ]
-    assert report.findings[1].detail == "failed: RuntimeError: something broke"
+    assert report.findings[0].detail == "failed: RuntimeError: something broke"
 
 
 @pytest.mark.parametrize(
