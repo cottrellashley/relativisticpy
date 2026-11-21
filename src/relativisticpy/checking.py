@@ -35,6 +35,7 @@ from relativisticpy.abstract import IndexEquation
 from relativisticpy.documents import Document, Equation, math_blocks
 from relativisticpy.errors import CompileError, EvaluationError, ParseError
 from relativisticpy.language import Span
+from relativisticpy.runtime.kernels import differs
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import tidy
 
@@ -211,9 +212,16 @@ def _judge(value: Any) -> tuple[Verdict, str]:
         return Verdict.DIFFERS, f"component {index}: {_short(equation)}"
     if isinstance(value, sympy.Equality):
         lhs, rhs = value.lhs, value.rhs
-        if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr):
+        if not (isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr)):
+            return Verdict.DIFFERS, f"{_short(lhs)} is not {_short(rhs)}"
+        # Not proven equal. Numbers tell an equation that is false from one that is not
+        # proven: the first differs wherever it is tried, the second agrees somewhere.
+        shown = differs(lhs, rhs)
+        if shown:
             return Verdict.DIFFERS, f"the left side minus the right is {_short(tidy(lhs - rhs))}"
-        return Verdict.DIFFERS, f"{_short(lhs)} is not {_short(rhs)}"
+        if shown is None:
+            return Verdict.NOT_COMPUTED, "not decided: the sides could not be computed as numbers"
+        return Verdict.NOT_COMPUTED, "the sides agree numerically, but this was not proven"
     return Verdict.COMPUTES, _short(value)
 
 

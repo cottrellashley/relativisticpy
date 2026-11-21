@@ -59,13 +59,23 @@ for each statement.
 
 | | Verdict | Meaning |
 |---|---|---|
-| ✓ | holds | an identity, verified exactly: component by component, or, for an equation in [index notation](notation.md) without components, as notation. If both sides are zero the finding says so: such an equation may hold only because space is flat there, or its quantities are not yet defined |
+| ✓ | holds | an identity, proven: component by component, or, for an equation in [index notation](notation.md) without components, as notation. If both sides are zero the finding says so: such an equation may hold only because space is flat there, or its quantities are not yet defined |
 | ✗ | differs | the two sides are not identically equal: an error, or an equation to solve, such as a condition or an equation of motion. The finding shows the difference |
 | = | defines | a definition, which the equations after it use |
 | → | computes | an expression, computed, or an equation in index notation that is not an identity, such as a field equation |
-| ~ | not computed | a relation that RelativisticPy reads but does not decide, such as ≈, ∝ or → |
+| ~ | not computed | a relation that RelativisticPy reads but does not decide, such as ≈, ∝ or →, or an equation that is neither proven nor shown to differ |
 | ? | not understood | read, but needing context that RelativisticPy does not have, such as the components of an abstract tensor |
 | ! | not parsed | not yet RelativisticPy |
+
+An equation holds when it is proven. Its sums, products and integrals are carried
+out, and the difference of its sides must vanish, exactly or, between
+floating-point numbers, to a relative 10⁻¹²: `0.1 + 0.2 = 0.3` holds. When no
+proof is found, numbers tell the other two cases apart. The symbols are given
+positive values, and functions that nothing defines, such as `\alpha(r)`, random
+polynomials. An equation whose sides differ wherever they are tried differs; one
+whose sides agree, as \(\sqrt{x^2} = x\) does for positive x, or cannot be
+computed, is not decided. A side that is exactly zero has no size for a
+floating-point number to be compared with, so `0.1 + 0.2 - 0.3 = 0` differs.
 
 ## How a document is read
 

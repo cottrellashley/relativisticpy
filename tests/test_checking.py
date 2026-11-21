@@ -3,6 +3,7 @@ r"""Checking documents: every statement gets a verdict, in the document's order.
 import time
 
 import pytest
+import sympy
 
 from relativisticpy import Workbook
 from relativisticpy.checking import Verdict, _time_limit
@@ -35,6 +36,13 @@ Here $r$ is something else: \be r = 2, \qquad r^2, \qquad \Gamma^r_{rr} = 0, \qq
 
 def verdicts(report):
     return [(finding.line, finding.verdict) for finding in report.findings]
+
+
+def judged(equation):
+    """The verdict on a document of one equation, and why."""
+    report = Workbook().check(Document(rf"\begin{{equation}} {equation} \end{{equation}}"))
+    [finding] = report.findings
+    return finding.verdict, finding.detail
 
 
 def test_every_statement_gets_a_verdict():
@@ -90,6 +98,62 @@ def test_index_notation_is_checked_as_notation():
         (Verdict.HOLDS, "an identity of index notation"),
         (Verdict.COMPUTES, r"index notation, not an identity: G_{\mu\nu} = 8 \pi G T_{\mu\nu}"),
     ]
+
+
+class TestScalarEquations:
+    """An equation holds when it is proven; numbers tell one that differs from one that
+    is not decided."""
+
+    @pytest.mark.parametrize(
+        "identity",
+        [
+            r"\sum_{n=1}^{3} n = 6",
+            r"\cosh^2 x - \sinh^2 x = 1",
+            r"\sin^2(x/2) = (1 - \cos x)/2",
+            r"\cos^2 1 + \sin^2 1 = 1",
+            "0.1 + 0.2 = 0.3",
+            r"1.1 \times 3 = 3.3",
+            r"1.1 x \times 3 = 3.3 x",
+            r"\partial_r (\alpha(r)^2) = 2 \alpha(r) \partial_r \alpha(r)",
+        ],
+    )
+    def test_identities_hold(self, identity):
+        assert judged(identity) == (Verdict.HOLDS, "")
+
+    @pytest.mark.parametrize(
+        ("equation", "difference"),
+        [
+            ("x^2 + y^2 = 1", "x**2 + y**2 - 1"),
+            ("0.1 + 0.2 = 0.30001", "-9.99999999995449e-6"),
+            # not an identity of every function alpha, so not one at all
+            (r"\partial_r (\alpha(r)^2) = \alpha(r) \partial_r \alpha(r)", "alpha(r)*Derivative"),
+        ],
+    )
+    def test_equations_that_numbers_refute_differ(self, equation, difference):
+        verdict, detail = judged(equation)
+        assert verdict is Verdict.DIFFERS
+        assert detail.startswith(f"the left side minus the right is {difference}")
+
+    @pytest.mark.parametrize("equation", [r"\sqrt{x^2} = x", r"\log(a b) = \log a + \log b"])
+    def test_equations_true_only_where_they_were_tried_are_not_decided(self, equation):
+        # True for positive numbers, but not proven: not a mistake in the text either
+        assert judged(equation) == (
+            Verdict.NOT_COMPUTED,
+            "the sides agree numerically, but this was not proven",
+        )
+
+    def test_equations_that_are_not_numbers_are_not_decided(self):
+        assert judged(r"\lim_{x \to \infty} f(x) = 1") == (
+            Verdict.NOT_COMPUTED,
+            "not decided: the sides could not be computed as numbers",
+        )
+
+    def test_values_keep_their_types(self):
+        x = sympy.Symbol("x")
+        wb = Workbook()
+        assert wb.expr("0.1 + 0.2 = 0.3") is sympy.true
+        assert wb.expr("0.1 + 0.2 = 0.30001") is sympy.false
+        assert wb.expr(r"\sqrt{x^2} = x") == sympy.Eq(sympy.sqrt(x**2), x)
 
 
 def test_the_summary_counts_verdicts():

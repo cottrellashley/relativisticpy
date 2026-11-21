@@ -3,13 +3,21 @@ which :mod:`relativisticpy.tensors.numerical` computes with NumPy."""
 
 from __future__ import annotations
 
+import cmath
+import math
+import random
 from collections.abc import Callable
 from dataclasses import dataclass
+from fractions import Fraction
 from functools import reduce, singledispatch
 from typing import TYPE_CHECKING, Any
 
 import sympy
 from sympy import ImmutableDenseNDimArray, ImmutableMatrix
+from sympy.core.function import AppliedUndef
+from sympy.functions.elementary.hyperbolic import HyperbolicFunction
+from sympy.functions.elementary.trigonometric import TrigonometricFunction
+from sympy.polys.monomials import itermonomials
 
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
@@ -216,8 +224,10 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
             rhs if isinstance(rhs, sympy.NDimArray) else arrays.zeros(array.shape[0], array.rank())
         )
         return TensorEquation(lhs, rhs)
-    if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr) and is_zero(lhs - rhs):
-        return sympy.true  # an identity, decided exactly, as tensor equations are
+    if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr):
+        decided = _proven(lhs, rhs)
+        if decided is not None:
+            return sympy.true if decided else sympy.false
     return sympy.Eq(lhs, rhs)
 
 
@@ -277,3 +287,225 @@ def _is_matrix(value: Any) -> bool:
 
 def _array(matrix: ImmutableMatrix) -> ImmutableDenseNDimArray:
     return ImmutableDenseNDimArray(matrix.tolist())
+
+
+# -- scalar equations ----------------------------------------------------------------
+
+#: Floating-point numbers are equal when they differ by at most this, relative to their size.
+TOLERANCE = 1e-12
+# Above this many operations a difference is not simplified, as simplify can take minutes.
+_SIMPLIFY_LIMIT = 60
+_UNEVALUATED = (sympy.Sum, sympy.Product, sympy.Integral, sympy.Limit, sympy.Derivative)
+_TRANSCENDENTAL = (TrigonometricFunction, HyperbolicFunction)
+_ARRAYS = (sympy.NDimArray, sympy.MatrixBase)
+
+
+def _proven(lhs: sympy.Expr, rhs: sympy.Expr) -> bool | None:
+    """Whether the two sides of a scalar equation are equal: ``True`` when that is proven,
+    ``False`` when two numbers differ, and ``None`` when neither is known.
+
+    Sums, products and integrals are carried out first. Exactly, the difference of the
+    sides must vanish. Floating-point numbers are equal to a relative :data:`TOLERANCE`,
+    so ``0.1 + 0.2 = 0.3`` holds; in an expression, each is first replaced by the simplest
+    fraction within it.
+    """
+    if lhs == rhs:
+        return True
+    if lhs.atoms(*_ARRAYS) or rhs.atoms(*_ARRAYS):  # a list inside a function, from \pm
+        return True if is_zero(lhs - rhs) else None
+    lhs, rhs = _carried_out(lhs), _carried_out(rhs)
+    if lhs.has(sympy.Float) or rhs.has(sympy.Float):
+        if lhs.is_number and rhs.is_number:
+            return _close(lhs, rhs)
+        lhs, rhs = _rounded(lhs), _rounded(rhs)
+    if is_zero(lhs - rhs) or _simplifies_to_zero(lhs, rhs):
+        return True
+    return None
+
+
+def _carried_out(expr: sympy.Expr) -> sympy.Expr:
+    """``expr`` with its sums, products, integrals, limits and derivatives carried out."""
+    if not expr.has(*_UNEVALUATED):
+        return expr
+    try:
+        done = expr.doit()
+    except Exception:  # SymPy cannot carry it out: the equation is judged as written
+        return expr
+    return done if isinstance(done, sympy.Expr) else expr
+
+
+def _close(lhs: sympy.Expr, rhs: sympy.Expr) -> bool | None:
+    """Whether two numbers agree to the relative :data:`TOLERANCE` (``None`` if one of
+    them is not a finite number)."""
+    try:
+        left, right = complex(lhs), complex(rhs)
+    except (TypeError, ValueError):
+        return None
+    if not all(cmath.isfinite(value) for value in (left, right)):
+        return None
+    return abs(left - right) <= TOLERANCE * max(abs(left), abs(right))
+
+
+def _rounded(expr: sympy.Expr) -> sympy.Expr:
+    """``expr`` with each floating-point number replaced by the simplest fraction within
+    the :data:`TOLERANCE`, so that exact algebra compares expressions to that tolerance:
+    ``1.1 \\times 3`` and ``3.3`` both become 33/10, and an exponent 2.8333... 17/6."""
+    fractions = {}
+    for number in expr.atoms(sympy.Float):
+        if number.is_finite:
+            exact = sympy.Rational(number)  # the number's binary value, exactly
+            fractions[number] = _simplest_fraction(Fraction(int(exact.p), int(exact.q)))
+    return expr.xreplace(fractions)
+
+
+def _simplest_fraction(exact: Fraction) -> sympy.Rational:
+    """The first convergent of the continued fraction of ``exact`` within the
+    :data:`TOLERANCE`, relative to it: the fraction with the smallest denominator, near
+    enough."""
+    # The convergents h/k, from their recurrence h = a h' + h'', k = a k' + k''.
+    h, h_before, k, k_before = 1, 0, 0, 1
+    rest = abs(exact)
+    while True:
+        whole = math.floor(rest)
+        h, h_before, k, k_before = whole * h + h_before, h, whole * k + k_before, k
+        if abs(Fraction(h, k) - abs(exact)) <= TOLERANCE * abs(exact) or rest == whole:
+            return sympy.Rational(h if exact >= 0 else -h, k)
+        rest = 1 / (rest - whole)
+
+
+def _simplifies_to_zero(lhs: sympy.Expr, rhs: sympy.Expr) -> bool:
+    """A bounded attempt to prove the sides equal where :func:`is_zero` could not: with
+    trigonometric and hyperbolic functions written as exponentials, as for
+    :math:`\\cosh^2 x - \\sinh^2 x = 1`, then with :func:`sympy.simplify`. Simplifying is
+    slow, so it is tried only on a small difference that :func:`is_zero` does not already
+    decide, and that numbers do not show to be nonzero."""
+    difference = lhs - rhs
+    if sympy.count_ops(difference) > _SIMPLIFY_LIMIT:
+        return False
+    try:
+        if difference.has(*_TRANSCENDENTAL) and is_zero(difference.rewrite(sympy.exp)):
+            return True
+        if not _beyond_algebra(difference) or differs(lhs, rhs, samples=1):
+            return False
+        return bool(sympy.simplify(difference) == 0)
+    except Exception:  # SymPy fails on some expressions: then nothing is proven
+        return False
+
+
+def _beyond_algebra(expr: sympy.Expr) -> bool:
+    """Whether ``expr`` is more than a rational function of symbols, exponentials and
+    undefined functions and their derivatives, which :func:`is_zero` decides exactly;
+    or whether it is a number, which :func:`is_zero` does not try to prove zero."""
+    if expr.is_number:
+        return True
+    for node in sympy.preorder_traversal(expr):
+        if isinstance(node, sympy.Pow) and not node.exp.is_Integer:
+            return True
+        if isinstance(node, sympy.Function) and not isinstance(node, AppliedUndef | sympy.exp):
+            return True
+    return False
+
+
+def differs(lhs: sympy.Expr, rhs: sympy.Expr, samples: int = 3) -> bool | None:
+    """Whether numbers show that the two sides of an equation not proven to hold differ:
+    ``True`` if they do wherever they are tried, ``False`` if they agree somewhere, and
+    ``None`` if they cannot be computed as numbers.
+
+    Each symbol is given a positive value, or a whole one if it is an integer or the limit
+    of a sum, and each function that nothing defines, such as ``\\alpha(r)``, a random
+    polynomial. An identity in every such function agrees; an equation that is not one
+    differs, but for a coincidence. The points are the same every time, so that verdicts
+    do not change from one run to the next.
+    """
+    if lhs.atoms(*_ARRAYS) or rhs.atoms(*_ARRAYS):
+        return None  # \Gamma(n, \pm x) holds a list: it is not one number
+    arities: dict[Any, int] = {}
+    for application in lhs.atoms(AppliedUndef) | rhs.atoms(AppliedUndef):
+        if arities.setdefault(application.func, len(application.args)) != len(application.args):
+            return None  # f(x) and f(x, y): no one polynomial stands for f
+    symbols = sorted(lhs.free_symbols | rhs.free_symbols, key=str)
+    functions = sorted(arities.items(), key=lambda item: str(item[0]))
+    floats = lhs.has(sympy.Float) or rhs.has(sympy.Float)
+    bounds = {  # the limits of a sum or a product are whole numbers
+        symbol
+        for side in (lhs, rhs)
+        for operation in side.atoms(sympy.Sum, sympy.Product)
+        for limit in operation.limits
+        for symbol in sympy.Tuple(*limit[1:]).free_symbols
+    }
+    rng = random.Random(0)
+    verdicts = []
+    for _ in range(samples):
+        values = {symbol: _value(symbol, rng, symbol in bounds) for symbol in symbols}
+        polynomials = {function: _polynomial(arity, rng) for function, arity in functions}
+        verdicts.append(_differs_at(lhs, rhs, values, polynomials, floats))
+    if any(verdict is False for verdict in verdicts):
+        return False
+    return True if any(verdicts) else None
+
+
+def _value(symbol: sympy.Symbol, rng: random.Random, whole: bool) -> sympy.Expr:
+    """A value for a symbol, exact so that terms that cancel are seen to."""
+    if whole or symbol.is_integer:
+        value = sympy.Integer(rng.randrange(5, 60))
+    else:
+        value = sympy.Rational(rng.randrange(300, 2000), 1009)  # between 0.3 and 2
+    return -value if symbol.is_negative or symbol.is_nonpositive else value
+
+
+def _polynomial(arity: int, rng: random.Random) -> sympy.Lambda:
+    """A random polynomial of degree 3 in ``arity`` variables."""
+    variables = sympy.symbols(f"v:{arity}")
+    monomials = sorted(itermonomials(variables, 3), key=sympy.default_sort_key)
+    terms = [sympy.Rational(rng.randrange(-1000, 1000), 997) * m for m in monomials]
+    return sympy.Lambda(variables, sympy.Add(*terms))
+
+
+def _differs_at(
+    lhs: sympy.Expr,
+    rhs: sympy.Expr,
+    values: dict[sympy.Symbol, sympy.Expr],
+    polynomials: dict[Any, sympy.Lambda],
+    floats: bool,
+) -> bool | None:
+    """Whether the sides differ at one point (``None`` if they cannot be computed there).
+    Exact sides differ when their difference has a significant digit; with floating-point
+    numbers, they must also differ by more than the :data:`TOLERANCE`."""
+
+    def concrete(expr: sympy.Expr) -> sympy.Expr:
+        return expr.replace(
+            lambda e: isinstance(e, AppliedUndef), lambda e: polynomials[e.func](*e.args)
+        ).replace(lambda e: isinstance(e, sympy.Derivative | sympy.Subs), lambda e: e.doit())
+
+    try:
+        difference = concrete(lhs - rhs)
+        if not _computable(difference):
+            return None
+        value = sympy.N(difference, 30, subs=values)
+        if value == 0:
+            return False
+        parts = [part for part in value.as_real_imag() if part != 0]
+        if not all(part.is_Float and part.is_finite for part in parts):
+            return None  # not a number, or not a finite one
+        if all(part._prec <= 1 for part in parts):
+            # No digit is significant: the terms cancel, or an integral did not converge.
+            return None if difference.has(sympy.Integral) else False
+        if not floats:
+            return True
+        left, right = (complex(sympy.N(concrete(side), 30, subs=values)) for side in (lhs, rhs))
+    except Exception:  # SymPy cannot compute it here
+        return None
+    return abs(left - right) > TOLERANCE * max(abs(left), abs(right))
+
+
+def _computable(expr: sympy.Expr) -> bool:
+    """Whether numbers for ``expr`` can be trusted, and come quickly: it has no limit, and no
+    sum, product or integral to infinity."""
+    if expr.has(sympy.Limit):
+        return False
+    return not any(
+        bound.has(sympy.oo, -sympy.oo, sympy.zoo)
+        for operation in expr.atoms(sympy.Sum, sympy.Product, sympy.Integral)
+        for limit in operation.limits
+        for bound in limit[1:]
+    )
