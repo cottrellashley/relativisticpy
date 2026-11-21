@@ -12,8 +12,9 @@ from helpers import same
 from relativisticpy import Workbook
 from relativisticpy.documents import strip_comments
 
-EXAMPLES = Path(__file__).parent.parent / "examples"
-DESIGN = Path(__file__).parent.parent / "design"
+ROOT = Path(__file__).parent.parent
+EXAMPLES = ROOT / "examples"
+DESIGN = ROOT / "design"
 t = Symbol("t")
 
 
@@ -47,6 +48,16 @@ def test_what_tools_leave_among_the_examples_is_not_one(tmp_path):
         (tmp_path / name).write_text("")
     (tmp_path / "__pycache__").mkdir()
     assert examples(tmp_path) == {"orbit.md"}
+
+
+def test_the_source_distribution_has_what_the_tests_read():
+    tomllib = pytest.importorskip("tomllib")
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    include = config["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    # Anchored, a pattern matches only where it says: README.md alone matches every one.
+    assert all(pattern.startswith("/") for pattern in include)
+    for read in ("/tests", "/examples", "/docs/*.md", "/design/spaces.md", "/benchmarks"):
+        assert read in include
 
 
 def test_schwarzschild():

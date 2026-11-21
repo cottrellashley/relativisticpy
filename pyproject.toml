@@ -70,7 +70,20 @@ docs = ["mkdocs-material>=9.5"]
 packages = ["src/relativisticpy"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/relativisticpy", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
+# Anchored at the root, since a bare README.md would match examples/README.md too. The
+# examples, the pages of the docs, the design note and the corpus benchmark are there
+# for the tests, which read them.
+include = [
+    "/src/relativisticpy",
+    "/tests",
+    "/examples",
+    "/docs/*.md",
+    "/design/spaces.md",
+    "/benchmarks",
+    "/README.md",
+    "/CHANGELOG.md",
+    "/LICENSE",
+]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
