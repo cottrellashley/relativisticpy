@@ -83,11 +83,14 @@ class Context:
 @dataclass(frozen=True)
 class Output:
     """A value the program shows: the node to compute, where it was written and,
-    for a tensor such as ``Ric_{ab}``, the name it was written with."""
+    for a tensor such as ``Ric_{ab}``, the name it was written with. A ``note`` says
+    how the statement was read where that could surprise, as when ``K = ...`` compares
+    a name that already has a value rather than giving it a new one."""
 
     node: Node
     span: Span
     name: str | None = None
+    note: str | None = None
 
 
 # -- operators: compile-time values that act on the factor after them ------------

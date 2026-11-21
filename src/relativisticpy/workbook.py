@@ -3,7 +3,7 @@ r"""The :class:`Workbook`: a session in which RelativisticPy programs run."""
 from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
 from typing import Any, Literal
@@ -98,7 +98,9 @@ class Workbook:
                     failure = EvaluationError(message, span=piece.span)
                     yield Step(piece.span, piece, error=failure)
                 else:
-                    yield Step(piece.span, piece, values, sides=self._sides(piece))
+                    notes = [output.note for output in outputs if output.note]
+                    sides = self._sides(piece)
+                    yield Step(piece.span, piece, values, sides=sides, notes=notes)
 
     def _sides(self, statement: ast.Statement) -> tuple[Any, Any] | None:
         """The values of an equation's two sides, for saying how they differ."""
@@ -434,6 +436,7 @@ class Step:
     values: list[Any] | None = None
     error: RelativisticPyError | None = None
     sides: tuple[Any, Any] | None = None  # an equation's two sides, as computed
+    notes: list[str] = field(default_factory=list)  # how the statement was read
 
     @property
     def zero(self) -> bool:

@@ -16,6 +16,7 @@ compiler :class:`CompileError` and the executor :class:`EvaluationError`.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -23,18 +24,28 @@ if TYPE_CHECKING:
 
 
 class RelativisticPyError(Exception):
-    """Base class for every error raised by RelativisticPy."""
+    """Base class for every error raised by RelativisticPy. ``notes`` say why, or give
+    context, such as where something was defined; ``hint`` says how to fix it."""
 
-    def __init__(self, message: str, *, span: Span | None = None, hint: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        span: Span | None = None,
+        hint: str | None = None,
+        notes: Sequence[str] = (),
+    ):
         super().__init__(message)
         self.message = message
         self.span = span
         self.hint = hint
+        self.notes = list(notes)
 
     def __str__(self) -> str:
         parts = [self.message]
         if self.span is not None:
             parts.append(self.span.render())
+        parts.extend(f"note: {note}" for note in self.notes)
         if self.hint is not None:
             parts.append(f"hint: {self.hint}")
         return "\n".join(parts)
