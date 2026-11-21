@@ -73,7 +73,8 @@ class Executor:
                 continue
             args = [known[arg.key] for arg in current.args]
             try:
-                if isinstance(current.op, ops.Equation):  # decided to rounding error in these
+                if isinstance(current.op, ops.Equation) and numerical.involves(args):
+                    # numbers are decided to rounding error in what they were computed from
                     with numerical.operands(_operand_scale(current, known)):
                         known[current.key] = execute(current.op, args, self)
                 else:

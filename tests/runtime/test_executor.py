@@ -1,5 +1,8 @@
 """The executor: lazy, cached, and parallel when asked."""
 
+import subprocess
+import sys
+
 import pytest
 import sympy
 from sympy import Array, Symbol
@@ -75,3 +78,21 @@ def test_workers_default_to_the_cpu_count():
 
 def test_close_without_a_pool_is_harmless():
     Executor().close()
+
+
+def test_symbolic_equations_need_no_numpy():
+    # Numbers are decided to rounding error in what they were computed from; symbols,
+    # which the core computes with SymPy alone, never need NumPy for it.
+    script = "\n".join(
+        [
+            "import sys",
+            "sys.modules['numpy'] = None",
+            "from relativisticpy import Workbook",
+            "wb = Workbook()",
+            "wb.exe('Coordinates := [t, x]\\nT_{ab} := [[0, 0], [0, 0]]')",
+            "assert wb.expr('T_{ab} = 0')",
+            "assert wb.expr('x + x = 2 x')",
+        ]
+    )
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
