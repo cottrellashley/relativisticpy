@@ -1,8 +1,11 @@
 # Spaces and domains: one notation, from spacetime to a portfolio
 
-*A design proposal. Status: implemented, as proposed and with the four decisions
-taken as recommended. The user's guide is [Beyond spacetime](../docs/spaces.md);
-this records why.*
+*A design proposal. Status: implemented, with the four decisions taken as
+recommended. The examples are written as implemented, which differs from the
+proposal in two details: data brings its spaces with it, so none is made from it
+with `\text{days}(R)`, and a name defined with `:=` has no superscript, so the
+portfolio's variance \(\sigma^2_p\) became its volatility \(\sigma_p\). The user's
+guide is [Beyond spacetime](../docs/spaces.md); this records why.*
 
 ## The idea
 
@@ -34,16 +37,13 @@ ds^2 = -\left(1 - \frac{2M}{r}\right) dt^2 + \ldots
 R_{\mu\nu} = 0
 ```
 
-A portfolio of 500 assets over ten years of trading days:
+A portfolio of 500 assets over ten years of trading days, with the returns bound to
+`R_{ta}` from Python, which makes `t` range over the days and `a` over the assets:
 
 ```latex
-\mathcal{T} := \text{days}(R)          % spaces, from the data bound to R_{ta}
-\mathcal{A} := \text{assets}(R)
-t \in \mathcal{T}, \quad a, b, c \in \mathcal{A}
-
 \mu_a := \mathbb{E}_t[R_{ta}]                                   % expected returns
 \Sigma_{ab} := \mathbb{E}_t[(R_{ta} - \mu_a)(R_{tb} - \mu_b)]   % covariance
-\sigma^2_p := w^a \Sigma_{ab} w^b                               % variance of portfolio w
+\sigma_p := \sqrt{w^a \Sigma_{ab} w^b}                          % volatility of portfolio w
 m^a := \frac{(\Sigma^{-1})^{ab} \mu_b}{1_c (\Sigma^{-1})^{cd} \mu_d}   % tangency portfolio
 \lambda_k, v^a{}_k := \operatorname{eig}(C^a{}_b)               % spectrum of the correlations
 ```
@@ -52,7 +52,8 @@ Two spins with a Heisenberg coupling live on \(\mathcal{H} \otimes \mathcal{H}\)
 simply by having two indices of each kind:
 
 ```latex
-\mathcal{H} := \mathbb{C}^2, \quad i, j, k, l \in \mathcal{H}
+\mathcal{H} := \mathbb{C}^2
+i, j, k, l \in \mathcal{H}
 H^{ik}{}_{jl} := J (X^i{}_j X^k{}_l + Y^i{}_j Y^k{}_l + Z^i{}_j Z^k{}_l)
 \operatorname{spec}(H)                                          % -3J, J, J, J
 ```
@@ -171,9 +172,9 @@ brings NumPy and SciPy; `relativisticpy[data]` would add pandas and scikit-learn
 
 ```python
 wb = Workbook()
-wb["R_{ta}"] = returns              # a DataFrame: its rows are days, its columns assets
+wb["R_{ta}"] = returns  # a DataFrame: its rows are days, its columns assets
 wb.expr(r"\Sigma_{ab} := \mathbb{E}_t[(R_{ta} - \mu_a)(R_{tb} - \mu_b)]")
-wb["Sigma"].to_pandas()              # labelled by ticker, both ways
+wb["Sigma"].to_pandas()  # labelled by ticker, both ways
 ```
 
 The index labels in the key say which axis is which, and the frame's labels name

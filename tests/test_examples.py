@@ -1,5 +1,6 @@
 """Every example runs, and finds what its text says it finds."""
 
+import re
 import runpy
 from pathlib import Path
 
@@ -9,8 +10,10 @@ from sympy import Function, Symbol, diff
 
 from helpers import same
 from relativisticpy import Workbook
+from relativisticpy.documents import strip_comments
 
 EXAMPLES = Path(__file__).parent.parent / "examples"
+DESIGN = Path(__file__).parent.parent / "design"
 t = Symbol("t")
 
 
@@ -81,3 +84,34 @@ def test_portfolio(capsys):
     output = capsys.readouterr().out
     assert "the tangency portfolio's weights sum to 1.000000" in output
     assert "5 eigenvalues stand above the Marchenko–Pastur edge of 2.09" in output
+
+
+def test_the_design_of_spaces_shows_the_notation_implemented():
+    # Its notation runs as written, given what it says comes from elsewhere: data bound
+    # from Python, the correlations and the Pauli matrices.
+    np = pytest.importorskip("numpy")
+    text = (DESIGN / "spaces.md").read_text(encoding="utf-8")
+    _, portfolio, spins, least_squares = (
+        strip_comments(block) for block in re.findall(r"```latex\n(.*?)```", text, re.DOTALL)
+    )
+    rng = np.random.default_rng(0)
+    returns = rng.normal(0.0004, 0.01, (60, 4))
+    with Workbook() as wb:
+        wb["R_{ta}"] = returns
+        wb["w^a"] = np.full(4, 0.25)
+        wb["Z_{ta}"] = (returns - returns.mean(axis=0)) / returns.std(axis=0)
+        wb.exe(r"C_{ab} := \mathbb{E}_t[Z_{ta} Z_{tb}]")
+        wb.exe(portfolio)
+        assert wb["m"].to_numpy().sum() == pytest.approx(1)
+    with Workbook() as wb:
+        space, labels, *statements = spins.strip().splitlines()
+        wb.exe(f"{space}\n{labels}")
+        wb.exe(r"X^i{}_j := [[0, 1], [1, 0]]; Y^i{}_j := [[0, -i], [i, 0]]")
+        wb.exe(r"Z^i{}_j := [[1, 0], [0, -1]]")
+        *_, spectrum = wb.exe("\n".join(statements))
+        assert list(spectrum.components) == [-3 * Symbol("J")] + [Symbol("J")] * 3
+    with Workbook() as wb:
+        x, y = rng.normal(0, 1, (30, 2)), rng.normal(0, 1, 30)
+        wb["X_{tk}"], wb["y_t"] = x, y
+        wb.exe(least_squares)
+        assert wb["beta"].to_numpy() == pytest.approx(np.linalg.lstsq(x, y, rcond=None)[0])
