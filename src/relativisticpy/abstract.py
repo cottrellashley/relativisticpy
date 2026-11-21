@@ -52,7 +52,7 @@ _SYMMETRIES = {
     "christoffel": lambda: TensorSymmetry.direct_product(1, 2),
 }
 _RANKS = {"riemann": 4, "weyl": 4, "ricci": 2, "einstein": 2, "christoffel": 3}
-# Numbers for the dummy indices of a rule as it is put into an expression.
+# Numbers for the names a term's dummy indices are given as a rule is put into it.
 _FRESH = itertools.count()
 # The labels dummy indices are given when shown, in order of preference.
 _DUMMY_LABELS = (
