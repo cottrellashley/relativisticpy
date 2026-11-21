@@ -97,10 +97,14 @@ class Span:
         last_line = self.source.location(max(self.start, self.end - 1))[0]
         width = len(text) - (column - 1) if last_line > line else self.end - self.start
         gutter = " " * len(str(line))
-        caret = " " * (column - 1) + "^" * max(1, width)
+        # Tabs are expanded in the line and the carets alike, so the carets stay under
+        # the text they mark, whatever the terminal's tab stops.
+        before = text[: column - 1].expandtabs()
+        underlined = (text[: column - 1 + max(1, width)]).expandtabs()
+        caret = " " * len(before) + "^" * max(1, len(underlined) - len(before))
         return (
             f"{gutter}--> {self.source.name}:{line}:{column}\n"
             f"{gutter} |\n"
-            f"{line} | {text}\n"
+            f"{line} | {text.expandtabs()}\n"
             f"{gutter} | {caret}"
         )

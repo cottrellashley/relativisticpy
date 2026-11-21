@@ -905,6 +905,13 @@ class TestSpans:
         statement = parse("\n  x := 2 y\n").statements[0]
         assert statement.span.text == "x := 2 y"
 
+    @pytest.mark.parametrize(
+        "text",
+        ["(a+b)^2 = a^2 + 2ab + b^2", "{x} + 1", r"\left( a \right) b", "(a + b) c = d"],
+    )
+    def test_spans_keep_their_opening_bracket(self, text):
+        assert parse(text).statements[0].span.text == text
+
 
 class TestMoreNotation:
     def test_parse_accepts_a_named_source(self):

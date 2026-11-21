@@ -906,7 +906,8 @@ class Parser:
             first = self.expression()
             if not self.check(K.COMMA):
                 self.expect(K.RPAREN, opener=opener)
-                return first
+                # from the bracket on, so that what is built on it, (a + b)^2, keeps it
+                return replace(first, span=opener.span.to(first.span))
             items = [first]
             while self.accept(K.COMMA):
                 if self.check(K.RPAREN):
@@ -935,7 +936,7 @@ class Parser:
             first = self.expression()
             if not self.accept(K.COMMA):
                 self.expect(K.RBRACE, opener=opener)
-                return first
+                return replace(first, span=opener.span.to(first.span))
             pieces = [(first, self._condition())]
             while self.accept(K.SEMICOLON):
                 if self.check(K.RBRACE):

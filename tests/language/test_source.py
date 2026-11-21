@@ -17,3 +17,10 @@ def test_a_source_from_inside_a_file_reports_the_file_s_positions():
     assert source.location(7) == (4, 3)
     assert source.line_text(3) == "   x +"
     assert Span(source, 7, 8).render() == " --> notes.md:4:3\n  |\n4 |   y\n  |   ^"
+
+
+def test_carets_stay_under_their_text_after_tabs():
+    rendered = Span(Source("\tx :=\t1 @ 2"), 8, 9).render()
+    line, caret = rendered.splitlines()[2:4]
+    assert line.index("@") == caret.index("^")
+    assert "\t" not in line
