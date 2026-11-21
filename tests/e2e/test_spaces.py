@@ -418,6 +418,9 @@ class TestPortfolios:
         assert np.allclose(market.expr(r"\mu^a").to_numpy(), np.linalg.solve(COVARIANCE, MEAN))
         with pytest.raises(IndexNotationError, match="once up and once down"):
             market.expr(r"w_{a} w_{a}")
+        # Written alone, g is the metric of the one space that has one.
+        assert np.allclose(market.expr(r"g^{ab}").to_numpy(), np.linalg.inv(COVARIANCE))
+        assert np.allclose(market.expr(r"g_{ab} g^{bc}").to_numpy(), np.eye(5))
 
     def test_a_metric_is_symmetric_and_positive_definite(self, wb):
         wb.exe(r"\mathcal{A} := \mathbb{R}^{2}" "\n" r"a, b \in \mathcal{A}")

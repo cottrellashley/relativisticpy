@@ -2124,12 +2124,19 @@ class Compiler:
         self, name: str, entries: Sequence[tuple[str, bool]], span: Span
     ) -> TensorSource | None:
         """The Kronecker delta and the metric of a space other than spacetime: the
-        identity, or the metric declared for the space, as in g_{ab} := \\Sigma_{ab}."""
+        identity, or the metric declared for the space, as in g_{ab} := \\Sigma_{ab}. Without
+        coordinates, the metric written with labels of no known space is that of the one
+        space given a metric, if one is."""
         quantity = self._builtin_tensor(name, len(entries))
         if quantity not in ("kronecker", "metric"):
             return None
         space = self._labels.get(entries[0][0]) or self.session.labels.get(entries[0][0])
-        if space is None or space.spacetime:
+        if space is None and quantity == "metric":
+            space = self._only_space_metric()
+        if space is None:  # spacetime's, or an error that says what the index needs
+            what = "the metric" if quantity == "metric" else "the Kronecker delta"
+            space = self._space_of(entries[0][0], span, what)
+        if space.spacetime:
             return None
         declared = self.session.space_metrics.get(space)
         if quantity == "metric" and declared is not None:
@@ -2144,6 +2151,12 @@ class Compiler:
             span,
         )
         return TensorSource(node, indices, name)
+
+    def _only_space_metric(self) -> Space | None:
+        """The one space given a metric, where there are no coordinates and so no metric
+        of spacetime that g could also be; ``None`` where there are none or several."""
+        defined = list(self.session.space_metrics)
+        return defined[0] if len(defined) == 1 and self.session.coordinates is None else None
 
     def _ones(self, label: tuple[str, bool], span: Span, space: Space | None = None) -> Node:
         """𝟙_a: the covector whose components are all one, which sums what it meets."""
