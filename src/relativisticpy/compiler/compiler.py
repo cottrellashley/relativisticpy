@@ -1599,7 +1599,7 @@ class Compiler:
         if isinstance(binding, FunctionBinding):
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._inline(binding, args, node.span, ctx)
-        trace = binding is None and name == "trace" and len(node.args) == 1
+        trace = binding is None and name in ("trace", "tr") and len(node.args) == 1
         if trace and (traced := self._metric_trace(node.args[0], scope, ctx)) is not None:
             return traced
         if binding is None and name in _LINEAR_ALGEBRA and node.args:

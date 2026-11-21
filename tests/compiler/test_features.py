@@ -103,6 +103,7 @@ def test_the_trace_of_a_tensor_is_taken_with_the_metric(wb):
     assert wb.expr(r"trace(R_{\mu\nu}) = R") is sympy.true
     assert wb.expr(r"trace(R^{\mu}{}_{\nu}) = R") is sympy.true
     assert wb.expr(r"trace(R^{\mu\nu}) = R") is sympy.true
+    assert wb.expr(r"\operatorname{tr}(R_{\mu\nu}) = R") is sympy.true  # by either name
 
 
 def test_componentwise_builtins(plane):
