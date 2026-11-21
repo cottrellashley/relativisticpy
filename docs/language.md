@@ -27,19 +27,26 @@ two operands, as Python writes a remainder, is an error. Write `#` to comment
 there.
 
 A statement continues onto the next line when a bracket is open, when the line
-ends with an operator, or when the next line starts with an operator and is
-indented further, as long equations usually are:
+ends with an operator, or when the next line starts with an operator that
+cannot start a statement, such as `+`, `*` or `=`. A line that starts with `-`
+is a statement of its own, as `-x` is, unless it is indented further than the
+statement before it, as long equations usually are:
 
 ```python
->>> wb.expr("""
+>>> wb.exe("""
 ...     total := 1 + 2 +
 ...              3
+...     + 4
 ...     total
-...        + 4
+...        - 5
+...     -total
 ... """)
-10
+[5, -10]
 
 ```
+
+A line that ends with an operator by mistake is reported as the mistake, rather
+than the statement on the next line, which was read as its continuation.
 
 ## Numbers and arithmetic
 

@@ -79,8 +79,11 @@ _RELATIONS = frozenset({K.EQUAL, K.RELATION, K.ARROW, K.COLON})
 _OPERATORS = frozenset(
     {K.PLUS, K.MINUS, K.STAR, K.SLASH, K.DOUBLE_STAR, K.PLUS_MINUS, K.MINUS_PLUS, K.WEDGE}
 )
-# A line that starts with one of these, indented beyond its statement, continues it.
+# A line that starts with one of these continues the statement on the line before it.
 _CONTINUING = _OPERATORS | _RELATIONS | frozenset(_COMPARISONS)
+# Of these, the signs that may start a statement of its own, as -x may: a line that
+# starts with one continues the line before only when it is indented further.
+_SIGNS_FIRST = frozenset({K.MINUS, K.PLUS_MINUS, K.MINUS_PLUS})
 _KEYWORDS = frozenset({"and", "or", "not"})
 # Words of prose that join equations, when written as text: \text{and}, \text{where}.
 _CONNECTIVES = frozenset({"and", "or", "where", "with", "for", "if", "when", "since", "so"})
@@ -187,6 +190,11 @@ class Parser:
         self._function_argument = False
         # Inside a display, such as \begin{equation}, every statement is LaTeX.
         self._display = 0
+        # In the current statement, the last operator that ended a line, which the next
+        # line continued, and the first token of that line.
+        self._continued: tuple[Token, Token] | None = None
+        # The last argument of a command read, braces and all, to mark it if it is empty.
+        self._group: Span | None = None
 
     # -- cursor ---------------------------------------------------------------
 
@@ -223,11 +231,10 @@ class Parser:
         token = self.peek()
         if token.kind is kind:
             return self.advance()
+        if opener is not None and kind in _CLOSING:
+            raise _unclosed(opener, token)
         expected = kind.value if kind in (K.EOF, K.NEWLINE) else f"'{kind.value}'"
         message = f"expected {expected}"
-        if opener is not None:
-            message += f" to close {opener.describe()} from line {opener.span.line}"
-            message += f", column {opener.span.column}"
         if after:
             message += f" after {after}"
         raise ParseError(f"{message}, found {token.describe()}", span=token.span)
@@ -244,6 +251,14 @@ class Parser:
     def _skip_newlines(self) -> None:
         while self.tokens[self.pos].kind is K.NEWLINE:
             self.pos += 1
+
+    def _continue_after(self, operator: Token) -> None:
+        """Go past the line breaks after an operator, which the expression continues over,
+        remembering where, to say so if the next line turns out to be a statement."""
+        if self.tokens[self.pos].kind is K.NEWLINE and not self._nesting:
+            self._skip_newlines()
+            self._continued = (operator, self.tokens[self.pos])
+        self._skip_newlines()
 
     def _span(self, start: Token | Span) -> Span:
         """The span from ``start`` to the last token consumed."""
@@ -278,21 +293,29 @@ class Parser:
         statements: list[ast.Statement] = []
         self.skip_separators()
         while not self.check(K.EOF):
-            statements.extend(self.statement())
+            made = self.statement()
+            statements.extend(made)
             if not self.check(K.EOF):
-                self._expect_separator()
+                self._expect_separator(made)
             self.skip_separators()
         span = first.span.to(self.peek().span)
         return ast.Program(tuple(statements), span=span)
 
-    def _expect_separator(self) -> None:
+    def _expect_separator(self, made: list[ast.Statement] | None = None) -> None:
+        """Expect what ends a statement: a line break, ';' or '\\\\'. ``made`` are the
+        statements just read, which say what was meant when something else follows."""
         token = self.peek()
-        if token.kind not in _SEPARATORS:
-            raise ParseError(
-                f"unexpected {token.describe()}",
-                span=token.span,
-                hint="put each statement on its own line, or separate statements with ';'",
-            )
+        if token.kind in _SEPARATORS:
+            return
+        continued = self._continued
+        # x +, then a line y := 2, which the + made part of the expression
+        if (
+            continued is not None
+            and token.kind is K.DEFINE
+            and token.span.start >= continued[1].span.start
+        ):
+            raise _dangling(continued[0], continued[1])
+        raise _stray(token, self.previous, made or [])
 
     def statement(self) -> list[ast.Statement]:
         token = self.peek()
@@ -301,6 +324,7 @@ class Parser:
         start = self._significant(self.pos)
         outer = self._statement_column, self._statement_nesting
         self._statement_column, self._statement_nesting = token.span.column, self._nesting
+        self._continued = None
         try:
             return self._statement(token, start)
         finally:
@@ -339,7 +363,7 @@ class Parser:
             if define := self.accept(K.DEFINE):
                 count = _defined(clause, joined)
                 statements.extend(_evaluations(clause[:-count], joined[:-count]))
-                self._skip_newlines()
+                self._continue_after(define)
                 value = self.expression()
                 statements.append(self._definition(clause[-count:], value, define))
                 # x \equiv r/M, \quad y \equiv t/M: another statement may follow on the line
@@ -534,11 +558,14 @@ class Parser:
             left = self._infix(left, token, power)
 
     def _continues(self) -> bool:
-        """Whether a line break here is followed by a continuation line: one that
-        starts with an operator and is indented beyond the statement::
+        """Whether a line break here is followed by a continuation line: the next line,
+        when it starts with an operator that cannot start a statement, as ``+`` or ``=``
+        cannot, or a line indented beyond the statement that starts with any operator,
+        ``-`` included::
 
             ds^2 = -(1 - 2M/r) dt^2
-                   + dr^2 / (1 - 2M/r)
+            + dr^2 / (1 - 2M/r)
+                - r^2 d\\Omega^2
         """
         if self._nesting or self.tokens[self.pos].kind is not K.NEWLINE:
             return False
@@ -546,7 +573,11 @@ class Parser:
         while self.tokens[index].kind is K.NEWLINE:
             index += 1
         token = self.tokens[index]
-        return token.kind in _CONTINUING and token.span.column > self._statement_column
+        if token.kind not in _CONTINUING:
+            return False
+        if token.span.column > self._statement_column:
+            return True
+        return index == self.pos + 1 and token.kind not in _SIGNS_FIRST
 
     def _continues_row(self) -> bool:
         """Whether an alignment's row break is followed by a row that continues this
@@ -607,16 +638,16 @@ class Parser:
             self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
-        self.advance()
-        self._skip_newlines()
+        self._continue_after(self.advance())
         if kind in _RELATIONS:
             return self._relations(left, token)
         if kind in _COMPARISONS:
             operands, ops = [left], [_COMPARISONS[kind]]
             operands.append(self.expression(Power.COMPARISON))
             while self.peek().kind in _COMPARISONS:
-                ops.append(_COMPARISONS[self.advance().kind])
-                self._skip_newlines()
+                comparison = self.advance()
+                ops.append(_COMPARISONS[comparison.kind])
+                self._continue_after(comparison)
                 operands.append(self.expression(Power.COMPARISON))
             span = left.span.to(operands[-1].span)
             return ast.Comparison(tuple(operands), tuple(ops), span=span)
@@ -682,8 +713,9 @@ class Parser:
             operands.append(self.expression(Power.EQUATION))
             if self.peek().kind not in _RELATIONS:
                 break
-            relations.append(_relation(self.advance()))
-            self._skip_newlines()
+            relation = self.advance()
+            relations.append(_relation(relation))
+            self._continue_after(relation)
         span = left.span.to(operands[-1].span)
         if len(relations) > 1:
             return ast.Chain(tuple(operands), tuple(relations), span=span)
@@ -755,9 +787,12 @@ class Parser:
             label = self.advance().span.text
         token = self.peek()
         if token.kind is not K.IDENT:
+            written = self._span(marker).text
+            example = "x" + ("^2" if marker.kind is K.CARET else "_0")
             raise ParseError(
-                f"expected a symbol after the prescript {marker.value}{{{label}}}",
-                span=token.span,
+                f"'{written}' has nothing to attach to",
+                span=self._span(marker),
+                hint=f"write it after what it is on, as in {example}",
             )
         self.advance()
         name = ast.Name(f"{marker.value}{{{label}}}{token.value}", True, span=self._span(marker))
@@ -789,7 +824,17 @@ class Parser:
             return self._braced()
         if kind is K.BAR:
             return self._absolute_value()
-        raise ParseError(f"expected an expression, found {token.describe()}", span=token.span)
+        previous = self.previous
+        after = ""
+        if (
+            previous is not token
+            and previous.span.end <= token.span.start
+            and previous.kind in _OPERATORS | _RELATIONS | {K.DEFINE, *_COMPARISONS}
+        ):
+            after = f" after '{previous.span.text}'"
+        raise ParseError(
+            f"expected an expression{after}, found {token.describe()}", span=token.span
+        )
 
     def _postfix(self, node: ast.Expr, *, grouped: bool = False, braced: bool = False) -> ast.Expr:
         """Scripts, calls, primes and factorials. A ``grouped`` node (from brackets)
@@ -1007,9 +1052,17 @@ class Parser:
 
     # -- scripts and indices ----------------------------------------------------
 
-    def _attach_script(self, node: ast.Expr, *, extend: bool) -> ast.Scripted:
+    def _attach_script(self, node: ast.Expr, *, extend: bool) -> ast.Expr:
+        """A script on ``node``. In LaTeX an empty script is nothing, as TeX sets it:
+        ``{\\partial}_{}`` is ``\\partial``, as a macro called with nothing makes it. In
+        plain text, ``x_{}`` is an error rather than the symbol ``x_``."""
         marker = self.advance()
         kind: Literal["^", "_"] = "^" if marker.kind is K.CARET else "_"
+        latex = self._display > 0 or self.source.latex or "\\" in node.span.text
+        if latex and self.check(K.LBRACE) and self.peek(1).kind is K.RBRACE:
+            self.advance()
+            self.advance()
+            return node
         script = self._script(kind, marker)
         if extend and isinstance(node, ast.Scripted):
             base, scripts = node.base, (*node.scripts, script)
@@ -1060,11 +1113,24 @@ class Parser:
 
     def _braced_script(self, kind: Literal["^", "_"], marker: Token) -> ast.Script:
         """A braced script, read both as an index list and as an expression."""
+        what = "superscript" if kind == "^" else "subscript"
+        base = _written_before(marker)
         opener = self.advance()
         if self.check(K.RBRACE):
-            self.advance()
-            empty = ast.IndexList((), span=self._span(opener))
-            return ast.Script(kind, None, empty, span=self._span(marker))
+            closer = self.advance()
+            raise ParseError(
+                f"empty {what}",
+                span=opener.span.to(closer.span).labelled("nothing in the braces"),
+                hint=f"write what the {what} holds, as in {base}{kind}{{0}}, or remove it",
+            )
+        if not self._closes(self.pos - 1):
+            line = self.source.text[marker.span.start :].split("\n", 1)[0].rstrip()
+            example = f", as in {base}{line}}}" if len(base + line) < 40 else ""
+            raise ParseError(
+                "unclosed '{'",
+                span=opener.span.labelled("this '{' is never closed"),
+                hint=f"add '}}' where the {what} ends{example}",
+            )
         start = (self.pos, self.previous)
         indices, index_error = self._attempt(lambda: self._index_list(opener))
         after_indices = (self.pos, self.previous)
@@ -1092,6 +1158,18 @@ class Parser:
                 raise body_error if kind == "^" and body_end > index_end else index_error
             self.pos, self.previous = after_indices
         return ast.Script(kind, body, indices, index_error, span=self._span(marker))
+
+    def _closes(self, index: int) -> bool:
+        """Whether the brace at token ``index`` is closed before the input ends."""
+        depth = 0
+        for token in self.tokens[index:]:
+            if token.kind is K.LBRACE:
+                depth += 1
+            elif token.kind is K.RBRACE:
+                depth -= 1
+                if depth == 0:
+                    return True
+        return False
 
     def _index_list(self, opener: Token) -> ast.IndexList:
         items: list[ast.IndexItem] = []
@@ -1263,11 +1341,12 @@ class Parser:
             hint=f"did you mean \\{close[0]}?" if close else None,
         )
 
-    def _argument_tokens(self, command: Token) -> list[Token]:
+    def _argument_tokens(self, command: Token, what: str = "argument") -> list[Token]:
         """The raw tokens of a command argument: a braced group, a parenthesised
         group, or (as LaTeX reads it) one character: ``\\frac12`` is one half."""
         self._skip_newlines()
         token = self.tokens[self.pos]
+        self._group = token.span
         if token.kind is K.LBRACE:
             return self._raw_group(K.LBRACE, K.RBRACE, command)[1:-1]
         if token.kind is K.LPAREN:
@@ -1279,7 +1358,12 @@ class Parser:
             return [first]
         if token.kind in (K.NUMBER, K.IDENT):
             return [self.advance()]
-        raise ParseError(f"\\{command.value} is missing an argument", span=token.span)
+        example = _ARGUMENT_EXAMPLES.get(command.value, f"\\{command.value}{{x}}")
+        raise ParseError(
+            f"\\{command.value} is missing its {what}",
+            span=token.span,
+            hint=f"write it in braces, as in {example}",
+        )
 
     def _raw_group(self, open_kind: TokenKind, close_kind: TokenKind, owner: Token) -> list[Token]:
         """Consume a balanced group, returning its tokens including the brackets."""
@@ -1288,10 +1372,11 @@ class Parser:
         while True:
             token = self.tokens[self.pos]
             if token.kind is K.EOF:
+                close = close_kind.value
                 raise ParseError(
-                    f"expected '{close_kind.value}' to close {opener.describe()} "
-                    f"in the argument of \\{owner.value}",
-                    span=opener.span,
+                    f"unclosed '{opener.span.text}' in the argument of \\{owner.value}",
+                    span=opener.span.labelled(f"this '{opener.span.text}' is never closed"),
+                    hint=f"add '{close}' where the argument ends",
                 )
             self.pos += 1
             collected.append(token)
@@ -1301,13 +1386,17 @@ class Parser:
                 depth -= 1
                 if depth == 0:
                     self.previous = token
+                    self._group = opener.span.to(token.span)
                     return collected
 
     def _subparse(self, tokens: list[Token], what: str, owner: Token) -> ast.Expr:
         """Parse a token list captured by :meth:`_argument_tokens` as one expression."""
         tokens = [t for t in tokens if t.kind is not K.NEWLINE]
         if not tokens:
-            raise ParseError(f"the {what} of \\{owner.value} is empty", span=owner.span)
+            span = owner.span if self._group is None else self._group
+            raise ParseError(
+                f"the {what} of \\{owner.value} is empty", span=span.labelled(f"empty {what}")
+            )
         end = Span(self.source, tokens[-1].span.end, tokens[-1].span.end)
         parser = Parser([*tokens, Token(K.EOF, "", end)], self.source)
         parser._nesting = 1
@@ -1326,8 +1415,12 @@ class Parser:
 
     def _fraction(self) -> ast.Expr:
         command = self.advance()
-        numerator = self._subparse(self._argument_tokens(command), "numerator", command)
-        denominator = self._subparse(self._argument_tokens(command), "denominator", command)
+        numerator = self._subparse(
+            self._argument_tokens(command, "numerator"), "numerator", command
+        )
+        denominator = self._subparse(
+            self._argument_tokens(command, "denominator"), "denominator", command
+        )
         return _quotient(numerator, denominator, self._span(command), leibniz=True)
 
     def _accent(self) -> ast.Accent:
@@ -1358,6 +1451,7 @@ class Parser:
 
     def _script_tokens(self, command: Token) -> list[Token]:
         token = self.tokens[self.pos]
+        self._group = token.span
         if token.kind is K.LBRACE:
             return self._raw_group(K.LBRACE, K.RBRACE, command)[1:-1]
         if token.kind is K.MINUS:
@@ -1618,6 +1712,16 @@ class Parser:
                 )
         if _is_minus_one(power) and command.value in vocab.INVERSE_FUNCTIONS:
             name, power = vocab.INVERSE_FUNCTIONS[command.value], None
+        if self.peek().kind not in (K.LPAREN, K.LBRACKET, K.LBRACE) and not (
+            self._starts_operand(self.peek())
+        ):
+            written = self._span(command).text
+            example = "\\log_{2} x" if base is not None else f"{written} x or {written}(x)"
+            raise ParseError(
+                f"{written} needs an argument",
+                span=self.peek().span.labelled(f"expected what {written} acts on"),
+                hint=f"write it after the function, as in {example}",
+            )
         args = self._function_arguments()
         if base is not None:
             node: ast.Expr = ast.Call(
@@ -1651,8 +1755,6 @@ class Parser:
                 arg = self.expression()
                 self.expect(K.RBRACE, opener=opener)
             return (arg,)
-        if not self._starts_operand(token):
-            raise ParseError(f"expected an argument, found {token.describe()}", span=token.span)
         outer, self._function_argument = self._function_argument, True
         try:
             return (self._unbracketed_argument(),)
@@ -1804,6 +1906,111 @@ class Parser:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+
+_CLOSING = frozenset({K.RPAREN, K.RBRACKET, K.RBRACE, K.BAR})
+# The closers of openers as they are written.
+_CLOSES = {
+    "(": ")", "[": "]", "{": "}", "\\{": "\\}", "\\lbrace": "\\rbrace", "\\lbrack": "\\rbrack",
+    "\\langle": "\\rangle", "|": "|",
+}  # fmt: skip
+# Tokens that cannot be inside brackets: a bracket still open at one of them was never closed.
+_OUTSIDE = frozenset({K.EOF, K.DEFINE, K.END, K.ROW_SEP, K.SEMICOLON})
+
+
+def _unclosed(opener: Token, found: Token) -> ParseError:
+    """The error for a bracket that ``found`` does not close: unclosed, marked where it was
+    opened, if what was found cannot be inside it, or else the wrong closer."""
+    text = opener.span.text
+    if text.startswith("\\left"):
+        text = text[len("\\left") :].strip()
+    close = _CLOSES.get(text, "}" if opener.kind is K.LBRACE else ")")
+    unclosed = found.kind in _OUTSIDE or (
+        found.kind not in _CLOSERS and found.span.line > opener.span.line
+    )
+    if not unclosed:
+        span = found.span.labelled(f"expected '{close}' here", (opener.span, "opened here"))
+        message = f"expected '{close}' to close '{text}', found {found.describe()}"
+        return ParseError(message, span=span)
+    hint = f"add '{close}' to close it"
+    others = []
+    if found.kind is not K.EOF:
+        others.append((found.span, f"still inside the '{text}' here"))
+        if found.span.line > opener.span.line:
+            hint += f", at the end of line {found.span.line - 1}"
+    span = opener.span.labelled(f"this '{text}' is never closed", *others)
+    return ParseError(f"unclosed '{text}'", span=span, hint=hint)
+
+
+def _written_before(token: Token, limit: int = 24) -> str:
+    """What is written just before a token, back to a space or an operator: the base of a
+    script, as ``\\Gamma^{a}`` is before ``_{bc``, for an example in a message."""
+    text = token.span.source.text
+    start = token.span.start
+    while start > 0 and token.span.start - start < limit and text[start - 1] not in " \t\n+-*/=,;(":
+        start -= 1
+    return text[start : token.span.start]
+
+
+def _dangling(operator: Token, continuation: Token) -> ParseError:
+    """The error for a line that ends with an operator, when the next line, which was read
+    as its continuation, is a statement of its own."""
+    op, line = operator.span.text, operator.span.line
+    span = operator.span.labelled(
+        f"line {line} ends with this '{op}'",
+        (continuation.span, f"so line {continuation.span.line} was read as its continuation"),
+    )
+    return ParseError(
+        f"the expression on line {line} ends with '{op}'",
+        span=span,
+        notes=("a line that ends with an operator continues on the next line",),
+        hint=f"complete the expression on line {line}, or remove the '{op}'",
+    )
+
+
+def _stray(token: Token, previous: Token, made: list[ast.Statement]) -> ParseError:
+    """The error for a token that cannot follow a complete statement."""
+    kind, text = token.kind, token.span.text
+    if kind in _CLOSERS:
+        opener = {K.RPAREN: "(", K.RBRACKET: "[", K.RBRACE: "{"}[kind]
+        return ParseError(
+            f"unmatched '{text}'",
+            span=token.span.labelled(f"no '{opener}' is open here"),
+            hint=f"remove it, or add the '{opener}' it closes",
+        )
+    if kind is K.AMPERSAND:
+        return ParseError(
+            "'&' outside an environment",
+            span=token.span,
+            notes=("'&' separates the columns of an environment such as align or pmatrix",),
+            hint="remove it, or write the equations in \\begin{align} ... \\end{align}",
+        )
+    if kind is K.PERIOD:
+        return ParseError("'.' is not an operator", span=token.span, hint=_period_hint(previous))
+    if kind is K.COMMA:
+        last = made[-1] if made else None
+        hint = "to make a list, write it in brackets, as in [a, b]"
+        if isinstance(last, ast.Define) and len(last.targets) == 1:
+            value = last.value.span
+            if value.line == token.span.line:
+                line = token.span.source.line_text(token.span.line)
+                rest = line[value.column - 1 :].strip().rstrip(",;")
+                example = f"{last.targets[0].span.text} := [{rest}]"
+                hint = f"to define a list, write it in brackets: {example}"
+        return ParseError("unexpected ','", span=token.span, hint=hint)
+    separate = "put each statement on its own line, or separate statements with ';'"
+    return ParseError(
+        f"unexpected {token.describe()}",
+        span=token.span,
+        hint=separate if kind is K.DEFINE else None,
+    )
+
+
+def _period_hint(previous: Token) -> str:
+    """What a full stop between operands was likely meant to be."""
+    if previous.kind is K.NUMBER:
+        return f"a decimal has digits after its point, as in {previous.span.text}.0"
+    return "for a product, write the factors side by side, or with \\cdot between them"
 
 
 def _is_latex(token: Token) -> bool:
@@ -2175,6 +2382,12 @@ def _relation(token: Token) -> str:
         return ":"
     return token.value
 
+
+# How each command that takes arguments is written, for the hint of a missing one.
+_ARGUMENT_EXAMPLES = {
+    **{name: f"\\{name}{{1}}{{2}}" for name in ("frac", "dfrac", "tfrac", "cfrac")},
+    "sqrt": "\\sqrt{x}",
+}
 
 # TeX's generalised fractions, and the LaTeX commands they become.
 _FRACTION_COMMANDS = {"over": "frac", "choose": "binom"}

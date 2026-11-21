@@ -10,7 +10,7 @@ from textwrap import dedent
 import pytest
 
 from relativisticpy.errors import ParseError
-from relativisticpy.language import parse, parse_expression, to_sexpr
+from relativisticpy.language import Source, parse, parse_expression, to_sexpr
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 
@@ -147,9 +147,15 @@ class TestArithmetic:
         assert program("ds^2 = -dt^2\n       + dx^2") == ["(= (^ ds 2) (+ (- (^ dt 2)) (^ dx 2)))"]
         assert program("  x\n      = y") == ["(= x y)"]
 
-    def test_an_unindented_line_starting_with_an_operator_is_a_new_statement(self):
+    def test_an_unindented_line_starting_with_a_minus_is_a_new_statement(self):
         assert program("y := a\n-b") == ["(:= y a)", "(- b)"]
-        assert program("  y := a\n  + b") == ["(:= y a)", "(+ b)"]
+
+    def test_a_line_starting_with_an_operator_that_starts_no_statement_continues(self):
+        # + b on a line of its own is never meant as a statement: it goes on with y
+        assert program("  y := a\n  + b") == ["(:= y (+ a b))"]
+        assert program("x := 1 + 2\n+ 3\nx") == ["(:= x (+ (+ 1 2) 3))", "x"]
+        assert program("E = m\n= n") == ["(chain E = m = n)"]
+        assert program("y := a\n\n+ b") != ["(:= y (+ a b))"]  # not after a blank line
 
     def test_continuation_inside_a_block(self):
         source = "f : (x) -> {\n    y := x\n        + 1\n    y\n}"
@@ -868,19 +874,20 @@ class TestStatements:
 class TestErrors:
     def test_unclosed_parenthesis(self):
         assert str(error("f(x, y")) == dedent("""\
-            expected ')' to close '(' from line 1, column 2, found end of input
-             --> <input>:1:7
+            unclosed '('
+             --> <input>:1:2
               |
             1 | f(x, y
-              |       ^""")
+              |  ^ this '(' is never closed
+            hint: add ')' to close it""")
 
     def test_unexpected_token(self):
-        message = str(error("x := 1 )"))
-        assert message.startswith("unexpected ')'")
+        message = str(error("x := 1 y := 2"))
+        assert message.startswith("unexpected ':='")
         assert "hint: put each statement on its own line" in message
 
     def test_missing_operand(self):
-        assert "expected an expression, found end of input" in str(error("x := 1 +"))
+        assert "expected an expression after '+', found end of input" in str(error("x := 1 +"))
 
     def test_missing_script(self):
         assert "expected a superscript after '^', found end of input" in str(error("x^"))
@@ -890,15 +897,124 @@ class TestErrors:
         assert "expected an index value (a whole number or a coordinate)" in message
 
     def test_the_reading_that_got_further_reports_the_error(self):
-        assert "expected an expression, found '}'" in str(error("x^{2 +}"))
+        assert "expected an expression after '+', found '}'" in str(error("x^{2 +}"))
 
     def test_error_points_into_multiline_source(self):
         message = str(error("x := 1\ny := (2 +\nz := 3"))
-        assert "<input>:3:3" in message
+        assert "<input>:2:6" in message  # the bracket that is never closed
+        assert "3 | z := 3" in message  # and where the parser was still inside it
 
     def test_misplaced_alignment_environment(self):
         message = str(error(r"x + \begin{align} y \end{align}"))
         assert "cannot appear inside an expression" in message
+
+
+class TestWhereErrorsAre:
+    """An error is reported where its cause is, and marks the places that explain it."""
+
+    def test_a_trailing_operator_is_blamed_not_the_next_line(self):
+        assert str(error("x := 1\ny := x +\nz := 2")) == dedent("""\
+            the expression on line 2 ends with '+'
+             --> <input>:2:8
+              |
+            2 | y := x +
+              |        ^ line 2 ends with this '+'
+            3 | z := 2
+              | - so line 3 was read as its continuation
+            note: a line that ends with an operator continues on the next line
+            hint: complete the expression on line 2, or remove the '+'""")
+
+    def test_an_unclosed_bracket_is_marked_where_it_opens(self):
+        assert str(error("Coordinates := [t, r, \\theta, \\phi\ng_{\\mu\\nu} := g")) == dedent("""\
+            unclosed '['
+             --> <input>:1:16
+              |
+            1 | Coordinates := [t, r, \\theta, \\phi
+              |                ^ this '[' is never closed
+            2 | g_{\\mu\\nu} := g
+              |            -- still inside the '[' here
+            hint: add ']' to close it, at the end of line 1""")
+
+    def test_the_wrong_closer_marks_the_opener(self):
+        lines = str(error("f(x, y]")).splitlines()
+        assert lines[0] == "expected ')' to close '(', found ']'"
+        assert lines[4:] == ["  |  - opened here", "  |       ^ expected ')' here"]
+
+    @pytest.mark.parametrize(
+        ("text", "message", "hint"),
+        [
+            (r"e^{i\pi", "unclosed '{'", r"where the superscript ends, as in e^{i\pi}"),
+            (r"\Gamma^{a}_{bc", "unclosed '{'", r"where the subscript ends, as in \Gamma^{a}_{bc}"),
+            ("T^{a b", "unclosed '{'", "where the superscript ends, as in T^{a b}"),
+        ],
+    )
+    def test_an_unclosed_script_says_so_not_that_an_index_is_missing(self, text, message, hint):
+        caught = error(text)
+        assert caught.message == message
+        assert caught.span is not None
+        assert caught.span.text == "{"
+        assert caught.hint is not None
+        assert caught.hint.endswith(hint)
+
+    @pytest.mark.parametrize(
+        ("text", "message", "label"),
+        [
+            ("R_{ab}}", "unmatched '}'", "no '{' is open here"),
+            ("x + 1)", "unmatched ')'", "no '(' is open here"),
+            ("a & b", "'&' outside an environment", ""),
+            ("x.y", "'.' is not an operator", ""),
+        ],
+    )
+    def test_a_stray_symbol_is_named_without_talk_of_statements(self, text, message, label):
+        caught = error(text)
+        assert caught.message == message
+        assert caught.span is not None
+        assert caught.span.label == label
+        assert "statement" not in str(caught.hint)
+
+    def test_a_list_defined_without_brackets(self):
+        assert error("Coordinates := t, r").hint == (
+            "to define a list, write it in brackets: Coordinates := [t, r]"
+        )
+
+    @pytest.mark.parametrize(
+        ("text", "empty"),
+        [(r"\frac{1}{}", "{}"), (r"\sqrt[]{x}", "[]"), (r"\lim_{x \to } x", r"{x \to }")],
+    )
+    def test_an_empty_argument_is_marked_where_it_is_empty(self, text, empty):
+        span = error(text).span
+        assert span is not None
+        assert span.text == empty
+
+    def test_a_missing_argument_is_marked_after_the_last_one(self):
+        caught = error(r"\frac{1}")
+        assert caught.message == r"\frac is missing its denominator"
+        assert caught.span is not None
+        assert (caught.span.line, caught.span.column) == (1, 9)
+        assert caught.hint == r"write it in braces, as in \frac{1}{2}"
+
+    def test_a_missing_operand_is_marked_after_the_operator_not_on_a_blank_line(self):
+        caught = error("x := 3\ny +\n\n")
+        assert caught.message == "expected an expression after '+', found end of input"
+        assert caught.span is not None
+        assert (caught.span.line, caught.span.column) == (2, 4)
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            (r"\sin", r"\sin needs an argument"),
+            (r"\cos^2", r"\cos^2 needs an argument"),
+            ("^2", "'^2' has nothing to attach to"),
+            ("y + x_{}", "empty subscript"),
+        ],
+    )
+    def test_messages_name_what_is_missing(self, text, message):
+        assert error(text).message == message
+
+    def test_an_empty_script_in_latex_is_nothing_as_tex_sets_it(self):
+        # as \p{} makes {\partial}_{} where a paper defines \p#1 as {\partial}_{#1}
+        assert sexpr(r"{{\partial}_{} \phi \over {\partial}_{} x}") == "(∂/∂x phi)"
+        assert to_sexpr(parse(Source("x_{} + 1", latex=True))) == "(+ x 1)"
 
 
 class TestSpans:
@@ -944,10 +1060,10 @@ class TestMoreNotation:
         assert sexpr(r"e^\frac{1}{2}") == "(^ e (/ 1 2))"
         assert sexpr("x^1.5") == "(^ x 1.5)"
 
-    def test_an_empty_script(self):
-        script = parse_expression("x^{}").scripts[0]  # type: ignore[attr-defined]
-        assert script.body is None
-        assert script.indices.items == ()
+    @pytest.mark.parametrize(("text", "what"), [("x^{}", "superscript"), ("x_{}", "subscript")])
+    def test_an_empty_script_is_an_error(self, text, what):
+        # x_{} was silently the symbol x_, and x^{} "x is not a tensor"
+        assert error(text).message == f"empty {what}"
 
     def test_a_decimal_is_not_an_index(self):
         script = parse_expression("T_{1.5}").scripts[0]  # type: ignore[attr-defined]
@@ -997,10 +1113,10 @@ class TestMoreErrors:
         [
             ("f'(x) := 1", "cannot define this"),
             ("f : (x) x", "expected '->' after the parameters, found name 'x'"),
-            ("f : (x) -> { x", "expected '}' to close '{'"),
-            ("f : (x) -> {\n", "expected '}' to close '{'"),
-            (r"\frac{1}", r"\frac is missing an argument"),
-            (r"\frac{1", r"expected '}' to close '{' in the argument of \frac"),
+            ("f : (x) -> { x", "unclosed '{'"),
+            ("f : (x) -> {\n", "unclosed '{'"),
+            (r"\frac{1}", r"\frac is missing its denominator"),
+            (r"\frac{1", r"unclosed '{' in the argument of \frac"),
             (r"\frac{}{2}", r"the numerator of \frac is empty"),
             (r"\frac{1 )}{2}", "unexpected ')' in the numerator"),
             (r"\sum_{n=0}^", r"expected a limit after \sum"),
@@ -1009,15 +1125,15 @@ class TestMoreErrors:
             (r"\pdv[1.5]{f}{x}", "the order of a derivative must be a whole number"),
             ("d^{1.5}{f}/d{x}", "the order of a derivative must be a whole number"),
             (r"\lfloor x", r"expected \rfloor to close \lfloor"),
-            (r"\sin^{} x", "expected an expression"),
-            (r"\sin + 1", "expected an argument, found '+'"),
+            (r"\sin^{} x", "empty superscript"),
+            (r"\sin + 1", r"\sin needs an argument"),
             (r"\begin{tabular} x \end{tabular}", "unsupported environment 'tabular'"),
             (r"\begin{matrix} 1 , 2 \end{matrix}", r"expected '&', '\\' or \end{matrix}"),
             (r"\begin{matrix} \end{matrix}", "a matrix needs at least one entry"),
             (r"\begin{cases} 1 & x > 0 , 2 \end{cases}", r"expected '\\' or \end{cases}"),
             (r"\begin{cases} \end{cases}", "cases needs at least one case"),
             ("T_{a(}", "brackets must enclose indices"),
-            ("5.²", "unexpected '.'"),  # an error, not a crash in the lexer
+            ("5.²", "'.' is not an operator"),  # an error, not a crash in the lexer
         ],
     )
     def test_messages(self, text, message):
