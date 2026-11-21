@@ -75,6 +75,31 @@ class TestLatexReading:
         with pytest.raises(CompileError, match="y is not a function"):
             wb.expr("y(3)")  # in plain text, a mistake
 
+    def test_a_greek_letter_is_never_a_builtin_function(self, wb):
+        # \gamma(r) in a metric is an unknown function, and \gamma (t - vx) the Lorentz
+        # factor times t - vx; Euler's gamma function is spelled out, gamma(x).
+        wb.exe(
+            r"Coordinates := [t, r, \theta, \phi]"
+            "\n"
+            r"g_{\mu\nu} := diag(-e^{2\gamma(r)}, e^{2\lambda(r)}, r^2, r^2 \sin^2\theta)"
+        )
+        gamma = Function("gamma")(r)
+        assert wb.expr(r"\Gamma^{t}_{tr}") == diff(gamma, r)
+        assert wb.expr(r"\gamma") == gamma  # written once with its argument
+        v, x = Symbol("v"), Symbol("x")
+        assert wb.expr(r"\gamma (x - v t)") == gamma * (x - v * t)
+        assert wb.expr("gamma(5)") == 24
+
+    def test_a_builtin_name_with_nothing_to_act_on_is_a_symbol(self, wb):
+        # N, a builtin, is the lapse of a line element; functions still apply.
+        wb.exe(r"ds^2 = -N^2 dt^2 + dx^2")
+        N, x = Symbol("N"), Symbol("x")
+        assert wb.expr(r"g_{tt}") == -(N**2)
+        assert wb.expr(r"\frac{N}{2}") == N / 2
+        assert wb.expr(r"\alpha N x") == Symbol("alpha") * N * x  # in LaTeX, a product
+        assert wb.expr("N(pi, 3)") == sympify("pi").evalf(3)
+        assert wb.expr("sin x") == wb.expr(r"\sin x") == sympify("sin(x)")
+
     def test_symbols_and_decorations(self, wb):
         assert wb.expr(r"\hbar\omega") == Symbol("hbar") * Symbol("omega")
         assert wb.expr(r"r^* + r_+ + \alpha") == Symbol("r^*") + Symbol("r_+") + Symbol("alpha")

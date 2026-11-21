@@ -612,8 +612,11 @@ class Compiler:
     # ======================================================================
 
     def value(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node:
-        """Compile an expression that must produce a value."""
+        """Compile an expression that must produce a value. A builtin's name with nothing
+        to act on, as N is in N^2 (the lapse) or \\frac{N}{2}, is a symbol."""
         result = self.term(node, scope, ctx)
+        if isinstance(result, FunctionReference) and scope.lookup(result.name) is None:
+            return self.graph.const(self.session.symbol(result.name), SCALAR, result.span)
         if isinstance(result, Operator):
             raise CompileError(
                 f"{result.describe()} needs something to act on, as in {result.describe()} f",
@@ -670,7 +673,9 @@ class Compiler:
         # r e^{x}. A builtin keeps its name when called, as in diff(f, x).
         if ctx.latex and _splittable(node):
             return self._latex_letters(node, scope, ctx)
-        if name in BUILTINS:
+        # A builtin applies to what follows it, as sin does in sin x; in LaTeX only if it
+        # is written as a command, \operatorname{sign} x, so that N dt^2 is a product.
+        if _names_builtin(node) and (node.verbatim or not ctx.latex):
             return FunctionReference(node.span, name)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
 
@@ -1441,7 +1446,8 @@ class Compiler:
             raise CompileError(f"{name} is not a function", span=func.span)
         if name == "geodesic_equations":
             return self._geodesic_equations(node, scope, ctx)
-        if ctx.latex and binding is None and name not in BUILTINS and _splittable(func):
+        builtin = _names_builtin(func)  # \gamma(r) is an unknown function, not Euler's
+        if ctx.latex and binding is None and not builtin and _splittable(func):
             # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
             labels = split_index_labels(name)
             last = replace(func, id=labels[-1], verbatim=True)
@@ -1449,7 +1455,7 @@ class Compiler:
             factors = [self.value(n, scope, ctx) for n in leading]
             factors.append(self.value(replace(node, func=last), scope, ctx))
             return self._multiply(factors, node.span)
-        if name in BUILTINS:
+        if builtin:
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._builtin(BUILTINS[name], args, node.span)
         args = [self.value(a, scope, ctx) for a in node.args]
@@ -1531,7 +1537,7 @@ class Compiler:
             body = self._inline(binding, [dummy], span, ctx)
         elif binding is not None:
             raise CompileError(f"{name} is not a function", span=prime.func.span)
-        elif name in BUILTINS:
+        elif _names_builtin(prime.func):
             body = self._builtin(BUILTINS[name], [dummy], span)
         else:
             body = self._call(sympy.Function(name), name, [dummy], SCALAR, span)
@@ -2986,7 +2992,7 @@ class Compiler:
                         "an equation cannot be part of an expression", span=node.span
                     )
                 return found.value
-            function = isinstance(scope.lookup(name), FunctionBinding) or name in BUILTINS
+            function = isinstance(scope.lookup(name), FunctionBinding) or _names_builtin(node.func)
             if not function and len(node.args) == 1 and _mentions_tensor(node):
                 # \kappa(T_{\mu\nu} - ...), as typeset: a product
                 times = ast.Binary("*", node.func, node.args[0], implicit=True, span=node.span)
@@ -3289,6 +3295,21 @@ def _is_line_element(target: ast.Expr) -> bool:
 def _splittable(node: ast.Name) -> bool:
     name = node.id
     return not node.verbatim and len(name) > 1 and name.isalpha() and name not in GREEK
+
+
+def _written_as_letter(node: ast.Name) -> bool:
+    """Whether a name is a Greek letter written as one, ``\\gamma`` or ``γ``, rather than
+    spelled out as a function's name is, as in ``gamma(x)``."""
+    if node.id not in GREEK:
+        return False
+    written = node.span.text
+    return written == "\\" + node.id or len(written) == 1  # the command, or the character
+
+
+def _names_builtin(node: ast.Name) -> bool:
+    """Whether a name, bound to nothing in the program, is a builtin function: never a
+    Greek letter written as one, so that \\gamma(r) in a metric is an unknown function."""
+    return node.id in BUILTINS and not _written_as_letter(node)
 
 
 def _names(value: ast.Expr, what: str) -> list[str]:
