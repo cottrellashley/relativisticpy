@@ -374,7 +374,11 @@ def apply(array: Any, func: Callable[..., Any], name: str, extra: Sequence[Any] 
         return getattr(xp, ufunc)(array)
     numbers = [number(e) for e in extra]
     np = numpy()
-    if xp is np and (translated := _translated(func, tuple(numbers))) is not None:
+    try:
+        translated = _translated(func, tuple(numbers)) if xp is np else None
+    except TypeError:  # what cannot be remembered, as a JAX array cannot
+        translated = None
+    if translated is not None:
         try:
             result = np.asarray(translated(array))
         except (NameError, TypeError, ValueError, AttributeError):
