@@ -68,7 +68,7 @@ def _add(op: ops.Add, args: list[Any], executor: Executor) -> Any:
     total = signed[0]
     for term in signed[1:]:
         total = total + term
-    return total
+    return numerical.as_array(total) if numerical.involves(terms) else total  # not np.matrix
 
 
 @execute.register(ops.Mul)

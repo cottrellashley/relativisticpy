@@ -311,8 +311,10 @@ def det(components: Any, rows: int) -> Any:
 
 def trace(components: Any, rows: int) -> Any:
     matrix, _, _ = _square(components, rows)
+    if numerical.is_sparse(matrix):
+        return matrix.diagonal().sum()
     if numerical.is_numerical(matrix):
-        return numerical.xp(matrix).trace(numerical.dense(matrix))
+        return numerical.xp(matrix).trace(matrix)
     return matrix.trace()
 
 
@@ -344,9 +346,17 @@ def diag(vector: Any) -> Any:
 
 
 def hadamard(left: Any, right: Any) -> Any:
-    """The elementwise product of two arrays of the same shape."""
+    """The elementwise product of two arrays of the same shape. A sparse matrix's is
+    sparse; its ``*`` is the matrix product, which is not this."""
     if numerical.involves([left, right]):
-        return numerical.as_array(left) * numerical.as_array(right)
+        left, right = numerical.as_array(left), numerical.as_array(right)
+        if numerical.is_jax(left) or numerical.is_jax(right):
+            return numerical.xp(left, right).multiply(numerical.dense(left), numerical.dense(right))
+        if numerical.is_sparse(left):
+            return left.multiply(right).tocsr()
+        if numerical.is_sparse(right):
+            return right.multiply(left).tocsr()
+        return left * right
     if not isinstance(left, sympy.NDimArray):
         return left * right
     return ImmutableDenseNDimArray(

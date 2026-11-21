@@ -216,8 +216,9 @@ Tensor('_{k}', [-sqrt(Delta**2 + epsilon**2), sqrt(Delta**2 + epsilon**2)])
   come from an iterative solver: `\operatorname{spec}(L^i{}_j, -6)`. Without a count,
   a sparse matrix of up to 4,096 rows has its whole spectrum computed as a dense one.
 - **JAX.** `Workbook(backend="jax")` keeps bound data as JAX arrays, computed with JAX,
-  on a GPU if there is one. `wb.grad(expression, "w")` differentiates any scalar
-  expression with respect to bound data, through contractions and linear solves:
+  on a GPU if there is one; a sparse matrix stays SciPy's, and multiplies JAX arrays
+  as one of JAX's. `wb.grad(expression, "w")` differentiates any scalar expression
+  with respect to bound data, through contractions, sparse matrices and linear solves:
 
 ```python
 >>> grad = Workbook()

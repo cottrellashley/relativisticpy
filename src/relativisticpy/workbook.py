@@ -226,7 +226,7 @@ class Workbook:
                 f"{written} has {len(entries)} indices but the data has {len(shape)} axes"
             )
         complex_data = numerical.is_numerical(components) and numerical.numpy().iscomplexobj(
-            numerical.dense(components)
+            components
         )
         field: Literal["real", "complex"] = "complex" if complex_data else "real"
         spaces: list[Space] = []
@@ -251,7 +251,8 @@ class Workbook:
             import jax.numpy as jnp
 
             _double_precision(jax)
-            components = jnp.asarray(numerical.dense(components))
+            if not numerical.is_sparse(components):  # sparse stays SciPy's, and sparse
+                components = jnp.asarray(components)
         indices = Indices(Index(label, upper) for label, upper in entries)
         node = session.graph.const(components, TensorType(indices, tuple(spaces)))
         session.globals.bind(name, TensorBinding(node, indices))

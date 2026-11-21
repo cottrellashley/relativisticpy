@@ -166,7 +166,7 @@ class Tensor:
                 sizes = " \\times ".join(str(n) for n in self.shape)
                 field = (
                     "\\mathbb{C}"
-                    if numerical.numpy().iscomplexobj(self.to_numpy())
+                    if numerical.numpy().iscomplexobj(self.components)
                     else "\\mathbb{R}"
                 )
                 return f"{head}{self.indices.latex()} \\in {field}^{{{sizes}}}"
@@ -194,10 +194,17 @@ class Tensor:
         if self.numerical:
             np = numerical.numpy()
             names = [self._basis(axis) for axis in range(self.rank)]
-            data = self.to_numpy()
+            entries: Iterable[tuple[tuple[Any, ...], Any]]
+            if numerical.is_sparse(self.components):  # without the zeros
+                found = self.components.tocoo()
+                entries = zip(zip(found.row, found.col, strict=True), found.data, strict=True)
+            else:
+                data = self.to_numpy()
+                entries = ((tuple(index), data[tuple(index)]) for index in np.argwhere(data != 0))
             return {
-                tuple(names[axis][int(i)] for axis, i in enumerate(index)): data[tuple(index)]
-                for index in np.argwhere(data != 0)
+                tuple(names[axis][int(i)] for axis, i in enumerate(index)): value
+                for index, value in entries
+                if value != 0
             }
         labels = [str(c) for c in self.coordinates] or [str(i) for i in range(self.dim)]
         result = {}

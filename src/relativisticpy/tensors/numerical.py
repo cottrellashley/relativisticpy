@@ -88,9 +88,12 @@ def number(value: Any) -> Any:
 
 
 def as_array(value: Any) -> Any:
-    """Components as a numerical array: SymPy arrays of numbers are converted."""
+    """Components as a numerical array: SymPy arrays of numbers are converted, and so is
+    a NumPy matrix, which a sparse matrix and a dense array add up to, and whose ``*``
+    and indexing are a matrix's, not an array's."""
     if is_numerical(value):
-        return value
+        np = numpy()
+        return np.asarray(value) if isinstance(value, np.matrix) else value
     np = numpy()
     if isinstance(value, sympy.NDimArray):
         flat = [number(entry) for entry in sympy.flatten(value.tolist())] if value.shape else []
@@ -188,34 +191,111 @@ def _chunked(arrays: Sequence[Any], labels: Sequence[Sequence[int]], out: Sequen
 def _sparse_contract(
     arrays: Sequence[Any], labels: Sequence[Sequence[int]], out: Sequence[int]
 ) -> Any:
-    """Contractions with a sparse matrix: as matrix products where they are one, a
-    sparse matrix times a vector or a dense matrix; otherwise densified if small."""
-    if len(arrays) == 2:
-        (a, b), (la, lb) = arrays, labels
-        if is_sparse(b) and not is_sparse(a):
-            (a, b), (la, lb) = (b, a), (lb, la)
-        shared = [n for n in la if n in lb]
-        if is_sparse(a) and len(shared) == 1 and len(la) == 2 and len(set(la)) == 2:
-            (n,) = shared
-            matrix = a if la[1] == n else a.T  # summing over the matrix's columns
-            other = numpy().moveaxis(dense(b), list(lb).index(n), 0)
-            result = matrix @ other.reshape(other.shape[0], -1)
-            free_a = la[0] if la[1] == n else la[1]
-            rest = [m for m in lb if m != n]
-            result = (
-                numpy()
-                .asarray(result)
-                .reshape((a.shape[0] if la[1] == n else a.shape[1], *other.shape[1:]))
-            )
-            have = [free_a, *rest]
-            if sorted(have) == sorted(out):
-                return numpy().transpose(result, [have.index(m) for m in out]) if out else result
-    if sum(math.prod(array.shape) for array in arrays) > 10**7:
+    """Contractions with sparse matrices, a pair at a time. A sparse matrix meets an
+    operand it shares one index with, summed nowhere else, as a matrix product: a vector
+    or a dense array, or another sparse matrix, whose product stays sparse. Dense operands
+    that share an index are contracted together first, keeping what the rest needs, so
+    that L_{ij} x^j y^i is two products of the matrix with a vector. What cannot be done
+    so is densified, if small. Operands JAX traces meet a sparse matrix as JAX's own."""
+    operands = [(array, tuple(group)) for array, group in zip(arrays, labels, strict=True)]
+    while len(operands) > 1:
+        pair = _pair(operands, out)
+        if pair is None:
+            break
+        i, j = pair
+        others = [operand for k, operand in enumerate(operands) if k not in (i, j)]
+        needed = {label for _, group in others for label in group} | set(out)
+        operands = [*others, _product(operands[i], operands[j], needed)]
+    if len(operands) == 1 and (alone := _arranged(*operands[0], out)) is not None:
+        return alone
+    if sum(math.prod(array.shape) for array, _ in operands) > 10**7:
         raise EvaluationError(
-            "a sparse tensor can be contracted with one dense operand at a time",
+            "this product of a sparse matrix is too large to compute densely",
             hint="split the product, as in x^i := L^i{}_j v^j, then y_k := x^i w_{ik}",
         )
-    return _einsum(numpy(), [dense(array) for array in arrays], labels, out)
+    arrays = [dense(array) for array, _ in operands]
+    return _einsum(_xp(*arrays), arrays, [group for _, group in operands], out)
+
+
+def _pair(operands: Sequence[tuple[Any, tuple[int, ...]]], out: Sequence[int]) -> Any:
+    """The next two operands of a sparse contraction: a sparse matrix and a dense operand
+    it is a matrix product with, then two dense operands with an index in common, then two
+    sparse matrices; ``None`` if no two can be multiplied so."""
+    found: dict[str, tuple[int, int]] = {}
+    for i, (a, la) in enumerate(operands):
+        for j, (b, lb) in enumerate(operands):
+            if i == j or not set(la) & set(lb):
+                continue
+            if is_sparse(a) and _matrix_product(operands, i, j, out) is not None:
+                found.setdefault("sparse" if is_sparse(b) else "dense", (i, j))
+            elif not (is_sparse(a) or is_sparse(b)):
+                found.setdefault("both dense", (i, j))
+    return next((found[kind] for kind in ("dense", "both dense", "sparse") if kind in found), None)
+
+
+def _matrix_product(
+    operands: Sequence[tuple[Any, tuple[int, ...]]], i: int, j: int, out: Sequence[int]
+) -> int | None:
+    """The index a sparse matrix, operand ``i``, sums with operand ``j`` as a matrix
+    product: their one index in common, written nowhere else; ``None`` if there is none."""
+    (_, la), (b, lb) = operands[i], operands[j]
+    shared = set(la) & set(lb)
+    if len(la) != 2 or la[0] == la[1] or len(shared) != 1:
+        return None
+    (label,) = shared
+    elsewhere = any(label in group for k, (_, group) in enumerate(operands) if k not in (i, j))
+    if elsewhere or label in out or lb.count(label) != 1:
+        return None
+    if is_sparse(b) and (len(lb) != 2 or lb[0] == lb[1]):
+        return None
+    return label
+
+
+def _product(
+    left: tuple[Any, tuple[int, ...]], right: tuple[Any, tuple[int, ...]], needed: set[int]
+) -> tuple[Any, tuple[int, ...]]:
+    """Two operands of a sparse contraction multiplied, with their labels: as a matrix
+    product if one is a sparse matrix, summing the index they share, and otherwise with
+    ``einsum``, summing what nothing else ``needed`` has."""
+    (a, la), (b, lb) = left, right
+    if not is_sparse(a):
+        (a, la), (b, lb) = (b, lb), (a, la)
+    if not is_sparse(a):
+        keep = tuple(label for label in dict.fromkeys(la + lb) if label in needed)
+        xp = _xp(a, b)
+        return _einsum(xp, [a, b], [la, lb], keep), keep
+    (label,) = set(la) & set(lb)
+    matrix = a if la[1] == label else a.T  # its columns are summed
+    row = la[0] if la[1] == label else la[1]
+    if is_sparse(b):
+        other = b if lb[0] == label else b.T
+        return matrix @ other, (row, lb[1] if lb[0] == label else lb[0])
+    xp = _xp(b)
+    moved = xp.moveaxis(b, lb.index(label), 0)
+    if is_jax(b):
+        from jax.experimental import sparse as jax_sparse
+
+        matrix = jax_sparse.BCOO.from_scipy_sparse(matrix)
+    product = matrix @ moved.reshape(moved.shape[0], -1)
+    shape = (matrix.shape[0], *moved.shape[1:])
+    return xp.asarray(product).reshape(shape), (row, *(m for m in lb if m != label))
+
+
+def _arranged(array: Any, group: tuple[int, ...], out: Sequence[int]) -> Any:
+    """The last operand of a contraction, its axes in the order of ``out``, and summed
+    over any index not there; ``None`` for a sparse matrix that would need densifying."""
+    if not is_sparse(array):
+        return _einsum(_xp(array), [array], [group], out)
+    if len(set(group)) == 2 and sorted(group) == sorted(out):
+        return array if list(group) == list(out) else array.T
+    np = numpy()
+    if group[0] == group[1]:  # the trace, or the diagonal
+        return array.diagonal().sum() if not out else array.diagonal()
+    if not out:
+        return array.sum()
+    if len(out) == 1 and out[0] in group:  # summed over the other index
+        return np.asarray(array.sum(axis=1 - group.index(out[0]))).ravel()
+    return None
 
 
 # -- components ---------------------------------------------------------------------
@@ -228,8 +308,13 @@ def permute(array: Any, axes: Sequence[int]) -> Any:
 
 
 def select(array: Any, fixed: Mapping[int, int]) -> Any:
+    if is_sparse(array):  # a row or a column, without the rest of the matrix
+        if len(fixed) == 2:
+            return array.tocsr()[fixed[0], fixed[1]]
+        part = array.tocsr()[fixed[0], :] if 0 in fixed else array.tocsc()[:, fixed[1]]
+        return numpy().asarray(part.toarray()).ravel()
     index = tuple(fixed.get(axis, slice(None)) for axis in range(len(array.shape)))
-    result = dense(array)[index]
+    result = array[index]
     return result[()] if getattr(result, "ndim", 1) == 0 else result
 
 

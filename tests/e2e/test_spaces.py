@@ -320,6 +320,40 @@ class TestGraphs:
         assert np.allclose(smallest, [0, gap, gap], atol=1e-8)
 
 
+class TestSparse:
+    def test_sparse_data_is_never_densified(self, wb):
+        n = 200_000  # dense, 300 GB
+        path = sp.diags([-np.ones(n - 1), 2 * np.ones(n), -np.ones(n - 1)], [-1, 0, 1])
+        wb["L^i_j"] = path.tocsr()
+        assert sp.issparse(wb.expr(r"L^i{}_j L^j{}_k").components)
+        assert wb.expr(r"L^{i=0}{}_{j} 1^j") == pytest.approx(1.0)
+        assert wb.expr(r"\operatorname{tr}(L^i{}_j)") == pytest.approx(2.0 * n)
+
+    def test_sums_and_elementwise_products(self, wb):
+        a = sp.random(5, 5, density=0.5, random_state=1, format="csr")
+        b = rng.normal(size=(5, 5))
+        wb["A_{ij}"] = a
+        wb["B_{ij}"] = b
+        assert np.allclose(wb.expr(r"A_{ij} \odot B_{ij}").to_numpy(), a.toarray() * b)
+        wb.exe(r"C_{ij} := A_{ij} + B_{ij}")
+        assert type(wb["C"].components) is np.ndarray  # not np.matrix
+        assert np.allclose(wb.expr(r"C_{i=0 j}").to_numpy(), (a.toarray() + b)[0])
+        variance = wb.expr(r"\operatorname{Var}_i(A_{ij})").to_numpy()
+        assert np.allclose(variance, a.toarray().var(axis=0))
+
+    def test_gradients_and_jax_with_a_sparse_matrix(self, wb):
+        path = sp.csr_matrix(np.diag(2 * np.ones(5)) - np.diag(np.ones(4), 1))
+        v = rng.normal(size=5)
+        wb["L^i_j"] = path
+        wb["v^i"] = v
+        gradient = wb.grad(r"v^i L_{ij} v^j", "v").to_numpy()
+        assert np.allclose(gradient, (path + path.T) @ v)
+        with Workbook(backend="jax") as jax_wb:
+            jax_wb["L^i_j"] = path
+            jax_wb["v^i"] = v
+            assert np.allclose(jax_wb.expr(r"L^i{}_j v^j").to_numpy(), path @ v)
+
+
 class TestRegression:
     def test_the_normal_equations(self, wb):
         x = rng.normal(size=(200, 4))

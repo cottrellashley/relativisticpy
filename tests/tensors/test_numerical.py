@@ -50,6 +50,22 @@ class TestContraction:
             numerical.contract([(matrix, (0, 1)), (w, (1, 2))], (2, 0)), (matrix @ w).T
         )
 
+    def test_products_of_sparse_matrices_stay_sparse(self):
+        a = sp.random(30, 30, density=0.1, random_state=2, format="csr")
+        product = numerical.contract([(a, (0, 1)), (a, (1, 2))], (0, 2))
+        assert sp.issparse(product)
+        assert np.allclose(product.toarray(), (a @ a).toarray())
+        v = rng.normal(size=30)
+        chain = numerical.contract([(a, (0, 1)), (a, (1, 2)), (v, (2,))], (0,))
+        assert np.allclose(chain, a @ (a @ v))
+        assert np.isclose(numerical.contract([(v, (0,)), (a, (0, 1)), (v, (1,))], ()), v @ a @ v)
+        assert np.isclose(numerical.contract([(a, (0, 0))], ()), a.diagonal().sum())
+
+    def test_a_row_of_a_sparse_matrix(self):
+        a = sp.random(500, 500, density=0.01, random_state=4, format="csr")
+        assert np.allclose(numerical.select(a, {0: 3}), a.toarray()[3])
+        assert np.allclose(numerical.select(a, {1: 7}), a.toarray()[:, 7])
+
     def test_a_symbol_cannot_meet_numbers(self):
         with pytest.raises(EvaluationError, match="x is a symbol"):
             numerical.number(sympy.Symbol("x"))

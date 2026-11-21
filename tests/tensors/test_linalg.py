@@ -154,6 +154,13 @@ class TestOthers:
         rotation = linalg.function("exp", Array([[0, -t], [t, 0]]), 1)
         assert rotation == Array([[sympy.cos(t), -sympy.sin(t)], [sympy.sin(t), sympy.cos(t)]])
 
+    def test_the_elementwise_product_of_a_sparse_matrix(self):
+        a = sp.random(4, 4, density=0.5, random_state=1, format="csr")
+        b = rng.normal(size=(4, 4))
+        assert np.allclose(linalg.hadamard(a, b).toarray(), a.toarray() * b)
+        assert np.allclose(linalg.hadamard(b, a).toarray(), a.toarray() * b)
+        assert np.isclose(linalg.trace(a, 1), np.trace(a.toarray()))
+
     def test_diagonal_and_elementwise(self):
         assert np.allclose(linalg.diag(np.array([1.0, 2.0])), np.diag([1.0, 2.0]))
         assert linalg.diag(Array([1, 2])) == Array([[1, 0], [0, 2]])
