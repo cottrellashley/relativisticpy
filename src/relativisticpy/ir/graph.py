@@ -11,6 +11,9 @@ from relativisticpy.ir import ops
 from relativisticpy.ir.types import Type
 from relativisticpy.language.source import Span
 
+#: Fresh keys for constants, one per constant made, in any graph.
+_TOKENS = count()
+
 
 @dataclass(frozen=True, eq=False)
 class Node:
@@ -39,6 +42,10 @@ class Graph:
     Adding the same operation on the same arguments with the same type returns
     the existing node: common-subexpression elimination for free. ``∂_c g_{ab}``
     appears three times in the Christoffel formula but is computed once.
+
+    Every constant is a computation of its own, with a fresh key: two constants
+    are never one, even with the same value, so data bound again after it changed
+    in place, or one array bound to two names, is never mistaken for another.
     """
 
     def __init__(self) -> None:
@@ -48,7 +55,7 @@ class Graph:
     def add(self, op: ops.Op, args: Sequence[Node], type: Type, span: Span | None = None) -> Node:
         key: Hashable
         if isinstance(op, ops.Const):
-            key = ("const", id(op.value))
+            key = ("const", next(_TOKENS))
             return Node(op, (), type, next(self._ids), key, span)
         key = (op, tuple(arg.key for arg in args))
         node = self._interned.get((key, type))

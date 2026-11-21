@@ -471,29 +471,41 @@ def _rank_of(value: Any) -> int:
 def _scalar(value: Any) -> Any:
     if numerical.is_numerical(value) and getattr(value, "shape", ()) != ():
         raise CompileError("an array is bound to a tensor written with its indices, as in w^{a}")
-    return sympy.sympify(value) if not numerical.is_numerical(value) else value
+    if not numerical.is_numerical(value):
+        return sympy.sympify(value)
+    return value[()] if isinstance(value, numerical.numpy().ndarray) else value  # not a view
 
 
 def _data(value: Any) -> tuple[Any, list[tuple[str, ...] | None], list[str | None]]:
     """Components, the names of each axis's elements and each axis's name, from a pandas
-    object; just the components from anything else."""
+    object; just the components from anything else. The components are a copy, so that
+    data changed in place afterwards changes nothing bound."""
     module = type(value).__module__ or ""
     if module.startswith("pandas"):
         axes = [value.index] if value.ndim == 1 else [value.index, value.columns]
         bases = [None if _is_range(axis) else tuple(str(x) for x in axis) for axis in axes]
         names = [str(axis.name) if axis.name is not None else None for axis in axes]
-        return value.to_numpy(), bases, names
+        return _copy(value.to_numpy()), bases, names
     if numerical.is_numerical(value):
         rank = len(getattr(value, "shape", ()))
-        return value, [None] * rank, [None] * rank
+        return _copy(value), [None] * rank, [None] * rank
     if isinstance(value, sympy.NDimArray | sympy.MatrixBase):
         array = arrays.to_array(value)
         return array, [None] * array.rank(), [None] * array.rank()
-    array = numerical.numpy().asarray(value)
+    array = numerical.numpy().array(value)
     if array.dtype == object:
         array = arrays.to_array(value)
         return array, [None] * array.rank(), [None] * array.rank()
     return array, [None] * array.ndim, [None] * array.ndim
+
+
+def _copy(array: Any) -> Any:
+    """A numerical array of one's own: a copy, except of a JAX array, which cannot change."""
+    if numerical.is_jax(array):
+        return array
+    if numerical.is_sparse(array):
+        return array.copy()
+    return numerical.numpy().array(array)
 
 
 def _is_range(axis: Any) -> bool:

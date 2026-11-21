@@ -20,6 +20,14 @@ def test_constants_are_never_merged():
     assert graph.const(1, SCALAR) is not graph.const(1, SCALAR)
 
 
+def test_constants_of_one_value_are_different_computations():
+    # Keyed by the value's identity, an array changed in place and bound again would
+    # be taken for the old one, and its results with it.
+    graph, value = Graph(), [1.0, 2.0]
+    assert graph.const(value, VALUE).key != graph.const(value, VALUE).key
+    assert graph.const(value, VALUE).key != Graph().const(value, VALUE).key
+
+
 def test_retyping_keeps_the_computation():
     graph = Graph()
     x = graph.const(sympy.Array([1, 2]), VALUE)

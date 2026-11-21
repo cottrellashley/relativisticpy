@@ -85,6 +85,19 @@ class TestData:
         with pytest.raises(CompileError, match="cannot bind"):
             wb["2 + x"] = 1.0
 
+    def test_data_is_copied_when_bound(self, wb):
+        x = np.array([1.0, 2.0])
+        wb["w^a"] = x
+        assert wb.expr(r"w^a w^b \delta_{ab}") == pytest.approx(5.0)
+        x[0] = 3.0  # changed in place, as an optimiser does, then bound again
+        assert wb["w"].to_numpy().tolist() == [1.0, 2.0]
+        wb["w^a"] = x
+        assert wb.expr(r"w^a w^b \delta_{ab}") == pytest.approx(13.0)
+        frame = pd.DataFrame({"x": [1.0, 2.0]})
+        wb["X_{sc}"] = frame
+        frame.iloc[0, 0] = 10.0
+        assert wb["X"].to_numpy().ravel().tolist() == [1.0, 2.0]
+
     def test_numbers_are_plain_python_numbers(self, wb):
         wb["w^a"] = np.array([3.0, 4.0])
         value = wb.expr(r"\|w\|")
@@ -257,6 +270,12 @@ class TestJax:
     def test_gradients_through_a_solve(self, market):
         gradient = market.grad(r"(\Sigma^{-1})^{ab} \mu_a \mu_b", "mu").to_numpy()
         assert np.allclose(gradient, 2 * np.linalg.solve(COVARIANCE, MEAN))
+
+    def test_a_gradient_with_one_array_bound_to_two_names(self, wb):
+        w = np.array([1.0, 2.0, 3.0])
+        wb["w^a"] = w
+        wb["b_a"] = w
+        assert np.allclose(wb.grad(r"w^a b_a", "w").to_numpy(), w)
 
     def test_a_gradient_is_of_a_scalar(self, market):
         with pytest.raises(ValueError, match="scalar"):
