@@ -155,6 +155,12 @@ def canonical(value: Value, space: Algebra) -> Value:
     """A canonical form: expanded, with metrics and deltas contracted, the tensors'
     symmetries and dummy indices in canonical order, and the identities of General
     Relativity applied. Two values are equal exactly when their difference is 0."""
+    return _without_cyclic_sums(_canonical(value, space), space)
+
+
+def _canonical(value: Value, space: Algebra) -> Value:
+    """The canonical form, but for sums the first Bianchi identity makes vanish where
+    contracted indices keep :func:`_cyclic` from applying it."""
     for _ in range(16):  # each round can reveal another contraction
         for step in ("expand", "contract_metric", "contract_delta", "canon_bp"):
             if not isinstance(value, TensExpr):  # it has cancelled to a scalar
@@ -261,6 +267,58 @@ def _cyclic(tensor: Tensor, space: Algebra) -> Value | None:
         *(by_name[n] for n in (w1, w2, w3, w4))
     )
     return sign * kept
+
+
+def _without_cyclic_sums(value: Value, space: Algebra) -> Value:
+    """``value`` without the sums of terms that vanish by the first Bianchi identity where
+    some indices of a Riemann or Weyl tensor are contracted, as in
+    :math:`R_{\\rho\\sigma\\mu\\nu} u^\\nu + R_{\\rho\\mu\\nu\\sigma} u^\\nu
+    + R_{\\rho\\nu\\sigma\\mu} u^\\nu`, where :func:`_cyclic` does not apply.
+
+    Only terms with the same tensors can cancel one another, so the terms are taken in
+    groups of those. A group is dropped where it vanishes once each Riemann or Weyl
+    tensor is written as its projection onto the solutions of the identity,
+    :math:`R_{abcd} = \\tfrac23 R_{abcd} - \\tfrac13 R_{adbc} + \\tfrac13 R_{acbd}`: an
+    identity itself, which canonical forms see through. Nothing that does not vanish is
+    dropped."""
+    if not isinstance(value, TensExpr):
+        return value
+    groups: dict[tuple[tuple[str, int], ...], list[tuple[Expr, list[Tensor]]]] = {}
+    for coefficient, tensors in terms(value):
+        key = tuple(sorted((t.head.name, len(t.head.index_types)) for t in tensors))
+        groups.setdefault(key, []).append((coefficient, tensors))
+    kept: list[tuple[Expr, list[Tensor]]] = []
+    for group in groups.values():
+        contracted = any(
+            space.quantity(t.head) in ("riemann", "weyl")
+            and any(i.name.startswith("L_") for i in t.indices)
+            for _, tensors in group
+            for t in tensors
+        )
+        if len(group) > 1 and contracted and _canonical(_projected(group, space), space) == 0:
+            continue
+        kept.extend(group)
+    return value if len(kept) == sum(map(len, groups.values())) else build(kept)
+
+
+def _projected(pieces: list[tuple[Expr, list[Tensor]]], space: Algebra) -> Value:
+    """Terms with each Riemann or Weyl tensor replaced by its projection onto the
+    solutions of the first Bianchi identity, which it equals."""
+    third = sympy.Rational(1, 3)
+    projected = []
+    for coefficient, tensors in pieces:
+        factors: list[Value] = []
+        for tensor in tensors:
+            if space.quantity(tensor.head) not in ("riemann", "weyl"):
+                factors.append(tensor)
+                continue
+            m, n, p, q = tensor.indices
+            head = tensor.head
+            factors.append(
+                2 * third * head(m, n, p, q) - third * head(m, q, n, p) + third * head(m, p, n, q)
+            )
+        projected.append((coefficient, factors))
+    return build(projected)
 
 
 # -- operations --------------------------------------------------------------------------

@@ -55,6 +55,13 @@ class TestNotation:
     def test_equations_with_other_free_indices_differ(self, wb):
         assert wb.expr(r"A_{ab} = B_{ab}") != wb.expr(r"A_{cd} = B_{cd}")
 
+    def test_the_bianchi_identity_with_a_contracted_index(self, wb):
+        bianchi = (
+            r"R_{\rho\sigma\mu\nu} u^\nu + R_{\rho\mu\nu\sigma} u^\nu + R_{\rho\nu\sigma\mu} u^\nu"
+        )
+        assert str(wb.expr(rf"simplify({bianchi})")) == "0"
+        assert wb.expr(rf"{bianchi} = 0").holds()
+
     def test_subs_with_a_scalar_rule(self, wb):
         wb.exe(EINSTEIN)
         assert str(wb.expr(r"subs(EFE, \Lambda = 0)")) == r"G_{\mu\nu} = 8 \pi G T_{\mu\nu}"

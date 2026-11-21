@@ -45,10 +45,25 @@ class TestCanonicalForms:
             Riemann(rho, sigma, mu, nu) + Riemann(rho, mu, nu, sigma) + Riemann(rho, nu, sigma, mu),
             Ricci(mu, nu) - Ricci(nu, mu),
             T(up(a), mu) * u(a) - T(up(rho), mu) * u(rho),  # dummies renamed
+            # the first Bianchi identity with an index contracted, and with all four
+            Riemann(rho, sigma, mu, nu) * u(up(nu))
+            + Riemann(rho, mu, nu, sigma) * u(up(nu))
+            + Riemann(rho, nu, sigma, mu) * u(up(nu)),
+            Weyl(rho, sigma, mu, nu) * u(up(nu))
+            + Weyl(rho, mu, nu, sigma) * u(up(nu))
+            + Weyl(rho, nu, sigma, mu) * u(up(nu)),
+            Riemann(a, rho, sigma, mu) * Riemann(up(a), up(rho), up(sigma), up(mu))
+            - 2 * Riemann(a, rho, sigma, mu) * Riemann(up(a), up(sigma), up(rho), up(mu)),
         ],
     )
     def test_identities_vanish(self, zero):
         assert canonical(zero, space) == 0
+
+    def test_what_is_not_an_identity_does_not_vanish(self):
+        kretschmann = Riemann(a, rho, sigma, mu) * Riemann(up(a), up(rho), up(sigma), up(mu))
+        crossed = Riemann(a, rho, sigma, mu) * Riemann(up(a), up(sigma), up(rho), up(mu))
+        assert canonical(kretschmann - crossed, space) != 0
+        assert canonical(Riemann(a, rho, sigma, mu) * u(up(rho)) * u(up(mu)), space) != 0
 
     @pytest.mark.parametrize(
         ("contraction", "expected"),
