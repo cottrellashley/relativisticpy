@@ -220,6 +220,17 @@ def test_a_document_whose_equations_cannot_be_found_is_a_finding(monkeypatch):
     ]
 
 
+def test_a_file_is_read_with_its_packages_and_the_files_it_inputs(tmp_path):
+    (tmp_path / "macros.sty").write_text(r"\newcommand{\half}{\frac{1}{2}}")
+    (tmp_path / "numbers.tex").write_text(r"\newcommand{\two}{2}")
+    paper = tmp_path / "paper.tex"
+    paper.write_text(
+        "\\usepackage{macros}\n\\input{numbers}\n"
+        r"\begin{equation} \half \cdot \two = 1 \end{equation}"
+    )
+    assert verdicts(Workbook().check(paper)) == [(3, Verdict.HOLDS)]
+
+
 def test_the_summary_counts_verdicts():
     summary = Workbook().check(Document(PAPER, "paper.tex")).summary()
     assert summary.splitlines()[0] == "paper.tex: 5 equations, 7 statements"

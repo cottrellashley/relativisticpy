@@ -123,15 +123,16 @@ def check(
     lines: tuple[int, int] | None = None,
     time_limit: float | None = None,
 ) -> Report:
-    """Check a :class:`~relativisticpy.documents.Document`, or a file: a LaTeX
-    document or, by its suffix, a Markdown notebook."""
+    """Check a :class:`~relativisticpy.documents.Document`, or a file: a LaTeX document,
+    with the macros of its local packages and of the files it includes, or, by its
+    suffix, a Markdown notebook."""
     if not isinstance(document, Document):
         path = Path(document)
-        text = path.read_text(encoding="utf-8", errors="replace")
         if path.suffix.lower() in (".md", ".markdown"):
+            text = path.read_text(encoding="utf-8-sig", errors="replace")
             blocks = [Equation(source, "$$") for source in math_blocks(text, str(path))]
             return check_equations(workbook, blocks, str(path), lines, time_limit)
-        document = Document(text, str(path))
+        document = Document.read(path)
     try:
         equations = document.equations()
     except Exception as error:  # a document that cannot be read is reported, as a statement is
