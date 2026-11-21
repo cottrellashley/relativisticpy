@@ -202,6 +202,38 @@ class TestComponents:
         assert flrw.expr(r"R_{\mu\nu} = RHS(solve(EFE, R_{\mu\nu}))")
         assert flrw.expr(r"G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}")
 
+    def test_a_renamed_einstein_tensor_turns_into_components(self, wb):
+        wb.exe("EinsteinSymbol := E")
+        wb.exe(r"EFE := E_{\mu\nu} = 8\pi G T_{\mu\nu}")
+        wb.exe(r"g_{\mu\nu} := FLRW(k)")
+        wb.exe(r"T_{\mu\nu} := RHS(solve(EFE, T_{\mu\nu}))")
+        a = Function("a")(t)
+        assert same(wb.expr(r"T_{tt}"), 3 * (diff(a, t) ** 2 + k) / (8 * pi * G * a**2))
+
+    def test_r_of_notation_is_the_ricci_scalar_where_the_metric_has_an_r(self, wb):
+        # The Einstein static universe, of radius R: notation's R is still the scalar.
+        wb.exe(
+            r"Coordinates := [t, \chi, \theta, \phi]"
+            "\n"
+            r"g_{\mu\nu} := diag(-1, R^2, R^2 \sin^2\chi, R^2 \sin^2\chi \sin^2\theta)"
+        )
+        wb.exe(r"X := subs(G_{\mu\nu} = 8\pi T_{\mu\nu}, G_{ab} = R_{ab} - \frac{1}{2} R g_{ab})")
+        wb.exe(r"Y_{\mu\nu} := LHS(X)")
+        assert wb.expr(r"Y_{\mu\nu} = G_{\mu\nu}")
+
+    def test_notation_kept_before_the_coordinates_change(self, wb):
+        wb.exe(EINSTEIN)
+        wb.exe("Coordinates := [t, x, y]")  # notation is in three dimensions from now on
+        assert str(wb.expr("trace(EFE)")) == r"3 \Lambda - \frac{1}{2} R = 8 \pi G T"
+        assert str(wb.expr(r"solve(EFE, T_{\mu\nu})")) == (
+            r"T_{\mu\nu} = \frac{G_{\mu\nu} + \Lambda g_{\mu\nu}}{8 \pi G}"
+        )
+
+    def test_notation_kept_before_the_metric_is_renamed(self, wb):
+        wb.exe(r"E := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi T_{\mu\nu}")
+        wb.exe("MetricSymbol := h")
+        assert str(wb.expr("E")) == r"G_{\mu\nu} + \Lambda h_{\mu\nu} = 8 \pi T_{\mu\nu}"
+
     def test_an_equation_has_no_components(self, flrw):
         with pytest.raises(CompileError, match="an equation in index notation has no components"):
             flrw.exe(r"X_{\mu\nu} := EFE")

@@ -324,6 +324,37 @@ def _projected(pieces: list[tuple[Expr, list[Tensor]]], space: Algebra) -> Value
 # -- operations --------------------------------------------------------------------------
 
 
+def rebased(
+    kept: IndexEquation | IndexExpression, space: Algebra
+) -> IndexEquation | IndexExpression:
+    """Notation written with the tensors of one algebra, with those of ``space``: the
+    same tensors and indices, by name. Notation kept before the coordinates change, or
+    the metric is renamed, is read in the dimensions and names in force."""
+    if kept.space is space:
+        return kept
+    if isinstance(kept, IndexEquation):
+        lhs, rhs = (_rebased(side, kept.space, space) for side in (kept.lhs, kept.rhs))
+        return IndexEquation(lhs, rhs, space)
+    return IndexExpression(_rebased(kept.value, kept.space, space), space)
+
+
+def _rebased(value: Value, old: Algebra, new: Algebra) -> Value:
+    pieces = []
+    for coefficient, tensors in terms(value):
+        factors = []
+        for tensor in tensors:
+            if tensor.head == old.metric:
+                head = new.metric
+            elif tensor.head == old.delta:
+                head = new.delta
+            else:
+                rank = len(tensor.head.index_types)
+                head = new.head(tensor.head.name, rank, old.quantity(tensor.head))
+            factors.append(head(*(new.index(i.name, i.is_up) for i in tensor.indices)))
+        pieces.append((coefficient, factors))
+    return build(pieces)
+
+
 def free(value: Value) -> list[TensorIndex]:
     return list(value.get_free_indices()) if isinstance(value, TensExpr) else []
 

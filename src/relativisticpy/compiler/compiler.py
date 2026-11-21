@@ -648,6 +648,9 @@ class Compiler:
         name = node.id
         binding = scope.lookup(name)
         if isinstance(binding, VariableBinding | TensorBinding):
+            kept = self._kept(binding.node)
+            if kept is not None and kept is not _notation_of(binding.node):  # kept earlier
+                return self.graph.const(kept, VALUE, node.span)
             return binding.node
         if binding is None and (indexed := _indexed_name(node, scope)) is not None:
             return self.term(indexed, scope, ctx)  # y_t, where y is a tensor: y_{t}
@@ -2897,7 +2900,7 @@ class Compiler:
         space = self.session.algebra()
         if isinstance(node, ast.Name):
             binding = scope.lookup(node.id)
-            if isinstance(binding, VariableBinding) and (found := _notation_of(binding.node)):
+            if isinstance(binding, VariableBinding) and (found := self._kept(binding.node)):
                 return found
         if (
             isinstance(node, ast.Call)
@@ -3021,7 +3024,7 @@ class Compiler:
             return self._abstract_tensor(pattern, scope, node.span)
         if isinstance(node, ast.Name):
             binding = scope.lookup(node.id)
-            if isinstance(binding, VariableBinding) and (found := _notation_of(binding.node)):
+            if isinstance(binding, VariableBinding) and (found := self._kept(binding.node)):
                 if isinstance(found, IndexEquation):
                     raise CompileError(f"{node.id} is an equation", span=node.span)
                 return found.value
@@ -3105,7 +3108,7 @@ class Compiler:
 
     def _components_of(self, node: Node, scope: Scope, ctx: Context, span: Span) -> Node:
         """A value kept as notation, turned into components with the metric in force."""
-        found = _notation_of(node)
+        found = self._kept(node)
         if found is None:
             return node
         if isinstance(found, IndexEquation):
@@ -3150,8 +3153,27 @@ class Compiler:
                 )
         if not summands:
             return self.graph.const(sympy.S.Zero, SCALAR, span)
+        # The built-in tensors and R are bound to the geometry itself, not reached by name:
+        # the metric may use R as a symbol, and the Einstein tensor may be called E.
+        used: set[str] = set()
+        for coefficient, tensors in abstract.terms(value):
+            used.update(q for t in tensors if (q := _quantity(t.head, space)) is not None)
+            if coefficient.has(space.ricci_scalar):
+                used.add("ricci_scalar")
+        for quantity in sorted(used):
+            node = self._geometry(quantity, span)
+            binding: VariableBinding | TensorBinding = VariableBinding(node)
+            if isinstance(node.type, TensorType):
+                binding = TensorBinding(node, node.type.indices)
+            inner.bind(f"#{quantity}", binding)
         total = reduce(lambda a, b: ast.Binary("+", a, b, span=span), summands)
         return self.value(total, inner, replace(ctx, latex=False))
+
+    def _kept(self, node: Node) -> IndexEquation | IndexExpression | None:
+        """The notation a node holds, if any, in the tensors of the coordinates in force:
+        notation kept before they changed is read in their number of dimensions."""
+        found = _notation_of(node)
+        return None if found is None else abstract.rebased(found, self.session.algebra())
 
     # -- helpers -------------------------------------------------------------
 
@@ -3838,10 +3860,10 @@ def _product_factors(node: ast.Expr) -> list[ast.Expr]:
 def _tensor_syntax(
     tensor: Any, space: Any, labels: dict[str, str], fresh: Iterator[int], span: Span
 ) -> ast.Scripted:
-    """A tensor of notation, written as the language writes it, dummies renamed."""
-    name = tensor.head.name
-    if tensor.head == space.delta:
-        name = "delta"
+    """A tensor of notation, written as the language writes it, dummies renamed. A
+    built-in tensor is written with the name its geometry is bound to, as #riemann."""
+    quantity = _quantity(tensor.head, space)
+    name = f"#{quantity}" if quantity is not None else tensor.head.name
     scripts: list[ast.Script] = []
     run: list[ast.IndexItem] = []
     position: Literal["^", "_"] | None = None
@@ -3862,10 +3884,22 @@ def _tensor_syntax(
     return ast.Scripted(ast.Name(name, verbatim=True, span=span), tuple(scripts), span=span)
 
 
+def _quantity(head: Any, space: Any) -> str | None:
+    """The built-in tensor a head of notation stands for: the metric, the Kronecker delta,
+    or a tensor of the metric's geometry; ``None`` for a tensor of one's own."""
+    if head == space.metric:
+        return "metric"
+    if head == space.delta:
+        return "kronecker"
+    quantity: str | None = space.quantity(head)
+    return quantity
+
+
 def _trace_syntax(symbol: Symbol, head: Any, fresh: Iterator[int], span: Span) -> ast.Expr:
-    """The trace a scalar of notation stands for: R, or T^{a}{}_{a}."""
+    """The trace a scalar of notation stands for: the Ricci scalar, bound to the name
+    #ricci_scalar, or T^{a}{}_{a}."""
     if head is None:
-        return ast.Name(symbol.name, verbatim=True, span=span)
+        return ast.Name("#ricci_scalar", verbatim=True, span=span)
     label = f"#t{next(fresh)}"
     up = ast.Script(
         "^", None, ast.IndexList((ast.IndexItem(label, span=span),), span=span), span=span

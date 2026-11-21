@@ -99,11 +99,15 @@ class Session:
 
     def algebra(self) -> Algebra:
         """The tensors of abstract index notation, in as many dimensions as there are
-        coordinates (four before there are any)."""
+        coordinates (four before there are any), with the metric's name in force.
+        Notation kept with an earlier algebra is read in this one (see
+        :func:`~relativisticpy.abstract.rebased`)."""
         dim = len(self.coordinates) if self.coordinates else 4
-        if self._algebra is None or self._algebra.dim != dim:
-            self._algebra = Algebra(dim, metric=self.names["metric"])
-        return self._algebra
+        metric = self.names["metric"]
+        algebra = self._algebra
+        if algebra is None or algebra.dim != dim or algebra.metric.name != metric:
+            algebra = self._algebra = Algebra(dim, metric=metric)
+        return algebra
 
     def spacetime(self, span: Span, why: str = "index notation") -> Space:
         """The space of the coordinates in force."""
