@@ -59,6 +59,12 @@ class Scope:
     def child(self) -> Scope:
         return Scope(self)
 
+    def copy(self) -> Scope:
+        """A scope with the same bindings and parent, whose bindings change apart."""
+        scope = Scope(self.parent)
+        scope._bindings = dict(self._bindings)
+        return scope
+
 
 @dataclass(frozen=True)
 class Context:

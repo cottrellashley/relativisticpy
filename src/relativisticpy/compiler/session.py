@@ -3,7 +3,7 @@ symbols and the names of the built-in tensors."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any
 
 import sympy
@@ -108,6 +108,23 @@ class Session:
         if algebra is None or algebra.dim != dim or algebra.metric.name != metric:
             algebra = self._algebra = Algebra(dim, metric=metric)
         return algebra
+
+    def fork(self) -> Session:
+        """A session in the same state whose changes leave this one as it is: to compile a
+        program in order to look at it, without running it. It shares the graph and the
+        executor, which only ever gain nodes and values."""
+        return replace(
+            self,
+            globals=self.globals.copy(),
+            assumptions=dict(self.assumptions),
+            names=dict(self.names),
+            functions=dict(self.functions),
+            spaces=dict(self.spaces),
+            labels=dict(self.labels),
+            space_metrics=dict(self.space_metrics),
+            measures=dict(self.measures),
+            _algebra=None,
+        )
 
     def spacetime(self, span: Span, why: str = "index notation") -> Space:
         """The space of the coordinates in force."""

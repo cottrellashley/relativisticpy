@@ -154,6 +154,22 @@ def test_a_spacetime_takes_the_arguments_its_function_does(wb, name, function):
         wb.expr(f"{name}({', '.join(['1'] * (count + 1))})")
 
 
+def test_a_fork_of_a_session_is_compiled_against_without_changing_it():
+    from relativisticpy.compiler import Compiler, Session
+    from relativisticpy.language import Source, parse
+
+    session = Session()
+    Compiler(session).compile(parse(Source("y := 1")))
+    fork = session.fork()
+    program = r"y := 2" "\n" r"g_{\mu\nu} := Schwarzschild(M)" "\n" "MetricSymbol := h"
+    Compiler(fork).compile(parse(Source(program)))
+    assert fork.metric is not None
+    assert fork.globals.lookup("y") != session.globals.lookup("y")
+    assert session.metric is None
+    assert session.coordinates is None
+    assert session.names["metric"] == "g"
+
+
 def test_the_double_factorial(wb):
     assert wb.expr("factorial2(5)") == 15
     assert wb.expr("factorial2(6)") == 48
