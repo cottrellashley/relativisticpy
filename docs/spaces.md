@@ -139,8 +139,8 @@ with whatever it multiplies, never forming the product of everything averaged. W
 | | |
 |---|---|
 | `\mathbb{E}_t[X]` | the expectation over `t` |
-| `\operatorname{Var}_t(X)` | the variance of each component |
-| `\operatorname{Cov}_t(X, Y)` | the covariance, with the free indices of both |
+| `\operatorname{Var}_t(X)` | the variance of each component, of \(\lvert X - \mathbb{E}_t X \rvert^2\) for complex data |
+| `\operatorname{Cov}_t(X, Y)` | the covariance, with the free indices of both; of complex data, with \(Y\) conjugated, as NumPy's |
 | `\operatorname{LedoitWolf}_t(R_{ta})` | the Ledoit–Wolf shrinkage estimate of a covariance, from scikit-learn |
 
 ```python
@@ -156,9 +156,9 @@ True
 | `(\Sigma^{-1})^{ab}` | the inverse of a two-index tensor, its indices in the other position |
 | `\operatorname{eig}(A^a{}_b)` | eigenvalues and eigenvectors: `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)` |
 | `\operatorname{spec}(A)` | the eigenvalues; with a second argument `n`, the `n` largest, or smallest if negative, as for a large sparse matrix |
-| `\operatorname{svd}(X_{ta})` | `U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})` |
+| `\operatorname{svd}(X_{ta})` | `U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})`, so that \(X_{ta} = U_{tk} \operatorname{diag}(s)_{kl} V_{al}\) |
 | `\det`, `\operatorname{tr}` | of a map, or of a matrix of components |
-| `\|v\|` | the length of a vector, with the metric of its space |
+| `\|v\|` | the length of a vector, with the metric of its space: \(\sqrt{g_{ab} \bar v^a v^b}\) |
 | `\operatorname{diag}(d)_{ab}` | the diagonal matrix of a vector |
 | `A_{ta} \odot B_{ta}` | the elementwise product, which index notation has no other way to write |
 | `\exp(H)`, `\sqrt{\Sigma}`, `\log` | functions of a matrix, for a tensor named without indices: `\exp(-i H t)` |

@@ -286,6 +286,22 @@ class TestQuantum:
         spectrum = wb.expr(r"\operatorname{spec}(H^{ik}{}_{jl})").to_numpy()
         assert np.allclose(spectrum, [-3, 1, 1, 1])
 
+    def test_complex_components_are_conjugated(self, wb):
+        wb.exe(r"\mathcal{H} := \mathbb{C}^{2}" "\n" r"i, j \in \mathcal{H}")
+        wb["\\psi^i"] = np.array([1.0, 1.0j]) / np.sqrt(2)
+        assert wb.expr(r"\|\psi\|") == pytest.approx(1.0)
+        wb.exe(r"\phi^{i} := [1, i]")
+        assert wb.expr(r"\|\phi\|") == sympy.sqrt(2)
+        z = rng.normal(size=(200, 3)) + 1j * rng.normal(size=(200, 3))
+        wb["Z_{ta}"] = z
+        variance = wb.expr(r"\operatorname{Var}_t(Z_{ta})").to_numpy()
+        assert np.isrealobj(variance)
+        assert np.allclose(variance, z.var(axis=0))
+        covariance = wb.expr(r"\operatorname{Cov}_t(Z_{ta}, Z_{tb})").to_numpy()
+        assert np.allclose(covariance, np.cov(z, rowvar=False, bias=True))
+        wb.exe(r"U_{tk}, s_k, V_{ak} := \operatorname{svd}(Z_{ta})")
+        assert np.allclose(wb.expr(r"U_{tk} \operatorname{diag}(s)_{kl} V_{al}").to_numpy(), z)
+
     def test_a_symbolic_two_level_system(self, wb):
         wb.exe(r"""
             \mathcal{H} := \mathbb{C}^{2}

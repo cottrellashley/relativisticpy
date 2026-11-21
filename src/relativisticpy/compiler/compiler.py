@@ -961,17 +961,21 @@ class Compiler:
             return self._expectation(nodes[0], label, span)
         if kind == "ledoit-wolf":
             return self._ledoit_wolf(nodes[0], label, span)
+        # Complex data is conjugated as NumPy's var and cov do: the variance is of
+        # |X - E X|^2, and the covariance conjugates its second argument.
         centered = [self._centered(node, label, span) for node in nodes]
         if kind == "variance":
+            assert isinstance(centered[0].type, TensorType)
+            complex_space = self.graph.const(_complex(centered[0].type), VALUE)
             square = self.graph.add(
-                ops.Call(linalg.hadamard, "hadamard"),
-                (centered[0], centered[0]),
+                ops.Call(_squared_modulus, "squared modulus"),
+                (centered[0], complex_space),
                 centered[0].type,
                 span,
             )
             return self._expectation(square, label, span)
         with self._binding(label):
-            product = self._multiply(centered, span)
+            product = self._multiply([centered[0], self._conjugate(centered[1], span)], span)
         return self._expectation(product, label, span)
 
     def _centered(self, node: Node, label: str, span: Span) -> Node:
@@ -1789,14 +1793,24 @@ class Compiler:
 
     def _norm(self, vector: Node, span: Span) -> Node:
         """``\\|v\\|``, the length of a vector with the metric of its space:
-        :math:`\\sqrt{g_{ab} v^a v^b}`."""
+        :math:`\\sqrt{g_{ab} \\bar v^a v^b}`, with the conjugate of complex components."""
         assert isinstance(vector.type, TensorType)
         index = vector.type.indices[0]
         lowered, _ = self._move_index(vector, vector.type.indices, 0, span)
         twin = Indices([Index(index.name, not index.upper)])
-        square = self._contract([(vector, vector.type.indices), (lowered, twin)], span)
+        conjugate = self._conjugate(vector, span)
+        square = self._contract([(conjugate, vector.type.indices), (lowered, twin)], span)
+        square = self.graph.add(ops.Call(_real, "real"), (square,), SCALAR, span)
         half = self.graph.const(sympy.Rational(1, 2), SCALAR)
         return self.graph.add(ops.Pow(), (square, half), SCALAR, span)
+
+    def _conjugate(self, tensor: Node, span: Span) -> Node:
+        """The complex conjugate of a tensor: of components that are numbers, always, and
+        of SymPy's over a complex space, where a symbol need not be real."""
+        assert isinstance(tensor.type, TensorType)
+        complex_space = self.graph.const(_complex(tensor.type), VALUE)
+        call = ops.Call(_conjugate, "conjugate")
+        return self.graph.add(call, (tensor, complex_space), tensor.type, span)
 
     def _Substitution(self, node: ast.Substitution, scope: Scope, ctx: Context) -> Node:
         expr = self.value(node.expr, scope, ctx)
@@ -3577,6 +3591,46 @@ def _uniform(dim: int) -> Any:
     from relativisticpy.tensors import numerical
 
     return numerical.numpy().full(dim, 1.0 / dim)
+
+
+def _complex(kind: TensorType) -> bool:
+    """Whether a tensor has an axis over a complex space."""
+    return any(space.field == "complex" for space in kind.spaces)
+
+
+def _conjugate(components: Any, complex_space: bool) -> Any:
+    """The complex conjugate of components: of numbers, always (real ones are their own),
+    and of SymPy's where they are over a complex space."""
+    from relativisticpy.tensors import arrays, numerical
+
+    if numerical.is_numerical(components):
+        complex_data = numerical.xp(components).iscomplexobj(components)
+        return components.conj() if complex_data else components
+    return arrays.apply(components, sympy.conjugate) if complex_space else components
+
+
+def _squared_modulus(components: Any, complex_space: bool) -> Any:
+    """:math:`|x|^2` of each component, which is real: :math:`x \\bar x` of complex numbers,
+    and of SymPy's over a complex space; :math:`x^2` otherwise."""
+    from relativisticpy.tensors import arrays, numerical
+
+    if numerical.is_numerical(components):
+        if not numerical.xp(components).iscomplexobj(components):
+            return linalg.hadamard(components, components)
+        return linalg.hadamard(components, components.conj()).real
+    if complex_space:
+        return arrays.apply(components, lambda c: sympy.expand(c * sympy.conjugate(c)))
+    return linalg.hadamard(components, components)
+
+
+def _real(value: Any) -> Any:
+    """The real part of numbers that are real but for rounding, such as the square of a
+    complex vector's length; SymPy values as they are."""
+    from relativisticpy.tensors import numerical
+
+    if numerical.is_numerical(value) and numerical.xp(value).iscomplexobj(value):
+        return value.real
+    return value
 
 
 def _ledoit_wolf(samples: Any) -> Any:

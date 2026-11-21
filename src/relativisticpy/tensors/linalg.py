@@ -287,19 +287,21 @@ def _symbolic_eig(components: Any, rows: int, metric: Any) -> tuple[Any, Any]:
 
 
 def svd(components: Any, rows: int) -> tuple[Any, Any, Any]:
-    """The singular value decomposition :math:`X = U\\,\\mathrm{diag}(s)\\,V^\\dagger`,
-    thin, with singular values in decreasing order: ``U`` and ``V`` have the mode as
-    their last axis."""
+    """The singular value decomposition :math:`X = U\\,\\mathrm{diag}(s)\\,V^T`, thin, with
+    singular values in decreasing order: ``U`` and ``V`` have the mode as their last axis,
+    so that :math:`X_{ta} = U_{tk} \\mathrm{diag}(s)_{kl} V_{al}` in index notation, which
+    conjugates nothing. Of complex data, ``V`` holds the conjugates of the right singular
+    vectors."""
     matrix, row_shape, column_shape = _square(components, rows)
     if not numerical.is_numerical(matrix):
-        u, s, v = matrix.singular_value_decomposition()
+        u, s, v = matrix.singular_value_decomposition()  # X = U S V^†
         k = s.rows
         values = ImmutableDenseNDimArray([s[i, i] for i in range(k)], (k,))
-        return _array(u, (*row_shape, k)), values, _array(v, (*column_shape, k))
+        return _array(u, (*row_shape, k)), values, _array(v.conjugate(), (*column_shape, k))
     np = numerical.numpy()
     u, s, vh = np.linalg.svd(numerical.dense(matrix), full_matrices=False)
     k = len(s)
-    return u.reshape((*row_shape, k)), s, vh.conj().T.reshape((*column_shape, k))
+    return u.reshape((*row_shape, k)), s, vh.T.reshape((*column_shape, k))
 
 
 def det(components: Any, rows: int) -> Any:
