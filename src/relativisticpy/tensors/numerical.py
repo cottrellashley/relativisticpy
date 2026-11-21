@@ -95,13 +95,23 @@ def as_array(value: Any) -> Any:
     and indexing are a matrix's, not an array's."""
     if is_numerical(value):
         np = numpy()
-        return np.asarray(value) if isinstance(value, np.matrix) else value
+        return widened(np.asarray(value) if isinstance(value, np.matrix) else value)
     np = numpy()
     if isinstance(value, sympy.NDimArray):
         flat = [number(entry) for entry in sympy.flatten(value.tolist())] if value.shape else []
         kind = complex if any(isinstance(entry, complex) for entry in flat) else float
         return np.array(flat, dtype=kind).reshape(value.shape)
     return np.asarray(number(value))
+
+
+def widened(array: Any) -> Any:
+    """An array of booleans or small integers as 64-bit integers. NumPy's arithmetic keeps
+    the type of its operands, so the Gram matrix of 8-bit pixels would wrap around at 256
+    and a product of masks would be a logical one."""
+    dtype = getattr(array, "dtype", None)
+    if dtype is None or is_jax(array) or dtype.kind not in "biu" or dtype.itemsize >= 8:
+        return array
+    return array.astype(numpy().int64)
 
 
 def xp(*values: Any) -> Any:

@@ -157,6 +157,12 @@ class TestData:
         frame.iloc[0, 0] = 10.0
         assert wb["X"].to_numpy().ravel().tolist() == [1.0, 2.0]
 
+    def test_integer_data_does_not_overflow(self, wb):
+        pixels = rng.integers(0, 256, size=(40, 3)).astype(np.uint8)
+        wb["X_{ta}"] = pixels
+        exact = pixels.astype(np.int64).T @ pixels.astype(np.int64)
+        assert np.array_equal(wb.expr(r"X_{ta} X_{tb}").to_numpy(), exact)
+
     def test_numbers_are_plain_python_numbers(self, wb):
         wb["w^a"] = np.array([3.0, 4.0])
         value = wb.expr(r"\|w\|")

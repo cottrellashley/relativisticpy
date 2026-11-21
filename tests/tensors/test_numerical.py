@@ -66,6 +66,14 @@ class TestContraction:
         assert np.allclose(numerical.select(a, {0: 3}), a.toarray()[3])
         assert np.allclose(numerical.select(a, {1: 7}), a.toarray()[:, 7])
 
+    def test_small_integers_do_not_overflow(self):
+        pixels = rng.integers(0, 256, size=(40, 3)).astype(np.uint8)
+        gram = numerical.contract([(pixels, (0, 1)), (pixels, (0, 2))], (1, 2))
+        assert np.array_equal(gram, pixels.astype(np.int64).T @ pixels.astype(np.int64))
+        mask = rng.integers(0, 2, size=(20, 3)).astype(bool)
+        counts = numerical.contract([(mask, (0, 1)), (mask, (0, 2))], (1, 2))
+        assert np.array_equal(counts, mask.astype(np.int64).T @ mask.astype(np.int64))
+
     def test_a_symbol_cannot_meet_numbers(self):
         with pytest.raises(EvaluationError, match="x is a symbol"):
             numerical.number(sympy.Symbol("x"))

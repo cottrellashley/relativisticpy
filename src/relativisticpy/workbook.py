@@ -515,12 +515,13 @@ def _data(value: Any) -> tuple[Any, list[tuple[str, ...] | None], list[str | Non
 
 
 def _copy(array: Any) -> Any:
-    """A numerical array of one's own: a copy, except of a JAX array, which cannot change."""
+    """A numerical array of one's own: a copy, except of a JAX array, which cannot change,
+    with small integers widened so that arithmetic cannot overflow them."""
     if numerical.is_jax(array):
         return array
     if numerical.is_sparse(array):
-        return array.copy()
-    return numerical.numpy().array(array)
+        return numerical.widened(array.copy())
+    return numerical.widened(numerical.numpy().array(array))
 
 
 def _axis_space(
