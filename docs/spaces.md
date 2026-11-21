@@ -141,7 +141,7 @@ with whatever it multiplies, never forming the product of everything averaged. W
 | `\mathbb{E}_t[X]` | the expectation over `t` |
 | `\operatorname{Var}_t(X)` | the variance of each component, of \(\lvert X - \mathbb{E}_t X \rvert^2\) for complex data |
 | `\operatorname{Cov}_t(X, Y)` | the covariance, with the free indices of both; of complex data, with \(Y\) conjugated, as NumPy's |
-| `\operatorname{LedoitWolf}_t(R_{ta})` | the Ledoit–Wolf shrinkage estimate of a covariance, from scikit-learn |
+| `\operatorname{LedoitWolf}_t(R_{ta})` | the Ledoit–Wolf shrinkage estimate of a covariance, from scikit-learn, which weighs every sample alike |
 
 ```python
 >>> np.allclose(wb["Sigma"].to_numpy(), wb.expr(r"\operatorname{Cov}_t(R_{ta}, R_{tb})").to_numpy())

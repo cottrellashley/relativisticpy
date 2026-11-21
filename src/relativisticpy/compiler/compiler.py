@@ -457,8 +457,9 @@ class Compiler:
             and value.scripts[0].body is not None
         ):
             return None
-        size = self.session.evaluate(self.value(value.scripts[0].body, scope, ctx))
-        if not (sympy.sympify(size).is_integer and size >= 0):
+        size = sympy.sympify(self.session.evaluate(self.value(value.scripts[0].body, scope, ctx)))
+        # a symbol, even an integer one, is no size: n \geq 0 cannot be decided
+        if not (getattr(size, "is_integer", False) and getattr(size, "is_nonnegative", False)):
             raise CompileError(
                 f"the dimension of a space is a whole number, not {size}", span=value.span
             )
@@ -1081,6 +1082,14 @@ class Compiler:
                 "the Ledoit–Wolf covariance is of samples of a vector, X_{ta}", span=span
             )
         names = node.type.indices.names
+        measure = self.session.measures.get(node.type.space(label))
+        if measure is not None and not _uniform_weights(measure):
+            raise CompileError(
+                "scikit-learn's Ledoit–Wolf estimate weighs every sample alike, but the "
+                f"samples over {latex_label(label)} are weighted by a measure",
+                span=span,
+                hint="take the covariance with the measure: \\operatorname{Cov}_t(X_{ta}, X_{tb})",
+            )
         other = 1 - names.index(label)
         if other == 0:
             node = self._permute(node, (1, 0), Indices(reversed(node.type.indices)))
@@ -3794,6 +3803,16 @@ def _real(value: Any) -> Any:
     if numerical.is_numerical(value) and numerical.xp(value).iscomplexobj(value):
         return value.real
     return value
+
+
+def _uniform_weights(measure: Node) -> bool:
+    """Whether a measure declared for a space weighs its elements alike."""
+    from relativisticpy.tensors import numerical
+
+    if not isinstance(measure.op, ops.Const):
+        return False
+    weights = numerical.numpy().asarray(measure.op.value, dtype=float)
+    return bool(numerical.numpy().allclose(weights, weights.mean(), rtol=1e-12, atol=0.0))
 
 
 def _ledoit_wolf(samples: Any) -> Any:

@@ -40,6 +40,14 @@ class TestSpaces:
         with pytest.raises(CompileError, match="ranges over A, of dimension 3"):
             wb["v^b"] = np.ones(4)
 
+    def test_a_dimension_is_a_whole_number(self, wb):
+        for size in ("n", "2.5", "-2"):
+            with pytest.raises(CompileError, match="the dimension of a space is a whole number"):
+                wb.exe(rf"\mathcal{{A}} := \mathbb{{R}}^{{{size}}}")
+        wb.exe(r"Integers := [n]")  # an integer, but of no known size
+        with pytest.raises(CompileError, match="whole number, not n"):
+            wb.exe(r"\mathcal{A} := \mathbb{R}^{n}")
+
     def test_an_index_ranges_over_one_space(self, wb):
         wb["R_{ta}"] = RETURNS
         message = "the index a ranges over the space of a, but is written here on an axis over"
@@ -200,6 +208,15 @@ class TestStatistics:
 
     def test_ledoit_wolf_from_scikit_learn(self, wb):
         wb["R_{ta}"] = RETURNS
+        shrunk = wb.expr(r"\operatorname{LedoitWolf}_t(R_{ta})").to_numpy()
+        assert np.allclose(shrunk, LedoitWolf().fit(RETURNS).covariance_)
+
+    def test_ledoit_wolf_does_not_ignore_a_measure(self, wb):
+        wb.space("days", 300, labels="t", measure=np.linspace(1, 2, 300))
+        wb["R_{ta}"] = RETURNS
+        with pytest.raises(CompileError, match="weighted by a measure"):
+            wb.expr(r"\operatorname{LedoitWolf}_t(R_{ta})")
+        wb.space("days", 300, labels="t", measure=np.ones(300))  # every day alike
         shrunk = wb.expr(r"\operatorname{LedoitWolf}_t(R_{ta})").to_numpy()
         assert np.allclose(shrunk, LedoitWolf().fit(RETURNS).covariance_)
 
