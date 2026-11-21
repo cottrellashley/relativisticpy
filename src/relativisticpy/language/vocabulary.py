@@ -225,11 +225,20 @@ SIZE_COMMANDS: frozenset[str] = frozenset(
 #: ``\\`` separates statements and ``&`` alignment markers are ignored.
 ALIGNMENT_ENVIRONMENTS: frozenset[str] = frozenset(
     {
-        "align", "align*", "aligned", "alignat", "alignat*", "alignedat",
-        "equation", "equation*", "gather", "gather*", "gathered", "split",
+        "align", "align*", "aligned", "alignat", "alignat*", "alignedat", "flalign",
+        "flalign*", "equation", "equation*", "gather", "gather*", "gathered", "split",
         "multline", "multline*", "eqnarray", "eqnarray*", "displaymath", "math",
     }
 )  # fmt: skip
+
+#: Alignments whose columns come in pairs, each pair an equation, so that the second
+#: ``&`` of a pair starts the next equation: ``a &= 1 & b &= 2``.
+COLUMN_PAIR_ENVIRONMENTS: frozenset[str] = frozenset(
+    {"align", "align*", "aligned", "alignat", "alignat*", "alignedat", "flalign", "flalign*"}
+)
+
+#: Environments that hold one equation, however many rows it is broken over.
+SINGLE_EQUATION_ENVIRONMENTS: frozenset[str] = frozenset({"multline", "multline*"})
 
 #: Matrix environments. ``vmatrix`` denotes the determinant of its entries.
 MATRIX_ENVIRONMENTS: frozenset[str] = frozenset(

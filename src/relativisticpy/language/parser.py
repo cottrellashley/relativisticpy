@@ -76,6 +76,8 @@ _OPERATORS = frozenset(
 # A line that starts with one of these, indented beyond its statement, continues it.
 _CONTINUING = _OPERATORS | _RELATIONS | frozenset(_COMPARISONS)
 _KEYWORDS = frozenset({"and", "or", "not"})
+# Words of prose that join equations, when written as text: \text{and}, \text{where}.
+_CONNECTIVES = frozenset({"and", "or", "where", "with", "for", "if", "when", "since", "so"})
 _INTEGRALS = {"int": 1, "oint": 1, "iint": 2, "iiint": 3}
 # Commands that end the argument of a function written without parentheses.
 _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
@@ -83,6 +85,8 @@ _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
 }  # fmt: skip
 _CASE_WORDS = frozenset({"if", "for", "when", "where"})
 _OTHERWISE = frozenset({"otherwise", "else"})
+# A command whose argument is prose, as in \text{where}.
+_TEXT_COMMAND = re.compile(r"\\(?:text[a-z]*|mbox|hbox)(?![A-Za-z])")
 # The halves of old-style cases, \left\{ \begin{array} ... \end{array} \right.
 _LEFT_BRACE = re.compile(r"\\left\s*(?:\\\{|\\lbrace)")
 _RIGHT_DOT = re.compile(r"\\right\s*\.")
@@ -175,6 +179,8 @@ class Parser:
         self._statement_nesting = 0
         # Inside the unbracketed argument of \sin and friends, brackets end it.
         self._function_argument = False
+        # Inside a display, such as \begin{equation}, every statement is LaTeX.
+        self._display = 0
 
     # -- cursor ---------------------------------------------------------------
 
@@ -299,25 +305,106 @@ class Parser:
             statements: list[ast.Statement] = [self._arrow_function()]
         else:
             statements = self._expression_statements()
-        latex = any(_is_latex(t) for t in self.tokens[start : self.pos])
+        # A statement in a LaTeX display is LaTeX however it is written: in
+        # \begin{equation} E = mc^2 \end{equation}, mc is m times c.
+        latex = (
+            self._display > 0
+            or self.source.latex
+            or any(_is_latex(t) for t in self.tokens[start : self.pos])
+        )
         return [replace(statement, latex=latex) for statement in statements]
 
     def _expression_statements(self) -> list[ast.Statement]:
-        """An expression, a definition ``x, y := ...``, or expressions separated by commas,
-        as in ``a = b, \\quad c = d``. A comma or full stop that ends the statement is the
+        """Expressions and definitions, such as ``x, y := ...``, separated by commas, wide
+        spaces or the words ``\\text{and}`` and ``\\text{or}``, as in
+        ``a = b, \\quad c \\equiv d``. A comma or full stop that ends the statement is the
         punctuation of the sentence the equation belongs to: ``E = mc^2 \\ .``"""
-        first = self.expression()
-        targets = [first]
-        while (self.check(K.COMMA) and not self._at_punctuation()) or self._at_wide_space():
-            self.accept(K.COMMA)
-            targets.append(self.expression())
-        if define := self.accept(K.DEFINE):
-            self._skip_newlines()
-            value = self.expression()
-            self._skip_punctuation()
-            return [self._definition(targets, value, define)]
+        statements: list[ast.Statement] = []
+        if self._at_connective(self.peek()) and self._starts_operand(self.peek(1)):
+            self.advance()  # \text{where} \ E^* \equiv ...: the word is prose
+        clause = [self.expression()]
+        joined = [False]  # whether each expression follows the one before after a comma alone
+        while True:
+            if define := self.accept(K.DEFINE):
+                count = _defined(clause, joined)
+                statements.extend(_evaluations(clause[:-count], joined[:-count]))
+                self._skip_newlines()
+                value = self.expression()
+                statements.append(self._definition(clause[-count:], value, define))
+                # x \equiv r/M, \quad y \equiv t/M: another statement may follow on the line
+                if not self._statement_follows(count) or self._separator() is None:
+                    break
+                clause, joined = [self.expression()], [False]
+                continue
+            separator = self._separator()
+            if separator is None:
+                statements.extend(_evaluations(clause, joined))
+                break
+            clause.append(self.expression())
+            joined.append(separator == ",")
         self._skip_punctuation()
-        return [ast.Evaluate(target, span=target.span) for target in _memberships(targets)]
+        return statements
+
+    def _separator(self) -> Literal[",", " "] | None:
+        """Read what separates two expressions of a statement: a comma alone (``,``), or
+        wide spacing or a word, maybe after a comma (`` ``). ``None`` if the statement
+        ends here, after a word of prose that ends it, if there is one."""
+        if self._at_connective(self.peek()):
+            self.advance()
+            return " " if self._starts_operand(self.peek()) else None
+        if self.check(K.COMMA) and not self._at_punctuation():
+            self.advance()
+            if self._at_connective(self.peek()):  # a = 1, \text{and} b = 2
+                self.advance()
+                return " "
+            return " " if self.peek().wide_space else ","
+        return " " if self._at_wide_space() else None
+
+    def _statement_follows(self, targets: int) -> bool:
+        """After the value of a definition of ``targets`` names, whether another statement
+        follows: after wide spacing or a word, or after a comma when it is an equation or
+        a definition. ``x, y := 1, 2`` is not two statements."""
+        if self._at_connective(self.peek()) or self._at_wide_space():
+            return True
+        if not self.check(K.COMMA) or self._at_punctuation():
+            return False
+        if self.peek(1).wide_space or self._at_connective(self.peek(1)):
+            return True
+        return targets == 1 and self._relates(self._significant(self._significant(self.pos) + 1))
+
+    def _relates(self, index: int) -> bool:
+        """Whether the expression starting at token ``index`` relates or defines at its
+        top level, as ``y \\equiv t/M`` does and ``2`` does not."""
+        depth = 0
+        while True:
+            token = self.tokens[index]
+            kind = token.kind
+            if kind is K.EOF:
+                return False
+            if kind in _OPENERS or kind is K.BEGIN:
+                depth += 1
+            elif kind in _CLOSERS or kind is K.END:
+                depth -= 1
+                if depth < 0:
+                    return False
+            elif depth == 0 and (kind in _SEPARATORS or kind is K.COMMA):
+                if kind is not K.NEWLINE or not self._nesting:
+                    return False
+            elif depth == 0 and (kind in _RELATIONS or kind in _COMPARISONS or kind is K.DEFINE):
+                return True
+            index += 1
+
+    def _at_connective(self, token: Token) -> bool:
+        """A word of prose such as ``\\text{and}``, ``\\text{or}`` or ``\\text{where}`` at a
+        statement's top level, which separates equations as wide spacing does:
+        ``a = 1 \\quad \\text{and} \\quad b = 2``. Typed plainly, ``and`` and ``or`` are
+        logic."""
+        return (
+            token.kind is K.IDENT
+            and token.value in _CONNECTIVES
+            and token.verbatim
+            and self._nesting == self._statement_nesting
+        )
 
     def _at_wide_space(self) -> bool:
         """Wide spacing at a statement's top level separates equations:
@@ -400,6 +487,7 @@ class Parser:
         self.advance()
         statements: list[ast.Statement] = []
         self._rows += 1
+        self._display += 1
         try:
             with self._nested():
                 while True:
@@ -413,6 +501,7 @@ class Parser:
                 self.advance()
         finally:
             self._rows -= 1
+            self._display -= 1
         return statements
 
     # -- expressions ----------------------------------------------------------
@@ -477,6 +566,8 @@ class Parser:
             return Power.PRODUCT  # 2|x|
         if kind in _RELATIONS and not (kind is K.COLON and self._in_script):
             return Power.EQUATION
+        if self._at_connective(token):
+            return Power.NONE  # \text{and} between equations ends the one before it
         if kind is K.IDENT and token.value == "or":
             return Power.OR
         if kind is K.IDENT and token.value == "and":
@@ -563,7 +654,7 @@ class Parser:
         if kind in (K.NUMBER, K.LPAREN, K.LBRACKET, K.LBRACE, K.ELLIPSIS):
             return True
         if kind is K.IDENT:
-            return token.value not in _KEYWORDS
+            return token.value not in _KEYWORDS and not self._at_connective(token)
         if kind is K.COMMAND:
             return token.value not in ("rfloor", "rceil")
         if kind is K.BEGIN:
@@ -1850,21 +1941,77 @@ def _describe_node(node: ast.Expr) -> str:
     return names.get(type(node), "this")
 
 
-def _memberships(targets: list[ast.Expr]) -> list[ast.Expr]:
-    """``a, b \\in \\mathcal{A}``: names listed before a membership are members too, so
-    the list is one statement, ``(a, b) \\in \\mathcal{A}``, not ``a`` and ``b \\in ...``."""
+def _defined(clause: list[ast.Expr], joined: list[bool]) -> int:
+    """How many of the expressions before ``:=`` it defines: the last, and the names
+    listed before it with commas, as in ``x, y := ...``."""
+    count = 1
+    while (
+        count < len(clause)
+        and joined[len(clause) - count]
+        and isinstance(clause[-count], ast.Name | ast.Scripted)
+        and isinstance(clause[-count - 1], ast.Name | ast.Scripted)
+    ):
+        count += 1
+    return count
+
+
+def _evaluations(clause: list[ast.Expr], joined: list[bool]) -> list[ast.Statement]:
+    """The statements of expressions separated by commas and spaces."""
+    return [
+        ast.Evaluate(target, span=target.span) for target in _memberships(*_ranges(clause, joined))
+    ]
+
+
+def _ranges(clause: list[ast.Expr], joined: list[bool]) -> tuple[list[ast.Expr], list[bool]]:
+    """``\\mu, \\nu = 0, 1, 2, 3``: names set equal to a list of values say what the names
+    range over. The list is one relation, ``(\\mu, \\nu) \\in (0, 1, 2, 3)``, which is read
+    but not computed, rather than a definition of ``\\nu`` between two numbers."""
+    items: list[tuple[ast.Expr, bool]] = []
+    index = 0
+    while index < len(clause):
+        item = clause[index]
+        if not (isinstance(item, ast.Equation) and _member(item.lhs)):
+            items.append((item, joined[index]))
+            index += 1
+            continue
+        names, link = 0, joined[index]  # the members listed before it with commas
+        while names < len(items) and link and _member(items[-1 - names][0]):
+            link = items[-1 - names][1]
+            names += 1
+        end = index + 1  # and the values listed after it
+        while end < len(clause) and joined[end] and _is_value(clause[end]):
+            end += 1
+        values = clause[index + 1 : end]
+        if not names and not (values and _is_numeral(item.rhs) and _is_numeral(values[0])):
+            items.append((item, joined[index]))
+            index += 1
+            continue
+        members = [member for member, _ in items[len(items) - names :]]
+        del items[len(items) - names :]
+        lhs: ast.Expr = item.lhs
+        if members:
+            lhs = ast.Tuple((*members, item.lhs), span=members[0].span.to(item.lhs.span))
+        last = values[-1] if values else item.rhs
+        rhs = ast.Tuple((item.rhs, *values), span=item.rhs.span.to(last.span))
+        items.append((ast.Relation(lhs, "∈", rhs, span=lhs.span.to(rhs.span)), link))
+        index = end
+    return [item for item, _ in items], [link for _, link in items]
+
+
+def _memberships(targets: list[ast.Expr], joined: list[bool]) -> list[ast.Expr]:
+    """``a, b \\in \\mathcal{A}``: names listed with commas before a membership are
+    members too, so the list is one statement, ``(a, b) \\in \\mathcal{A}``, not ``a``
+    and ``b \\in ...``. Prose, as in ``\\text{where} \\quad x, y \\in X``, is not."""
     grouped: list[ast.Expr] = []
-    names: list[ast.Name] = []
-    for target in targets:
-        if isinstance(target, ast.Name):
+    names: list[ast.Expr] = []
+    for target, link in zip(targets, joined, strict=True):
+        if names and not link:
+            grouped.extend(names)
+            names = []
+        if _member(target):
             names.append(target)
             continue
-        if (
-            isinstance(target, ast.Relation)
-            and target.op == "∈"
-            and names
-            and isinstance(target.lhs, ast.Name)
-        ):
+        if isinstance(target, ast.Relation) and target.op == "∈" and names and _member(target.lhs):
             members = ast.Tuple((*names, target.lhs), span=names[0].span.to(target.lhs.span))
             target = ast.Relation(members, "∈", target.rhs, span=names[0].span.to(target.span))
         else:
@@ -1873,6 +2020,28 @@ def _memberships(targets: list[ast.Expr]) -> list[ast.Expr]:
         grouped.append(target)
     grouped.extend(names)
     return grouped
+
+
+def _member(node: ast.Expr) -> bool:
+    """A name that can be one of a list of members: ``x``, or ``p_{1}``, but not a word
+    of prose such as ``\\text{where}``."""
+    if isinstance(node, ast.Scripted):
+        return isinstance(node.base, ast.Name) and _member(node.base)
+    return isinstance(node, ast.Name) and not (
+        node.verbatim and _TEXT_COMMAND.match(node.span.text) is not None
+    )
+
+
+def _is_value(node: ast.Expr) -> bool:
+    """An expression that is not itself a relation, which can be one of a list of values."""
+    return not isinstance(node, ast.Equation | ast.Relation | ast.Chain | ast.Comparison)
+
+
+def _is_numeral(node: ast.Expr) -> bool:
+    """A number, perhaps signed, or an ellipsis: ``0``, ``-1``, ``\\ldots``."""
+    if isinstance(node, ast.Unary) and node.op in ("-", "+"):
+        node = node.operand
+    return isinstance(node, ast.Number | ast.Dots)
 
 
 def _relation(token: Token) -> str:

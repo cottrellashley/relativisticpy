@@ -206,6 +206,11 @@ class TestAnalysis:
             (r"t \in \mathcal{T}, \quad a, b \in \mathcal{A}", ["(∈ t T)", "(∈ (tuple a b) A)"]),
             (r"x, y", ["x", "y"]),  # without a membership, still two statements
             (r"p \in M, \quad q", ["(∈ p M)", "q"]),
+            (r"p_{1}, p_{2} \in \mathbb{R}^3", ["(∈ (tuple (p _[1]) (p _[2])) (^ ℝ 3))"]),
+            # prose, and names set apart by wide spacing, are not members
+            (r"\text{where} \quad x, y \in \mathbb{R}", ["(∈ (tuple x y) ℝ)"]),
+            (r"\text{for}, a \in \mathcal{A}", ["for", "(∈ a A)"]),
+            (r"t \quad a, b \in \mathcal{A}", ["t", "(∈ (tuple a b) A)"]),
         ],
     )
     def test_members_listed_together_are_one_declaration(self, text, expected):

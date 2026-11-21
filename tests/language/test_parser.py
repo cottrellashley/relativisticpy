@@ -689,6 +689,44 @@ class TestStatements:
         statements = parse("a := GM\nb := \\frac{GM}{r}\nc := μ\nd := x").statements
         assert [s.latex for s in statements] == [False, True, True, False]
 
+    @pytest.mark.parametrize(
+        "text",
+        [
+            r"\begin{equation} E = mc^2 \end{equation}",
+            r"\begin{align} a &= bc \\ d &= ef \end{align}",
+            r"$$ (a+b)^2 = a^2 + 2ab + b^2 $$",
+            r"\[ E = mc^2 \]",
+        ],
+    )
+    def test_every_statement_of_a_display_is_latex(self, text):
+        # even without a command of its own: in a display mc is m times c
+        assert all(statement.latex for statement in parse(text).statements)
+
+    def test_a_source_can_be_latex_throughout(self):
+        from relativisticpy.language import Source
+
+        statements = parse(Source("E = mc^2\nGM", latex=True)).statements
+        assert [s.latex for s in statements] == [True, True]
+
+    def test_column_pairs_of_an_align_are_equations(self):
+        source = r"\begin{align} a &= 1 & b &= 2 \\ c &= 3 & d &= 4 \end{align}"
+        assert program(source) == ["(= a 1)", "(= b 2)", "(= c 3)", "(= d 4)"]
+        assert program(r"\begin{flalign} a &= 1 & b &= 2 \end{flalign}") == ["(= a 1)", "(= b 2)"]
+
+    def test_a_bracket_broken_over_rows_continues_the_equation(self):
+        source = r"""
+            \begin{align}
+                y &= \left( a + b \right. \nonumber \\
+                  &\qquad \left. + c \right) \\
+                z &= 1
+            \end{align}
+        """
+        assert program(source) == ["(= y (+ (+ a b) c))", "(= z 1)"]
+
+    def test_the_rows_of_multline_are_one_equation(self):
+        source = r"\begin{multline} y = a + b \\ + c \\ - d \end{multline}"
+        assert program(source) == ["(= y (- (+ (+ a b) c) d))"]
+
     def test_cannot_define_a_number(self):
         message = str(error("2 := x"))
         assert "cannot define a number" in message
@@ -699,6 +737,71 @@ class TestStatements:
 
     def test_commas_separate_statements(self):
         assert program(r"a = b, \quad c = d") == ["(= a b)", "(= c d)"]
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            r"a = 1 \quad \text{and} \quad b = 2",
+            r"a = 1, \text{ and } b = 2",
+            r"a = 1 \text{ or } b = 2",
+        ],
+    )
+    def test_words_between_equations_separate_them(self, text):
+        assert program(text) == ["(= a 1)", "(= b 2)"]  # not a = (1 and b) = 2
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"a = b \quad \text{where} \quad c = d", ["(= a b)", "(= c d)"]),
+            (r"\text{where} \ c \equiv d", ["(:= c d)"]),  # not where times c
+            (r"f(x) = x^2 \quad \text{for} \quad x > 0", ["(= (call f x) (^ x 2))", "(> x 0)"]),
+            (r"\sin x \text{ for } x > 0", ["(call sin x)", "(> x 0)"]),
+            (r"x = 1 \text{ where }", ["(= x 1)"]),
+        ],
+    )
+    def test_words_of_prose_around_equations_are_not_factors(self, text, expected):
+        assert program(text) == expected
+
+    def test_words_inside_a_condition_are_logic(self):
+        source = r"\begin{cases} 1 & x > 0 \text{ and } x < 1 \\ 0 & \text{otherwise} \end{cases}"
+        assert sexpr(source) == "(piecewise (1 if (and (> x 0) (< x 1))) (0 if otherwise))"
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"x \equiv r/M, \quad y \equiv t/M", ["(:= x (/ r M))", "(:= y (/ t M))"]),
+            (r"x \equiv r/M, y \equiv t/M", ["(:= x (/ r M))", "(:= y (/ t M))"]),
+            (r"x := 1 \qquad y = x^2", ["(:= x 1)", "(= y (^ x 2))"]),
+            (r"a = b, \quad c \equiv d", ["(= a b)", "(:= c d)"]),
+            (r"x, y := 1 \quad z := 2", ["(:= x y 1)", "(:= z 2)"]),
+        ],
+    )
+    def test_a_definition_shares_its_line_with_other_statements(self, text, expected):
+        assert program(text) == expected
+
+    @pytest.mark.parametrize("text", ["x := 1, 2", "x, y := 1, 2"])
+    def test_a_definition_is_not_followed_by_a_bare_list(self, text):
+        assert "unexpected ','" in str(error(text))
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\mu, \nu = 0, 1, 2, 3", ["(∈ (tuple mu nu) (tuple 0 1 2 3))"]),
+            (r"\mu = 0, 1, 2, 3", ["(∈ mu (tuple 0 1 2 3))"]),
+            (r"n = 0, 1, 2, \ldots", ["(∈ n (tuple 0 1 2 ⋯))"]),
+            (r"i, j = 1", ["(∈ (tuple i j) (tuple 1))"]),
+            (
+                r"R_{\mu\nu} = 0, \quad \mu, \nu = 0, 1",
+                ["(= (R _[mu nu]) 0)", "(∈ (tuple mu nu) (tuple 0 1))"],
+            ),
+            # equations listed with commas stay equations
+            ("a = b, c = d", ["(= a b)", "(= c d)"]),
+            ("x = 1, y", ["(= x 1)", "y"]),
+        ],
+    )
+    def test_names_equal_to_a_list_of_values_give_their_range(self, text, expected):
+        # read, but not computed: \mu, \nu = 0, 1, 2, 3 must not define \nu as 0
+        assert program(text) == expected
 
     @pytest.mark.parametrize("text", [r"E = m c^2 \ .", "E = m c^2,", r"E = m c^2 .\label{e}"])
     def test_the_punctuation_of_a_sentence_is_ignored(self, text):

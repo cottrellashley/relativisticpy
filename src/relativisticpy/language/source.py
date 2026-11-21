@@ -22,11 +22,15 @@ class Source:
     ``origin`` is the line and column at which the text begins in its file, for
     text taken from a larger document such as a Markdown notebook. Positions
     are then reported as the file has them.
+
+    ``latex`` says that the whole text is LaTeX, as the inside of a ``$$`` display
+    is: every statement in it is then read as LaTeX, whatever its own tokens.
     """
 
     text: str
     name: str = "<input>"
     origin: tuple[int, int] = (1, 1)
+    latex: bool = False
 
     @cached_property
     def _line_starts(self) -> tuple[int, ...]:

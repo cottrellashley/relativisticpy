@@ -23,9 +23,11 @@ product of single-letter symbols: `\frac{2GM}{c^2 r}` is
 \(2 G M / (c^2 r)\). Greek names stay whole (`\alpha`, and `alpha` too), as do
 names you have defined and builtins such as `diff`. Wrap a longer name in
 `\mathrm{...}` or `\text{...}` to keep it one symbol; an escaped underscore
-joins words, as in `\mathrm{geodesic\_equations}`. In plain text (a
-statement without LaTeX commands), `GM` is a single name, as in a programming
-language.
+joins words, as in `\mathrm{geodesic\_equations}`. Every statement in a display
+(`\begin{equation}`, `align` and the other environments, `\[ \]`, `$$`, and the
+`$$` blocks of a Markdown notebook) is LaTeX, however it is written. In plain
+text (a statement outside a display, without LaTeX commands), `GM` is a single
+name, as in a programming language.
 
 ```python
 >>> wb.exe(r"""
@@ -58,7 +60,8 @@ evaluation bar.
 | `matrix`, `pmatrix`, `bmatrix`, `Bmatrix`, `smallmatrix`, `array` | a matrix |
 | `vmatrix` | a determinant |
 | `cases` | a piecewise function, with `\text{if}` and `\text{otherwise}`; so is an `array` in `\left\{ ... \right.` |
-| `align`, `equation`, `gather`, `multline`, `split` and starred forms | statements separated by `\\` |
+| `align`, `flalign`, `equation`, `gather`, `split` and starred forms | statements separated by `\\`; in `align`, each pair of columns is an equation |
+| `multline` | one equation, broken over rows |
 
 ```python
 >>> wb.exe(r"""
@@ -123,7 +126,8 @@ notebook's, and RelativisticPy reads it too. That is what lets it
 
 **Derivations.** Relations chain, and each link is a claim. In an alignment, a
 row that starts with a relation (`&=&`), or with an operator after an
-alignment marker (`& & + c`), continues the row before it:
+alignment marker (`& & + c`), continues the row before it, as does a bracket
+broken over two rows, `\left( a \right. \\ & \left. + b \right)`:
 
 ```python
 >>> wb.exe(r"""
@@ -138,18 +142,26 @@ alignment marker (`& & + c`), continues the row before it:
 
 **Sentences.** The punctuation that ends a sentence is ignored, as in
 `E = mc^2\ .`. Commas and wide spaces (`\quad`, `\qquad`) between equations
-separate them, as do `\Rightarrow`, `\implies` and `\iff`:
+separate them, as do `\Rightarrow`, `\implies` and `\iff`, and words such as
+`\text{and}`, `\text{or}` and `\text{where}`:
 
 ```python
 >>> wb.exe(r"{\rm Tr}\,M + {n \choose 2} \qquad r_+ + r^* \qquad \hbar\omega \ .")
 [M*Tr + binomial(n, 2), r^* + r_+, hbar*omega]
+>>> wb.exe(r"x \equiv 2, \quad y \equiv 3 \quad \text{and} \quad x + y")
+[5]
 
 ```
+
+A definition shares its line with other equations, as above, and names listed
+before `\in` are one declaration: `a, b \in \mathcal{A}`. Names set equal to a
+list of values, `\mu, \nu = 0, 1, 2, 3`, give the range of indices; that is read
+but not computed, and defines nothing.
 
 | | Notation |
 |---|---|
 | Plain TeX | `{a \over b}`, `{n \choose k}`, the font switches `{\rm d}`, `{\bf x}`, `{\cal L}`, `\matrix{a & b \cr c & d}`, `\pmatrix`, `\cases`, `\bgroup` |
-| Relations read but not computed | `\sim` `\simeq` `\approx` `\cong` `\propto` `\ll` `\gg` `\in` `\subset` `\to` `\leftrightarrow`, and `:` as in `\phi : M \to N` |
+| Relations read but not computed | `\sim` `\simeq` `\approx` `\cong` `\propto` `\ll` `\gg` `\in` `\subset` `\to` `\leftrightarrow`, `:` as in `\phi : M \to N`, and ranges such as `\mu, \nu = 0, 1, 2, 3` |
 | Identities | `A \equiv B`, when A cannot be defined, states that the two are equal |
 | Labels on symbols | `r_+`, `i^-`, `r_\pm`, `r^*` and prescripts such as `{}^{(3)}R` name symbols rather than raising to powers |
 | Index labels | `\mu'`, `\mu_1`, `\mu_{p+1}`, `\phi_{t*}`, nested groups such as `R_{\rho\sigma{\mu\nu}}`, `\phi,{}_\mu` for \(\phi_{,\mu}\), and MTW's staggered `{\Gamma^r}_{tt}` |

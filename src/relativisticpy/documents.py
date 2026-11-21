@@ -128,7 +128,7 @@ class Document:
             line = self.text.count("\n", 0, start) + 1
             column = start - self.text.rfind("\n", 0, start)
             section = len(_SECTION.findall(self._body, 0, start))
-            source = Source(text, self.name, (line, column))
+            source = Source(text, self.name, (line, column), latex=True)
             found.append(Equation(source, environment, section))
         return found
 
@@ -405,7 +405,8 @@ def _display_end(text: str, position: int, opener: str, closers: dict[str, str])
 
 def math_blocks(text: str, name: str = "<markdown>") -> list[Source]:
     """The ``$$...$$`` blocks of a Markdown document, outside code, each a source that
-    knows where it is in the document, so that errors point at the right line."""
+    knows where it is in the document, so that errors point at the right line. A block
+    is a LaTeX display, so every statement in it is read as LaTeX."""
     return [block for block, _ in find_math_blocks(text, name)]
 
 
@@ -415,4 +416,4 @@ def find_math_blocks(text: str, name: str) -> Iterator[tuple[Source, int]]:
         if match.group("math") is not None:
             start = match.start("math")
             origin = (text.count("\n", 0, start) + 1, start - text.rfind("\n", 0, start))
-            yield Source(match.group("math"), name, origin), match.end()
+            yield Source(match.group("math"), name, origin, latex=True), match.end()

@@ -323,6 +323,19 @@ class TestEnvironments:
             r"begin:align a = b \\ c = d end:align"
         )
 
+    def test_the_second_marker_of_a_column_pair_separates_equations(self):
+        tokens = tokenize(r"\begin{align} a &= 1 & b &= 2 \\ c &= 3 \end{align}")
+        assert [t.value for t in tokens if t.wide_space] == ["b"]  # not c, after the row break
+
+    def test_a_bracket_broken_over_rows_is_one_bracket(self):
+        source = r"\begin{align} y &= \left( a \right. \\ & \left. + b \right) \end{align}"
+        assert lex(source) == "begin:align y = ( a + b ) end:align"
+
+    def test_the_rows_of_multline_are_lines_of_one_equation(self):
+        assert lex(r"\begin{multline} a \\ + b \end{multline}") == (
+            "begin:multline a ⏎ + b end:multline"
+        )
+
     def test_ampersands_separate_columns_in_a_matrix_inside_an_alignment(self):
         source = r"\begin{align} g &= \begin{pmatrix} a & b \end{pmatrix} \end{align}"
         assert lex(source) == "begin:align g = begin:pmatrix a & b end:pmatrix end:align"

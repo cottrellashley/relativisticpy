@@ -50,6 +50,16 @@ _ROW_SPACING = re.compile(
     r"\*?(?:[ \t]*\[\s*-?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|em|ex|mm|cm|in|bp|pc|sp|mu)\s*\])?"
 )
 
+# What may stand between the halves of a bracket broken over two rows, as in
+# \left( a \right. \\ & \left. + b \right): the row break, alignment and spacing.
+_LAYOUT = (
+    r"\s|%[^\n]*|\\(?:nonumber|notag|quad|qquad|displaystyle)(?![A-Za-z])"
+    r"|\\(?:label|tag|hspace|vspace|phantom|hphantom|vphantom)\*?\{[^{}]*\}|\\[,;:!> ]"
+)
+_BROKEN_BRACKET = re.compile(
+    rf"(?:{_LAYOUT})*\\\\\*?(?:[ \t]*\[[^\]\n]*\])?(?P<cells>(?:{_LAYOUT}|&|\{{\}})*)\\left\s*\."
+)
+
 # Unicode's spaces, which typeset as LaTeX's deliberate spacing does: the no-break space
 # is ~, the thin space \, and so on.
 _UNICODE_SPACE = frozenset("           ")
@@ -133,6 +143,7 @@ class Lexer:
         self._font_ends: list[int] = []  # where the groups of font switches such as \rm end
         self._closers: dict[int, str] = {}  # offsets of '}' closing \matrix{...} and friends
         self._display_ends: dict[int, int] = {}  # offsets of the \] or $$ closing a display
+        self._ampersands: dict[int, int] = {}  # alignment markers so far in each open row
 
     # -- driver ---------------------------------------------------------------
 
@@ -179,6 +190,7 @@ class Lexer:
         elif char == "&" and self._in_alignment():
             self._skip(1)
             self.aligned = True
+            self._column_marker()
         elif char == "}" and self.pos in self._closers:
             environment = self._closers.pop(self.pos)
             self._environments.pop()
@@ -220,6 +232,8 @@ class Lexer:
             self.space_before = True
         else:
             self.space_before = self.explicit_space = self.aligned = self.wide_space = False
+        if kind in (TokenKind.ROW_SEP, TokenKind.BEGIN):  # a row starts
+            self._ampersands[len(self._environments)] = 0
         self.pos = end
 
     def _skip(self, count: int, *, explicit: bool = False) -> None:
@@ -263,10 +277,20 @@ class Lexer:
         while self._peek() in _ARGUMENT_SPACE:
             self.pos += 1
 
-    def _in_alignment(self) -> bool:
+    def _in_alignment(self, environments: frozenset[str] = vocab.ALIGNMENT_ENVIRONMENTS) -> bool:
+        """Whether the innermost open environment is one of ``environments``."""
         if not self._environments:
             return False
-        return self._environments[-1][0] in vocab.ALIGNMENT_ENVIRONMENTS
+        return self._environments[-1][0] in environments
+
+    def _column_marker(self, count: int = 1) -> None:
+        """Count alignment markers in the row. In ``align``, columns come in pairs, each
+        pair an equation, so a second marker separates equations as wide spacing does:
+        ``a &= 1 & b &= 2``."""
+        depth = len(self._environments)
+        self._ampersands[depth] = self._ampersands.get(depth, 0) + count
+        if self._ampersands[depth] % 2 == 0 and self._in_alignment(vocab.COLUMN_PAIR_ENVIRONMENTS):
+            self.wide_space = True
 
     def _quote(self, char: str) -> None:
         previous = self.tokens[-1] if self.tokens else None
@@ -322,7 +346,10 @@ class Lexer:
         start = self.pos
         follower = self._peek(1)
         if follower == "\\":
-            self._emit(TokenKind.ROW_SEP, "\\\\", start, start + 2)
+            if self._in_alignment(vocab.SINGLE_EQUATION_ENVIRONMENTS):
+                self._emit(TokenKind.NEWLINE, "\n", start, start + 2)  # the equation goes on
+            else:
+                self._emit(TokenKind.ROW_SEP, "\\\\", start, start + 2)
             if spacing := _ROW_SPACING.match(self.text, self.pos):
                 self.pos = spacing.end()  # \\*[2pt]: neither is part of the next row
         elif follower.isascii() and follower.isalpha():
@@ -585,7 +612,16 @@ class Lexer:
             return
         if not self._open_left:
             raise ParseError(r"'\right' has no matching '\left'", span=span)
-        opened, _ = self._open_left.pop()
+        opened, opened_span = self._open_left.pop()
+        if delimiter == "." and opened != "invisible":
+            broken = _BROKEN_BRACKET.match(self.text, self.pos)
+            if broken is not None:  # \left( a \right. \\ & \left. + b \right): one bracket
+                self._open_left.append((opened, opened_span))
+                self.pos = broken.end()
+                self.space_before = True
+                self._ampersands[len(self._environments)] = 0
+                self._column_marker(broken.group("cells").count("&"))
+                return
         if opened == "bar":
             self._emit(TokenKind.BAR, "|", start, self.pos)
         elif opened in ("lfloor", "lceil"):
@@ -621,4 +657,4 @@ class Lexer:
             return "lfloor"
         if delimiter in (r"\lceil", r"\rceil"):
             return "lceil"
-        return "group"
+        return "invisible" if delimiter == "." else "group"

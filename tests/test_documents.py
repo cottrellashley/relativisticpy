@@ -2,7 +2,20 @@ r"""Reading LaTeX documents: their macros and display equations."""
 
 import pytest
 
-from relativisticpy.documents import Document, Macro, expand, find_macros, strip_comments
+from relativisticpy import Workbook
+from relativisticpy.documents import (
+    Document,
+    Macro,
+    expand,
+    find_macros,
+    math_blocks,
+    strip_comments,
+)
+
+
+def verdicts(text: str) -> list[str]:
+    """What checking a document finds, statement by statement."""
+    return [finding.verdict.value for finding in Workbook().check(Document(text)).findings]
 
 
 class TestMacros:
@@ -106,3 +119,28 @@ class TestEquations:
         document = Document.read(path)
         assert document.name == str(path)
         assert len(document.equations()) == 1
+
+
+class TestReading:
+    def test_a_display_is_latex_even_without_a_command(self):
+        # in a display, ab is a times b, so the identity holds
+        assert verdicts(r"\begin{equation} (a+b)^2 = a^2 + 2ab + b^2 \end{equation}") == ["holds"]
+
+    def test_a_markdown_display_is_latex(self):
+        [block] = math_blocks("Prose.\n\n$$\n(a+b)^2 - a^2 - 2ab - b^2\n$$\n")
+        assert block.latex
+        assert Workbook().exe(block) == [0]
+
+    def test_an_index_range_is_not_a_definition(self):
+        document = r"""
+            \begin{equation} \mu, \nu = 0, 1, 2, 3 \end{equation}
+            \begin{equation} \nu + 1 = 1 \end{equation}
+        """
+        assert verdicts(document) == ["not computed", "differs"]  # \nu is not 0
+
+    def test_words_between_equations_separate_them(self):
+        document = r"""
+            \begin{equation} a = 1 \quad \text{and} \quad b = 2 \end{equation}
+            \begin{equation} a + b = 3 \end{equation}
+        """
+        assert verdicts(document) == ["defines", "defines", "holds"]
