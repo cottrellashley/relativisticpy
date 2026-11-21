@@ -5,6 +5,7 @@ import inspect
 import pytest
 import sympy
 from sympy import Array, Function, Matrix, Rational, Symbol, cos, diag, sin, sqrt, symbols
+from sympy.core.function import AppliedUndef
 
 from relativisticpy import Metric, Tensor, Workbook, spacetimes
 from relativisticpy.diffgeom import differential, metric_from_line_element
@@ -74,6 +75,17 @@ def test_flrw_is_conformally_flat_and_gives_friedmann():
     scale = Function("a")(t)
     assert set(g.weyl.components.reshape(256).tolist()) == {0}
     assert sympy.simplify(g.einstein[0, 0] - 3 * (k + scale.diff(t) ** 2) / scale**2) == 0
+
+
+def test_a_named_scale_factor_is_a_function_of_time():
+    scale = Function("a")(t)
+    assert spacetimes.flrw(k, Symbol("a")).matrix[1, 1] == scale**2 / (1 - k * r**2)
+    assert spacetimes.flrw(-1, t).matrix[2, 2] == t**2 * r**2  # an expression is kept
+    (positive,) = spacetimes.flrw(k, Symbol("b", positive=True)).matrix[2, 2].atoms(AppliedUndef)
+    assert positive.is_positive
+    wb = Workbook()
+    wb.exe(r"g_{\mu\nu} := FLRW(k, a)")
+    assert sympy.simplify(wb.expr(r"G^{t}{}_{t}") + 3 * (k + scale.diff(t) ** 2) / scale**2) == 0
 
 
 def test_reissner_nordstrom_is_traceless():

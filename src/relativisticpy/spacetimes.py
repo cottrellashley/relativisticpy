@@ -116,11 +116,17 @@ def flrw(k: Any = "k", a: Any = "a", G: Any = 1, c: Any = 1) -> Metric:
 
     :math:`ds^2 = -c^2 dt^2 + a(t)^2 \left( \frac{dr^2}{1 - k r^2} + r^2 d\Omega^2 \right)`
 
+    A name or symbol for the scale factor makes it a function of time, with what
+    is assumed of the symbol; an expression, such as ``t`` (the Milne universe for
+    :math:`k = -1`), is taken as it is.
+
     ``G`` does not appear in the metric, only in the field equations; it is taken so
     that every spacetime accepts the same units.
     """
-    curvature, speed = _value(k), _value(c)
-    scale = Function(a)(t) if isinstance(a, str) else sympy.sympify(a)
+    curvature, speed, scale = _value(k), _value(c), _value(a)
+    if isinstance(scale, Symbol) and scale.name not in ("t", "r", "theta", "phi"):
+        assumed = {key: value for key, value in scale.assumptions0.items() if key != "commutative"}
+        scale = Function(scale.name, **assumed)(t)
     return Metric(
         sympy.diag(
             -(speed**2),
