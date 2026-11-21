@@ -1681,7 +1681,10 @@ class Compiler:
         upper = self.value(node.upper, scope, ctx)
         body = self.value(node.body, inner, ctx)
         func = _summation if node.op == "sum" else _product
-        return self._call(func, node.op, [body, variable, lower, upper], SCALAR, node.span)
+        args = [body, variable, lower, upper]
+        if isinstance(body.type, TensorType):  # component by component, as an integral is
+            return self.graph.add(ops.Map(func, node.op), args, body.type, node.span)
+        return self._call(func, node.op, args, body.type, node.span)
 
     def _Limit(self, node: ast.Limit, scope: Scope, ctx: Context) -> Node:
         inner = scope.child()

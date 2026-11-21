@@ -165,6 +165,13 @@ def test_integrals_limits_and_substitutions_of_tensors(plane):
         plane.expr(r"\int_0 x \, dx")
 
 
+def test_sums_and_products_of_tensors(plane):
+    # component by component, as integrals are, and kept as written until doit
+    assert isinstance(plane.expr(r"\sum_{n=0}^{3} n V^{a}"), Tensor)
+    assert plane.expr(r"doit(\sum_{n=0}^{3} n V^{a})").components == Array([6 * y, 6 * x])
+    assert plane.expr(r"doit(\prod_{n=1}^{2} V^{a})").components == Array([y**2, x**2])
+
+
 def test_integration_variable_must_be_a_name(wb):
     with pytest.raises(CompileError, match="expected a variable"):
         wb.expr(r"\int x \, d{x^2}")
