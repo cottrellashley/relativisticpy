@@ -29,6 +29,7 @@ import itertools
 import math
 import operator
 import re
+from collections import Counter
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import reduce
@@ -132,6 +133,8 @@ class Compiler:
         # The spaces the index labels of the statement being compiled range over, and
         # the labels an expectation binds while its operand is compiled.
         self._labels: dict[str, Space] = {}
+        # How often the statement being compiled writes each label as a sub- and superscript.
+        self._scripts: dict[str, Counter[str]] = {"_": Counter(), "^": Counter()}
         self._bound: frozenset[str] = frozenset()
 
     # ======================================================================
@@ -148,12 +151,13 @@ class Compiler:
     def statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None = None
     ) -> list[Output]:
-        saved = self._labels
+        saved, scripts = self._labels, self._scripts
         self._labels = self._infer_labels(statement, scope)
+        self._scripts = _script_labels(statement)
         try:
             return self._statement(statement, scope, outer)
         finally:
-            self._labels = saved
+            self._labels, self._scripts = saved, scripts
 
     def _statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None
@@ -181,6 +185,14 @@ class Compiler:
                 Output(self._value_or_notation(link, scope, ctx), link.span)
                 for link in expr.links()
             ]
+        if isinstance(expr, ast.Equation) and self._names_coordinate(expr.lhs, scope):
+            # t = \pm r^* + c, or \theta = \pi/2: where something holds, not a new t
+            raise CompileError(
+                f"an equation for the coordinate {expr.lhs.span.text} is a condition, which "
+                "is read but not computed",
+                span=expr.span,
+                hint=r"to compute where it holds, substitute it, as in f |_{\theta=\pi/2}",
+            )
         if isinstance(expr, ast.Equation) and self._defines(expr.lhs, scope):
             if self._is_notation(expr.rhs, scope, ctx, equation=True):  # nothing to define it
                 return [Output(self._notation(expr, scope, ctx), expr.span)]
@@ -222,6 +234,8 @@ class Compiler:
         if _is_line_element(target):
             return True
         target = _unprimed(target)
+        if isinstance(target, ast.Prime) and self._names_a_symbol(target, scope):
+            return True  # t' = \gamma(t - vx), a new coordinate
         if isinstance(target, ast.Name):
             if target.id in _CLAIMED:
                 return False  # \pi = 3.14159: a claim about the constant
@@ -254,7 +268,31 @@ class Compiler:
             return False
         return any(c.name == label for c in self.session.coordinates or ())
 
+    def _names_coordinate(self, target: ast.Expr, scope: Scope) -> bool:
+        """Whether ``target`` is the bare name of a coordinate in force, bound to nothing
+        else in the program."""
+        return (
+            isinstance(target, ast.Name)
+            and scope.lookup(target.id) is None
+            and any(c.name == target.id for c in self.session.coordinates or ())
+        )
+
+    def _names_a_symbol(self, prime: ast.Prime, scope: Scope) -> bool:
+        """Whether a primed name stands for a symbol of its own, as t' does, rather than
+        the derivative of a function, as A' does where A(r) is written."""
+        name = prime.func.id
+        if isinstance(scope.lookup(name + "'" * prime.order), VariableBinding):
+            return True
+        return (
+            scope.lookup(name) is None
+            and len(self.session.functions.get(name, ())) != 1
+            and not _names_builtin(prime.func)
+        )
+
     def _define(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
+        if isinstance(target, ast.Prime):  # t' = ..., a name of its own
+            primed = target.func.id + "'" * target.order
+            target = ast.Name(primed, verbatim=True, span=target.span)
         if isinstance(target, ast.Name):
             name = target.id
             if name == "Coordinates":
@@ -1601,6 +1639,19 @@ class Compiler:
         function = sympy.Function(name)
         return self._call(function, name, args, SCALAR, node.span)
 
+    def _index_written(self, script: ast.Script) -> str | None:
+        """The label of a superscript that the statement shows to be an index: one it
+        also writes as a subscript, as in x^\\mu x_\\mu, or on a tensor, or a Greek
+        letter it raises on more than one name, as in p^\\mu N^\\nu = n m U^\\mu U^\\nu.
+        A Greek superscript written once is a power, as in t^\\alpha."""
+        items = script.indices.items if script.indices is not None else ()
+        if len(items) != 1 or not _plain_label(items[0]):
+            return None
+        label = str(items[0].label)
+        lowered, raised = self._scripts["_"][label], self._scripts["^"][label]
+        index = lowered or label in self._labels or (label in GREEK and raised > 1)
+        return label if index else None
+
     def _a_factor(self, name: str, args: tuple[ast.Expr, ...], one_name: bool) -> bool:
         """Whether, in LaTeX, ``name(...)`` is a product: where the name is written inside
         its own brackets, as M is in M(r - 2M), since nothing is its own argument; or
@@ -2903,6 +2954,12 @@ class Compiler:
             if script.body is None or isinstance(script.body, ast.Equation):
                 name = base.id if isinstance(base, ast.Name) else "this"
                 raise CompileError(f"{name} is not a tensor", span=script.span)
+            if isinstance(base, ast.Name) and (label := self._index_written(script)):
+                raise CompileError(
+                    f"{base.id} is not a tensor, so {label} on it is not an index",
+                    span=node.span,
+                    hint=f"define it first, for example {base.id}^{{{label}}} := [...]",
+                )
             exponents.append(self.value(script.body, scope, ctx))
         if not exponents:
             return value
@@ -3617,6 +3674,18 @@ def _written_as_letter(node: ast.Name) -> bool:
         return False
     written = node.span.text
     return written == "\\" + node.id or len(written) == 1  # the command, or the character
+
+
+def _script_labels(statement: ast.Node) -> dict[str, Counter[str]]:
+    """How often a statement writes each index label as a subscript (``"_"``), as
+    \\mu in x_\\mu, and as a superscript (``"^"``)."""
+    counts: dict[str, Counter[str]] = {"_": Counter(), "^": Counter()}
+    for node in _walk(statement):
+        if isinstance(node, ast.Script) and node.indices is not None:
+            counts[node.kind].update(
+                str(item.label) for item in node.indices.items if _plain_label(item)
+            )
+    return counts
 
 
 def _names_inside(name: str, node: ast.Expr) -> bool:

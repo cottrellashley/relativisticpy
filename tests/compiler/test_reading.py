@@ -7,7 +7,7 @@ product because ``r`` is a coordinate. These tests pin each convention down.
 """
 
 import pytest
-from sympy import Function, Symbol, diff, exp, sympify, true
+from sympy import Eq, Function, Symbol, diff, exp, sympify, true
 
 from helpers import same, zero
 from relativisticpy import CompileError, IndexNotationError
@@ -143,6 +143,32 @@ class TestLatexReading:
         assert wb.expr("A'' + A'^2") == diff(A, r, 2) + diff(A, r) ** 2
         with pytest.raises(CompileError, match="sin' needs an argument"):
             wb.expr("sin'")
+
+    def test_a_primed_name_is_defined_as_a_name_is(self, wb):
+        # Carroll's boost: t' and x' are new coordinates, not claims about symbols
+        wb.exe(r"t' = t\cosh\phi - x \sinh\phi")
+        x = Symbol("x")
+        assert wb.expr("t'") == t * sympify("cosh(phi)") - x * sympify("sinh(phi)")
+        wb.exe(r"ds^2 = -A(r) dt^2 + B(r) dr^2 + r^2 d\Omega^2")
+        A = Function("A")(r)
+        assert wb.expr("A' = 2A/r") == Eq(diff(A, r), 2 * A / r)  # a claim about A, not A'
+
+    def test_a_superscript_the_statement_shows_to_be_an_index_is_not_a_power(self, wb):
+        n, x, y = Symbol("n"), Symbol("x"), Symbol("y")
+        for source in (r"x^\mu x_\mu", r"p^\mu N^\nu = nm U^\mu U^\nu"):
+            with pytest.raises(CompileError, match="is not a tensor, so mu on it is not an index"):
+                wb.expr(source)
+        assert wb.expr(r"t^\alpha + \beta") == t ** Symbol("alpha") + Symbol("beta")  # a power law
+        assert wb.expr("x^n y^n") == x**n * y**n  # a Latin exponent stays a power
+
+    def test_an_equation_for_a_coordinate_is_a_condition(self, wb):
+        # Along a light ray t = \pm r^* + constant: no new meaning for t
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        with pytest.raises(CompileError, match="the coordinate t is a condition"):
+            wb.exe(r"t = r + 2M \ln(r/2M - 1)")
+        assert wb.expr("t") == t
+        wb.exe("t := 3")  # defined on purpose, with :=
+        assert wb.expr("t") == 3
 
     def test_a_primed_tensor(self, wb):
         wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
