@@ -49,13 +49,13 @@ Data brings its own spaces. Binding `R_{ta}` says that `t` ranges over the rows 
 `a` over the columns, and a label used on a tensor ranges over that tensor's space
 for the rest of the statement, so it need not be declared. Binding declares nothing
 beyond that, so `t` can still be a coordinate in \(\Gamma^{t}{}_{tr}\). Data bound
-later shares the space of the same index of a tensor already bound, as `w^a` would
-share the assets of `R_{ta}`, and like indices of one tensor share one space, as both
-of a covariance's do; `t` and `a` are not alike, even when there are as many days as
-assets. With pandas, an axis's name names its space and its labels name the space's
-basis, by which components can be taken, as coordinates name the components of a
-metric. Data is aligned with a space's basis by label, and refused when its labels
-are not the space's:
+later shares the space of the same index of a tensor already bound, of the same
+size, as `w^a` would share the assets of `R_{ta}`, and like indices of one tensor
+share one space, as both of a covariance's do; `t` and `a` are not alike, even when
+there are as many days as assets. With pandas, an axis's name names its space and its
+labels name the space's basis, by which components can be taken, as coordinates name
+the components of a metric. Data is aligned with a space's basis by label, and
+refused when its labels are not the space's:
 
 ```python
 >>> import pandas as pd
@@ -106,10 +106,11 @@ covector of ones, `1_a` or `\mathbb{1}_a`, are written as usual:
 ```
 
 Any symmetric positive definite tensor can be made a space's metric, as the line
-element makes `g_{\mu\nu}` spacetime's. Then indices pair up, and raising and
-lowering use it. With the covariance as the metric of the assets, portfolio theory is
-geometry: `w_a` is each asset's marginal risk, `w^a w_a` the variance of the
-portfolio, and `\mu^a` the direction of Markowitz's portfolios:
+element makes `g_{\mu\nu}` spacetime's; anything else is refused where it is first
+used. Then indices pair up, and raising and lowering use it. With the covariance as
+the metric of the assets, portfolio theory is geometry: `w_a` is each asset's
+marginal risk, `w^a w_a` the variance of the portfolio, and `\mu^a` the direction of
+Markowitz's portfolios:
 
 ```python
 >>> wb.exe(r"g_{ab} := \Sigma_{ab}")
@@ -211,10 +212,12 @@ Tensor('_{k}', [-sqrt(Delta**2 + epsilon**2), sqrt(Delta**2 + epsilon**2)])
   and the plan is kept for the next contraction of the same shapes.
 - **Memory.** A contraction whose operands are too large to hold at once is done in
   slices along an index it sums over, and the slices added.
-- **Sparse data.** A SciPy sparse matrix is a tensor like any other; it multiplies
-  vectors and dense matrices as a matrix, and its few largest or smallest eigenvalues
-  come from an iterative solver: `\operatorname{spec}(L^i{}_j, -6)`. Without a count,
-  a sparse matrix of up to 4,096 rows has its whole spectrum computed as a dense one.
+- **Sparse data.** A SciPy sparse matrix is a tensor like any other, and is never
+  densified: it multiplies vectors, dense matrices and other sparse matrices as a
+  matrix, its products with sparse matrices stay sparse, and its few largest or
+  smallest eigenvalues come from an iterative solver:
+  `\operatorname{spec}(L^i{}_j, -6)`. Without a count, a sparse matrix of up to 4,096
+  rows has its whole spectrum computed as a dense one.
 - **JAX.** `Workbook(backend="jax")` keeps bound data as JAX arrays, computed with JAX,
   on a GPU if there is one; a sparse matrix stays SciPy's, and multiplies JAX arrays
   as one of JAX's. `wb.grad(expression, "w")` differentiates any scalar expression
