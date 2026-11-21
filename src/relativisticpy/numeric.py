@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import sympy
 from sympy import Symbol
+from sympy.core.function import AppliedUndef
 
 from relativisticpy.diffgeom import Metric
 from relativisticpy.tensors import Tensor
@@ -40,8 +41,32 @@ def _numpy() -> Any:
     return numpy
 
 
-def _parameters(values: Mapping[Symbol | str, Any]) -> dict[Symbol, Any]:
-    return {sympy.Symbol(k) if isinstance(k, str) else k: v for k, v in values.items()}
+def _named(values: Mapping[Symbol | str, Any]) -> dict[str, Any]:
+    """Values keyed by name, whether they were given by name or by symbol."""
+    return {str(key): value for key, value in values.items()}
+
+
+def _substitute(expr: Any, values: Mapping[str, Any]) -> Any:
+    """``expr`` with the values given for its symbols, matched by name, so that a
+    symbol with assumptions (a positive ``M``) takes the value given for ``M``."""
+    expr = sympy.sympify(expr)
+    matches = {s: values[s.name] for s in expr.free_symbols if s.name in values}
+    return expr.subs(matches) if matches else expr
+
+
+def _require_values(expressions: Sequence[Any], variables: Sequence[str] = ()) -> None:
+    """Raise ``ValueError`` naming every symbol, other than ``variables``, that has no
+    value, and every undefined function, which cannot be given one."""
+    missing = sorted({s.name for e in expressions for s in e.free_symbols} - set(variables))
+    functions = sorted({f.func.__name__ for e in expressions for f in e.atoms(AppliedUndef)})
+    problems = []
+    if missing:
+        problems.append(f"give a value for {', '.join(missing)}")
+    if functions:
+        which = "function" if len(functions) == 1 else "functions"
+        problems.append(f"replace the undefined {which} {', '.join(functions)} with an expression")
+    if problems:
+        raise ValueError(", and ".join(problems))
 
 
 def lambdify(
@@ -61,15 +86,25 @@ def lambdify(
         >>> kretschmann(np.array([1.0, 2.0]))
         array([48.  ,  0.75])
 
+    Variables and values are matched to symbols by name. A symbol without a
+    value, or an undefined function, is a ``ValueError`` that names it.
+
     A tensor compiles to a function returning an array of its components'
     shape, with the variables' shape appended when they are arrays.
     """
     numpy = _numpy()
-    values = _parameters({**(parameters or {}), **named})
-    symbols = [sympy.Symbol(v) if isinstance(v, str) else v for v in variables]
+    values = _named({**(parameters or {}), **named})
+    names = [str(v) for v in variables]
+    symbols = [sympy.Symbol(name) for name in names]
+
+    def prepared(expr: Any) -> Any:  # the values in, the variables as the plain symbols
+        expr = _substitute(expr, values)
+        return expr.xreplace({s: sympy.Symbol(s.name) for s in expr.free_symbols})
+
     components = value.components if isinstance(value, Tensor) else value
     if isinstance(components, sympy.NDimArray):
-        flat = [sympy.sympify(c).subs(values) for c in components.reshape(len(components))]
+        flat = [prepared(c) for c in components.reshape(len(components))]
+        _require_values(flat, names)
         shape = tuple(components.shape)
         compiled = sympy.lambdify(symbols, flat, modules="numpy")
 
@@ -79,7 +114,8 @@ def lambdify(
             return numpy.stack(broadcast).reshape(shape + broadcast[0].shape)
 
         return tensor_function
-    expr = sympy.sympify(components).subs(values)
+    expr = prepared(components)
+    _require_values([expr], names)
     scalar = sympy.lambdify(symbols, expr, modules="numpy")
 
     def scalar_function(*args: Any) -> Any:
@@ -90,25 +126,21 @@ def lambdify(
 
 def evaluate(value: Any, point: Mapping[Symbol | str, Any] | None = None, **named: Any) -> Any:
     """The numerical value of a scalar or tensor at a point:
-    ``evaluate(g.ricci_scalar, r=3, M=1)``."""
+    ``evaluate(g.ricci_scalar, r=3, M=1)``. Values are matched to symbols by name,
+    and a symbol without one, or an undefined function, is a ``ValueError`` that
+    names it."""
     numpy = _numpy()
-    values = _parameters({**(point or {}), **named})
+    values = _named({**(point or {}), **named})
     components = value.components if isinstance(value, Tensor) else value
     if isinstance(components, sympy.NDimArray):
-        entries = [_number(c, values) for c in components.reshape(len(components))]
-        array = numpy.array(entries).reshape(components.shape)
+        flat = [_substitute(c, values) for c in components.reshape(len(components))]
+        _require_values(flat)
+        array = numpy.array([complex(sympy.N(c)) for c in flat]).reshape(components.shape)
         return array.real if not numpy.iscomplex(array).any() else array
-    number = _number(components, values)
+    expr = _substitute(components, values)
+    _require_values([expr])
+    number = complex(sympy.N(expr))
     return number.real if number.imag == 0 else number
-
-
-def _number(expr: Any, values: Mapping[Symbol, Any]) -> complex:
-    substituted = sympy.sympify(expr).subs(values)
-    missing = substituted.free_symbols
-    if missing:
-        names = ", ".join(sorted(str(s) for s in missing))
-        raise ValueError(f"give a value for {names}")
-    return complex(sympy.N(substituted))
 
 
 def four_velocity(
@@ -127,9 +159,8 @@ def four_velocity(
     taking the future-directed root.
     """
     numpy = _numpy()
-    g = numpy.asarray(
-        evaluate(metric, _point(metric, position), **{**(parameters or {}), **named}), dtype=float
-    )
+    point = {**(parameters or {}), **named, **_point(metric, position)}
+    g = numpy.asarray(evaluate(metric, point), dtype=float)
     u = numpy.concatenate([[0.0], numpy.asarray(spatial, dtype=float)])
     norm = {"timelike": -1.0, "null": 0.0}[kind]
     a = g[0, 0]

@@ -1,11 +1,12 @@
 """Numbers from symbols: NumPy functions and geodesics integrated with SciPy."""
 
 import pytest
+from sympy import Symbol, diag, sin, symbols
 
 numpy = pytest.importorskip("numpy")
 pytest.importorskip("scipy")
 
-from relativisticpy import Tensor, spacetimes  # noqa: E402
+from relativisticpy import Metric, Tensor, spacetimes  # noqa: E402
 from relativisticpy.numeric import evaluate, four_velocity, geodesic, lambdify  # noqa: E402
 
 SCHWARZSCHILD = spacetimes.schwarzschild()
@@ -46,6 +47,39 @@ def test_evaluate():
 def test_evaluate_names_what_is_missing():
     with pytest.raises(ValueError, match="give a value for theta"):
         evaluate(SCHWARZSCHILD.christoffel, r=10, M=1)
+
+
+def test_lambdify_and_geodesic_name_what_is_missing():
+    with pytest.raises(ValueError, match="give a value for M"):
+        lambdify(SCHWARZSCHILD.kretschmann, ["r"])
+    with pytest.raises(ValueError, match="give a value for M"):
+        lambdify(SCHWARZSCHILD.christoffel, SCHWARZSCHILD.coordinates)
+    with pytest.raises(ValueError, match="give a value for M"):
+        geodesic(SCHWARZSCHILD, [0, 10, numpy.pi / 2, 0], [1.2, 0, 0, 0.01], (0, 1))
+
+
+def test_an_undefined_function_is_named():
+    universe = spacetimes.flrw()  # its scale factor a(t) has no value
+    missing = "give a value for k, and replace the undefined function a with an expression"
+    with pytest.raises(ValueError, match=missing):
+        evaluate(universe.einstein, t=1, r=0.5, theta=1)
+    with pytest.raises(ValueError, match="replace the undefined function a with an expression"):
+        lambdify(universe.christoffel, universe.coordinates, k=0)
+    t = Symbol("t")
+    assert evaluate(spacetimes.flrw(0, t**2).ricci_scalar, t=1) == pytest.approx(36)
+
+
+def test_values_are_matched_by_name():
+    position = [0.0, 10.0, numpy.pi / 2, 0.0]
+    by_name = four_velocity(SCHWARZSCHILD, position, [0, 0, 0.01], M=1)
+    by_symbol = four_velocity(SCHWARZSCHILD, position, [0, 0, 0.01], parameters={Symbol("M"): 1})
+    assert numpy.allclose(by_name, by_symbol)
+    M, r = symbols("M r", positive=True)  # as declared in the language: Positive := [M, r]
+    f = 1 - 2 * M / r
+    g = Metric(diag(-f, 1 / f, r**2, r**2 * sin(Symbol("theta")) ** 2), ["t", r, "theta", "phi"])
+    assert evaluate(g.kretschmann, r=2, M=1) == pytest.approx(0.75)
+    assert lambdify(g.kretschmann, ["r"], M=1)(numpy.array([2.0])) == pytest.approx([0.75])
+    assert numpy.allclose(four_velocity(g, position, [0, 0, 0.01], M=1), by_name)
 
 
 def test_four_velocity_is_normalised():

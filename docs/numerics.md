@@ -47,6 +47,23 @@ ValueError: give a value for theta
 
 ```
 
+Values are matched to symbols by name, whether you give them by name or by
+symbol, so they also reach a symbol with assumptions, such as a positive `M`.
+`lambdify` and `geodesic` name a forgotten value in the same way. An undefined
+function has no value to give, such as the scale factor \(a(t)\) of
+`spacetimes.flrw()`; give the spacetime an expression for it instead:
+
+```python
+>>> evaluate(spacetimes.flrw().ricci_scalar, t=1, r=0.5, k=0)
+Traceback (most recent call last):
+  ...
+ValueError: replace the undefined function a with an expression
+>>> import sympy
+>>> evaluate(spacetimes.flrw(0, sympy.Symbol("t") ** 2).ricci_scalar, t=1)
+36.0
+
+```
+
 ## Geodesics
 
 `geodesic` integrates the geodesic equation
