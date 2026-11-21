@@ -466,18 +466,14 @@ class Compiler:
 
     def _declares(self, relation: ast.Relation) -> bool:
         """``a, b \\in \\mathcal{A}``: declare that the labels range over a space, and say
-        so; ``False`` for any other relation, which is read but not computed."""
+        so; ``False`` for any other relation, which is read but not computed. Only a space
+        defined by name declares its members: in a paper, ``x \\in \\mathbb{R}^3`` says
+        what x is, and x may well be a coordinate."""
         names = relation.lhs.items if isinstance(relation.lhs, ast.Tuple) else (relation.lhs,)
         if relation.op != "∈" or not all(isinstance(n, ast.Name) for n in names):
             return False
         rhs = relation.rhs
         space = self.session.spaces.get(rhs.id) if isinstance(rhs, ast.Name) else None
-        if space is None and isinstance(rhs, ast.Scripted):
-            written = rhs.span.text.strip()
-            scope = self.session.globals
-            space = self._space_written(rhs, written, scope, Context(latex=True))
-            if space is not None:
-                space = self.session.spaces.setdefault(written, space)
         if space is None:
             return False
         for label in names:
@@ -2334,7 +2330,11 @@ class Compiler:
 
     def _check_label(self, name: str, space: Space, span: Span) -> None:
         """That an index written on an axis over ``space`` may range over it; the first
-        time in a statement, it then does, for the rest of the statement."""
+        time in a statement, it then does, for the rest of the statement. On an axis of
+        spacetime, a coordinate's name, as t in \\Gamma^{t}_{tr}, names a component and is
+        no index, whatever t is elsewhere."""
+        if space.spacetime and name in (space.basis or ()):
+            return
         expected = self._labels.get(name) or self.session.labels.get(name)
         if expected is None:
             self._labels[name] = space

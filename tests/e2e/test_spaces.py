@@ -66,6 +66,15 @@ class TestSpaces:
         with pytest.raises(IndexNotationError, match=message):
             wb.expr(r"R_{ta} X_{tb}")
 
+    def test_only_a_named_space_declares_its_members(self, wb):
+        wb.exe(r"Coordinates := [t, x, y, z]" "\n" r"g_{\mu\nu} := diag(-1, 1, 1, 1)")
+        with pytest.raises(CompileError, match="read but not computed"):
+            wb.exe(r"x \in \mathbb{R}^{3}")  # in a paper: x is a coordinate, still
+        assert wb.expr(r"\Gamma^{x}_{xx} = 0")
+        # A coordinate's name on spacetime is a component, even where it is declared.
+        wb.exe(r"\mathcal{T} := \mathbb{R}^{3}" "\n" r"t \in \mathcal{T}")
+        assert wb.expr(r"\Gamma^{t}_{tx} = 0")
+
     def test_a_square_matrix_of_data_keeps_its_spaces_apart(self, wb):
         wb["R_{ta}"] = np.eye(3)  # three days of three assets
         assert wb["R"].spaces[0] != wb["R"].spaces[1]
