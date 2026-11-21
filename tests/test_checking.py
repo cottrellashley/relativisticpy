@@ -8,6 +8,7 @@ from relativisticpy import Workbook
 from relativisticpy.checking import Verdict, _time_limit
 from relativisticpy.cli import main
 from relativisticpy.documents import Document
+from relativisticpy.runtime import executor
 
 PAPER = r"""
 \documentclass{article}
@@ -102,6 +103,20 @@ def test_a_notebook_is_checked_by_its_blocks(tmp_path):
     notes.write_text("Prose.\n\n$$\nx := 2\n$$\n\nThen $$ x^2 = 4 $$\n")
     report = Workbook().check(notes)
     assert verdicts(report) == [(4, Verdict.DEFINES), (7, Verdict.HOLDS)]
+
+
+def test_a_computation_over_its_time_limit_is_not_computed(monkeypatch):
+    # The limit reaches through the executor, which reports other failures as errors.
+    def slowly(component):
+        time.sleep(5)
+        return component
+
+    wb = Workbook()
+    wb.exe(r"ds^2 = -dt^2 + dx^2")
+    monkeypatch.setattr(executor, "simplify_component", slowly)
+    curvature = Document(r"\begin{equation} R_{txtx} = 0 \end{equation}")
+    finding = wb.check(curvature, time_limit=0.1).findings[0]
+    assert (finding.verdict, finding.detail) == (Verdict.NOT_COMPUTED, "took longer than 0.1 s")
 
 
 def test_a_statement_can_be_given_a_time_limit():

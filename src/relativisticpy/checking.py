@@ -222,6 +222,12 @@ def _short(value: Any, width: int = 100) -> str:
     return text if len(text) <= width else text[: width - 1] + "…"
 
 
+class _Expired(BaseException):
+    """The alarm of a time limit. Like ``KeyboardInterrupt`` it is not an ``Exception``,
+    so no ``except Exception`` on its way out, in the executor or in SymPy, takes it for
+    a computation that failed."""
+
+
 @contextlib.contextmanager
 def _time_limit(seconds: float | None) -> Iterator[None]:
     """Raise :class:`TimeoutError` if the block runs longer than ``seconds``. Only on
@@ -232,12 +238,14 @@ def _time_limit(seconds: float | None) -> Iterator[None]:
         return
 
     def expire(signum: int, frame: Any) -> None:
-        raise TimeoutError
+        raise _Expired
 
     previous = signal.signal(signal.SIGALRM, expire)
     signal.setitimer(signal.ITIMER_REAL, seconds)
     try:
         yield
+    except _Expired:
+        raise TimeoutError from None
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
