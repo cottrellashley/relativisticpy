@@ -22,6 +22,13 @@ def run(name):
         return wb.run_file(EXAMPLES / name)
 
 
+def examples(folder):
+    """The examples in a folder: its files but its README, and not what tools leave
+    there, such as __pycache__ or .DS_Store."""
+    files = {path.name for path in folder.iterdir() if path.is_file()}
+    return {name for name in files if not name.startswith(".")} - {"README.md"}
+
+
 def test_every_example_is_tested():
     tested = {
         "schwarzschild.md",
@@ -32,7 +39,14 @@ def test_every_example_is_tested():
         "spins.md",
         "portfolio.py",
     }
-    assert {path.name for path in EXAMPLES.iterdir()} - {"README.md"} == tested
+    assert examples(EXAMPLES) == tested
+
+
+def test_what_tools_leave_among_the_examples_is_not_one(tmp_path):
+    for name in ("orbit.md", "README.md", ".DS_Store"):
+        (tmp_path / name).write_text("")
+    (tmp_path / "__pycache__").mkdir()
+    assert examples(tmp_path) == {"orbit.md"}
 
 
 def test_schwarzschild():
