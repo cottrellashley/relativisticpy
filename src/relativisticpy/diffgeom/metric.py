@@ -9,6 +9,7 @@ from typing import Any
 
 import sympy
 from sympy import Eq, Expr, Function, ImmutableMatrix, Symbol
+from sympy.core.function import AppliedUndef
 
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.curvature import SimplifyMap
@@ -199,8 +200,18 @@ def metric_from_line_element(line_element: Expr, coordinates: Sequence[Symbol]) 
 def geodesic_equations(
     christoffel_symbols: Any, coordinates: Sequence[Symbol], parameter: Symbol | str = "tau"
 ) -> list[Eq]:
-    """The geodesic equations for a connection, one per coordinate."""
+    """The geodesic equations for a connection, one per coordinate.
+
+    The affine parameter needs a name of its own: a coordinate's would make the
+    coordinate a function of itself, and a name in the metric would be read as both.
+    """
     tau = sympy.Symbol(parameter) if isinstance(parameter, str) else parameter
+    if tau.name in {c.name for c in coordinates}:
+        raise ValueError(f"the parameter {tau} is a coordinate: give the parameter another name")
+    names = {s.name for s in christoffel_symbols.free_symbols}
+    names |= {f.func.__name__ for f in christoffel_symbols.atoms(AppliedUndef)}
+    if tau.name in names:
+        raise ValueError(f"{tau} already appears in the metric: give the parameter another name")
     paths = [Function(c.name)(tau) for c in coordinates]
     along = dict(zip(coordinates, paths, strict=True))
     n = len(coordinates)

@@ -205,3 +205,15 @@ def test_geodesic_equations():
     assert theta_equation.lhs.has(th.diff(tau, 2))
     assert theta_equation.lhs.has(ph.diff(tau))
     assert len(equations) == 4
+
+
+def test_the_geodesic_parameter_needs_a_name_of_its_own():
+    g = spacetimes.schwarzschild()
+    with pytest.raises(ValueError, match="the parameter t is a coordinate"):
+        g.geodesic_equations("t")
+    with pytest.raises(ValueError, match="M already appears in the metric"):
+        g.geodesic_equations(Symbol("M", positive=True))
+    with pytest.raises(ValueError, match="a already appears in the metric"):
+        spacetimes.flrw().geodesic_equations("a")  # the scale factor a(t)
+    s = Symbol("s")
+    assert g.geodesic_equations(s)[0].lhs.has(Function("t")(s).diff(s, 2))
