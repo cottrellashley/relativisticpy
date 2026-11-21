@@ -441,7 +441,13 @@ class Compiler:
             node = self._inverse(node, value.span)
         assert isinstance(node.type, TensorType)
         lower = Indices([Index("a"), Index("b")])
-        self.session.space_metrics[space] = self.graph.retype(node, node.type.with_indices(lower))
+        complex_space = self.graph.const(space.field == "complex", VALUE)
+        self.session.space_metrics[space] = self.graph.add(
+            ops.Call(_space_metric, "metric"),
+            (node, complex_space),
+            node.type.with_indices(lower),
+            target.span.to(value.span),
+        )
 
     def _space_written(
         self, value: ast.Expr, name: str, scope: Scope, ctx: Context
@@ -3742,6 +3748,41 @@ def _uniform(dim: int) -> Any:
     from relativisticpy.tensors import numerical
 
     return numerical.numpy().full(dim, 1.0 / dim)
+
+
+def _space_metric(components: Any, complex_space: bool) -> Any:
+    """The components of a space's metric, once found to be one: symmetric (Hermitian, over
+    a complex space) and, where they are numbers, positive definite."""
+    from relativisticpy.errors import EvaluationError
+    from relativisticpy.tensors import numerical
+    from relativisticpy.tensors.simplification import is_zero
+
+    asymmetric = EvaluationError(
+        f"a metric is {'Hermitian' if complex_space else 'symmetric'}, but this one is not"
+    )
+    indefinite = EvaluationError(
+        "a metric of a space is positive definite, but this one is not",
+        hint="a covariance is, unless some combination of the data never varies",
+    )
+    if numerical.is_numerical(components):
+        np = numerical.numpy()
+        try:
+            matrix = np.asarray(numerical.dense(components))
+        except TypeError:  # numbers JAX is differentiating, not known yet
+            return components
+        if not linalg.hermitian(matrix):
+            raise asymmetric
+        try:
+            np.linalg.cholesky(matrix)
+        except np.linalg.LinAlgError:
+            raise indefinite from None
+        return components
+    entries = sympy.Matrix(components.tolist())
+    if not all(is_zero(entry) for entry in entries - (entries.H if complex_space else entries.T)):
+        raise asymmetric
+    if all(entry.is_number for entry in entries) and entries.is_positive_definite is False:
+        raise indefinite
+    return components
 
 
 def _elementwise_product(left: Any, right: Any) -> Any:

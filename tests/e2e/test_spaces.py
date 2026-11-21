@@ -146,6 +146,12 @@ class TestData:
         wb["y_t"] = np.arange(3.0)
         assert wb.expr("y_t y_t") == pytest.approx(5.0)
 
+    def test_indices_written_without_braces(self, wb):
+        wb["B_a^b"] = np.eye(2)  # B_{a}{}^{b}, though it reads as the name B_a
+        assert str(wb["B"].indices) == "_{a}^{b}"
+        wb["X^i_j"] = np.eye(2)
+        assert str(wb["X"].indices) == "^{i}_{j}"
+
     def test_what_cannot_be_bound(self, wb):
         with pytest.raises(CompileError, match="has 1 indices but the data has 2 axes"):
             wb["w^a"] = np.eye(2)
@@ -412,6 +418,25 @@ class TestPortfolios:
         assert np.allclose(market.expr(r"\mu^a").to_numpy(), np.linalg.solve(COVARIANCE, MEAN))
         with pytest.raises(IndexNotationError, match="once up and once down"):
             market.expr(r"w_{a} w_{a}")
+
+    def test_a_metric_is_symmetric_and_positive_definite(self, wb):
+        wb.exe(r"\mathcal{A} := \mathbb{R}^{2}" "\n" r"a, b \in \mathcal{A}")
+        wb["w^a"] = np.array([1.0, 2.0])
+        for metric, why in [
+            ("[[1, 2], [0, 1]]", "symmetric"),
+            ("[[1, 2], [2, 1]]", "positive definite"),  # its eigenvalues are 3 and -1
+            ("[[x, 1], [2, x]]", "symmetric"),
+        ]:
+            wb.exe(rf"g_{{ab}} := {metric}")
+            with pytest.raises(EvaluationError, match=why) as error:
+                wb.expr(r"w^a w_a")
+            assert error.value.span.text.startswith("g_{ab} :=")
+        wb["S_{ab}"] = np.array([[2.0, 0.5], [0.4, 1.0]])
+        wb.exe(r"g_{ab} := S_{ab}")
+        with pytest.raises(EvaluationError, match="symmetric"):
+            wb.expr(r"w^a w_a")
+        wb.exe(r"g_{ab} := [[2, 0], [0, 3]]")
+        assert wb.expr(r"w^a w_a") == pytest.approx(14.0)
 
     def test_the_gradient_of_the_sharpe_ratio(self, market):
         market["w^a"] = np.full(5, 0.2)

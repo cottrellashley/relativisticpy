@@ -456,8 +456,13 @@ def _written(written: str) -> ast.Name | tuple[str, list[tuple[str, bool]]]:
     if isinstance(expr, ast.Name):
         return expr
     if isinstance(expr, ast.Scripted) and isinstance(expr.base, ast.Name):
+        name = expr.base.id
         entries: list[tuple[str, bool]] = []
-        count = 0
+        head, underscore, tail = name.partition("_")
+        if underscore and tail.isalpha():  # B_a^b reads as the name B_a; it is B_{a}{}^{b}
+            name = head
+            entries.extend((label, False) for label in split_index_labels(tail))
+        count = len(entries)
         for script in expr.scripts:
             for item in script.indices.items if script.indices is not None else ():
                 count += 1
@@ -469,7 +474,7 @@ def _written(written: str) -> ast.Name | tuple[str, list[tuple[str, bool]]]:
                 entries.extend((label, False) for label in rest if label)
                 count += sum(1 for label in rest if label)
         if entries and len(entries) == count == len({label for label, _ in entries}):
-            return expr.base.id, entries
+            return name, entries
     raise CompileError(
         f"cannot bind {written!r}: write a name, as in x, or a tensor with distinct index "
         "labels, as in R_{ta}"

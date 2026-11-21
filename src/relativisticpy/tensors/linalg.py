@@ -85,7 +85,7 @@ def solve(matrix: Any, rhs: Any, transpose: bool = False) -> Any:
 
 def _dense_solve(a: Any, block: Any) -> Any:
     np = numerical.numpy()
-    if _hermitian(a):
+    if hermitian(a):
         from scipy.linalg import LinAlgError, cho_factor, cho_solve
 
         try:
@@ -95,7 +95,7 @@ def _dense_solve(a: Any, block: Any) -> Any:
     return np.linalg.solve(a, block)
 
 
-def _hermitian(matrix: Any) -> bool:
+def hermitian(matrix: Any) -> bool:
     """Whether a numerical matrix is its own conjugate transpose, to rounding error in
     its largest component. NumPy's default tolerance would call any matrix of small
     numbers symmetric, and Cholesky factorisation and ``eigh`` read only half of it."""
@@ -154,9 +154,9 @@ def _dense_eig(matrix: Any, metric: Any) -> tuple[Any, Any]:
     np = numerical.numpy()
     a = numerical.dense(matrix)
     if metric is None:
-        return np.linalg.eigh(a) if _hermitian(a) else _real(np.linalg.eig(a), a)
+        return np.linalg.eigh(a) if hermitian(a) else _real(np.linalg.eig(a), a)
     g = numerical.dense(metric)
-    if _hermitian(a) and _hermitian(g):
+    if hermitian(a) and hermitian(g):
         try:
             values, vectors = scipy.linalg.eigh(a, g)
         except np.linalg.LinAlgError:
@@ -182,7 +182,7 @@ def _sparse_eig(matrix: Any, metric: Any, count: int) -> tuple[Any, Any]:
     from scipy.sparse.linalg import eigs, eigsh
 
     largest = count > 0
-    if _hermitian(matrix) and (metric is None or _hermitian(metric)):
+    if hermitian(matrix) and (metric is None or hermitian(metric)):
         values, vectors = eigsh(matrix, k=abs(count), M=metric, which="LA" if largest else "SA")
         return values, vectors
     pairs = eigs(matrix, k=abs(count), M=metric, which="LR" if largest else "SR")
@@ -200,10 +200,10 @@ def _jax_eig(matrix: Any, metric: Any) -> tuple[Any, Any]:
     a = jnp.asarray(numerical.dense(matrix))
     g = None if metric is None else jnp.asarray(numerical.dense(metric))
     known = [_concrete(x) for x in (a, g) if x is not None]
-    hermitian = all(_hermitian(x) for x in known if x is not None)
-    if g is not None and hermitian and all(x is not None for x in known):
-        hermitian = _positive_definite(known[1])
-    if not hermitian:  # JAX computes these on a CPU only
+    symmetric = all(hermitian(x) for x in known if x is not None)
+    if g is not None and symmetric and all(x is not None for x in known):
+        symmetric = _positive_definite(known[1])
+    if not symmetric:  # JAX computes these on a CPU only
         values, vectors = jnp.linalg.eig(a if g is None else jnp.linalg.solve(g, a))
         return values, vectors
     if g is None:
