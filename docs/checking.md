@@ -124,10 +124,11 @@ The [LaTeX page](latex.md#notation-from-papers) lists the notation in full.
 
 Sean Carroll's *Lecture Notes on General Relativity*
 ([arXiv:gr-qc/9712019](https://arxiv.org/abs/gr-qc/9712019)) are the
-benchmark for this feature. Of their 797 display equations, 787 (98.7%)
-parse. The other ten are mostly words laid out as matrices. Checked from end
-to end, in under five seconds, 95 statements hold, 52 of them with sides that
-are not both zero.
+benchmark for this feature. Of their 797 display equations, 786 (98.6%)
+parse. The other eleven are mostly words laid out as matrices, and integrals
+written in ways that leave their variables unclear. Checked from end to end, in
+about five seconds, 116 statements hold, 75 of them with sides that are not both
+zero.
 
 The notes' chapter on the Schwarzschild solution makes 25 claims about the
 general spherically symmetric metric: twelve Christoffel symbols, eight
@@ -167,13 +168,13 @@ uv run python benchmarks/corpus.py
 
 | Paper | Equations | Parse | Hold | Differ |
 |---|---:|---:|---:|---:|
-| Carroll, *Lecture Notes on General Relativity* | 797 | 98.7% | 95 | 132 |
-| gr-qc 2611.26560 | 31 | 71.0% | 1 | 11 |
-| gr-qc 2611.26576 | 305 | 43.0% | 0 | 61 |
-| gr-qc 2611.26585 | 270 | 63.0% | 2 | 30 |
-| gr-qc 2611.26591 | 27 | 88.9% | 0 | 10 |
-| gr-qc 2611.26594 | 63 | 87.3% | 1 | 9 |
-| gr-qc 2611.26620 | 47 | 72.3% | 0 | 8 |
+| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 116 | 127 |
+| gr-qc 2611.26560 | 31 | 77.4% | 1 | 8 |
+| gr-qc 2611.26576 | 305 | 46.6% | 0 | 59 |
+| gr-qc 2611.26585 | 270 | 63.0% | 0 | 24 |
+| gr-qc 2611.26591 | 27 | 92.6% | 0 | 8 |
+| gr-qc 2611.26594 | 63 | 87.3% | 1 | 4 |
+| gr-qc 2611.26620 | 47 | 74.5% | 0 | 10 |
 
 The recent papers lean on their own notation, from physics packages to
 macros built on TeX internals, so they are where the language grows next.

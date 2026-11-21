@@ -145,7 +145,7 @@ the same thing.
 
 - **Papers that check themselves.** `relativisticpy check paper.tex` runs the
   display equations of a LaTeX document in order, as a reader would, and says
-  which hold, which do not, and which it could not read. It reads 98.7% of the
+  which hold, which do not, and which it could not read. It reads 98.6% of the
   equations in Sean Carroll's *Lecture Notes on General Relativity* as written,
   confirms 24 of the 25 claims his notes make about the connection and
   curvature of a spherically symmetric spacetime, and finds the 25th, and his

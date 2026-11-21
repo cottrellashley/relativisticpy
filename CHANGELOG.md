@@ -16,18 +16,26 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - Checking papers: `relativisticpy check paper.tex` and `Workbook.check` run
   the display equations of a LaTeX document, or a Markdown notebook, in order
   and give each a verdict: holds, differs, defines, computes, not computed,
-  not understood or not parsed. `relativisticpy.documents` finds a document's
-  equations and expands its macros, including those of local packages.
+  not understood or not parsed. An equation holds when it is proven; one that
+  is not differs only where numbers show its sides to differ. Each document is
+  checked in a workbook of its own, nothing in it stops the check, and
+  `--strict` makes the command fail when an equation differs or cannot be read.
+  `relativisticpy.documents` finds a document's equations and expands its
+  macros as TeX does, including those of local packages and `\let`, keeping
+  every position the file's own.
 - The notation of papers: plain TeX (`{a \over b}`, `{\rm d}`, `\matrix`),
   closing punctuation, equations separated by commas and wide spaces, chains of
   relations and continued alignment rows, relations that are read but not
   computed (`\sim`, `\approx`, `\propto`, `\to`, `\in`), ellipses, primed and
   subscripted index labels, and labels on symbols such as `r_+` and `r^*`.
 - The context physicists leave implicit: coordinates named by a line element,
-  functions written once with their arguments, numbered indices, and repeated
-  derivatives such as `\partial_0^2`.
-- The d'Alembertian `\Box`, the Lie derivative `\pounds_V`, the wedge product of
-  forms, and `\pm`.
+  functions written once with their arguments (so that `A'` is \(dA/dr\) once
+  `A(r)` is written), numbered indices, and repeated derivatives such as
+  `\partial_0^2` and `\partial^2_{tx}`. Every statement of a display is LaTeX,
+  `\text{and}` separates equations, `299\,792\,458` is one number, `n!!` is the
+  double factorial, and `E^{(2)}` names an order of perturbation.
+- The d'Alembertian `\Box`, also written `\nabla^2`, the Lie derivative
+  `\pounds_V`, the wedge product of forms, and `\pm`.
 - Tensor equations solved as tensor equations: an equation with a tensor that
   has no components, such as \(T_{\mu\nu}\) in Einstein's equations, or any
   tensor equation without a metric, is kept as index notation
@@ -79,7 +87,9 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   spread component-wise work over processes with `Workbook(workers=N)`.
 - The Weyl tensor and the Kretschmann scalar as built-ins.
 - Known spacetimes: Minkowski, Schwarzschild, Reissner–Nordström, Kerr,
-  Kerr–Newman, FLRW, de Sitter and anti-de Sitter.
+  Kerr–Newman, FLRW, de Sitter and anti-de Sitter, each in geometric units or
+  with `G` and `c` after its own parameters. A decimal in a metric is the exact
+  fraction it denotes, so curvature stays exact.
 - Metrics from line elements, `ds^2 = ...`, including `d\Omega^2`.
 - Fast, exact simplification. Whether a component vanishes is decided without
   polynomial GCDs, so the Kerr metric is verified to be a vacuum solution in
@@ -105,7 +115,12 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   returns the document with the results typeset; `Workbook.run_file` runs a
   file.
 - A bare `g` is the determinant of the metric, and `R` is the Riemann tensor,
-  the Ricci tensor or the Ricci scalar according to its number of indices.
+  the Ricci tensor or the Ricci scalar according to its number of indices,
+  unless the metric is written with them as symbols.
+- `x = 5` defines `x`, but an equation about what already has a meaning is a
+  claim to check: a component (`g_{tt} = \ldots`), a built-in scalar
+  (`R = 0`), a bound tensor, or \(\pi\). An equation for a coordinate in force,
+  as `t = 0`, is a condition, which is read but not computed.
 - In LaTeX, a run of letters is a product of symbols (`2GM` is `2 G M`); in
   plain text it is one name.
 - In arithmetic, lists are vectors and matrices: `2 [1, 2]` is `[2, 4]`.

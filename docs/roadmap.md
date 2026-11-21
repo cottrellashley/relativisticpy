@@ -29,7 +29,7 @@ that grew from it, and where each stands.
   shares common subexpressions and works in parallel.
 - **Good errors**, located in the source, with hints.
 - **Checking papers**: run a paper's equations and see which hold. Sean
-  Carroll's lecture notes are the benchmark: 98.7% of their equations parse.
+  Carroll's lecture notes are the benchmark: 98.6% of their equations parse.
 - **Tensor equations solved as tensor equations**: `solve`, `trace`,
   `simplify` and `subs` in index notation, with the identities of General
   Relativity, before there are components, and components after.
