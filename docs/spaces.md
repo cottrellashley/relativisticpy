@@ -213,7 +213,8 @@ Tensor('_{k}', [-sqrt(Delta**2 + epsilon**2), sqrt(Delta**2 + epsilon**2)])
   slices along an index it sums over, and the slices added.
 - **Sparse data.** A SciPy sparse matrix is a tensor like any other; it multiplies
   vectors and dense matrices as a matrix, and its few largest or smallest eigenvalues
-  come from an iterative solver: `\operatorname{spec}(L^i{}_j, -6)`.
+  come from an iterative solver: `\operatorname{spec}(L^i{}_j, -6)`. Without a count,
+  a sparse matrix of up to 4,096 rows has its whole spectrum computed as a dense one.
 - **JAX.** `Workbook(backend="jax")` keeps bound data as JAX arrays, computed with JAX,
   on a GPU if there is one. `wb.grad(expression, "w")` differentiates any scalar
   expression with respect to bound data, through contractions and linear solves:

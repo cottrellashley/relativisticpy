@@ -211,6 +211,19 @@ class TestLinearAlgebra:
         with pytest.raises(IndexNotationError, match="ranges over"):
             market.expr(r"v^a{}_k \mu_k")
 
+    def test_a_few_eigenvalues_of_any_map(self, wb):
+        upper = np.triu(rng.normal(size=(8, 8)), 1) + np.diag(np.arange(8.0))  # 0, 1, ..., 7
+        wb["A^a_b"] = upper
+        assert np.allclose(wb.expr(r"\operatorname{spec}(A^a{}_b, 2)").to_numpy(), [6.0, 7.0])
+        with pytest.raises(CompileError, match="whole number"):
+            wb.expr(r"\operatorname{spec}(A^a{}_b, 0)")
+        with pytest.raises(CompileError, match="has 8 eigenvalues, not 9"):
+            wb.expr(r"\operatorname{spec}(A^a{}_b, 9)")
+        wb["L^i_j"] = sp.diags([-np.ones(39), 2 * np.ones(40), -np.ones(39)], [-1, 0, 1])
+        spectrum = wb.expr(r"\operatorname{spec}(L^i{}_j)")  # every one, as for a dense map
+        assert spectrum.to_numpy().shape == (40,)
+        assert spectrum.spaces[0].dim == 40
+
     def test_singular_values(self, market):
         market.exe(r"U_{tk}, s_k, V_{ak} := \operatorname{svd}(R_{ta})")
         u, s, v = (market[name].to_numpy() for name in "UsV")
@@ -325,6 +338,19 @@ class TestJax:
             wb["w^a"] = np.full(5, 0.2)
             assert wb.expr(r"w^a S_{ab} w^b") == pytest.approx(0.04 * COVARIANCE.sum())
             assert type(wb.expr(r"S_{ab} w^b").components).__module__.startswith("jax")
+
+    def test_spectra_with_jax(self):
+        form, metric = np.array([[2.0, 0.5], [0.5, 1.0]]), np.diag([4.0, 1.0])
+        with Workbook(backend="jax") as wb:
+            wb.exe(r"\mathcal{A} := \mathbb{R}^{2}" "\n" r"a, b \in \mathcal{A}")
+            wb["A^a_b"] = np.array([[1.0, 2.0], [0.0, 3.0]])
+            wb["S_{ab}"] = form
+            wb["G_{ab}"] = metric
+            wb.exe(r"g_{ab} := G_{ab}")
+            assert np.allclose(wb.expr(r"\operatorname{spec}(A^a{}_b)").to_numpy(), [1.0, 3.0])
+            expected = scipy.linalg.eigh(form, metric, eigvals_only=True)
+            assert np.allclose(wb.expr(r"\operatorname{spec}(S)").to_numpy(), expected)
+            assert np.allclose(wb.expr(r"\operatorname{spec}(S, 1)").to_numpy(), expected[1:])
 
     def test_gradients_through_a_solve(self, market):
         gradient = market.grad(r"(\Sigma^{-1})^{ab} \mu_a \mu_b", "mu").to_numpy()

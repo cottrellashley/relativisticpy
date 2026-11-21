@@ -89,6 +89,38 @@ class TestSpectra:
         assert np.allclose(linalg.eig(path, rows=1, count=-2)[0], exact[:2])
         assert np.allclose(linalg.eig(path, rows=1, count=3)[0], exact[-3:])
 
+    def test_a_few_of_a_dense_or_non_symmetric_map(self):
+        upper = np.triu(rng.normal(size=(8, 8)), 1) + np.diag(np.arange(8.0))  # 0, 1, ..., 7
+        assert np.allclose(linalg.eig(upper, rows=1, count=2)[0], [6.0, 7.0])
+        assert np.allclose(linalg.eig(upper, rows=1, count=-3)[0], [0.0, 1.0, 2.0])
+        assert np.allclose(linalg.eig(sp.csr_matrix(upper), rows=1, count=2)[0], [6.0, 7.0])
+
+    def test_every_eigenvalue_of_a_small_sparse_matrix(self):
+        path = sp.diags([-np.ones(39), 2 * np.ones(40), -np.ones(39)], [-1, 0, 1], format="csr")
+        values, vectors = linalg.eig(path, rows=1)
+        assert values.shape == (40,)
+        assert np.allclose(path @ vectors, vectors * values)
+
+    def test_a_non_symmetric_form_relative_to_a_metric(self):
+        form, metric = np.array([[2.0, 3.0], [-1.0, 1.0]]), np.diag([2.0, 1.0])
+        values, vectors = linalg.eig(form, rows=1, metric=metric)
+        assert np.allclose(values, np.sort_complex(scipy.linalg.eig(form, metric)[0]))
+        assert np.allclose(form @ vectors, metric @ vectors * values)
+
+    def test_with_jax(self):
+        jax = pytest.importorskip("jax")
+        from relativisticpy.workbook import _double_precision
+
+        _double_precision(jax)
+        upper = jax.numpy.asarray([[1.0, 2.0], [0.0, 3.0]])
+        assert np.allclose(linalg.eig(upper, rows=1)[0], [1.0, 3.0])
+        metric = np.diag([1.0, 2.0, 3.0, 4.0])
+        values, vectors = linalg.eig(jax.numpy.asarray(SPD), rows=1, metric=metric)
+        values, vectors = np.asarray(values), np.asarray(vectors)
+        assert np.allclose(SPD @ vectors, metric @ vectors * values)
+        smallest = linalg.eig(jax.numpy.asarray(SPD), rows=1, count=-2)[0]
+        assert np.allclose(smallest, np.linalg.eigvalsh(SPD)[:2])
+
     def test_symbolic_eigenvalues(self):
         epsilon, delta = sympy.symbols("epsilon Delta", positive=True)
         values, vectors = linalg.eig(Array([[epsilon, delta], [delta, -epsilon]]), rows=1)

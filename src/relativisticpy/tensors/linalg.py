@@ -115,33 +115,158 @@ _ROUNDING = 1e-12
 def eig(
     components: Any, rows: int, metric: Any = None, count: int | None = None
 ) -> tuple[Any, Any]:
-    """Eigenvalues and eigenvectors of a map, rows to columns, in increasing order; the
-    eigenvectors' last axis is the mode. With a ``metric``, of the bilinear form relative
-    to it: :math:`S_{ab} v^b = \\lambda g_{ab} v^b`. With a ``count``, only that many,
-    the largest (the smallest, if negative), as for a large sparse matrix."""
+    """Eigenvalues and eigenvectors of a map, rows to columns, in increasing order (of
+    their real parts, then imaginary); the eigenvectors' last axis is the mode. With a
+    ``metric``, of the bilinear form relative to it: :math:`S_{ab} v^b = \\lambda g_{ab}
+    v^b`. With a ``count``, only that many, the largest (the smallest, if negative): of a
+    large sparse matrix, from an iterative solver, which finds a few without the rest."""
     if not numerical.is_numerical(components) and not numerical.is_numerical(metric):
-        return _symbolic_eig(components, rows, metric)
+        values, vectors = _symbolic_eig(components, rows, metric)
+        return _symbolic_count(values, vectors, count) if count is not None else (values, vectors)
     matrix, row_shape, _ = _square(components, rows)
-    np = numerical.numpy()
-    if numerical.is_jax(matrix):  # Hermitian, as JAX differentiates eigenvalues only of those
-        values, vectors = numerical.xp(matrix).linalg.eigh(matrix)
-        return values, vectors.reshape((*row_shape, vectors.shape[1]))
-    if count is not None or numerical.is_sparse(matrix):
-        from scipy.sparse.linalg import eigsh
-
-        k = abs(count) if count else min(6, matrix.shape[0] - 1)
-        values, vectors = eigsh(matrix, k=k, M=metric, which="SA" if (count or 0) < 0 else "LA")
-    elif metric is not None:
-        from scipy.linalg import eigh
-
-        values, vectors = eigh(matrix, numerical.dense(numerical.as_array(metric)))
-    elif _hermitian(matrix):
-        values, vectors = np.linalg.eigh(matrix)
+    if metric is not None and not numerical.is_sparse(metric):
+        metric = numerical.as_array(metric)
+    size = matrix.shape[0]
+    if numerical.is_jax(matrix) or numerical.is_jax(metric):
+        values, vectors = _jax_eig(matrix, metric)
+    elif numerical.is_sparse(matrix) and count is not None and abs(count) < size - 1:
+        values, vectors = _sparse_eig(matrix, metric, count)
+    elif numerical.is_sparse(matrix) and size > _DENSE:
+        raise EvaluationError(
+            f"the spectrum of a sparse matrix of {size} rows is found a few eigenvalues at a time",
+            hint="give how many, the largest or, if negative, the smallest: spec(L, -6)",
+        )
     else:
-        values, vectors = np.linalg.eig(matrix)
-    order = np.argsort(values.real, kind="stable")
+        values, vectors = _dense_eig(matrix, metric)
+    values, vectors = _ordered(values, vectors, count)
+    return values, vectors.reshape((*row_shape, vectors.shape[-1]))
+
+
+#: Sparse matrices up to this size have their whole spectrum computed as dense ones.
+_DENSE = 4096
+
+
+def _dense_eig(matrix: Any, metric: Any) -> tuple[Any, Any]:
+    """Every eigenvalue: by ``eigh`` for a Hermitian map, or a Hermitian form relative to a
+    positive definite metric, and the general algorithm otherwise."""
+    import scipy.linalg
+
+    np = numerical.numpy()
+    a = numerical.dense(matrix)
+    if metric is None:
+        return np.linalg.eigh(a) if _hermitian(a) else _real(np.linalg.eig(a), a)
+    g = numerical.dense(metric)
+    if _hermitian(a) and _hermitian(g):
+        try:
+            values, vectors = scipy.linalg.eigh(a, g)
+        except np.linalg.LinAlgError:
+            pass  # the metric is not positive definite
+        else:
+            return values, vectors
+    return _real(scipy.linalg.eig(a, g), a, g)
+
+
+def _real(pairs: tuple[Any, Any], *matrices: Any) -> tuple[Any, Any]:
+    """Eigenvalues and eigenvectors as real numbers where real matrices give only real
+    ones, which the general algorithm returns as complex numbers."""
+    np = numerical.numpy()
+    values, vectors = pairs
+    if all(np.isrealobj(matrix) for matrix in matrices) and not np.any(values.imag):
+        return values.real, vectors.real
+    return values, vectors
+
+
+def _sparse_eig(matrix: Any, metric: Any, count: int) -> tuple[Any, Any]:
+    """The ``count`` largest eigenvalues of a sparse matrix (the smallest, if negative),
+    by Lanczos's method where it is Hermitian and Arnoldi's otherwise."""
+    from scipy.sparse.linalg import eigs, eigsh
+
+    largest = count > 0
+    if _hermitian(matrix) and (metric is None or _hermitian(metric)):
+        values, vectors = eigsh(matrix, k=abs(count), M=metric, which="LA" if largest else "SA")
+        return values, vectors
+    pairs = eigs(matrix, k=abs(count), M=metric, which="LR" if largest else "SR")
+    return _real(pairs, matrix, *([] if metric is None else [metric]))
+
+
+def _jax_eig(matrix: Any, metric: Any) -> tuple[Any, Any]:
+    """Eigenvalues with JAX, which differentiates those of Hermitian maps: a matrix it
+    is differentiating, whose numbers are not known yet, is taken to be one. A metric is
+    met by Cholesky factorisation, :math:`g = L L^\\dagger`, which leaves
+    :math:`(L^{-1} S L^{-\\dagger}) y = \\lambda y`, with :math:`v = L^{-\\dagger} y`."""
+    import jax.numpy as jnp
+    from jax.scipy.linalg import solve_triangular
+
+    a = jnp.asarray(numerical.dense(matrix))
+    g = None if metric is None else jnp.asarray(numerical.dense(metric))
+    known = [_concrete(x) for x in (a, g) if x is not None]
+    hermitian = all(_hermitian(x) for x in known if x is not None)
+    if g is not None and hermitian and all(x is not None for x in known):
+        hermitian = _positive_definite(known[1])
+    if not hermitian:  # JAX computes these on a CPU only
+        values, vectors = jnp.linalg.eig(a if g is None else jnp.linalg.solve(g, a))
+        return values, vectors
+    if g is None:
+        values, vectors = jnp.linalg.eigh(a)
+        return values, vectors
+    lower = jnp.linalg.cholesky(g)
+    half = solve_triangular(lower, a, lower=True)
+    inner = solve_triangular(lower, half.conj().T, lower=True).conj().T
+    values, vectors = jnp.linalg.eigh(inner)
+    return values, solve_triangular(lower.conj().T, vectors, lower=False)
+
+
+def _concrete(array: Any) -> Any:
+    """A JAX array's numbers, or ``None`` while JAX traces it to differentiate it."""
+    try:
+        return numerical.numpy().asarray(array)
+    except TypeError:  # a tracer has no numbers yet
+        return None
+
+
+def _positive_definite(matrix: Any) -> bool:
+    np = numerical.numpy()
+    try:
+        np.linalg.cholesky(matrix)
+    except np.linalg.LinAlgError:
+        return False
+    return True
+
+
+def _ordered(values: Any, vectors: Any, count: int | None) -> tuple[Any, Any]:
+    """Eigenvalues in increasing order, of real parts and then imaginary ones, with their
+    eigenvectors; with a ``count``, the largest that many, or the smallest if negative."""
+    xp = numerical.xp(values)
+    if xp.iscomplexobj(values):
+        order = xp.lexsort((values.imag, values.real))
+    elif xp is numerical.numpy():
+        order = xp.argsort(values, kind="stable")
+    else:
+        order = xp.argsort(values)
     values, vectors = values[order], vectors[:, order]
-    return values, vectors.reshape((*row_shape, vectors.shape[1]))
+    if count is not None:
+        chosen = slice(len(values) - count, None) if count > 0 else slice(None, -count)
+        values, vectors = values[chosen], vectors[:, chosen]
+    return values, vectors
+
+
+def _symbolic_count(values: Any, vectors: Any, count: int) -> tuple[Any, Any]:
+    """The largest ``count`` of exact eigenvalues, or the smallest if negative, where
+    they are numbers, which can be ordered."""
+    try:
+        keys = [(complex(value).real, complex(value).imag) for value in values]
+    except TypeError:
+        raise EvaluationError(
+            "symbolic eigenvalues cannot be ordered, so not the largest or smallest of them",
+            hint="ask for every eigenvalue, without a count",
+        ) from None
+    order = sorted(range(len(keys)), key=keys.__getitem__)
+    order = order[len(order) - count :] if count > 0 else order[:-count]
+    rows = vectors.shape[:-1]
+    flat = vectors.reshape(math.prod(rows), vectors.shape[-1]).tomatrix()
+    chosen = ImmutableDenseNDimArray([values[i] for i in order], (len(order),))
+    columns = flat.extract(list(range(flat.rows)), order)
+    return chosen, _array(columns, (*rows, len(order)))
 
 
 def _symbolic_eig(components: Any, rows: int, metric: Any) -> tuple[Any, Any]:

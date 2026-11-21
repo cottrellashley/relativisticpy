@@ -1307,13 +1307,21 @@ class Compiler:
         values_only: bool,
     ) -> list[Node]:
         assert isinstance(operator.type, TensorType)
+        size = math.prod(space.dim for space in operator.type.spaces[:rows])
         count = None
         if len(call.args) > 1:
             count = self.session.evaluate(self.value(call.args[1], scope, ctx))
-            if not sympy.sympify(count).is_integer:
-                raise CompileError("the number of eigenvalues is a whole number", span=call.span)
+            if not sympy.sympify(count).is_integer or count == 0:
+                raise CompileError(
+                    "the number of eigenvalues is a whole number: the largest that many, "
+                    "or the smallest if it is negative",
+                    span=call.args[1].span,
+                )
             count = int(count)
-        size = math.prod(space.dim for space in operator.type.spaces[:rows])
+            if abs(count) > size:
+                raise CompileError(
+                    f"this map has {size} eigenvalues, not {abs(count)}", span=call.args[1].span
+                )
         modes = Space(f"eigenvectors of {call.args[0].span.text}", abs(count) if count else size)
         args = [operator, self.graph.const(rows, VALUE), metric or self.graph.const(None, VALUE)]
         args.append(self.graph.const(count, VALUE))
