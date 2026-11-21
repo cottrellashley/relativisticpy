@@ -192,9 +192,14 @@ class Compiler:
         return [Output(self.value(expr, scope, ctx), expr.span, name)]
 
     def _defines(self, target: ast.Expr, scope: Scope) -> bool:
-        """Whether ``target = value`` is a definition rather than an equation."""
-        if isinstance(target, ast.Name) or _is_line_element(target):
+        """Whether ``target = value`` is a definition rather than an equation. What already
+        has a meaning is compared, not overwritten: a tensor that exists, written with its
+        indices or, as data is, without braces (``w_a``), and a component, as in ``g_{tt}``
+        or ``T_{tr}``, whose indices name coordinates."""
+        if _is_line_element(target):
             return True
+        if isinstance(target, ast.Name):
+            return scope.lookup(target.id) is not None or _indexed_name(target, scope) is None
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
             return False
         if any(s.indices is None for s in target.scripts):
@@ -202,6 +207,9 @@ class Compiler:
         items = [item for s in target.scripts for item in s.indices.items]  # type: ignore[union-attr]
         if not all(_plain_label(item) for item in items):
             return False
+        labels = [str(item.label) for item in items]
+        if len(set(labels)) != len(labels) or any(map(self._names_component, labels)):
+            return False  # a component, or a trace: an equation about what is there
         name = target.base.id
         if name == self.session.names["metric"]:
             return True
@@ -209,6 +217,14 @@ class Compiler:
         if scope.lookup(name) is not None:
             return False
         return self._builtin_tensor(name, len(items)) is None
+
+    def _names_component(self, label: str) -> bool:
+        """Whether an index label names a component: a coordinate's name, as ``t`` in
+        ``g_{tt}``, unless the label ranges over a space other than spacetime."""
+        space = self._labels.get(label) or self.session.labels.get(label)
+        if space is not None and not space.spacetime:
+            return False
+        return any(c.name == label for c in self.session.coordinates or ())
 
     def _define(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
         if isinstance(target, ast.Name):
@@ -2478,10 +2494,13 @@ class Compiler:
                 raise CompileError("only a name can have a subscript", span=node.span)
             items = [i for s in subscripts if s.indices for i in s.indices.items]
             if len(items) > 1 and all(_plain_label(i) for i in items):
+                written = _written(subscripts)
+                if any(self._names_component(str(i.label)) for i in items):  # T_{tt}
+                    written = "_{" + "".join(_EXAMPLE_LABELS[: len(items)]) + "}"
                 raise CompileError(
                     f"{base.id} is not a tensor",
                     span=node.span,
-                    hint=f"define it first, for example {base.id}{_written(subscripts)} := [...]",
+                    hint=f"define it first, for example {base.id}{written} := [...]",
                 )
             symbol_name = _subscripted_name(ast.Scripted(base, tuple(subscripts), span=node.span))
             value = self.value(ast.Name(symbol_name, verbatim=True, span=node.span), scope, ctx)
@@ -2537,8 +2556,9 @@ class Compiler:
         metric, and so do new tensors with one index when a contraction, as in
         u^\\alpha u_\\alpha, shows that index notation is in use; but only where the
         indices follow the rules of the notation and none is a coordinate, since
-        \\Gamma^\\theta_{r\\theta} = 1/r is a component. In an operation, something kept as
-        notation always counts."""
+        \\Gamma^\\theta_{r\\theta} = 1/r is a component. A tensor written with a coordinate
+        as an index never counts: ``G_{tt} = 8\\pi T_{tt}`` is about components, which T
+        has not yet. In an operation, something kept as notation always counts."""
         builtin = single = False
         labels: set[str] = set()
         for current in _walk(node):
@@ -2554,6 +2574,8 @@ class Compiler:
                     assert isinstance(written.right, ast.Scripted)
                     pattern = _tensor_pattern(written.right) or pattern
                 name, entries = pattern
+                if any(self._names_component(label) for label, _ in entries):
+                    return False
                 labels.update(label for label, _ in entries)
                 if scope.lookup(name) is None and name not in BUILTINS and name not in CONSTANTS:
                     if self._builtin_tensor(name, len(entries)) is not None:
@@ -3416,6 +3438,10 @@ def to_text(node: ast.Expr | None) -> str:
 
 def _written(scripts: Sequence[ast.Script]) -> str:
     return "".join(s.span.text for s in scripts)
+
+
+# Index labels for examples in messages, where the labels written name components.
+_EXAMPLE_LABELS = ("\\mu", "\\nu", "\\rho", "\\sigma", "\\lambda", "\\kappa")
 
 
 def _bracket_groups(

@@ -123,6 +123,35 @@ class TestDefinitionsAndEquations:
         assert len(equation.equations()) == 0  # flat... in polar-like coordinates
         assert bool(equation)
 
+    def test_a_component_of_the_metric_is_a_claim_about_it(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        assert wb.expr(r"g_{tt} = -(1 - \frac{2M}{r})") is sympy.true
+        assert wb.expr(r"g_{rr} = 1") is not sympy.true
+        M = Symbol("M")
+        assert wb.expr("Kretschmann") == 48 * M**2 / r**6  # the metric is unchanged
+
+    def test_a_component_of_a_new_tensor_defines_nothing(self, plane):
+        with pytest.raises(CompileError, match="T is not a tensor") as error:
+            plane.exe("T_{xy} = 0")
+        assert r"T_{\mu\nu} := [...]" in str(error.value)
+        with pytest.raises(CompileError, match="T is not a tensor"):
+            plane.expr("T_{ab}")  # T_{xy} = 0 did not define all of T
+
+    def test_a_component_equation_is_not_notation(self, wb):
+        # Before T has components, G_{tt} = 8 pi T_{tt} cannot be decided; it is not
+        # index notation, which would sum over the repeated t.
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        with pytest.raises(CompileError, match="T is not a tensor"):
+            wb.expr(r"G_{tt} = 8\pi T_{tt}")
+
+    def test_data_named_without_braces_is_compared_not_overwritten(self, wb):
+        numpy = pytest.importorskip("numpy")
+        wb["w^a"] = numpy.array([1.0, 2.0])
+        wb["S_{ab}"] = numpy.array([[2.0, 0.0], [0.0, 1.0]])
+        equation = wb.expr("w_a = S_{ab} w^b")  # w_a is w_{a}, a tensor that exists
+        assert not equation
+        assert wb.expr("w^a").to_numpy().tolist() == [1.0, 2.0]
+
     def test_definitions_check_their_free_indices(self, plane):
         with pytest.raises(IndexNotationError, match="must agree"):
             plane.expr("W_{a} := V_{b}")
