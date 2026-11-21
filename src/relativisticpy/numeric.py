@@ -156,7 +156,16 @@ def four_velocity(
 
     Solves :math:`g_{\mu\nu} u^\mu u^\nu = -1` (``kind="timelike"``, a massive
     particle) or :math:`0` (``kind="null"``, light) for the time component,
-    taking the future-directed root.
+    taking the future-directed root, with :math:`u^t > 0` (outside horizons,
+    where :math:`t` is a time). Outside an ergoregion only one root is
+    future-directed. Inside one, where :math:`g_{tt} > 0`, both may be, as for a
+    particle rotating with the black hole: the smaller is returned, which
+    continues the root from outside, while the other grows without bound at the
+    ergosphere. On the ergosphere, where :math:`g_{tt} = 0`, the condition is
+    linear in :math:`u^t`, and its root is found without dividing by
+    :math:`g_{tt}`. Where no root is future-directed, as for a particle rotating
+    against the black hole inside its ergoregion, there is no such four-velocity,
+    and that is a ``ValueError``.
     """
     norms = {"timelike": -1.0, "null": 0.0}
     if kind not in norms:
@@ -169,11 +178,21 @@ def four_velocity(
     a = g[0, 0]
     b = 2 * g[0, 1:] @ u[1:]
     c = u[1:] @ g[1:, 1:] @ u[1:] - norm
+    if a == 0 and b == 0:  # the condition, c = 0, does not involve u^t
+        if c == 0:
+            raise ValueError("these spatial components leave the time component undetermined")
+        raise ValueError("no real four-velocity has these spatial components")
     discriminant = b * b - 4 * a * c
     if discriminant < 0:
         raise ValueError("no real four-velocity has these spatial components")
-    roots = [(-b + s * numpy.sqrt(discriminant)) / (2 * a) for s in (1, -1)]
-    u[0] = max(roots)
+    # The roots as q/a and c/q: accurate when g_tt = a is small, and with the one
+    # root -c/b when it is zero.
+    q = -(b + numpy.copysign(numpy.sqrt(discriminant), b)) / 2
+    roots = ([q / a] if a != 0 else []) + ([c / q] if q != 0 else [])
+    future = [root for root in roots if root > 0]
+    if not future:
+        raise ValueError("no future-directed four-velocity (u^t > 0) has these spatial components")
+    u[0] = min(future)
     return u
 
 

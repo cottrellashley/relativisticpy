@@ -1,6 +1,7 @@
 """Numbers from symbols: NumPy functions and geodesics integrated with SciPy."""
 
 import pytest
+import sympy
 from sympy import Symbol, diag, sin, symbols
 
 numpy = pytest.importorskip("numpy")
@@ -95,6 +96,37 @@ def test_four_velocity_is_normalised():
 def test_four_velocity_rejects_the_impossible():
     with pytest.raises(ValueError, match="no real four-velocity"):
         four_velocity(SCHWARZSCHILD, [0, 1.5, numpy.pi / 2, 0], [0, 0, 0], M=1)
+
+
+KERR = spacetimes.kerr()  # with M = 1 and a = 0.9, the ergosphere is at r = 2 on the equator
+
+
+def _kerr_at(position):
+    return evaluate(KERR, dict(zip(KERR.coordinates, position, strict=True)), M=1, a=0.9)
+
+
+def test_in_an_ergoregion_the_four_velocity_is_future_directed():
+    inside = [0.0, 1.95, numpy.pi / 2, 0.0]
+    with pytest.raises(ValueError, match=r"no future-directed four-velocity \(u\^t > 0\)"):
+        four_velocity(KERR, inside, [0, 0, -0.3], M=1, a=0.9)  # nothing counter-rotates there
+    u = four_velocity(KERR, inside, [0, 0, 0.3], M=1, a=0.9)
+    assert u[0] > 0
+    assert u @ _kerr_at(inside) @ u == pytest.approx(-1)
+    # both roots are future-directed inside: the smaller continues the root from outside
+    across = [0.0, 2.001, numpy.pi / 2, 0.0], [0.0, 1.999, numpy.pi / 2, 0.0]
+    times = [four_velocity(KERR, x, [0, 0, 0.3], M=1, a=0.9)[0] for x in across]
+    assert times[1] == pytest.approx(times[0], rel=0.01)
+
+
+def test_on_the_ergosphere_the_four_velocity_is_found():
+    for on in ([0, 2, sympy.pi / 2, 0], [0.0, 2.0, numpy.pi / 2, 0.0]):  # g_tt = 0, or nearly
+        u = four_velocity(KERR, on, [0, 0, 0.3], M=1, a=0.9)
+        assert u[0] > 0
+        assert u @ _kerr_at(on) @ u == pytest.approx(-1)
+    with pytest.raises(ValueError, match="no real four-velocity"):  # nothing stands still
+        four_velocity(KERR, [0, 2, sympy.pi / 2, 0], [0, 0, 0], M=1, a=0.9)
+    with pytest.raises(ValueError, match="leave the time component undetermined"):
+        four_velocity(KERR, [0, 2, sympy.pi / 2, 0], [0, 0, 0], kind="null", M=1, a=0.9)
 
 
 def test_a_four_velocity_is_timelike_or_null():

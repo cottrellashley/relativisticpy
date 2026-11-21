@@ -119,6 +119,24 @@ True
 SciPy's full `solution`. `method`, `rtol` and `atol` go to `solve_ivp`; every
 other keyword argument is a parameter of the metric, such as `M=1`.
 
+`four_velocity` takes the future-directed solution, with \(u^t > 0\), and says
+when there is none. Inside the ergoregion of a spinning black hole, where
+\(g_{tt} > 0\), nothing can rotate against the hole. Where a co-rotating particle
+has two future-directed solutions, it takes the smaller \(u^t\), which continues
+the solution from outside:
+
+```python
+>>> kerr = spacetimes.kerr()
+>>> inside = [0, 1.9, np.pi / 2, 0]                     # within r = 2M, for a = 0.9M
+>>> four_velocity(kerr, inside, [0, 0, 0.3], M=1, a=0.9).round(4)
+array([4.3305, 0.    , 0.    , 0.3   ])
+>>> four_velocity(kerr, inside, [0, 0, -0.3], M=1, a=0.9)
+Traceback (most recent call last):
+  ...
+ValueError: no future-directed four-velocity (u^t > 0) has these spatial components
+
+```
+
 ## Light
 
 Light follows null geodesics, with `four_velocity(..., kind="null")`. A ray
