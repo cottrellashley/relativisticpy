@@ -6,7 +6,7 @@ import pytest
 from sympy import Array, Symbol
 
 from relativisticpy import Metric, Tensor, Workbook, latex
-from relativisticpy.errors import ParseError
+from relativisticpy.errors import EvaluationError, ParseError
 from relativisticpy.language.tokens import TokenKind
 
 x = Symbol("x")
@@ -31,6 +31,45 @@ def test_definitions_persist_until_reset():
 def test_errors_are_raised_not_returned():
     with pytest.raises(ParseError):
         Workbook().expr("x +")
+
+
+def test_a_value_that_cannot_be_shown_is_its_statements_error():
+    wb = Workbook()
+    first, second = wb.each("[1, 2] < [3, 4]\n1 + 1")
+    assert isinstance(first.error, EvaluationError)
+    assert first.error.span.text == "[1, 2] < [3, 4]"
+    assert second.values == [2]  # the next statement runs
+    with pytest.raises(EvaluationError, match="not defined for these values"):
+        wb.exe("[1, 2] < [3, 4]")
+
+
+def test_a_failure_while_showing_a_value_is_an_evaluation_error(monkeypatch):
+    def broken(value):
+        raise TypeError("cannot tidy this")
+
+    monkeypatch.setattr("relativisticpy.workbook.tidy", broken)
+    wb = Workbook()
+    (step,) = wb.each("x + 1")
+    assert isinstance(step.error, EvaluationError)
+    assert step.error.span.text == "x + 1"
+    with pytest.raises(EvaluationError, match="cannot tidy this"):
+        wb.exe("x + 1")
+
+
+def test_an_equation_whose_sides_cannot_be_computed_keeps_its_verdict(monkeypatch):
+    wb = Workbook()
+    evaluate, calls = wb._executor.evaluate, []
+
+    def flaky(node):  # computes the equation, then fails on its sides
+        calls.append(node)
+        if len(calls) > 1:
+            raise ValueError("broken")
+        return evaluate(node)
+
+    monkeypatch.setattr(wb._executor, "evaluate", flaky)
+    (step,) = wb.each("x^2 = 1")
+    assert step.error is None
+    assert step.sides is None
 
 
 def test_names_appear_in_errors():

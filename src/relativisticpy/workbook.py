@@ -17,7 +17,7 @@ from relativisticpy.compiler.compiler import _public
 from relativisticpy.compiler.scope import Context, Output, TensorBinding, VariableBinding
 from relativisticpy.diffgeom import Metric
 from relativisticpy.documents import Document, find_math_blocks, math_blocks
-from relativisticpy.errors import CompileError, RelativisticPyError
+from relativisticpy.errors import CompileError, EvaluationError, RelativisticPyError
 from relativisticpy.ir import SCALAR, EquationType, ScalarType, TensorType, render
 from relativisticpy.language import Source, Span, parse, tokenize
 from relativisticpy.language import syntax as ast
@@ -91,6 +91,10 @@ class Workbook:
                     values = [self._present(output) for output in outputs]
                 except RelativisticPyError as error:
                     yield Step(piece.span, piece, error=error)
+                except Exception as error:  # a failure of RelativisticPy's: the next goes on
+                    message = f"{type(error).__name__}: {error}" if str(error) else repr(error)
+                    failure = EvaluationError(message, span=piece.span)
+                    yield Step(piece.span, piece, error=failure)
                 else:
                     yield Step(piece.span, piece, values, sides=self._sides(piece))
 
@@ -105,7 +109,7 @@ class Workbook:
                 self._executor.evaluate(self._compiler.value(side, scope, ctx))
                 for side in (statement.expr.lhs, statement.expr.rhs)
             )
-        except RelativisticPyError:
+        except Exception:  # the sides only say how an equation differs: without them, it does
             return None
         return lhs, rhs
 
@@ -361,24 +365,39 @@ class Workbook:
         return parse(source if isinstance(source, Source) else Source(source, name))
 
     def _present(self, output: Output) -> Any:
+        """The value of an output as it is shown. What cannot be shown is an
+        :class:`EvaluationError` where the output was written, never a Python exception
+        that would stop a run, or the check of a paper, at one statement."""
         value = self._executor.evaluate(output.node)
+        if value is NotImplemented:  # an operation SymPy declined, as [1, 2] < [3, 4]
+            raise EvaluationError("this is not defined for these values", span=output.span)
         kind = output.node.type
         coordinates: Sequence[Symbol] = self._session.coordinates or ()
-        if isinstance(kind, TensorType):
-            components = value if numerical.is_numerical(value) else arrays.apply(value, tidy)
-            return Tensor(
-                components, _public(kind.indices), coordinates, name=output.name, spaces=kind.spaces
-            )
-        if isinstance(kind, EquationType) and isinstance(kind.of, TensorType):
-            assert isinstance(value, TensorEquation)
-            return TensorEquation(
-                value.lhs, value.rhs, _public(kind.of.indices), coordinates, kind.of.spaces
-            )
-        if numerical.is_numerical(value) and getattr(value, "shape", ()) == ():
-            return value.item()  # a plain Python number
-        if isinstance(kind, ScalarType):
-            return tidy(value)
-        return value
+        try:
+            if isinstance(kind, TensorType):
+                components = value if numerical.is_numerical(value) else arrays.apply(value, tidy)
+                return Tensor(
+                    components,
+                    _public(kind.indices),
+                    coordinates,
+                    name=output.name,
+                    spaces=kind.spaces,
+                )
+            if isinstance(kind, EquationType) and isinstance(kind.of, TensorType):
+                assert isinstance(value, TensorEquation)
+                return TensorEquation(
+                    value.lhs, value.rhs, _public(kind.of.indices), coordinates, kind.of.spaces
+                )
+            if numerical.is_numerical(value) and getattr(value, "shape", ()) == ():
+                return value.item()  # a plain Python number
+            if isinstance(kind, ScalarType):
+                return tidy(value)
+            return value
+        except RelativisticPyError:
+            raise
+        except Exception as error:
+            message = str(error) or type(error).__name__
+            raise EvaluationError(message, span=output.span) from error
 
 
 @dataclass(frozen=True)
