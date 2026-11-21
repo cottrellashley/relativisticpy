@@ -2438,13 +2438,41 @@ class Compiler:
         return self._label(result, entries, span, dict(selection))
 
     def _derivative_operator(self, node: ast.Scripted, *, covariant: bool) -> IndexDerivative:
+        """``\\partial_\\mu`` or ``\\nabla^\\mu``: one derivative for each index. A number
+        written as a superscript is an order, never an index: ``\\partial_0^2`` and
+        ``\\partial^2_0`` are \\partial_0 \\partial_0, and with no subscript
+        ``\\partial^2`` is \\partial^\\mu \\partial_\\mu and ``\\nabla^2`` is
+        \\nabla^\\mu \\nabla_\\mu, which is \\Box."""
         scripts = node.scripts
-        power = scripts[-1].body if len(scripts) == 2 and scripts[-1].kind == "^" else None
-        if scripts[0].kind == "_" and isinstance(power, ast.Number) and power.text.isdigit():
-            # \partial_0^2 \beta is \partial_0 \partial_0 \beta
-            once = self._entries(replace(node, scripts=scripts[:1]), "a derivative")
-            return IndexDerivative(node.span, covariant, tuple(once * int(power.text)))
-        entries = self._entries(node, "a derivative")
+        orders = [s for s in scripts if s.kind == "^" and isinstance(s.body, ast.Number)]
+        if len(orders) == 1 and len(scripts) <= 2:
+            order = orders[0]
+            assert isinstance(order.body, ast.Number)
+            count = int(order.body.text) if order.body.text.isdigit() else 0
+            rest = tuple(s for s in scripts if s is not order)
+            symbol = "\\nabla" if covariant else "\\partial"
+            if not rest:  # \nabla^2: the wave operator, with an index no one wrote
+                if count != 2:
+                    raise CompileError(
+                        f"{symbol}^{order.body.text} has no meaning: a number on {symbol} is "
+                        f"the order of a derivative, and {symbol}^2 is {symbol}^\\mu {symbol}_\\mu",
+                        span=node.span,
+                        hint=f"for a component, name it, as in {symbol}^t or {symbol}^{{\\mu=0}}",
+                    )
+                self.session.require_coordinates(node.span, f"{symbol}^2")
+                item = ast.IndexItem(f"#box{next(self._fresh)}", span=node.span)
+                return IndexDerivative(node.span, covariant, ((item, True), (item, False)))
+            once = self._entries(replace(node, scripts=rest), "a derivative")
+            if count < 1 or len(once) not in (1, count):
+                raise IndexNotationError(
+                    f"a derivative of order {order.body.text} takes one index, or {count}",
+                    span=node.span,
+                    hint=f"for example {symbol}_t^2 or {symbol}^2_{{tx}}",
+                )
+            # \partial_0^2 is \partial_0 \partial_0; \partial^2_{tx} is \partial_t \partial_x
+            entries = once * count if len(once) == 1 else once
+        else:
+            entries = self._entries(node, "a derivative")
         for item, _ in entries:
             if item.derivative is not None:
                 raise IndexNotationError("unexpected derivative index", span=item.span)

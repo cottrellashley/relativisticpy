@@ -303,6 +303,22 @@ class TestFunctionsAndOperators:
         result = plane.expr(r"\partial_a V^{a}")  # a divergence: a trace
         assert result == 0
 
+    def test_a_number_on_a_derivative_is_its_order(self, wb):
+        wb.exe("Coordinates := [t, x, y, z]\ng_{ab} := diag(-1, 1, 1, 1)")
+        t = Symbol("t")
+        assert wb.expr(r"\partial^2_t (t^3)") == 6 * t  # never \partial^y
+        assert wb.expr(r"\partial^{2}_{t} (t^3)") == 6 * t
+        assert wb.expr(r"\partial_t^2 (t^3)") == 6 * t
+        assert wb.expr(r"\partial^2_{tx} (t^2 x)") == 2 * t
+        assert wb.expr(r"\partial^2 (t^3)") == -6 * t  # \partial^\mu \partial_\mu
+        assert wb.expr(r"\nabla^2 (x^3 y^2)") == wb.expr(r"\Box (x^3 y^2)")
+
+    def test_a_lone_number_on_a_derivative_is_not_a_component(self, wb):
+        wb.exe("Coordinates := [t, x, y, z]\ng_{ab} := diag(-1, 1, 1, 1)")
+        with pytest.raises(CompileError, match=r"\\partial\^1 has no meaning") as error:
+            wb.expr(r"\partial^1 x")
+        assert r"\partial^t" in str(error.value)
+
     def test_comma_and_semicolon_derivatives_of_a_scalar(self, wb):
         wb.exe(r"g_{\mu\nu} := Schwarzschild(M)" "\n" r"\phi := r^2 \cos\theta")
         gradient = [0, 2 * r * sympy.cos(theta), -(r**2) * sympy.sin(theta), 0]

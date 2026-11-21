@@ -215,6 +215,25 @@ is an error rather than a guess; define the operand as a tensor first.
 A Leibniz derivative such as `\frac{d}{dx}` acts on the rest of the term:
 `\frac{d}{dx} x^2 y` is \(\frac{d}{dx}(x^2 y)\).
 
+A number on `\partial` or `\nabla` is the order of the derivative, never an
+index: `\partial_t^2` and `\partial^2_t` are \(\partial_t \partial_t\). With no
+index, `\partial^2` is \(\partial^\mu \partial_\mu\), and `\nabla^2` is
+\(\nabla^\mu \nabla_\mu\), the same as `\Box`: the Laplacian of the metric in
+force, which in spacetime is the d'Alembertian. (Some texts write
+\(\nabla^2\) for the Laplacian of space alone, as in \(\Box = -\partial_t^2 +
+\nabla^2\); RelativisticPy's is that of all the coordinates.)
+
+```python
+>>> flat = Workbook()
+>>> flat.exe(r"""
+...     ds^2 = -dt^2 + dx^2 + dy^2 + dz^2
+...     \partial^2_t (t^3) = \partial_t \partial_t (t^3)
+...     \nabla^2 (x^2 + y^2 + z^2 - t^2)
+... """)
+[True, 8]
+
+```
+
 ## Symmetrisation
 
 Round brackets symmetrise and square brackets antisymmetrise, as in
