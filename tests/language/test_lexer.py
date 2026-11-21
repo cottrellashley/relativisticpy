@@ -507,8 +507,9 @@ class TestLexerDetails:
         assert lex(r"\operatorname*{argmax}") == "argmax"
 
     def test_unclosed_style_argument(self):
-        with pytest.raises(ParseError, match="unclosed argument of a style command"):
+        with pytest.raises(ParseError, match=r"unclosed argument of \\mathrm") as error:
             tokenize(r"\mathrm{abc")
+        assert error.value.hint == r"add '}' where the argument ends, as in \mathrm{abc}"
 
     def test_left_with_an_unsupported_delimiter(self):
         with pytest.raises(ParseError, match=r"\\left must be followed by a delimiter"):
@@ -522,6 +523,129 @@ class TestLexerDetails:
 
     def test_unclosed_optional_argument_is_left_alone(self):
         assert lex(r"a \newline[ b") == "a ⏎ [ b"
+
+
+def lexing_error(text: str) -> ParseError:
+    with pytest.raises(ParseError) as caught:
+        tokenize(text)
+    return caught.value
+
+
+class TestStringsThatAreNotRaw:
+    """In a Python string that is not raw, "\\frac" arrives as a form feed and "rac"."""
+
+    @pytest.mark.parametrize(
+        ("text", "message", "hint"),
+        [
+            ("\frac{1}{2}", r"Python turned \f in \frac into a form feed", r'r"\frac{1}{2}"'),
+            ("\beta + 1", r"Python turned \b in \beta into a backspace", r'r"\beta + 1"'),
+            ("\alpha", r"Python turned \a in \alpha into an alert", r'r"\alpha"'),
+            ("\vec{v}", r"Python turned \v in \vec into a vertical tab", r'r"\vec{v}"'),
+            ("x + \theta", r"Python turned \t in \theta into a tab", r'r"x + \theta"'),
+            ("\tau", r"Python turned \t in \tau into a tab", r'r"\tau"'),
+            ("\rho", r"Python turned \r in \rho into a carriage return", r'r"\rho"'),
+            ("x := 1\n\nabla_\\mu A^\\mu", r"Python turned \n in \nabla into a line break", None),
+        ],
+    )
+    def test_escapes_that_begin_commands_are_errors(self, text, message, hint):
+        error = lexing_error(text)
+        assert error.message == message
+        assert "control characters" in error.notes[0]
+        assert error.hint is not None
+        assert error.hint.startswith("write the string as a raw string")
+        if hint is not None:
+            assert error.hint.endswith(hint)
+
+    def test_the_caret_is_on_the_control_character(self):
+        _line, carets = str(lexing_error("x + \theta")).splitlines()[3:5]
+        assert carets.index("^") == len("1 | x + ")
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "x := 1\n\ty := 2",  # a tab before what no command ends with
+            "\tanswer := 42",  # a tab-indented name: \tanswer is no command
+            "x := 1\nu := 2",  # u completes \nu, but a line may well start with u
+            "x := 1\r\ny := 2",  # a line ending, as on Windows
+            "x := 1\n\neq := 2",  # eq completes \neq, but is a name too
+        ],
+    )
+    def test_line_breaks_and_tabs_that_are_meant_are_read(self, text):
+        assert tokenize(text)[-1].kind is TokenKind.EOF
+
+
+class TestCharacters:
+    @pytest.mark.parametrize(
+        ("text", "message", "hint"),
+        [
+            ("x + ½", "unexpected character '½' (U+00BD VULGAR FRACTION ONE HALF)", r"\frac{1}{2}"),
+            ("𝒜 + 1", "unexpected character '𝒜' (U+1D49C MATHEMATICAL SCRIPT CAPITAL A)",
+             r"\mathcal{A}"),
+            ("Ｘ + 1", "unexpected character 'Ｘ' (U+FF38 FULLWIDTH LATIN CAPITAL LETTER X)", "X"),
+            ("ψ̄ + 1", "unexpected character U+0304 COMBINING MACRON, an accent on ψ",
+             r"\bar{\psi}"),
+            ("x̂", "unexpected character U+0302 COMBINING CIRCUMFLEX ACCENT, an accent on x",
+             r"\hat{x}"),
+            ("x 😀 y", "unexpected character '😀' (U+1F600 GRINNING FACE)", None),
+        ],
+    )  # fmt: skip
+    def test_an_unexpected_character_is_named_with_what_to_write(self, text, message, hint):
+        error = lexing_error(text)
+        assert error.message == message
+        assert error.hint == (None if hint is None else f"write {hint}")
+
+
+class TestCommandArguments:
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            (r"\operatorname{tr", r"unclosed argument of \operatorname"),
+            (r"\textbf", r"\textbf must be followed by a braced argument, as in \textbf{word}"),
+            (r"\mathrm{x", r"unclosed argument of \mathrm"),
+            (r"\mathcal", r"\mathcal needs an argument, as in \mathcal{A}"),
+            (r"x + \mathbf", r"\mathbf needs an argument, as in \mathbf{v}"),
+            (r"\begin", r"\begin must be followed by a braced argument, as in \begin{equation}"),
+        ],
+    )
+    def test_messages_name_the_command(self, text, message):
+        assert lexing_error(text).message == message
+
+    def test_an_unclosed_argument_is_marked_at_its_brace(self):
+        lines = str(lexing_error(r"\operatorname{tr")).splitlines()
+        assert lines[4] == "  |              ^ this '{' is never closed"
+        assert lines[5] == r"hint: add '}' where the argument ends, as in \operatorname{tr}"
+
+
+class TestWhereTokensAre:
+    def test_a_style_command_is_part_of_the_token_it_styles(self):
+        # so that a statement starting with \mathrm{solve} is quoted from its backslash
+        tokens = tokenize(r"\mathrm{solve}(x^2 = 4, x) + \mathrm{d} s + \mathbf{u v}")
+        assert [t.span.text for t in tokens if t.kind is TokenKind.IDENT][:2] == [
+            r"\mathrm{solve}",
+            "x",
+        ]
+        idents = [t.span.text for t in tokens if t.kind is TokenKind.IDENT]
+        assert idents[-4:] == [r"\mathrm{d}", "s", r"\mathbf{u", "v}"]
+
+    def test_the_end_of_input_is_just_after_the_last_token(self):
+        eof = tokenize("x := 3\ny +\n\n")[-1]
+        assert (eof.span.line, eof.span.column) == (2, 4)
+
+
+class TestRemainders:
+    @pytest.mark.parametrize("text", ["x % 2", "y := n % k", "(a + b) % 7 == 0"])
+    def test_a_python_remainder_is_an_error(self, text):
+        error = lexing_error(text)
+        assert error.message.startswith("'%' starts a comment, so ")
+        assert error.hint is not None
+        assert "for a comment, write #" in error.hint
+
+    @pytest.mark.parametrize(
+        "text",
+        ["x := 1 % the radius of the star", "% a line of its own", r"\alpha % 2", "x %"],
+    )
+    def test_a_comment_is_a_comment(self, text):
+        assert tokenize(text)[0].kind in (TokenKind.IDENT, TokenKind.EOF)
 
 
 class TestTokenDescriptions:

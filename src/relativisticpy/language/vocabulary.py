@@ -222,12 +222,14 @@ SIZE_COMMANDS: frozenset[str] = frozenset(
 # --------------------------------------------------------------------------
 
 #: Environments that only lay out equations. Their contents are statements,
-#: ``\\`` separates statements and ``&`` alignment markers are ignored.
+#: ``\\`` separates statements and ``&`` alignment markers are ignored. Among them
+#: are breqn's ``dmath`` and ``dgroup`` and IEEEtrantools' ``IEEEeqnarray``.
 ALIGNMENT_ENVIRONMENTS: frozenset[str] = frozenset(
     {
         "align", "align*", "aligned", "alignat", "alignat*", "alignedat", "flalign",
         "flalign*", "equation", "equation*", "gather", "gather*", "gathered", "split",
         "multline", "multline*", "eqnarray", "eqnarray*", "displaymath", "math",
+        "dmath", "dmath*", "dgroup", "dgroup*", "IEEEeqnarray", "IEEEeqnarray*",
     }
 )  # fmt: skip
 
@@ -255,7 +257,16 @@ PLAIN_ENVIRONMENTS: frozenset[str] = frozenset({"matrix", "pmatrix", "cases"})
 #: Environments followed by a mandatory argument that is not mathematics,
 #: such as the column specification of ``\begin{array}{cc}``.
 ENVIRONMENTS_WITH_ARGUMENT: frozenset[str] = frozenset(
-    {"array", "alignat", "alignat*", "alignedat"}
+    {"array", "alignat", "alignat*", "alignedat", "IEEEeqnarray", "IEEEeqnarray*"}
+)
+
+#: Every environment a program may use, by kind, as an error lists them.
+ENVIRONMENTS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "matrices": MATRIX_ENVIRONMENTS,
+        "cases": CASES_ENVIRONMENTS,
+        "equations": ALIGNMENT_ENVIRONMENTS - {"displaymath"},
+    }
 )
 
 # --------------------------------------------------------------------------
@@ -355,3 +366,101 @@ UNICODE_SUPERSCRIPTS: Mapping[str, str] = MappingProxyType(
 UNICODE_SUBSCRIPTS: Mapping[str, str] = MappingProxyType(
     dict(zip("₀₁₂₃₄₅₆₇₈₉₊₋", "0123456789+-", strict=True))
 )
+
+#: Combining accents, which Unicode puts after a letter, mapped to the accent command
+#: that writes them: ``ψ̄`` is ``\bar{\psi}``.
+COMBINING_ACCENTS: Mapping[str, str] = MappingProxyType(
+    {
+        "̂": "hat", "̃": "tilde", "̄": "bar", "̅": "bar",
+        "̆": "breve", "̇": "dot", "̈": "ddot", "̌": "check",
+        "⃗": "vec",
+    }
+)  # fmt: skip
+
+# --------------------------------------------------------------------------
+# Every command
+# --------------------------------------------------------------------------
+
+#: Commands the parser reads itself: fractions, roots, big operators, derivatives,
+#: binomials, floors and ceilings, and TeX's generalised fractions.
+PARSER_COMMANDS: frozenset[str] = frozenset(
+    {
+        "frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "int", "oint", "iint",
+        "iiint", "lim", "partial", "nabla", "Box", "square", "pounds", "pdv", "dv",
+        "binom", "dbinom", "tbinom", "lfloor", "rfloor", "lceil", "rceil", "over", "choose",
+    }
+)  # fmt: skip
+
+#: Commands the lexer reads itself: brackets, environments, plain TeX's groups and rows.
+STRUCTURE_COMMANDS: frozenset[str] = frozenset(
+    {"left", "right", "begin", "end", "bgroup", "egroup", "cr", "mathbb"}
+)
+
+#: Every command RelativisticPy reads, which is where "did you mean" looks.
+COMMANDS: frozenset[str] = frozenset().union(
+    SYMBOL_COMMANDS,
+    FUNCTION_COMMANDS,
+    ACCENT_COMMANDS,
+    OPERATOR_COMMANDS,
+    RELATION_COMMANDS,
+    CONNECTIVE_COMMANDS,
+    ELLIPSIS_COMMANDS,
+    TEXT_COMMANDS,
+    STYLE_COMMANDS,
+    FONT_DECLARATIONS,
+    LAYOUT_COMMANDS,
+    LAYOUT_COMMANDS_WITH_ARGUMENT,
+    LINE_BREAK_COMMANDS,
+    SIZE_COMMANDS,
+    PLAIN_ENVIRONMENTS,
+    PARSER_COMMANDS,
+    STRUCTURE_COMMANDS,
+)
+
+_MACRO = "write what it stands for; relativisticpy check reads the macros of a document"
+_TRANSPOSE = "the transpose of A_{ab} is A_{ba}"
+_REMAINDER = r"write x - n \lfloor x/n \rfloor"
+_DIRAC = "write a state as a list of its components"
+
+#: Commands of LaTeX and its packages, such as physics, that RelativisticPy does not
+#: read, each with what it is and what to write instead. "Did you mean" never offers
+#: another command for one of these.
+UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
+    {
+        "newcommand": (r"\newcommand defines a macro, which a program cannot", _MACRO),
+        "renewcommand": (r"\renewcommand defines a macro, which a program cannot", _MACRO),
+        "providecommand": (r"\providecommand defines a macro, which a program cannot", _MACRO),
+        "def": (r"\def defines a macro, which a program cannot", _MACRO),
+        "let": (r"\let defines a macro, which a program cannot", _MACRO),
+        "top": (r"the transpose, \top, is not supported yet", _TRANSPOSE),
+        "intercal": (r"the transpose, \intercal, is not supported yet", _TRANSPOSE),
+        "mod": (r"the remainder, \mod, is not supported yet", _REMAINDER),
+        "bmod": (r"the remainder, \bmod, is not supported yet", _REMAINDER),
+        "pmod": (r"the remainder, \pmod, is not supported yet", _REMAINDER),
+        "bra": (r"Dirac's notation, \bra, is not supported", _DIRAC),
+        "ket": (r"Dirac's notation, \ket, is not supported", _DIRAC),
+        "braket": (r"Dirac's notation, \braket, is not supported", _DIRAC),
+        "abs": (r"\abs, the physics package's absolute value, is not supported",
+                r"write |x|, or \left| x \right|"),
+        "norm": (r"\norm, the physics package's norm, is not supported", r"write \| x \|"),
+        "qty": (r"\qty, the physics package's brackets, is not supported",
+                r"write \left( ... \right)"),
+        "dd": (r"\dd, the physics package's differential, is not supported",
+               r"write d x, or \mathrm{d} x"),
+        "tr": (r"\tr, the physics package's trace, is not supported",
+               r"write \operatorname{tr}(A), or contract the indices: A^{a}_{a}"),
+        "Tr": (r"\Tr, the physics package's trace, is not supported",
+               r"write \operatorname{Tr}(A), or contract the indices: A^{a}_{a}"),
+        "vb": (r"\vb, the physics package's bold vector, is not supported", r"write \mathbf{v}"),
+        "va": (r"\va, the physics package's vector arrow, is not supported", r"write \vec{v}"),
+        "order": (r"\order, the physics package's order, is not supported",
+                  r"write the terms out, or \mathcal{O}(x^2) as a symbol"),
+        "eval": (r"\eval, the physics package's evaluation bar, is not supported",
+                 r"write \left. f \right|_{x=0}"),
+        "dagger": (r"the Hermitian conjugate, \dagger, is not supported yet",
+                   "write conjugate(A_{ba})"),
+        "forall": (r"the quantifier \forall is not supported", r"write \text{for all}"),
+        "exists": (r"the quantifier \exists is not supported", r"write \text{there is}"),
+        "not": (r"\not is not supported", r"write \neq for not equal, or \notin"),
+    }
+)  # fmt: skip

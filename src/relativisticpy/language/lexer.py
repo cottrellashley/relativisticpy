@@ -26,7 +26,9 @@ Normalisations, so later stages see one spelling per idea:
 from __future__ import annotations
 
 import re
+import unicodedata
 from collections.abc import Mapping
+from dataclasses import replace
 
 from relativisticpy.errors import ParseError
 from relativisticpy.language import vocabulary as vocab
@@ -72,8 +74,43 @@ _BROKEN_BRACKET = re.compile(
 _UNICODE_SPACE = frozenset("\u00a0\u202f\u205f\u3000") | {chr(c) for c in range(0x2000, 0x200B)}
 # Characters that take no room at all, such as the byte order mark that starts some files.
 _INVISIBLE = frozenset("\ufeff\u200b\u200c\u200d\u2060")
-_SPACE = frozenset(" \t\r\f\v~") | _UNICODE_SPACE
+_SPACE = frozenset(" \t\r~") | _UNICODE_SPACE
 _ARGUMENT_SPACE = _SPACE | {"\n"}  # whitespace allowed between a command and its argument
+
+# What Python makes of an escape in a string that is not raw, and what the escape begins
+# in LaTeX: "\frac{1}{2}" arrives as a form feed and "rac{1}{2}". The first four are
+# never meant; a tab, a line break or a carriage return is, unless the rest of a command
+# follows it, as "heta" follows the tab of "\theta".
+_PYTHON_ESCAPES = {
+    "\a": ("a", "an alert"),
+    "\b": ("b", "a backspace"),
+    "\f": ("f", "a form feed"),
+    "\v": ("v", "a vertical tab"),
+    "\t": ("t", "a tab"),
+    "\n": ("n", "a line break"),
+    "\r": ("r", "a carriage return"),
+}
+_NEVER_MEANT = frozenset("\a\b\f\v")
+# The fewest letters after a tab, line break or carriage return that make it the escape
+# of a command: "heta", but not "u", after which a line break may well be meant.
+_LEAST_REST = {"\t": 2, "\r": 2, "\n": 3}
+_STYLE_EXAMPLES = {"mathcal": "A", "mathscr": "L", "mathfrak": "g", "mathrm": "d", "mathbf": "v"}
+_ARGUMENT_EXAMPLES = {"label": "eq:1", "tag": "1", "vspace": "1em", "hspace": "1em"}
+# Python's remainder, x % 2: after an operand, and followed by a short expression only.
+_OPERAND_ENDS = frozenset(
+    {TokenKind.IDENT, TokenKind.NUMBER, TokenKind.RPAREN, TokenKind.RBRACKET, TokenKind.RBRACE}
+)
+_OPERAND = r"\s*\(?\s*[A-Za-z0-9_.]+\s*\)?"
+_REMAINDER = re.compile(rf"{_OPERAND}(?:\s*(?:==|!=|<=|>=|<|>|[-+*/]){_OPERAND})*\s*")
+# The alphabets of Unicode's mathematical letters, and the commands that set them.
+_ALPHABETS = {
+    "DOUBLE-STRUCK": "mathbb",
+    "SCRIPT": "mathcal",
+    "FRAKTUR": "mathfrak",
+    "SANS-SERIF": "mathsf",
+    "MONOSPACE": "mathtt",
+    "BOLD": "mathbf",
+}
 
 _SINGLE_CHARACTER: dict[str, TokenKind] = {
     "+": TokenKind.PLUS,
@@ -165,6 +202,10 @@ class Lexer:
         self._closers: dict[int, str] = {}  # offsets of '}' closing \matrix{...} and friends
         self._display_ends: dict[int, int] = {}  # offsets of the \] or $$ closing a display
         self._ampersands: dict[int, int] = {}  # alignment markers so far in each open row
+        # The style commands whose braces are open, by the offset of their closing brace:
+        # where the command starts, and how many tokens there were before it, so that the
+        # first token in the braces starts at the command, as \mathrm{d} is written.
+        self._style_groups: dict[int, tuple[int, int]] = {}
 
     # -- driver ---------------------------------------------------------------
 
@@ -179,11 +220,18 @@ class Lexer:
         if self._environments:
             name, span = self._environments[-1]
             raise ParseError(f"\\begin{{{name}}} has no matching \\end{{{name}}}", span=span)
-        self._emit(TokenKind.EOF, "", self.pos, self.pos)
+        # The input ends just after its last token, which is where what is missing goes,
+        # not on a blank line after it.
+        end = next(
+            (t.span.end for t in reversed(self.tokens) if t.kind is not TokenKind.NEWLINE), 0
+        )
+        self._emit(TokenKind.EOF, "", end, end)
         return self.tokens
 
     def _scan(self) -> None:
         char = self.text[self.pos]
+        if char in _PYTHON_ESCAPES and self._python_escape(char):
+            raise self._raw_string_error(char)
         if self.pos in self._display_ends:
             self._environments.pop()
             end = self.pos + self._display_ends.pop(self.pos)
@@ -196,6 +244,8 @@ class Lexer:
             self.pos += 1
         elif char == "\n":
             self._emit(TokenKind.NEWLINE, "\n", self.pos, self.pos + 1)
+        elif char == "%" and self._remainder():
+            raise self._remainder_error()
         elif char in "#%":
             self._skip_comment()
         elif char in _DIGITS or (char == "." and self._peek(1) in _DIGITS):
@@ -221,6 +271,12 @@ class Lexer:
             self._emit(TokenKind.END, environment, self.pos, self.pos + 1)
         elif char == "}" and self.pos in self._transparent_braces:
             self._transparent_braces.discard(self.pos)
+            _, before = self._style_groups.pop(self.pos, (0, len(self.tokens)))
+            if len(self.tokens) > before:  # the last token in the braces ends with them
+                last = self.tokens[-1]
+                self.tokens[-1] = replace(
+                    last, span=Span(self.source, last.span.start, self.pos + 1)
+                )
             self.pos += 1
         elif (kind := _TWO_CHARACTER.get(self.text[self.pos : self.pos + 2])) is not None:
             self._emit(kind, kind.value, self.pos, self.pos + 2)
@@ -234,7 +290,11 @@ class Lexer:
     def _emit(
         self, kind: TokenKind, value: str, start: int, end: int, *, verbatim: bool = False
     ) -> None:
-        span = Span(self.source, start, end)
+        written = start
+        for command, before in self._style_groups.values():
+            if before == len(self.tokens):  # the first token in a style command's braces
+                written = min(written, command)
+        span = Span(self.source, written, end)
         while self._font_ends and start >= self._font_ends[-1]:
             self._font_ends.pop()
         # Names in a style command's braces (\mathrm{mass}) or after a font switch
@@ -269,10 +329,65 @@ class Lexer:
         return self.text[self.pos + offset : self.pos + offset + 1]
 
     def _error(
-        self, message: str, start: int, end: int | None = None, hint: str | None = None
+        self,
+        message: str,
+        start: int,
+        end: int | None = None,
+        hint: str | None = None,
+        *,
+        label: str = "",
+        notes: tuple[str, ...] = (),
     ) -> ParseError:
         end = start + 1 if end is None else end
-        return ParseError(message, span=Span(self.source, start, end), hint=hint)
+        span = Span(self.source, start, end).labelled(label)
+        return ParseError(message, span=span, hint=hint, notes=notes)
+
+    def _python_escape(self, char: str) -> bool:
+        """Whether ``char`` is what Python made of an escape that begins a LaTeX command,
+        in a string that was not raw: always for an alert, a backspace, a form feed or a
+        vertical tab, and for a tab, line break or carriage return that the rest of a
+        command follows, as ``heta`` follows the tab of ``"\\theta"``."""
+        if char in _NEVER_MEANT:
+            return True
+        if char == "\r" and self._peek(1) == "\n":
+            return False  # a line ends, as on Windows
+        command = self._escaped_command(char)
+        least = _LEAST_REST[char]
+        if command is None or len(command) - 1 < least:
+            return False
+        rest = command[1:]
+        return rest not in vocab.GREEK and rest not in vocab.FUNCTION_COMMANDS
+
+    def _escaped_command(self, char: str) -> str | None:
+        """The command an escape begins, if the letters after ``char`` complete one:
+        ``theta`` after a tab and ``heta``, but not after a tab and ``hetas``."""
+        letter = _PYTHON_ESCAPES[char][0]
+        match = _LETTERS.match(self.text, self.pos + 1)
+        name = letter + (match.group() if match else "")
+        return name if name in vocab.COMMANDS or name in vocab.UNSUPPORTED_COMMANDS else None
+
+    def _raw_string_error(self, char: str) -> ParseError:
+        """The error for an escape Python turned into a control character."""
+        letter, what = _PYTHON_ESCAPES[char]
+        command = self._escaped_command(char)
+        where = f" in \\{command}" if command else ""
+        start = self.text.rfind("\n", 0, self.pos) + 1
+        end = self.text.find("\n", self.pos + 1)
+        line = self.text[start : len(self.text) if end == -1 else end]
+        escapes = {ord(c): "\\" + e for c, (e, _) in _PYTHON_ESCAPES.items()}
+        written = line.translate(escapes).strip()
+        if len(written) > 50:
+            written = f"\\{command or letter}"
+        return self._error(
+            f"Python turned \\{letter}{where} into {what}",
+            self.pos,
+            label=f"{what}, not \\{letter}",
+            notes=(
+                "in a Python string that is not raw, \\a, \\b, \\f, \\n, \\r, \\t and \\v "
+                "are control characters",
+            ),
+            hint=f'write the string as a raw string, with r before its quote: r"{written}"',
+        )
 
     def _number(self) -> None:
         """A number. Digits grouped in threes by thin spaces are one number, as SI writes
@@ -322,6 +437,36 @@ class Lexer:
         while self._font_ends and self.pos >= self._font_ends[-1]:
             self._font_ends.pop()
         return not (self._transparent_braces or self._font_ends)
+
+    def _remainder(self) -> bool:
+        """Whether a ``%`` is Python's remainder, as in ``x % 2``, rather than a comment:
+        in plain text, after an operand on its line, and followed by nothing but a short
+        expression, which a comment would not be."""
+        if self.source.latex or self._environments or not self.tokens:
+            return False
+        if self.tokens[-1].kind not in _OPERAND_ENDS:
+            return False
+        line_start = self.text.rfind("\n", 0, self.pos) + 1
+        if "\\" in self.text[line_start : self.pos]:
+            return False  # LaTeX, in which % is always a comment
+        end = self.text.find("\n", self.pos)
+        rest = self.text[self.pos + 1 : len(self.text) if end == -1 else end]
+        return _REMAINDER.fullmatch(rest) is not None
+
+    def _remainder_error(self) -> ParseError:
+        previous = self.tokens[-1]
+        end = self.text.find("\n", self.pos)
+        divisor = self.text[self.pos + 1 : len(self.text) if end == -1 else end].strip()
+        dividend = previous.span.text
+        return self._error(
+            f"'%' starts a comment, so {dividend} % {divisor} is read as {dividend}",
+            self.pos,
+            label="the rest of the line is a comment",
+            notes=("as in LaTeX, '%' starts a comment: there is no remainder operator",),
+            hint=f"for the remainder of {dividend} divided by {divisor}, write "
+            f"{dividend} - {divisor} \\lfloor {dividend}/{divisor} \\rfloor; for a comment, "
+            "write #",
+        )
 
     def _skip_comment(self) -> None:
         end = self.text.find("\n", self.pos)
@@ -373,7 +518,38 @@ class Lexer:
         elif char in vocab.UNICODE_SUBSCRIPTS:
             self._script_run(vocab.UNICODE_SUBSCRIPTS, TokenKind.UNDERSCORE)
         else:
-            raise self._error(f"unexpected character {char!r}", start)
+            raise self._unexpected(char, start)
+
+    def _unexpected(self, char: str, start: int) -> ParseError:
+        """The error for a character the language has no use for: named by its code
+        point, since it may be invisible or an accent that would sit on a quote mark,
+        and with what to write instead when that is clear."""
+        code = f"U+{ord(char):04X}"
+        name = unicodedata.name(char, "")
+        described = f"{code} {name}".strip()
+        hint = None
+        if (accent := vocab.COMBINING_ACCENTS.get(char)) is not None or unicodedata.combining(char):
+            before = self.text[start - 1] if start else ""
+            letter = vocab.UNICODE_LETTERS.get(before)
+            base = f"\\{letter}" if letter in vocab.GREEK else (letter or before)
+            if accent is not None and base:
+                hint = f"write \\{accent}{{{base}}}"
+            message = f"unexpected character {described}, an accent on {before}" if before else ""
+            return self._error(message or f"unexpected character {described}", start, hint=hint)
+        plain = unicodedata.normalize("NFKC", char)
+        if "⁄" in plain:  # a vulgar fraction, ½
+            numerator, _, denominator = plain.partition("⁄")
+            hint = f"write \\frac{{{numerator}}}{{{denominator}}}"
+        elif plain != char and plain.isascii() and plain.isprintable():
+            alphabet = next((c for word, c in _ALPHABETS.items() if word in name.split()), None)
+            if alphabet is not None and "MATHEMATICAL" in name:
+                hint = f"write \\{alphabet}{{{plain}}}"
+            else:
+                hint = f"write {plain}"
+        if char.isascii() and char.isprintable():
+            return self._error(f"unexpected character '{char}'", start)
+        shown = f"'{char}' " if char.isprintable() and not char.isspace() else ""
+        return self._error(f"unexpected character {shown}({described})", start, hint=hint)
 
     def _script_run(self, table: Mapping[str, str], kind: TokenKind) -> None:
         """Spell out a run of Unicode super/subscripts: ``x⁻¹`` lexes as ``x^{-1}``."""
@@ -435,11 +611,11 @@ class Lexer:
         elif name in ("begin", "end"):
             self._environment(name, start)
         elif name in vocab.TEXT_COMMANDS:
-            self._text_command(start)
+            self._text_command(name, start)
         elif name == "mathbb" and (letter := self._blackboard_letter()) is not None:
             self._emit(TokenKind.IDENT, letter, start, self.pos, verbatim=True)
         elif name in vocab.STYLE_COMMANDS:
-            self._style_command()
+            self._style_command(name, start)
         elif name in vocab.FONT_DECLARATIONS:
             self._font_declaration()
         elif name in vocab.PLAIN_ENVIRONMENTS and self._next_non_space() == "{":
@@ -462,7 +638,7 @@ class Lexer:
         elif name in vocab.LAYOUT_COMMANDS_WITH_ARGUMENT:
             if self._peek() == "*":
                 self.pos += 1
-            self._read_group(start, name)
+            self._read_group(start, name, _ARGUMENT_EXAMPLES.get(name, "x"))
             self.space_before = True
         elif name in vocab.LINE_BREAK_COMMANDS:
             self._skip_optional_argument()
@@ -475,11 +651,22 @@ class Lexer:
         else:
             self._emit(TokenKind.COMMAND, name, start, self.pos)
 
-    def _read_group(self, start: int, name: str) -> str:
+    def _read_group(self, start: int, name: str, example: str = "...") -> str:
         """Read a balanced ``{...}`` argument and return its raw contents."""
         self._skip_whitespace()
         if self._peek() != "{":
-            raise self._error(f"\\{name} must be followed by a braced argument", start, self.pos)
+            raise self._error(
+                f"\\{name} must be followed by a braced argument, as in \\{name}{{{example}}}",
+                start,
+                self.pos,
+            )
+        cursor = self._closing_brace(name)
+        contents = self.text[self.pos + 1 : cursor]
+        self.pos = cursor + 1
+        return contents
+
+    def _closing_brace(self, name: str) -> int:
+        """Where the braced argument of ``\\name`` at the cursor closes."""
         depth, cursor = 0, self.pos
         while cursor < len(self.text):
             char = self.text[cursor]
@@ -491,11 +678,16 @@ class Lexer:
             elif char == "}":
                 depth -= 1
                 if depth == 0:
-                    contents = self.text[self.pos + 1 : cursor]
-                    self.pos = cursor + 1
-                    return contents
+                    return cursor
             cursor += 1
-        raise self._error(f"unclosed argument of \\{name}", self.pos)
+        written = self.text[self.pos : self.pos + 30].rstrip()
+        example = f", as in \\{name}{written}}}" if "\n" not in written and written else ""
+        raise self._error(
+            f"unclosed argument of \\{name}",
+            self.pos,
+            label="this '{' is never closed",
+            hint=f"add '}}' where the argument ends{example}",
+        )
 
     def _skip_optional_argument(self) -> None:
         """Skip an optional ``[...]`` argument, as in ``\\linebreak[4]``."""
@@ -504,11 +696,12 @@ class Lexer:
             if end != -1:
                 self.pos = end + 1
 
-    def _text_command(self, start: int) -> None:
+    def _text_command(self, name: str, start: int) -> None:
         r"""``\text{otherwise}`` is the name ``otherwise``; ``\text{for all}`` a string."""
         if self._peek() == "*":  # \operatorname*{...}
             self.pos += 1
-        contents = self._read_group(start, "text").strip()
+        example = "tr" if name == "operatorname" else "word"
+        contents = self._read_group(start, name, example).strip()
         if not contents:
             self.space_before = True
         elif _TEXT_NAME.fullmatch(contents):
@@ -525,27 +718,21 @@ class Lexer:
         self.pos = match.end()
         return vocab.double_struck(match.group(1) or match.group(2))
 
-    def _style_command(self) -> None:
-        r"""Drop the command and its braces, but lex the argument: ``\mathrm{d}`` is ``d``."""
+    def _style_command(self, name: str, start: int) -> None:
+        r"""Drop the command and its braces, but lex the argument: ``\mathrm{d}`` is ``d``,
+        written as ``\mathrm{d}``, so that its span is the whole command."""
         self._skip_whitespace()
         if self._peek() != "{":
+            if self.pos == len(self.text) or self._peek() in "})]&":
+                example = _STYLE_EXAMPLES.get(name, "x")
+                raise self._error(
+                    f"\\{name} needs an argument, as in \\{name}{{{example}}}", start, self.pos
+                )
             return  # \mathbf x: the next token is the argument
-        depth, cursor = 0, self.pos
-        while cursor < len(self.text):
-            char = self.text[cursor]
-            if char == "\\":
-                cursor += 2
-                continue
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    self._transparent_braces.add(cursor)
-                    self.pos += 1
-                    return
-            cursor += 1
-        raise self._error("unclosed argument of a style command", self.pos)
+        cursor = self._closing_brace(name)
+        self._transparent_braces.add(cursor)
+        self._style_groups[cursor] = (start, len(self.tokens))
+        self.pos += 1
 
     def _display(self, opener: str, closer: str) -> None:
         r"""``\[ ... \]`` and ``$$ ... $$`` hold one formula, however its lines break, so
@@ -586,33 +773,19 @@ class Lexer:
     def _plain_environment(self, name: str, start: int) -> None:
         r"""``\matrix{a & b \cr c & d}`` lexes like ``\begin{matrix} ... \end{matrix}``."""
         self._skip_whitespace()
-        depth, cursor = 0, self.pos
-        while cursor < len(self.text):
-            char = self.text[cursor]
-            if char == "\\":
-                cursor += 2
-                continue
-            if char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    break
-            cursor += 1
-        else:
-            raise self._error(f"unclosed argument of \\{name}", self.pos)
+        cursor = self._closing_brace(name)
         self._closers[cursor] = name
         self._environments.append((name, Span(self.source, start, self.pos + 1)))
         self._emit(TokenKind.BEGIN, name, start, self.pos + 1)
 
     def _environment(self, name: str, start: int) -> None:
-        environment = self._read_group(start, name).strip()
+        environment = self._read_group(start, name, "equation").strip()
         span = Span(self.source, start, self.pos)
         if name == "begin":
             self._environments.append((environment, span))
             self._emit(TokenKind.BEGIN, environment, start, self.pos)
             if environment in vocab.ENVIRONMENTS_WITH_ARGUMENT:
-                self._read_group(start, f"begin{{{environment}}}")
+                self._read_group(start, f"begin{{{environment}}}", "cc")
             return
         if not self._environments:
             raise ParseError(f"\\end{{{environment}}} without a matching \\begin", span=span)

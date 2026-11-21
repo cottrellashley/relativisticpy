@@ -11,6 +11,26 @@ your notes and it runs; mix it with plain text as you like.
 
 ```
 
+**From Python, write LaTeX in a raw string,** `r"..."`. In an ordinary string,
+Python turns `\a`, `\b`, `\f`, `\n`, `\r`, `\t` and `\v` into control
+characters before RelativisticPy sees them, so `"\frac{1}{2}"` arrives as a
+form feed and `rac{1}{2}`, and `"\theta"` as a tab and `heta`. RelativisticPy
+says so, rather than reading them:
+
+```python
+>>> wb.expr("\frac{1}{2}")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.ParseError: Python turned \f in \frac into a form feed
+ --> <input>:1:1
+  |
+1 | ␌rac{1}{2}
+  | ^ a form feed, not \f
+note: in a Python string that is not raw, \a, \b, \f, \n, \r, \t and \v are control characters
+hint: write the string as a raw string, with r before its quote: r"\frac{1}{2}"
+
+```
+
 ## How LaTeX is read
 
 **Typesetting is ignored.** Spacing (`\,`, `\;`, `\quad`), sizing (`\left`,
