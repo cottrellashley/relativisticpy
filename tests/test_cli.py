@@ -1,6 +1,7 @@
 """The relativisticpy command."""
 
 import io
+from importlib import metadata
 
 import pytest
 
@@ -118,3 +119,8 @@ def test_version(capsys):
     with pytest.raises(SystemExit):
         main(["--version"])
     assert capsys.readouterr().out.startswith("relativisticpy ")
+
+
+def test_the_package_requires_the_sympy_it_needs():
+    # Index notation needs SymPy 1.14: with 1.12 or 1.13, a dozen tests fail.
+    assert "sympy>=1.14" in (metadata.requires("relativisticpy") or [])
