@@ -33,7 +33,7 @@ from sympy import Expr, ImmutableDenseNDimArray, ImmutableMatrix, Rational, Symb
 
 from relativisticpy.tensors import arrays
 from relativisticpy.tensors.arrays import Array
-from relativisticpy.tensors.simplification import simplify_component
+from relativisticpy.tensors.simplification import rationalise, simplify_component
 
 #: Maps a batch of expressions to their simplified forms, in order.
 SimplifyMap = Callable[[Sequence[Expr]], list[Expr]]
@@ -51,13 +51,17 @@ def _batch(
 
 
 def metric_matrix(components: object) -> ImmutableMatrix:
-    """A metric's components as a matrix, checking that they form one."""
+    """A metric's components as a matrix, checking that they form one.
+
+    Decimals become the exact fractions they denote (``1.7`` is ``17/10``), so
+    that curvature is exact: roundoff in a component never cancels.
+    """
     matrix = ImmutableMatrix(arrays.to_array(components).tolist())
     if not matrix.is_square:
         raise ValueError(
             f"a metric must be a square matrix, not {matrix.shape[0]}×{matrix.shape[1]}"
         )
-    return matrix
+    return rationalise(matrix)
 
 
 def check_metric(g: ImmutableMatrix) -> None:
@@ -70,7 +74,8 @@ def check_metric(g: ImmutableMatrix) -> None:
 
 
 def inverse(g: ImmutableMatrix, simplify: SimplifyMap = serial) -> ImmutableMatrix:
-    r"""The inverse metric :math:`g^{ab}`."""
+    r"""The inverse metric :math:`g^{ab}`, with decimals read as exact fractions."""
+    g = rationalise(g)
     if g.is_diagonal():
         return ImmutableMatrix.diag(*simplify([1 / g[i, i] for i in range(g.rows)]))
     raw = g.inv()

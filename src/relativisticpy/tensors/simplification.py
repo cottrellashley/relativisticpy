@@ -12,6 +12,10 @@ fraction, expand its numerator, and use :math:`\\cos^2 = 1 - \\sin^2` until no
 cosine has a power above one. The numerator is then zero exactly when the
 component vanishes. This never computes a polynomial GCD, the step that makes
 SymPy's ``cancel`` and ``simplify`` crawl on the curvature of the Kerr metric.
+
+A decimal is the exact fraction it denotes (:func:`rationalise`): roundoff
+never cancels exactly, so a metric given with ``1.7`` would otherwise have
+curvature that is only nearly zero.
 """
 
 from __future__ import annotations
@@ -21,6 +25,19 @@ from sympy import Expr, cos, cot, csc, sec, sin, tan
 
 #: Above this many operations, components are tidied rather than fully simplified.
 LARGE = 400
+
+
+def rationalise(expr: Expr) -> Expr:
+    """Write every decimal as the exact fraction it denotes: ``1.7`` becomes ``17/10``.
+
+    A decimal is read to the digits its precision carries, as SymPy prints it,
+    so a typed decimal keeps every digit and the sum ``0.1 + 0.2`` is ``3/10``.
+    Works on expressions and matrices alike.
+    """
+    decimals = expr.atoms(sympy.Float)
+    if not decimals:
+        return expr
+    return expr.xreplace({decimal: sympy.Rational(str(decimal)) for decimal in decimals})
 
 
 def normal_trig(expr: Expr) -> Expr:
@@ -51,13 +68,17 @@ def _reduce_pythagorean(polynomial: Expr) -> Expr:
 
 def is_zero(expr: object) -> bool:
     """Whether an expression is identically zero, decided exactly for rational
-    functions of the variables, ``sin`` and ``cos``."""
+    functions of the variables, ``sin`` and ``cos``. Decimals count as the exact
+    fractions they denote."""
     expr = sympy.sympify(expr)
-    if expr == 0:
-        return True
-    if not isinstance(expr, sympy.Expr) or (expr.is_number and expr != 0):
+    if not isinstance(expr, sympy.Expr):
         return False
-    normal = normal_trig(expr)
+    exact = rationalise(expr)  # roundoff in decimals would never cancel
+    if exact == 0:
+        return True
+    if exact.is_number and exact != 0:
+        return False
+    normal = normal_trig(exact)
     if _has_denominator(normal):  # combine into one fraction; its numerator decides
         numerator = sympy.expand(sympy.fraction(sympy.together(normal))[0])
     else:  # a polynomial in its atoms: expanding it decides, with no common denominator

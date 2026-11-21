@@ -2,7 +2,8 @@ r"""Well-known spacetimes, ready to use.
 
 Each function returns a :class:`~relativisticpy.diffgeom.Metric` in the
 coordinates its solution is usually written in. Parameters may be numbers,
-SymPy expressions or names; names become symbols. Units are geometric
+SymPy expressions or names; names become symbols, and decimals the exact
+fractions they denote, so ``schwarzschild(1.7)`` is a vacuum. Units are geometric
 (:math:`G = c = 1`) unless you pass ``G`` and ``c``::
 
     >>> schwarzschild().kretschmann
@@ -21,6 +22,7 @@ import sympy
 from sympy import Expr, Function, cos, sin
 
 from relativisticpy.diffgeom import Metric
+from relativisticpy.tensors.simplification import rationalise
 
 __all__ = [
     "anti_de_sitter",
@@ -38,7 +40,9 @@ x, y, z = sympy.symbols("x y z")
 
 
 def _value(value: Any) -> Expr:
-    return sympy.Symbol(value) if isinstance(value, str) else sympy.sympify(value)
+    """A parameter as SymPy: a name becomes a symbol, and a decimal the exact fraction
+    it denotes."""
+    return sympy.Symbol(value) if isinstance(value, str) else rationalise(sympy.sympify(value))
 
 
 def _spherical(f: Expr, *, c: Expr = sympy.S.One) -> Metric:

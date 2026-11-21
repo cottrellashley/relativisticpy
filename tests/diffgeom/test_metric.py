@@ -2,9 +2,9 @@
 
 import pytest
 import sympy
-from sympy import Array, Function, Matrix, Symbol, cos, diag, sin, symbols
+from sympy import Array, Function, Matrix, Rational, Symbol, cos, diag, sin, symbols
 
-from relativisticpy import Metric, Tensor, spacetimes
+from relativisticpy import Metric, Tensor, Workbook, spacetimes
 from relativisticpy.diffgeom import differential, metric_from_line_element
 
 t, r, theta, phi, M, a, Q, k, L = symbols("t r theta phi M a Q k L")
@@ -97,6 +97,35 @@ def test_parameters_in_any_units():
     g = spacetimes.schwarzschild("M", G="G", c="c")
     assert g.kretschmann == 48 * G**2 * M**2 / (c**4 * r**6)
     assert spacetimes.schwarzschild(2).kretschmann == 48 * 4 / r**6
+
+
+def test_decimal_parameters_are_exact():
+    g = spacetimes.schwarzschild(1.7)
+    assert g.matrix[0, 0] == -(1 - Rational(17, 5) / r)
+    assert g.ricci.components == Array.zeros(4, 4)
+    assert g.kretschmann == 48 * Rational(17, 10) ** 2 / r**6
+
+
+def test_decimal_components_are_exact():
+    f = 1 - 3.4 / r
+    g = Metric(diag(-f, 1 / f, r**2, r**2 * sin(theta) ** 2), (t, r, theta, phi))
+    assert g.ricci.components == Array.zeros(4, 4)
+
+
+def test_decimals_in_the_language_are_exact():
+    wb = Workbook()
+    wb.exe(r"g_{\mu\nu} := Schwarzschild(1.7)")
+    assert wb.expr(r"R_{\mu\nu} = 0")
+    wb = Workbook()
+    wb.exe(r"ds^2 = -(1 - 3.4/r) dt^2 + \frac{dr^2}{1 - 3.4/r} + r^2 d\Omega^2")
+    assert wb.expr(r"R_{\mu\nu} = 0")
+    wb = Workbook()  # given by its inverse, which is inverted exactly
+    wb.exe(r"""
+        Coordinates := [v, r, \theta, \phi]
+        g^{\mu\nu} := [[0, 0.3, 0, 0], [0.3, 1 - 3.4/r, 0, 0],
+                       [0, 0, 1/r^2, 0], [0, 0, 0, 1/(r^2 \sin^2\theta)]]
+    """)
+    assert wb.expr(r"R_{\mu\nu} = 0")
 
 
 @pytest.mark.slow
