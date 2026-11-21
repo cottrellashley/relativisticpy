@@ -32,6 +32,14 @@ class TestSolving:
         assert np.allclose(matrix @ linalg.solve(matrix, b), b)
         assert np.allclose(matrix.T @ linalg.solve(matrix, b, transpose=True), b)
 
+    def test_a_nearly_symmetric_matrix_is_solved_as_it_is(self):
+        # NumPy's default tolerance calls it symmetric; Cholesky would read half of it.
+        near = np.array([[1.0, 0.999], [0.999 + 9e-6, 1.0]])
+        b = np.array([[1.0], [0.0]])
+        assert np.allclose(linalg.solve(near, b), np.linalg.solve(near, b), rtol=1e-10, atol=0)
+        upper = 1e-9 * np.array([[2.0, 1.0], [0.0, 2.0]])
+        assert np.allclose(linalg.solve(upper, b), np.linalg.solve(upper, b), rtol=1e-10, atol=0)
+
     def test_a_symbolic_solve(self):
         x, y = Symbol("x"), Symbol("y")
         assert linalg.solve(Array([[x, 0], [0, y]]), Array([1, 1])) == Array([1 / x, 1 / y])
@@ -47,6 +55,14 @@ class TestSpectra:
         values, vectors = linalg.eig(SPD, rows=1)
         assert np.allclose(values, np.linalg.eigvalsh(SPD))
         assert np.allclose(SPD @ vectors, vectors * values)
+
+    def test_small_matrices_are_symmetric_only_if_they_are(self):
+        small = 1e-9 * np.array([[1.0, 2.0], [3.0, 4.0]])
+        values = linalg.eig(small, rows=1)[0] / 1e-9
+        assert np.allclose(values, np.sort(np.linalg.eigvals(small).real) / 1e-9)
+        rotation = 1e-9 * np.array([[0.0, -1.0], [1.0, 0.0]])  # its eigenvalues are ±i 1e-9
+        values = np.sort_complex(linalg.eig(rotation, rows=1)[0] / 1e-9)
+        assert np.allclose(values, [-1j, 1j])
 
     def test_relative_to_a_metric(self):
         metric = np.diag([1.0, 2.0, 3.0, 4.0])

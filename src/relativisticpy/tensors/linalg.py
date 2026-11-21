@@ -85,7 +85,7 @@ def solve(matrix: Any, rhs: Any, transpose: bool = False) -> Any:
 
 def _dense_solve(a: Any, block: Any) -> Any:
     np = numerical.numpy()
-    if np.allclose(a, a.conj().T):
+    if _hermitian(a):
         from scipy.linalg import LinAlgError, cho_factor, cho_solve
 
         try:
@@ -93,6 +93,23 @@ def _dense_solve(a: Any, block: Any) -> Any:
         except LinAlgError:
             pass  # symmetric but not positive definite
     return np.linalg.solve(a, block)
+
+
+def _hermitian(matrix: Any) -> bool:
+    """Whether a numerical matrix is its own conjugate transpose, to rounding error in
+    its largest component. NumPy's default tolerance would call any matrix of small
+    numbers symmetric, and Cholesky factorisation and ``eigh`` read only half of it."""
+    np = numerical.numpy()
+    if numerical.is_sparse(matrix):
+        largest = abs(matrix).max() if matrix.nnz else 0.0
+        difference = abs(matrix - matrix.conj().T)
+        return bool(difference.max() <= _ROUNDING * largest) if difference.nnz else True
+    scale = float(np.max(np.abs(matrix), initial=0.0))
+    return bool(np.allclose(matrix, matrix.conj().T, rtol=0.0, atol=_ROUNDING * scale))
+
+
+#: Rounding error, relative to the largest component of a matrix.
+_ROUNDING = 1e-12
 
 
 def eig(
@@ -118,7 +135,7 @@ def eig(
         from scipy.linalg import eigh
 
         values, vectors = eigh(matrix, numerical.dense(numerical.as_array(metric)))
-    elif np.allclose(matrix, matrix.conj().T):
+    elif _hermitian(matrix):
         values, vectors = np.linalg.eigh(matrix)
     else:
         values, vectors = np.linalg.eig(matrix)
