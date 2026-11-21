@@ -92,6 +92,16 @@ class TestComponents:
         assert not numerical.close(np.array([1.0, 2.0]), np.array([1.0, 2.1]))
         assert numerical.close(np.zeros(3), 0)
 
+    def test_close_is_relative_to_the_numbers_compared(self):
+        masses = np.array([9.109e-31, 1.673e-27])  # an electron and a proton, in kg
+        assert not numerical.close(masses, 2 * masses)
+        assert not numerical.close(masses, 0)
+        # A residual is rounding error relative to the numbers it was computed from.
+        assert not numerical.close(np.array([8.6e-12]), 0)
+        with numerical.operands(1e4):
+            assert numerical.close(np.array([8.6e-12]), 0)
+            assert not numerical.close(np.array([8.6e-6]), 0)
+
     def test_what_is_numerical(self):
         assert numerical.is_numerical(np.zeros(2))
         assert numerical.is_numerical(np.float64(1.0))

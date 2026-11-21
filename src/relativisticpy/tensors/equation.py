@@ -25,7 +25,10 @@ class TensorEquation:
         R_{tt} = 0, R_{rr} = 0, ...
 
     An equation whose every component holds is ``True`` in a boolean context. Numerical
-    components hold when they agree to rounding error.
+    components hold when they agree to rounding error, relative to each other or to
+    ``scale``, the magnitude of the numbers the sides were computed from, which is that
+    of the sides unless given; while an equation is decided, it is the magnitude of the
+    terms of a side that is a sum (see :func:`~relativisticpy.tensors.numerical.close`).
     """
 
     def __init__(
@@ -35,16 +38,21 @@ class TensorEquation:
         indices: Indices | None = None,
         coordinates: Sequence[Symbol] = (),
         spaces: Sequence[Space] | None = None,
+        *,
+        scale: float | None = None,
     ) -> None:
         if numerical.involves([lhs, rhs]):  # one side may be the number 0
             np = numerical.numpy()
             lhs, rhs = (numerical.dense(numerical.as_array(side)) for side in (lhs, rhs))
             lhs, rhs = np.broadcast_arrays(lhs, rhs)
+        else:  # a side that is zero has the shape of the other
+            lhs, rhs = _zero_shaped(lhs, rhs), _zero_shaped(rhs, lhs)
         self.lhs = lhs
         self.rhs = rhs
         self.indices = indices
         self.coordinates = tuple(coordinates)
         self.spaces = tuple(spaces) if spaces is not None else None
+        self.scale = numerical.operand_scale() if scale is None else scale
 
     @property
     def rank(self) -> int:
@@ -54,8 +62,9 @@ class TensorEquation:
         """Every component that does not hold identically, keyed by position."""
         if numerical.is_numerical(self.lhs):
             np = numerical.numpy()
-            scale = max(1.0, float(np.max(np.abs(self.lhs), initial=0.0)))
-            wrong = ~np.isclose(self.lhs, self.rhs, rtol=1e-9, atol=1e-12 * scale)
+            magnitudes = (numerical.magnitude(side) for side in (self.lhs, self.rhs))
+            atol = numerical.ROUNDING * max(self.scale, *magnitudes)
+            wrong = ~np.isclose(self.lhs, self.rhs, rtol=numerical.RELATIVE, atol=atol)
             return {
                 tuple(int(i) for i in index): Eq(
                     sympy.sympify(self.lhs[tuple(index)]),
@@ -64,9 +73,9 @@ class TensorEquation:
                 )
                 for index in np.argwhere(wrong)
             }
-        dim = self.lhs.shape[0] if self.rank else 0
+        shape = tuple(self.lhs.shape) if self.rank else ()
         result: dict[tuple[int, ...], Eq] = {}
-        for index in product(range(dim), repeat=self.rank):
+        for index in product(*(range(n) for n in shape)):
             lhs, rhs = self.lhs[index], self.rhs[index]
             comparable = isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr)
             if not (comparable and is_zero(lhs - rhs)):
@@ -76,7 +85,7 @@ class TensorEquation:
     def subs(self, *args: Any) -> TensorEquation:
         """Substitute into both sides, as SymPy's ``subs`` does."""
         lhs, rhs = self.lhs.subs(*args), self.rhs.subs(*args)
-        return TensorEquation(lhs, rhs, self.indices, self.coordinates)
+        return TensorEquation(lhs, rhs, self.indices, self.coordinates, self.spaces)
 
     def equations(self) -> list[Eq]:
         """The component equations that do not hold identically, in order."""
@@ -84,7 +93,8 @@ class TensorEquation:
 
     def __bool__(self) -> bool:
         if numerical.is_numerical(self.lhs):
-            return numerical.close(self.lhs, self.rhs)
+            with numerical.operands(self.scale):
+                return numerical.close(self.lhs, self.rhs)
         return not self.components()
 
     def __eq__(self, other: object) -> bool:
@@ -108,25 +118,39 @@ class TensorEquation:
         return f"TensorEquation({self.indices or ''}, {len(self.components())} equations)"
 
     def _label(self, index: tuple[int, ...]) -> str:
+        return ",".join(self._names(index))
+
+    def _names(self, index: tuple[int, ...]) -> list[str]:
+        """The names of the component at ``index``: from the bases of the spaces of its
+        axes, or the coordinates, or else its position along each axis."""
         if self.spaces is not None:
-            return ",".join(
+            return [
                 space.basis[i] if space.basis else str(i)
                 for i, space in zip(index, self.spaces, strict=True)
-            )
-        names = [str(c) for c in self.coordinates] or [str(i) for i in range(self.lhs.shape[0])]
-        return ",".join(names[i] for i in index)
+            ]
+        coordinates = [str(c) for c in self.coordinates]
+        return [coordinates[i] if coordinates else str(i) for i in index]
 
     def latex(self) -> str:
         components = self.components()
         if not components:
             return r"\mathrm{True}"
-        names = [latex_label(str(c)) for c in self.coordinates] or [str(i) for i in range(99)]
         lines = []
         for index, eq in components.items():
-            labels = [names[i] for i in index]
+            labels = [latex_label(name) for name in self._names(index)]
             head = self.indices.latex(labels) if self.indices else ",".join(labels)
             lines.append(f"{head}: &\\; {sympy.latex(eq)}")
         return "\\begin{aligned}" + " \\\\ ".join(lines) + "\\end{aligned}"
 
     def _repr_latex_(self) -> str:
         return f"$\\displaystyle {self.latex()}$"
+
+
+def _zero_shaped(side: Any, other: Any) -> Any:
+    """``side``, or zeros of the shape of ``other`` where ``side`` is zero and ``other`` an
+    array of another shape: the zero of T_{ta} = 0 has T's shape, square or not."""
+    if not isinstance(other, sympy.NDimArray) or getattr(side, "shape", None) == other.shape:
+        return side
+    if all(value == 0 for value in arrays.flatten(side)):
+        return sympy.ImmutableDenseNDimArray.zeros(*other.shape)
+    return side

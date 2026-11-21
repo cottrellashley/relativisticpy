@@ -21,9 +21,11 @@ NumPy is an optional dependency: ``pip install "relativisticpy[numeric]"``.
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import math
-from collections.abc import Callable, Hashable, Mapping, Sequence
+from collections.abc import Callable, Hashable, Iterator, Mapping, Sequence
+from contextvars import ContextVar
 from typing import Any
 
 import sympy
@@ -363,12 +365,56 @@ def apply(array: Any, func: Callable[..., Any], name: str, extra: Sequence[Any] 
 
 
 def close(lhs: Any, rhs: Any) -> bool:
-    """Whether two numerical values agree to rounding error."""
+    """Whether two numerical values agree to rounding error: to a billionth of each other,
+    or to a trillionth of the numbers they were computed from, as an equation's sides were
+    from the terms of a sum, or else of their own largest components. There is no absolute
+    tolerance: the mass of an electron is not twice itself, nor zero."""
     np = numpy()
     lhs, rhs = np.asarray(dense(as_array(lhs))), np.asarray(dense(as_array(rhs)))
     if lhs.shape != rhs.shape and lhs.size != 1 and rhs.size != 1:
         return False
-    scale = max(
-        1.0, float(np.max(np.abs(lhs), initial=0.0)), float(np.max(np.abs(rhs), initial=0.0))
-    )
-    return bool(np.allclose(lhs, rhs, rtol=1e-9, atol=1e-12 * scale))
+    scale = max(_OPERANDS.get(), magnitude(lhs), magnitude(rhs))
+    return bool(np.allclose(lhs, rhs, rtol=RELATIVE, atol=ROUNDING * scale))
+
+
+#: How far numbers may differ and agree: relative to each other, and to the magnitude of
+#: the numbers they were computed from, which rounding error is relative to.
+RELATIVE, ROUNDING = 1e-9, 1e-12
+
+#: The magnitude of the numbers the sides of an equation being decided were computed
+#: from: the terms of a side that is a sum, such as the residual E[PP] - m m - C.
+_OPERANDS: ContextVar[float] = ContextVar("operands", default=0.0)
+
+
+@contextlib.contextmanager
+def operands(scale: float) -> Iterator[None]:
+    """Decide equations, within the block, to rounding error in numbers of magnitude
+    ``scale``, which their sides were computed from."""
+    token = _OPERANDS.set(scale)
+    try:
+        yield
+    finally:
+        _OPERANDS.reset(token)
+
+
+def operand_scale() -> float:
+    """The magnitude :func:`operands` gives, or 0 outside it."""
+    return _OPERANDS.get()
+
+
+def magnitude(value: Any) -> float:
+    """The largest absolute value of a number or of the components of a numerical array;
+    0 for anything else, such as a symbol."""
+    if isinstance(value, int | float | complex | sympy.NDimArray) or getattr(
+        value, "is_number", False
+    ):
+        try:
+            value = as_array(value)
+        except EvaluationError:  # symbols
+            return 0.0
+    if not is_numerical(value):
+        return 0.0
+    if is_sparse(value):
+        return float(abs(value).max()) if value.nnz else 0.0
+    np = numpy()
+    return float(np.max(np.abs(np.asarray(value)), initial=0.0))

@@ -204,7 +204,7 @@ def _to_array(op: ops.ToArray, args: list[Any], executor: Executor) -> Any:
             return array
         raise ValueError(f"expected components of shape {op.shape}, got {array.shape}")
     if value == 0:
-        return arrays.zeros(op.shape[0], len(op.shape))
+        return arrays.zeros_of(op.shape)
     raise ValueError(f"expected components of shape {op.shape}, got {value}")
 
 

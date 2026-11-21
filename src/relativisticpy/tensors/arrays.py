@@ -63,6 +63,20 @@ def zeros(dim: int, rank: int) -> Components:
     return ImmutableDenseNDimArray.zeros(*([dim] * rank))
 
 
+#: Axes up to this size have SymPy's zeros, exact beside symbols; longer ones, as of
+#: data, have NumPy's.
+SMALL = 16
+
+
+def zeros_of(shape: Sequence[int]) -> Components:
+    """Zeros of any shape, square or not, as of T_{ta} := 0 over days and assets."""
+    if not shape:
+        return sympy.S.Zero
+    if max(shape) > SMALL:
+        return numerical.numpy().zeros(tuple(shape))
+    return ImmutableDenseNDimArray.zeros(*shape)
+
+
 def from_flat(values: Sequence[Expr], dim: int, rank: int) -> Components:
     if rank == 0:
         return sympy.sympify(values[0])

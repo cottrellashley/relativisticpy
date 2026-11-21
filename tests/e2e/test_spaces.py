@@ -306,6 +306,37 @@ class TestLinearAlgebra:
         assert market.expr(r"\Sigma_{ab} = \operatorname{Cov}_t(R_{ta}, R_{tb})")
         assert not market.expr(r"\Sigma_{ab} = 2 \Sigma_{ab}")
 
+    def test_rounding_error_is_relative_to_the_numbers(self, wb):
+        wb["m_a"] = np.array([9.109e-31, 1.673e-27])  # an electron and a proton, in kg
+        assert not wb.expr(r"m_{a} = 2 m_{a}")
+        assert not wb.expr(r"m_{a} = 0")
+        wb["P_{ta}"] = 100 + 10 * rng.normal(size=(250, 4))  # prices, in dollars
+        wb.exe(r"C_{ab} := \operatorname{Cov}_t(P_{ta}, P_{tb})")
+        terms = [
+            r"\mathbb{E}_t[P_{ta} P_{tb}] 1^a 1^b",
+            r"\mathbb{E}_t[P_{ta}] 1^a \mathbb{E}_t[P_{tb}] 1^b",
+            r"C_{ab} 1^a 1^b",
+        ]
+        residual = " - ".join(terms)  # rounding error in numbers near 10^5, which is zero
+        assert wb.expr(f"{residual} = 0") is sympy.true
+        assert wb.expr(f"{residual} = 10^{{-6}}") is not sympy.true
+
+    def test_a_zero_tensor_has_the_shape_of_its_spaces(self, wb):
+        wb.space("days", 4, labels="t")
+        wb.space("assets", 2, labels="a")
+        wb["R_{ta}"] = np.ones((4, 2))
+        wb.exe(r"Z_{ta} := 0")
+        assert wb["Z"].shape == (4, 2)
+        assert np.allclose(wb.expr(r"Z_{ta} + R_{ta}").to_numpy(), 1.0)
+        assert wb.expr(r"R_{ta} - R_{ta} = Z_{ta}")
+
+    def test_an_equation_of_data_need_not_be_square(self, wb):
+        x, y = sympy.symbols("x y")
+        wb["X_{ta}"] = sympy.Array([[x, 0], [0, y], [1, 0], [0, 1]])
+        wb["Y_{ta}"] = sympy.Array([[x, 0], [0, y], [1, 0], [0, 2]])
+        assert wb.expr(r"X_{ta} = Y_{ta}").equations() == [sympy.Eq(1, 2, evaluate=False)]
+        assert len(wb.expr(r"X_{ta} = 0").equations()) == 4
+
 
 class TestPortfolios:
     def test_markowitz_tangency(self, market):

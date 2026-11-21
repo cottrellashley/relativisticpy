@@ -2423,7 +2423,17 @@ class Compiler:
 
     def _space_of(self, name: str, span: Span, why: str = "index notation") -> Space:
         space = self._labels.get(name) or self.session.labels.get(name)
-        return space if space is not None else self.session.spacetime(span, why)
+        if space is not None:
+            return space
+        if self.session.coordinates is None:
+            raise CompileError(
+                f"{why} needs coordinates, or a space for the index {latex_label(name)}",
+                span=span,
+                hint="declare coordinates, as in Coordinates := [t, r, \\theta, \\phi], or the "
+                "space of the index, as in t \\in \\mathcal{T}; an index written on data in "
+                "the same statement ranges over the data's space",
+            )
+        return self.session.spacetime(span, why)
 
     def _spaces_of(self, names: Sequence[str], span: Span, why: str) -> tuple[Space, ...]:
         return tuple(self._space_of(name, span, why) for name in names)

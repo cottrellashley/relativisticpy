@@ -10,8 +10,9 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Any, TypeVar
 
 from relativisticpy.errors import EvaluationError, RelativisticPyError
-from relativisticpy.ir import Node
+from relativisticpy.ir import Node, ops
 from relativisticpy.runtime.kernels import execute
+from relativisticpy.tensors import numerical
 from relativisticpy.tensors.simplification import simplify_component
 
 _T = TypeVar("_T")
@@ -72,7 +73,11 @@ class Executor:
                 continue
             args = [known[arg.key] for arg in current.args]
             try:
-                known[current.key] = execute(current.op, args, self)
+                if isinstance(current.op, ops.Equation):  # decided to rounding error in these
+                    with numerical.operands(_operand_scale(current, known)):
+                        known[current.key] = execute(current.op, args, self)
+                else:
+                    known[current.key] = execute(current.op, args, self)
             except RelativisticPyError as error:
                 if error.span is None:
                     error.span = current.span
@@ -102,3 +107,19 @@ class Executor:
         if self._pool is not None:
             self._pool.shutdown()
             self._pool = None
+
+
+def _operand_scale(equation: Node, known: dict[Hashable, Any]) -> float:
+    """The magnitude of the numbers an equation's sides were computed from, which their
+    rounding error is relative to: the sides, and the terms of a side that is a sum, so
+    that ``a - b = 0`` holds where ``a = b`` does."""
+    scale = 0.0
+    pending = list(equation.args)
+    while pending:
+        node = pending.pop()
+        scale = max(scale, numerical.magnitude(known.get(node.key)))
+        if isinstance(node.op, ops.Add | ops.Permute):  # the terms, in any order of axes
+            pending.extend(node.args)
+        elif isinstance(node.op, ops.Scale):  # a multiple of a sum: its terms, not the factor
+            pending.append(node.args[-1])
+    return scale
