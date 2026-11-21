@@ -58,6 +58,11 @@ class TestPlainText:
     def test_numbers(self, text, expected):
         assert lex(text) == expected
 
+    def test_a_point_before_a_unicode_digit_is_a_full_stop(self):
+        # ² and ₀ are digits to str.isdigit, but they are scripts, not part of a number
+        assert lex("5.²") == "5 . ^ { 2 }"
+        assert lex("x.₀") == "x . _ { 0 }"
+
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
@@ -135,6 +140,7 @@ class TestLatexSymbols:
 
     def test_variant_letterforms_are_the_same_symbol(self):
         assert lex(r"\varphi \vartheta \varepsilon \varrho") == "phi theta epsilon rho"
+        assert lex(r"\varOmega \varGamma \varPhi") == "Omega Gamma Phi"
 
     def test_varpi_is_its_own_symbol(self):
         assert lex(r"\varpi \pi") == "varpi pi"
@@ -184,6 +190,15 @@ class TestLatexTypesetting:
     def test_spacing_commands_are_whitespace(self):
         assert lex(r"a\,b\;c\:d\!e\ f~g\quad h\qquad i") == "a b c d e f g h i"
         assert all(t.space_before for t in tokenize(r"a\,b")[1:-1])
+
+    def test_unicode_spaces_are_spacing_and_a_byte_order_mark_is_nothing(self):
+        assert lex("﻿x = 1 + 2") == "x = 1 + 2"
+        tokens = tokenize("﻿a b c")
+        assert [(t.value, t.space_before, t.explicit_space) for t in tokens[:-1]] == [
+            ("a", False, False),
+            ("b", True, True),
+            ("c", True, True),
+        ]
 
     def test_explicit_spacing_is_distinguished_from_whitespace(self):
         tokens = tokenize(r"a b\,c\quad d~e")
@@ -236,6 +251,10 @@ class TestLatexTypesetting:
     def test_row_separator_spacing_argument_is_dropped(self):
         assert lex(r"a \\[2pt] b \\ [x]") == r"a \\ b \\ [ x ]"
 
+    def test_a_starred_row_separator_leaves_no_star(self):
+        # \\* only forbids a page break; its star is not a Hodge dual on the next row
+        assert lex(r"a \\* b \\*[2pt] c") == r"a \\ b \\ c"
+
     def test_backslash_newline_continues_the_line(self):
         assert lex("a + \\\nb") == "a + b"
 
@@ -273,6 +292,9 @@ class TestDelimiters:
 
     def test_size_command_without_delimiter_is_ignored(self):
         assert lex(r"\big x") == "x"
+
+    def test_a_sized_slash_divides(self):
+        assert lex(r"a \big/ b \Bigg/ c") == "a / b / c"
 
     def test_unmatched_left(self):
         with pytest.raises(ParseError, match=r"'\\left' has no matching '\\right'"):

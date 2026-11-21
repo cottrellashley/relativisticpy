@@ -27,7 +27,8 @@ GREEK: frozenset[str] = frozenset(
     }
 )  # fmt: skip
 
-#: Variant letterforms that denote the same symbol as the plain letter.
+#: Variant letterforms that denote the same symbol as the plain letter, including
+#: amsmath's slanted capitals such as ``\varOmega``.
 GREEK_VARIANTS: Mapping[str, str] = MappingProxyType(
     {
         "varepsilon": "epsilon",
@@ -36,6 +37,7 @@ GREEK_VARIANTS: Mapping[str, str] = MappingProxyType(
         "varrho": "rho",
         "varsigma": "sigma",
         "varkappa": "kappa",
+        **{f"var{capital}": capital for capital in GREEK if capital[0].isupper()},
     }
 )
 

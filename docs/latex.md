@@ -104,7 +104,8 @@ hint: did you mean \frac?
 
 Unicode maths reads like the LaTeX it stands for: `θ` is `\theta`, `∂` is
 `\partial`, `∫` is `\int`, `·` is `\cdot`, `≤` is `\le`, and superscripts are
-spelled out, so `r²` is `r^{2}`.
+spelled out, so `r²` is `r^{2}`. Unicode's spaces (the no-break space, the thin
+space) are spacing, like `~` and `\,`, and a byte order mark is ignored.
 
 ```python
 >>> wb.expr("∫_0^1 θ² dθ")

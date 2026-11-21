@@ -816,6 +816,7 @@ class TestMoreErrors:
             (r"\begin{cases} 1 & x > 0 , 2 \end{cases}", r"expected '\\' or \end{cases}"),
             (r"\begin{cases} \end{cases}", "cases needs at least one case"),
             ("T_{a(}", "brackets must enclose indices"),
+            ("5.²", "unexpected '.'"),  # an error, not a crash in the lexer
         ],
     )
     def test_messages(self, text, message):

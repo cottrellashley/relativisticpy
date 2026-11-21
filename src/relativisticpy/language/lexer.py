@@ -33,7 +33,8 @@ from relativisticpy.language import vocabulary as vocab
 from relativisticpy.language.source import Source, Span
 from relativisticpy.language.tokens import Token, TokenKind
 
-_NUMBER = re.compile(r"(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?")
+_NUMBER = re.compile(r"(?:[0-9]+(?:\.[0-9]+)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+_DIGITS = frozenset("0123456789")
 # An underscore belongs to a name only when a letter or digit follows it:
 # ``x_0`` and ``abs_func`` are names, while ``g_{mu}`` is ``g`` with a subscript.
 _IDENT = re.compile(r"[A-Za-z](?:[A-Za-z0-9]|_(?=[A-Za-z0-9]))*")
@@ -43,12 +44,19 @@ _COMMAND_NAME = re.compile(r"[A-Za-z]+")
 # The argument of \mathbb when it is one letter or digit: {R}, { R }, or R itself.
 _BLACKBOARD_ARGUMENT = re.compile(r"\s*(?:\{\s*([A-Za-z0-9])\s*\}|([A-Za-z0-9]))")
 _TEXT_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
-# The optional spacing argument of a row break, as in ``\\[2pt]``.
+# What may follow a row break: a star, which forbids a page break there (``\\*``), and
+# an optional spacing argument, as in ``\\[2pt]``.
 _ROW_SPACING = re.compile(
-    r"[ \t]*\[\s*-?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|em|ex|mm|cm|in|bp|pc|sp|mu)\s*\]"
+    r"\*?(?:[ \t]*\[\s*-?(?:\d+(?:\.\d*)?|\.\d+)\s*(?:pt|em|ex|mm|cm|in|bp|pc|sp|mu)\s*\])?"
 )
 
-_SPACE = frozenset(" \t\r\f\v~")
+# Unicode's spaces, which typeset as LaTeX's deliberate spacing does: the no-break space
+# is ~, the thin space \, and so on.
+_UNICODE_SPACE = frozenset("           ")
+_UNICODE_SPACE |= frozenset("   　")
+# Characters that take no room at all, such as the byte order mark that starts some files.
+_INVISIBLE = frozenset("﻿​‌‍⁠")
+_SPACE = frozenset(" \t\r\f\v~") | _UNICODE_SPACE
 _ARGUMENT_SPACE = _SPACE | {"\n"}  # whitespace allowed between a command and its argument
 
 _SINGLE_CHARACTER: dict[str, TokenKind] = {
@@ -148,12 +156,14 @@ class Lexer:
         elif self.text.startswith("$$", self.pos):
             self._display("$$", "$$")
         elif char in _SPACE or char == "$":
-            self._skip(1, explicit=char == "~")
+            self._skip(1, explicit=char == "~" or char in _UNICODE_SPACE)
+        elif char in _INVISIBLE:
+            self.pos += 1
         elif char == "\n":
             self._emit(TokenKind.NEWLINE, "\n", self.pos, self.pos + 1)
         elif char in "#%":
             self._skip_comment()
-        elif (char.isascii() and char.isdigit()) or (char == "." and self._peek(1).isdigit()):
+        elif char in _DIGITS or (char == "." and self._peek(1) in _DIGITS):
             self._match(_NUMBER, TokenKind.NUMBER)
         elif char == ".":
             if self.text.startswith("...", self.pos):
@@ -314,7 +324,7 @@ class Lexer:
         if follower == "\\":
             self._emit(TokenKind.ROW_SEP, "\\\\", start, start + 2)
             if spacing := _ROW_SPACING.match(self.text, self.pos):
-                self.pos = spacing.end()
+                self.pos = spacing.end()  # \\*[2pt]: neither is part of the next row
         elif follower.isascii() and follower.isalpha():
             match = _COMMAND_NAME.match(self.text, start + 1)
             assert match is not None
@@ -590,6 +600,8 @@ class Lexer:
         delimiter = self._read_delimiter()
         if delimiter is None or delimiter == ".":
             self.space_before = True
+        elif delimiter == "/":  # a \big/ is a division, only taller
+            self._emit(TokenKind.SLASH, "/", start, self.pos)
         elif delimiter in _OPENING:
             self._emit(TokenKind.LPAREN, "(", start, self.pos)
         elif delimiter in _CLOSING:
