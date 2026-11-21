@@ -12,7 +12,7 @@ import scipy.sparse as sp
 import sympy
 from sklearn.covariance import LedoitWolf
 
-from relativisticpy import CompileError, IndexNotationError, Workbook
+from relativisticpy import CompileError, EvaluationError, IndexNotationError, Workbook
 from relativisticpy.tensors import Space, Tensor
 
 rng = np.random.default_rng(11)
@@ -295,12 +295,36 @@ class TestLinearAlgebra:
         assert np.allclose(market["D"].to_numpy(), np.diag(MEAN))
         assert np.allclose(market.expr(r"R_{ta} \odot R_{ta}").to_numpy(), RETURNS**2)
 
+    def test_the_elementwise_product_of_lists(self, wb):
+        assert wb.expr(r"[1, 2] \odot [3, 4]") == sympy.Array([3, 8])
+        assert wb.expr(r"[[1, 2], [3, 4]] \odot [[5, 6], [7, 8]]") == sympy.Array(
+            [[5, 12], [21, 32]]  # not the matrix product, [[19, 22], [43, 50]]
+        )
+        assert wb.expr(r"2 \odot [3, 4]") == sympy.Array([6, 8])
+        with pytest.raises(EvaluationError, match="of one shape"):
+            wb.expr(r"[1, 2] \odot [3, 4, 5]")
+
     def test_a_function_of_a_map(self, wb):
         hamiltonian = np.array([[1.0, 0.5], [0.5, -1.0]])
         wb["H^i_j"] = hamiltonian
         wb["t"] = 0.7
         wb.exe(r"U := \exp(-i H t)")
         assert np.allclose(wb["U"].to_numpy(), scipy.linalg.expm(-0.7j * hamiltonian))
+
+    def test_the_square_root_of_a_matrix(self, wb):
+        covariance = np.array([[2.0, -0.5], [-0.5, 1.0]])
+        wb["\\Sigma_{ab}"] = covariance
+        for written in (r"\sqrt{\Sigma}", r"\sqrt(\Sigma)"):
+            assert np.allclose(wb.expr(written).to_numpy(), scipy.linalg.sqrtm(covariance))
+        wb["W_{ab}"] = np.array([[4.0, 1.0], [1.0, 9.0]])  # with indices: of each component
+        assert np.allclose(wb.expr(r"\sqrt{W_{ab}}").to_numpy(), [[2.0, 1.0], [1.0, 3.0]])
+
+    def test_the_logarithm_of_each_component(self, wb):
+        prices = 100 * np.exp(rng.normal(0, 0.01, (6, 2)))
+        wb["P_{ta}"] = prices
+        for written in (r"\log(P_{ta})", r"\log P_{ta}", r"\ln(P_{ta})"):
+            assert np.allclose(wb.expr(written).to_numpy(), np.log(prices))
+        assert np.allclose(wb.expr(r"\log(P_{ta}, 10)").to_numpy(), np.log10(prices))
 
     def test_numerical_equations_hold_to_rounding_error(self, market):
         assert market.expr(r"\Sigma_{ab} = \operatorname{Cov}_t(R_{ta}, R_{tb})")

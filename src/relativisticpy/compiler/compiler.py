@@ -797,9 +797,15 @@ class Compiler:
 
     def _hadamard(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
         """``A_{ta} \\odot B_{ta}``: the elementwise product, of tensors with the same free
-        indices, summing nothing. Index notation has no other way to say it."""
+        indices, summing nothing. Index notation has no other way to say it. Of lists or
+        matrices, as ``[1, 2] \\odot [3, 4]``, it is elementwise too, never their product."""
         left = self.value(_operand(node.left), scope, ctx)
         right = self.value(_operand(node.right), scope, ctx)
+        if VALUE in (left.type, right.type) and not any(
+            isinstance(value.type, TensorType) for value in (left, right)
+        ):
+            call = ops.Call(_elementwise_product, "hadamard")
+            return self.graph.add(call, (left, right), VALUE, node.span)
         if not (isinstance(left.type, TensorType) and isinstance(right.type, TensorType)):
             return self._multiply([left, right], node.span)
         right = self._align(right, left.type.indices, node.span, what="an elementwise product")
@@ -1258,7 +1264,14 @@ class Compiler:
         builtins, as for a matrix written as a list."""
         argument = node.args[0]
         if name in ("exp", "sqrt", "log") and _mentions_tensor(argument):
-            return None  # written with its indices: one component at a time
+            # Written with its indices: one component at a time, by the builtins, except
+            # log, whose builtin takes a base and no tensor, as \ln does.
+            if name != "log" or len(node.args) > 2:
+                return None
+            args = [self.value(arg, scope, ctx) for arg in node.args]
+            if not isinstance(args[0].type, TensorType):
+                return None
+            return self.graph.add(ops.Map(sympy.log, "log"), args, args[0].type, node.span)
         if name not in ("eig", "spec", "svd", "tr") and not self._names_tensor(argument, scope):
             return None  # a builtin of plain matrices and numbers, as diag(1, x^2)
         tensor = self.value(argument, scope, ctx)
@@ -1845,6 +1858,10 @@ class Compiler:
         return symbol
 
     def _Root(self, node: ast.Root, scope: Scope, ctx: Context) -> Node:
+        if node.degree is None:  # \sqrt{\Sigma}, of a tensor named without indices: a matrix's
+            call = ast.Call(ast.Name("sqrt", span=node.span), (node.radicand,), span=node.span)
+            if (root := self._linear_algebra("sqrt", call, scope, ctx)) is not None:
+                return root
         radicand = self.value(node.radicand, scope, ctx)
         if node.degree is None:
             return self._builtin(BUILTINS["sqrt"], [radicand], node.span)
@@ -3683,6 +3700,27 @@ def _uniform(dim: int) -> Any:
     from relativisticpy.tensors import numerical
 
     return numerical.numpy().full(dim, 1.0 / dim)
+
+
+def _elementwise_product(left: Any, right: Any) -> Any:
+    """The elementwise product of lists or matrices of one shape, ``[1, 2] \\odot [3, 4]``,
+    which is ``[3, 8]``; a number multiplies every element."""
+    from relativisticpy.errors import EvaluationError
+    from relativisticpy.tensors import arrays
+
+    def array(value: Any) -> Any:
+        listed = isinstance(value, list | tuple | sympy.MatrixBase)
+        return arrays.to_array(value) if listed else value
+
+    left, right = array(left), array(right)
+    shapes = [tuple(getattr(value, "shape", ())) for value in (left, right)]
+    if () in shapes:
+        return left * right
+    if shapes[0] != shapes[1]:
+        raise EvaluationError(
+            f"an elementwise product is of arrays of one shape, not {shapes[0]} and {shapes[1]}"
+        )
+    return linalg.hadamard(left, right)
 
 
 def _complex(kind: TensorType) -> bool:
