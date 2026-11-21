@@ -12,6 +12,8 @@ fraction, expand its numerator, and use :math:`\\cos^2 = 1 - \\sin^2` until no
 cosine has a power above one. The numerator is then zero exactly when the
 component vanishes. This never computes a polynomial GCD, the step that makes
 SymPy's ``cancel`` and ``simplify`` crawl on the curvature of the Kerr metric.
+Where angles are fractions of one another, as ``x/2`` and ``x`` are, the test
+is repeated with ``x`` written as a whole multiple of a new angle.
 
 A decimal is the exact fraction it denotes (:func:`rationalise`): roundoff
 never cancels exactly, so a metric given with ``1.7`` would otherwise have
@@ -20,11 +22,34 @@ curvature that is only nearly zero.
 
 from __future__ import annotations
 
+import math
+
 import sympy
 from sympy import Expr, cos, cot, csc, sec, sin, tan
+from sympy.core.function import AppliedUndef
 
 #: Above this many operations, components are tidied rather than fully simplified.
 LARGE = 400
+
+#: The largest whole multiple of an angle that relating fractions of it may expand.
+_MULTIPLE = 12
+
+#: What an expression may be built from for its angles to be rescaled: nothing that
+#: binds a variable, as a derivative or an integral does.
+_ALGEBRAIC = (
+    sympy.Add,
+    sympy.Mul,
+    sympy.Pow,
+    sympy.Symbol,
+    sympy.Number,
+    sympy.NumberSymbol,
+    sympy.core.numbers.ImaginaryUnit,
+    sin,
+    cos,
+    sympy.exp,
+    sympy.log,
+    AppliedUndef,
+)
 
 
 def rationalise(expr: Expr) -> Expr:
@@ -76,9 +101,17 @@ def is_zero(expr: object) -> bool:
     exact = rationalise(expr)  # roundoff in decimals would never cancel
     if exact == 0:
         return True
-    if exact.is_number and exact != 0:
+    if exact.is_Number:
         return False
     normal = normal_trig(exact)
+    if _numerator_vanishes(normal):
+        return True
+    whole = _whole_angles(normal)
+    return whole is not None and _numerator_vanishes(normal_trig(whole))
+
+
+def _numerator_vanishes(normal: Expr) -> bool:
+    """Whether an expression in :func:`normal_trig` form vanishes, by its numerator."""
     if _has_denominator(normal):  # combine into one fraction; its numerator decides
         numerator = sympy.expand(sympy.fraction(sympy.together(normal))[0])
     else:  # a polynomial in its atoms: expanding it decides, with no common denominator
@@ -88,10 +121,36 @@ def is_zero(expr: object) -> bool:
     return bool(numerator.has(cos) and _reduce_pythagorean(numerator) == 0)
 
 
+def _whole_angles(expr: Expr) -> Expr | None:
+    """``expr`` with each symbol ``x`` that ``sin`` and ``cos`` take a fraction of
+    written as ``n u``, for a new symbol ``u`` and the ``n`` that makes every angle
+    a whole multiple of ``u``: ``sin(x/2)`` and ``cos x`` become ``sin u`` and
+    ``cos 2u``, which :func:`normal_trig` relates. A change of variables, so it
+    vanishes exactly when ``expr`` does. ``None`` if there is nothing to change, or
+    ``expr`` is not built from :data:`_ALGEBRAIC` parts alone."""
+    multiples: dict[sympy.Symbol, list[sympy.Rational]] = {}
+    for function in expr.atoms(sin, cos):
+        for term in sympy.Add.make_args(function.args[0]):
+            coefficient, symbol = term.as_coeff_Mul()
+            if isinstance(symbol, sympy.Symbol) and coefficient.is_Rational:
+                multiples.setdefault(symbol, []).append(coefficient)
+    scaled = {}
+    for symbol, coefficients in multiples.items():
+        n = math.lcm(*(int(c.q) for c in coefficients))
+        if n > 1 and max(abs(c) * n for c in coefficients) <= _MULTIPLE:
+            scaled[symbol] = n * sympy.Dummy(symbol.name)
+    if not scaled or not all(
+        isinstance(part, _ALGEBRAIC) for part in sympy.preorder_traversal(expr)
+    ):
+        return None
+    return expr.xreplace(scaled)
+
+
 def _has_denominator(expr: Expr) -> bool:
-    """Whether anything but a number divides part of ``expr``, as in ``x/r``."""
+    """Whether anything but a rational number divides part of ``expr``, as in ``x/r``
+    or ``1/\\cos 1``."""
     return any(
-        power.exp.is_negative and not power.base.is_number for power in expr.atoms(sympy.Pow)
+        power.exp.is_negative and not power.base.is_Rational for power in expr.atoms(sympy.Pow)
     )
 
 
