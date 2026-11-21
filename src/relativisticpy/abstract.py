@@ -52,6 +52,8 @@ _SYMMETRIES = {
     "christoffel": lambda: TensorSymmetry.direct_product(1, 2),
 }
 _RANKS = {"riemann": 4, "weyl": 4, "ricci": 2, "einstein": 2, "christoffel": 3}
+# Numbers for the dummy indices of a rule as it is put into an expression.
+_FRESH = itertools.count()
 # The labels dummy indices are given when shown, in order of preference.
 _DUMMY_LABELS = (
     "alpha", "beta", "gamma", "lambda", "kappa", "rho", "sigma", "tau", "epsilon", "zeta",
@@ -359,8 +361,11 @@ def substitute(value: Value, rule_lhs: Value, rule_rhs: Value, space: Algebra) -
     """Replace what ``rule_lhs`` matches in ``value`` by ``rule_rhs``.
 
     The rule is a definition of one tensor, ``G_{ab} = R_{ab} - \\tfrac12 R g_{ab}``,
-    or a contraction with no free indices, ``u^a u_a = -1``."""
+    a contraction with no free indices, ``u^a u_a = -1``, or a value for a scalar,
+    ``\\Lambda = 0``, which is put into the coefficients."""
     rule_lhs = canonical(rule_lhs, space)
+    if not isinstance(rule_lhs, TensExpr):
+        return _substitute_scalars(value, rule_lhs, canonical(rule_rhs, space), space)
     rule_terms = list(terms(rule_lhs))
     if len(rule_terms) != 1:
         raise CompileError("the left side of a rule must be one term")
@@ -378,16 +383,45 @@ def substitute(value: Value, rule_lhs: Value, rule_rhs: Value, space: Algebra) -
     return canonical(result, space)
 
 
+def _substitute_scalars(value: Value, old: Expr, new: Value, space: Algebra) -> Value:
+    """``value`` with the scalar ``old``, such as \\Lambda or 8\\pi G, given the scalar value
+    ``new`` in every coefficient."""
+    if old.is_number:
+        raise CompileError("a rule gives a value to a symbol or an expression, not to a number")
+    if isinstance(new, TensExpr):
+        raise CompileError("a rule for a scalar gives it a scalar value, without tensors")
+    pieces = [(coefficient.subs(old, new), tensors) for coefficient, tensors in terms(value)]
+    return canonical(build(pieces), space)
+
+
+def _own_dummies(tensors: Sequence[Tensor], space: Algebra) -> list[Tensor]:
+    """The factors of a term, with each dummy index renamed to a name used nowhere else.
+    SymPy names the dummies of every product L_0, L_1, ..., so a rule's would meet the
+    term's where a rule is put in; the factors are multiplied only once it has been."""
+    names = [index.name for tensor in tensors for index in tensor.indices]
+    renamed = {name: f"{name}_{next(_FRESH)}" for name in names if names.count(name) == 2}
+    return [
+        tensor.head(
+            *(
+                TensorIndex(renamed.get(index.name, index.name), space.type, index.is_up)
+                for index in tensor.indices
+            )
+        )
+        for tensor in tensors
+    ]
+
+
 def _replace_tensor(value: Value, pattern: Tensor, replacement: Value, space: Algebra) -> Value:
     pieces = []
     for coefficient, tensors in terms(canonical(value, space)):
         factors: list[Value] = []
-        for tensor in tensors:
+        for tensor in _own_dummies(tensors, space):
             if tensor.head != pattern.head:
                 factors.append(tensor)
                 continue
             # Rename the rule's free indices to this occurrence's, positions included,
             # through temporary names, so that G_{ba} can use a rule written for G_{ab}.
+            # The occurrence's dummies have names of their own, which the rule's cannot.
             slots = list(zip(pattern.indices, tensor.indices, strict=True))
             rule = positioned(
                 replacement, [TensorIndex(p.name, space.type, t.is_up) for p, t in slots], space

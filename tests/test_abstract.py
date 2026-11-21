@@ -115,6 +115,24 @@ class TestRules:
             == 0
         )
 
+    def test_a_rule_with_a_dummy_index(self):
+        # The rule's dummy cannot meet the expression's, nor take a free index's name.
+        A, B, C = (space.head(name, 2) for name in "ABC")
+        b, c, d, e = (space.index(name, False) for name in "bcde")
+        rule = (A(c, d), B(c, e) * C(up(e), d))
+        traced = substitute(A(a, b) * u(up(a)) * u(up(b)), *rule, space)
+        expected = B(a, rho) * C(up(rho), b) * u(up(a)) * u(up(b))
+        assert canonical(traced - expected, space) == 0
+        free = substitute(A(e, b) * u(up(b)), *rule, space)
+        assert canonical(free - B(e, rho) * C(up(rho), b) * u(up(b)), space) == 0
+
+    def test_a_rule_for_a_scalar(self):
+        efe = Einstein(mu, nu) + Lam * g(mu, nu)
+        assert canonical(substitute(efe, Lam, 0, space) - Einstein(mu, nu), space) == 0
+        assert substitute(4 * Lam - R, R, 0, space) == 4 * Lam
+        with pytest.raises(CompileError, match="a scalar value"):
+            substitute(efe, Lam, Ricci(up(a), a) * Ricci(mu, nu), space)
+
     def test_a_contraction_rule(self):
         fluid = (rho_ + p) * u(up(mu)) * u(up(nu)) + p * g(up(mu), up(nu))
         result = substitute(fluid * u(nu), u(up(a)) * u(a), -1, space)

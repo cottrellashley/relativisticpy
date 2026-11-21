@@ -53,7 +53,7 @@ True
 | `solve(E, T_{\mu\nu})` | solve an equation for a tensor, with its indices up or down. The equation must be linear in the tensor; its trace may appear too |
 | `trace(E)` | contract the two free indices of an equation, or an expression, with the metric |
 | `simplify(E)` | the canonical form, under the tensors' symmetries and the identities below |
-| `subs(E, rule)` | apply a rule: a definition or a contraction |
+| `subs(E, rule)` | apply a rule: a definition, a contraction, or a value for a scalar such as `\Lambda = 0` |
 | `LHS(E)`, `RHS(E)` | one side of an equation |
 
 A rule given to `subs` applies whatever its indices are called, and in either
@@ -62,6 +62,14 @@ position. It may be a definition, such as that of the Einstein tensor:
 ```python
 >>> wb.expr(r"subs(EFE, G_{ab} = R_{ab} - \frac{1}{2} R g_{ab})")
 IndexEquation(R_{\mu\nu} + \left(\Lambda - \frac{1}{2} R\right) g_{\mu\nu} = 8 \pi G T_{\mu\nu})
+
+```
+
+A rule for a scalar puts its value into the coefficients:
+
+```python
+>>> wb.expr(r"subs(EFE, \Lambda = 0)")
+IndexEquation(G_{\mu\nu} = 8 \pi G T_{\mu\nu})
 
 ```
 

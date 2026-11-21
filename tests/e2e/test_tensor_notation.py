@@ -48,6 +48,15 @@ class TestNotation:
             r"R_{\mu\nu} - \frac{1}{2} R g_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}"
         )
 
+    def test_subs_with_a_scalar_rule(self, wb):
+        wb.exe(EINSTEIN)
+        assert str(wb.expr(r"subs(EFE, \Lambda = 0)")) == r"G_{\mu\nu} = 8 \pi G T_{\mu\nu}"
+        assert str(wb.expr("subs(trace(EFE), T = 0)")) == r"4 \Lambda - R = 0"
+
+    def test_subs_with_a_rule_that_sums(self, wb):
+        result = wb.expr(r"subs(A_{ab} u^a u^b, A_{cd} = B_{ce} C^{e}{}_{d})")
+        assert result == wb.expr(r"simplify(u^a B_{ae} C^{e}{}_{b} u^b)")
+
     def test_a_perfect_fluid_contracted_with_its_velocity(self, wb):
         fluid = r"((\rho + p) u^\mu u^\nu + p g^{\mu\nu}) u_\nu"
         result = wb.expr(rf"subs({fluid}, u^\alpha u_\alpha = -1)")
