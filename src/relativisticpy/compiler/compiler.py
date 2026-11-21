@@ -492,8 +492,11 @@ class Compiler:
         metric = self.session.evaluate(self.value(value, scope, ctx))
         if not isinstance(metric, Metric):  # pragma: no cover - every capitalised builtin is one
             return None
-        self.session.set_coordinates(metric.coordinates)
-        return self.graph.const(metric.components, VALUE, value.span)
+        # Its coordinates are plain symbols: one declared with assumptions, as by
+        # Positive := [r], takes the place of its namesake.
+        declared = {c: self.session.symbol(c.name) for c in metric.coordinates}
+        self.session.set_coordinates(tuple(declared.values()))
+        return self.graph.const(metric.components.xreplace(declared), VALUE, value.span)
 
     def _define_line_element(self, value: ast.Expr, scope: Scope, ctx: Context, span: Span) -> None:
         # Without declared coordinates, the differentials name them: dt, dr and d\Omega
@@ -1455,8 +1458,9 @@ class Compiler:
                 raise CompileError(f"cannot pass a tensor to {name}()", span=source.span)
         values = [arg.op.value if isinstance(arg.op, ops.Const) else None for arg in args]
         coordinates = self.session.coordinates or ()
-        if values and all(value in coordinates for value in values):
-            self.session.functions[name] = tuple(values)  # later, a bare name means this
+        # Later, a bare name means this; but a coordinate, as r in r(t), stays a coordinate.
+        if values and all(value in coordinates for value in values) and name not in names:
+            self.session.functions[name] = tuple(values)
         function = sympy.Function(name)
         return self._call(function, name, args, SCALAR, node.span)
 

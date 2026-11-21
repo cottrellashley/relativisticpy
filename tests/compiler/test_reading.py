@@ -42,6 +42,20 @@ class TestImplicitContext:
         wb.exe(SPHERICAL)
         assert wb.expr(r"\partial_1^2 \beta") == diff(beta, r, 2)
 
+    def test_a_spacetimes_coordinates_keep_declared_assumptions(self, wb):
+        wb.exe("Positive := [r]")
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        positive = Symbol("r", positive=True)
+        assert wb.coordinates[1] == positive
+        assert wb.expr(r"\partial_r (r^2)") == 2 * positive
+        assert wb.expr(r"\sqrt{r^2}") == positive
+
+    def test_a_coordinate_called_once_as_a_function_stays_a_coordinate(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        assert wb.expr(r"\frac{d r(t)}{dt}") == diff(Function("r")(t), t)
+        assert wb.expr("r") == r  # not r(t) from now on
+        assert wb.expr(r"\partial_r (r^2)") == 2 * r
+
 
 class TestLatexReading:
     def test_a_script_binds_to_the_last_letter(self, wb):
