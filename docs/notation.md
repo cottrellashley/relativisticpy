@@ -91,7 +91,8 @@ algorithm. It knows each tensor's symmetries and renames dummy indices, so
 RelativisticPy adds the identities of General Relativity:
 
 - the symmetries of the Riemann tensor, and the first Bianchi identity,
-  \(R_{\rho[\sigma\mu\nu]} = 0\);
+  \(R_{\rho[\sigma\mu\nu]} = 0\), also where its indices are contracted, as in
+  \(R_{\rho[\sigma\mu\nu]} u^\nu = 0\);
 - its contractions: \(R^\alpha{}_{\mu\alpha\nu} = R_{\mu\nu}\),
   \(R^\mu{}_\mu = R\) and \(G^\mu{}_\mu = (1 - n/2) R\) in \(n\) dimensions;
 - the Weyl tensor is traceless; \(g^\mu{}_\mu = n\), and the metric with one
