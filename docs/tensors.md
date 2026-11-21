@@ -273,8 +273,12 @@ Eq(beta(r), C1 - alpha(r))
 ## Spacetimes
 
 Each of these is a function returning a metric, used as
-`g_{\mu\nu} := Schwarzschild(M)`. Parameters are symbols or numbers; units are
-geometric (\(G = c = 1\)).
+`g_{\mu\nu} := Schwarzschild(M)`. Parameters are symbols or numbers, and a
+decimal is the exact fraction it denotes, so `Schwarzschild(1.7)` is exactly a
+vacuum. Units are geometric (\(G = c = 1\)) unless `G` and `c` follow a
+spacetime's own parameters, as in `Schwarzschild(M, G, c)`. The scale factor of
+`FLRW(k, a)` may be named, and is then a function of \(t\), or given as an
+expression of \(t\).
 
 | Function | Spacetime |
 |---|---|
@@ -283,7 +287,7 @@ geometric (\(G = c = 1\)).
 | `ReissnerNordstrom(M, Q)` | charged black hole |
 | `Kerr(M, a)` | rotating black hole, Boyer–Lindquist coordinates |
 | `KerrNewman(M, a, Q)` | rotating, charged black hole |
-| `FLRW(k)` | homogeneous, isotropic universe with scale factor \(a(t)\) |
+| `FLRW(k, a)` | homogeneous, isotropic universe with scale factor \(a(t)\) |
 | `DeSitter(L)`, `AntiDeSitter(L)` | constant curvature, radius \(L\) |
 
 ```python

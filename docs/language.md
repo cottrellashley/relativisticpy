@@ -214,13 +214,18 @@ until you ask for their value with `doit`:
 
 Elementary functions (`sin`, `cos`, `tan`, `exp`, `ln`, `log`, `sqrt`, the
 inverse and hyperbolic functions, `Abs`, `sign`, `floor`, `ceiling`,
-`factorial`, `binomial`, `gamma`, `re`, `im`, `conjugate`, ...), algebra
-(`simplify`, `expand`, `factor`, `collect`, `cancel`, `apart`, `together`,
-`trigsimp`, `subs`, `N`), calculus (`diff`, `integrate`, `limit`, `series`,
-`doit`), equations (`solve`, `dsolve`, `RHS`, `LHS`, `Eq`), matrices (`diag`,
-`det`, `inverse`, `transpose`, `trace`), `latex`, `symbols`, and the
+`factorial`, `factorial2` (`n!!`), `binomial`, `gamma`, `re`, `im`, `conjugate`,
+...), algebra (`simplify`, `expand`, `factor`, `collect`, `cancel`, `apart`,
+`together`, `trigsimp`, `subs`, `N`), calculus (`diff`, `integrate`, `limit`,
+`series`, `doit`), equations (`solve`, `dsolve`, `RHS`, `LHS`, `Eq`), matrices
+(`diag`, `det`, `inverse`, `transpose`, `trace`), `latex`, `symbols`, and the
 [spacetimes](tensors.md#spacetimes). A function without parentheses applies to
-what follows it: `sin x` is `sin(x)`.
+what follows it: `sin x` is `sin(x)`. In LaTeX it does so only when it is
+written as a command, `\sin x` or `\operatorname{sign} x`, and a function's
+name with nothing to act on is a symbol, as the lapse \(N\) is in
+`ds^2 = -N^2 dt^2 + \ldots`. A Greek letter written as one, `\gamma` or `γ`,
+is always a letter, so `\gamma(r)` in a metric is an unknown function; Euler's
+gamma function is `gamma(x)`, spelled out.
 
 A function you call without defining it stays unknown, which is how to write
 an unknown function such as \(A(r)\) in a metric.
