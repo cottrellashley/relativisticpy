@@ -103,12 +103,29 @@ metric in force, each of its terms is written back in the language, its scalar
 coefficient bound to a fresh name, and compiled like any other tensor
 expression.
 
+Every index ranges over a space, and a tensor's type records the space of each
+axis: spacetime in General Relativity, or assets, days, a qubit (see
+[Beyond spacetime](spaces.md)). An index label takes its space from a declaration,
+`a, b \in \mathcal{A}`, or from the first tensor it is written on in a statement;
+labels that do neither range over spacetime. The rules of summation follow each
+space's metric: where it is the identity, an index may be summed in any position.
+Expectations bind their index, so that factors share it, and are contracted with the
+measure of its space in the same contraction as the factors. Products with an inverse
+become linear solves.
+
 ## The IR
 
 The IR is a graph of nodes, each an operation applied to other nodes, with a
 static type. Operations are frozen data: `Contract`, `Permute`, `Select`,
 `Partial`, `Symmetrize`, `Map`, `Add`, `Mul`, `Scale`, `Pow`, `Call`, `MakeArray`,
-`ToArray`, `Equation`, `LineElement` and `Geometry`.
+`ToArray`, `Equation`, `Inverse`, `LineElement` and `Geometry`.
+
+The same operations compute symbolic components with SymPy and numerical ones with
+NumPy: the kernels look at what they are given. A contraction of numbers is
+`numpy.einsum`, in the order its optimiser finds cheapest, in slices when its
+operands are too large to hold at once, as a matrix product for a SciPy sparse
+matrix, and with `jax.numpy` for JAX arrays, through which `Workbook.grad`
+differentiates.
 
 The graph interns nodes: asking for the same operation on the same arguments
 returns the existing node, so common subexpressions are shared. Each node also

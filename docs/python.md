@@ -20,13 +20,17 @@ results are ordinary Python values.
 | `wb.check(document)` | run the equations of a LaTeX document or notebook and give a verdict on each: see [Checking papers](checking.md) |
 | `wb.markdown(text)` | run a Markdown document's `$$...$$` blocks and typeset the results after each |
 | `wb[name]` | the value bound to a name |
+| `wb["R_{ta}"] = data` | bind data: a NumPy array, pandas DataFrame or Series, SciPy sparse matrix, SymPy array or list (see [Beyond spacetime](spaces.md)) |
+| `wb.space(name, dim, basis=, labels=, measure=)` | declare a space for indices to range over, with its basis, labels and the weights of its expectations |
+| `wb.grad(source, wrt)` | the gradient of a scalar with respect to bound data, by automatic differentiation with JAX |
 | `wb.metric`, `wb.coordinates` | the metric in force (a `Metric`) and the coordinates |
 | `wb.ir(source)` | the IR a program compiles to, as text |
 | `wb.tokens(source)`, `wb.parse(source)` | the tokens and syntax tree |
 | `wb.reset()` | forget every definition |
 
 `workers` sets how many processes share component-wise work such as
-simplification (`None` for one per CPU). A workbook is a context manager, which
+simplification (`None` for one per CPU). `backend="jax"` keeps bound data as JAX
+arrays, so that it is computed with JAX. A workbook is a context manager, which
 stops its workers on exit.
 
 ```python
@@ -87,6 +91,21 @@ Tensor('_{a}', [-2, 3])
 `tensor.nonzero()` maps coordinate names to the nonzero components,
 `tensor.latex()` typesets it (as does Jupyter), and `simplify`, `subs` and
 `applyfunc` act on every component.
+
+Components may also be numbers in a NumPy array, as data and what is computed
+from it are. Each axis then ranges over one of `tensor.spaces`, each a `Space` with a
+`name`, a `dim` and perhaps the names of its `basis`. `tensor.numerical` says
+which kind a tensor is, and `tensor.to_numpy()` and `tensor.to_pandas()` give the
+components back, labelled by the bases of their spaces:
+
+```python
+>>> import numpy as np
+>>> book = Workbook()
+>>> book["w^a"] = np.array([0.5, 0.5])
+>>> book["w"].to_numpy()
+array([0.5, 0.5])
+
+```
 
 ## Metric
 

@@ -4,6 +4,7 @@ import runpy
 from pathlib import Path
 
 import pytest
+import sympy
 from sympy import Function, Symbol, diff
 
 from helpers import same
@@ -19,7 +20,15 @@ def run(name):
 
 
 def test_every_example_is_tested():
-    tested = {"schwarzschild.md", "kretschmann.md", "friedmann.md", "geodesics.md", "light.py"}
+    tested = {
+        "schwarzschild.md",
+        "kretschmann.md",
+        "friedmann.md",
+        "geodesics.md",
+        "light.py",
+        "spins.md",
+        "portfolio.py",
+    }
     assert {path.name for path in EXAMPLES.iterdir()} - {"README.md"} == tested
 
 
@@ -56,3 +65,19 @@ def test_light(capsys):
     output = capsys.readouterr().out
     assert "bent by 0.04122 rad" in output
     assert "captured below b = 5.19615M" in output
+
+
+def test_spins():
+    j, omega = Symbol("J"), Symbol("omega")
+    spectrum, trace, evolution = run("spins.md")
+    assert list(spectrum.components) == [-3 * j, j, j, j]
+    assert trace == 0
+    phase = sympy.exp(-sympy.I * omega * t / 2)
+    assert evolution.components.tolist() == [[phase, 0], [0, 1 / phase]]
+
+
+def test_portfolio(capsys):
+    runpy.run_path(str(EXAMPLES / "portfolio.py"), run_name="__main__")
+    output = capsys.readouterr().out
+    assert "the tangency portfolio's weights sum to 1.000000" in output
+    assert "5 eigenvalues stand above the Marchenko–Pastur edge of 2.09" in output

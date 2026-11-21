@@ -41,6 +41,9 @@ copied from a paper or your own notes runs as it is, and a whole paper can be
   their conventions, line elements, spacetimes.
 - [Solving tensor equations](notation.md): rearrange, trace, simplify and solve
   equations between tensors as notation, then take their components.
+- [Beyond spacetime](spaces.md): indices over any space, data from NumPy and
+  pandas, statistics, spectra and linear algebra: portfolios, quantum systems,
+  graphs.
 - [LaTeX](latex.md): how LaTeX is read, and what is supported.
 - [Checking papers](checking.md): run the equations of a paper and see which
   hold.

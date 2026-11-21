@@ -170,6 +170,27 @@ the same thing.
   is the Friedmann equation's energy density. See
   [Solving tensor equations](https://relativisticpy.org/notation/).
 
+- **Beyond spacetime.** Index notation never needed spacetime: an index ranges
+  over a space, of coordinates, assets, days or the states of a qubit. Bind data
+  from NumPy or pandas and write statistics, spectra and linear algebra as on a
+  page; RelativisticPy computes them with NumPy, SciPy, scikit-learn and JAX. The
+  minimum-variance portfolio of two assets, by Cholesky solves rather than an
+  inverse:
+
+  ```python
+  >>> import numpy as np
+  >>> market = Workbook()
+  >>> market["R_{ta}"] = np.array([[0.01, 0.02], [0.03, -0.01], [-0.02, 0.01], [0.00, 0.03]])
+  >>> market.exe(r"\Sigma_{ab} := \operatorname{Cov}_t(R_{ta}, R_{tb})")
+  []
+  >>> market.expr(r"\frac{(\Sigma^{-1})^{ab} 1_b}{1_c (\Sigma^{-1})^{cd} 1_d}").to_numpy().round(4).tolist()
+  [0.4351, 0.5649]
+
+  ```
+
+  Portfolios, quantum systems, graphs and regressions are worked through in
+  [Beyond spacetime](https://relativisticpy.org/spaces/).
+
 - **Notebooks in Markdown.** `relativisticpy notes.md --render` runs every
   `$$...$$` block of a Markdown file and typesets the results beneath it. The
   equations you write up *are* the computation.
@@ -214,6 +235,7 @@ The guide at **[relativisticpy.org](https://relativisticpy.org)** covers
 [the language](https://relativisticpy.org/language/),
 [tensors and geometry](https://relativisticpy.org/tensors/),
 [solving tensor equations](https://relativisticpy.org/notation/),
+[beyond spacetime](https://relativisticpy.org/spaces/),
 [LaTeX](https://relativisticpy.org/latex/),
 [checking papers](https://relativisticpy.org/checking/),
 [numerics](https://relativisticpy.org/numerics/) and

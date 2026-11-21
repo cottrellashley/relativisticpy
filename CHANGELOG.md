@@ -37,6 +37,32 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   says whether it is an identity; and with a metric in force, a tensor defined
   from it has components. Checking a paper verifies its identities in index
   notation.
+- Index notation beyond spacetime. An index ranges over a space, declared in the
+  notation (`\mathcal{A} := \mathbb{R}^{500}`, `a, b \in \mathcal{A}`) or brought
+  by data, and a tensor's type records the space of each axis. Data is bound from
+  Python, `wb["R_{ta}"] = frame`, from NumPy, pandas (whose labels name the
+  components), SciPy sparse matrices or SymPy, and results give it back with
+  `to_numpy` and `to_pandas`. Numerical components are computed with NumPy:
+  contractions with `numpy.einsum` in their cheapest order, in slices when too large
+  to hold, and as matrix products for sparse matrices.
+- Statistics as contractions with a measure: `\mathbb{E}_t[...]`,
+  `\operatorname{Var}_t`, `\operatorname{Cov}_t` and the Ledoit–Wolf covariance from
+  scikit-learn, each one contraction with what it averages, and weighted by
+  `Workbook.space(..., measure=...)`.
+- Linear algebra on tensors: inverses, `(\Sigma^{-1})^{ab}`, computed as linear
+  solves, by Cholesky factorisation where they can be; `eig` and `spec`, relative to
+  a space's metric for a bilinear form, with the few largest or smallest
+  eigenvalues of a sparse matrix; `svd`, `det`, `tr`, norms, `diag`, the
+  elementwise product `\odot`, and functions of a map such as `\exp(-i H t)`. Any
+  space can be given a metric, `g_{ab} := \Sigma_{ab}`; where its metric is the
+  identity, an index may be summed in any position.
+- JAX: `Workbook(backend="jax")` computes with JAX arrays, and `Workbook.grad`
+  differentiates a scalar with respect to bound data, through contractions and
+  solves. New extras: `relativisticpy[data]` (pandas and scikit-learn) and
+  `relativisticpy[jax]`.
+- Blackboard bold is a name of its own (`\mathbb{R}`, ℝ, 𝔼, 𝟙), names listed before
+  `\in` are one declaration, `A \odot B` is the elementwise product, and `y_t`
+  indexes `y` where `y` is a tensor.
 - `Workbook.each`, which runs a program one statement at a time and carries on
   after errors.
 - A corpus benchmark, `benchmarks/corpus.py`, measuring how much of real

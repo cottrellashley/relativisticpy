@@ -33,6 +33,10 @@ that grew from it, and where each stands.
 - **Tensor equations solved as tensor equations**: `solve`, `trace`,
   `simplify` and `subs` in index notation, with the identities of General
   Relativity, before there are components, and components after.
+- **Beyond spacetime**: indices over spaces of any size, data from NumPy and
+  pandas, statistics as contractions with a measure, spectra and linear algebra,
+  sparse data, and JAX for gradients; portfolios, quantum systems, graphs and
+  regressions in the notation of General Relativity.
 
 ## Next
 
@@ -60,8 +64,12 @@ that grew from it, and where each stands.
   electromagnetic field) as built-ins, to state field equations in full.
 - **More spacetimes**: Oppenheimer–Snyder collapse, Lemaître–Tolman–Bondi dust,
   Schwarzschild–de Sitter.
-- **Numerical execution of the IR**, so that whole tensor expressions run on
-  NumPy arrays over grids rather than being compiled one result at a time.
+- **Fields on grids**: the components of a tensor field evaluated over a grid
+  of points by the numerical kernels, rather than one point at a time, for
+  numerical relativity and for pictures.
+- **Optimisation in notation**: minimise \(w^a \Sigma_{ab} w^b\) subject to
+  constraints, with gradients from JAX; Dirac's bra-ket notation,
+  \(\langle\psi|H|\psi\rangle\); more of scikit-learn's estimators.
 - **Tensor and spacetime visualisation**: embedding diagrams, light cones,
   Penrose–Carter diagrams.
 - **The ADM formalism** and tools for numerical relativity.

@@ -1,7 +1,8 @@
 # Spaces and domains: one notation, from spacetime to a portfolio
 
-*A design proposal. Status: for review. Nothing here is implemented yet, except in
-the prototype described under [Evidence](#evidence).*
+*A design proposal. Status: implemented, as proposed and with the four decisions
+taken as recommended. The user's guide is [Beyond spacetime](../docs/spaces.md);
+this records why.*
 
 ## The idea
 

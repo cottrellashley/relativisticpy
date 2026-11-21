@@ -16,5 +16,7 @@ relativisticpy examples/schwarzschild.md --render
 | [friedmann.md](friedmann.md) | The Friedmann equations and the continuity equation of an expanding universe |
 | [geodesics.md](geodesics.md) | The geodesic equations from a Lagrangian, checked against the Christoffel symbols |
 | [light.py](light.py) | Python: light bent and captured by a black hole, integrated numerically |
+| [spins.md](spins.md) | Two spins: an operator on a product space, its exact spectrum, and the evolution of a spin |
+| [portfolio.py](portfolio.py) | Python: 500 assets, the tangency portfolio, risk as a metric, and real factors told from noise |
 
 Every example runs as part of the test suite, in `tests/test_examples.py`.
