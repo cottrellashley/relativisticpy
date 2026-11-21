@@ -9,11 +9,15 @@ relativisticpy check notes.tex                    # the whole document
 relativisticpy check notes.tex --lines 9058:9112  # one passage
 relativisticpy check notes.tex --all              # every statement, with reasons
 relativisticpy check notes.tex --time-limit 60    # seconds for each statement; inf for none
+relativisticpy check notes.tex -j 4               # four processes for component-wise work
+relativisticpy check notes.tex --strict           # fail if an equation differs or is not parsed
 relativisticpy check notebook.md                  # a Markdown notebook
 ```
 
 A statement gets 30 seconds by default, to be computed and judged; one that takes
-longer is not computed.
+longer is not computed. The command exits with status 0 whatever it finds, unless
+it is given `--strict`: then an equation that differs, or one that cannot be
+parsed, makes it exit with status 1, for a continuous integration job to act on.
 
 ## An example
 

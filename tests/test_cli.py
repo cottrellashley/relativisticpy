@@ -50,6 +50,12 @@ def test_errors_exit_with_one(capsys, tmp_path):
     assert "error:" in capsys.readouterr().err
 
 
+def test_help_mentions_check(capsys):
+    with pytest.raises(SystemExit):
+        main(["--help"])
+    assert "relativisticpy check FILE" in capsys.readouterr().out
+
+
 def test_display():
     tensor = Tensor([[1, 0], [0, 2]], "_{ab}", name="h")
     assert display(tensor) == "h_{a}_{b}:\n  [0, 0] = 1\n  [1, 1] = 2"

@@ -47,6 +47,8 @@ def _main(arguments: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="relativisticpy",
         description="General Relativity for physicists in a hurry.",
+        epilog="relativisticpy check FILE checks the equations of a LaTeX document or a "
+        "Markdown notebook: see relativisticpy check --help.",
     )
     parser.add_argument("file", nargs="?", help="a program, or a Markdown file with $$ blocks")
     parser.add_argument("-c", "--code", help="run this code instead of a file")
@@ -110,6 +112,14 @@ def check(argv: Sequence[str]) -> int:
         default=30.0,
         help="seconds allowed for each statement, or inf for no limit (default: 30)",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit with status 1 if an equation differs or could not be parsed",
+    )
+    parser.add_argument(
+        "-j", "--workers", type=int, default=1, help="processes for component-wise work"
+    )
     args = parser.parse_args(argv)
     lines = None
     if args.lines:
@@ -117,7 +127,7 @@ def check(argv: Sequence[str]) -> int:
         if not (first.isdigit() and last.isdigit()):
             parser.error("--lines takes two line numbers, as in --lines 120:340")
         lines = (int(first), int(last))
-    with Workbook() as workbook:
+    with Workbook(workers=args.workers) as workbook:
         try:
             report = workbook.check(args.file, lines=lines, time_limit=args.time_limit)
         except OSError as error:
@@ -130,7 +140,8 @@ def check(argv: Sequence[str]) -> int:
         print()
     for finding in findings:
         print(finding.describe())
-    return 0
+    failed = report.count(Verdict.DIFFERS) or report.count(Verdict.NOT_PARSED)
+    return 1 if args.strict and failed else 0
 
 
 def _seconds(text: str) -> float:

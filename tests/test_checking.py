@@ -336,3 +336,21 @@ class TestCommandLine:
         paper.write_text(PAPER)
         assert main(["check", str(paper), "--time-limit", "inf"]) == 0
         assert "line 11     ✓ holds" in capsys.readouterr().out
+
+    @pytest.mark.parametrize(
+        ("equation", "status"),
+        [("2 + 2 = 4", 0), (r"\pi \approx 3.14", 0), ("2 + 2 = 5", 1), (r"\frac{a}{", 1)],
+    )
+    def test_strict_fails_when_an_equation_differs_or_is_not_parsed(
+        self, equation, status, tmp_path
+    ):
+        paper = tmp_path / "paper.tex"
+        paper.write_text(rf"\begin{{equation}} {equation} \end{{equation}}")
+        assert main(["check", str(paper), "--strict"]) == status
+        assert main(["check", str(paper)]) == 0
+
+    def test_workers(self, tmp_path, capsys):
+        paper = tmp_path / "paper.tex"
+        paper.write_text(PAPER)
+        assert main(["check", "-j", "2", str(paper)]) == 0
+        assert "line 13     ✗ differs" in capsys.readouterr().out
