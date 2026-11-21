@@ -87,6 +87,11 @@ class TestArithmetic:
         assert sexpr("(n - k)!") == "(! (- n k))"
         assert sexpr("n! / k!") == "(/ (! n) (! k))"
 
+    def test_double_factorial(self):
+        assert sexpr("n!!") == "(call factorial2 n)"  # n(n-2)(n-4)..., not (n!)!
+        assert sexpr("(n!)!") == "(! (! n))"
+        assert sexpr("n! !") == "(! (! n))"
+
     def test_absolute_value(self):
         assert sexpr("|x - 3|") == "(abs (- x 3))"
         assert sexpr("|-x^2|") == "(abs (- (^ x 2)))"
@@ -383,6 +388,16 @@ class TestCollections:
         source = r"\begin{cases} 1, & x \geq 0 \\ 0, & x < 0 \end{cases}"
         assert sexpr(source) == "(piecewise (1 if (>= x 0)) (0 if (< x 0)))"
 
+    @pytest.mark.parametrize(
+        "source",
+        [
+            r"\begin{cases} x, & x > 0, \\ 0, & \text{otherwise.} \end{cases}",
+            r"\begin{cases} x & \text{if } x > 0; \\ 0 & \text{otherwise}. \end{cases}",
+        ],
+    )
+    def test_cases_end_their_rows_with_the_punctuation_of_a_sentence(self, source):
+        assert sexpr(source) == "(piecewise (x if (> x 0)) (0 if otherwise))"
+
 
 class TestFractionsRootsAndFunctions:
     def test_fractions(self):
@@ -420,13 +435,23 @@ class TestFractionsRootsAndFunctions:
             (r"\log_{2} x", "(call log x 2)"),
             (r"\ln x + 1", "(+ (call ln x) 1)"),
             (r"\exp(-x^2)", "(call exp (- (^ x 2)))"),
+            (r"\exp[-x^2]", "(call exp (- (^ x 2)))"),  # brackets hold the argument too
+            (r"\sin[x]", "(call sin x)"),
             (r"\max(a, b)", "(call max a b)"),
             (r"\det g", "(call det g)"),
             (r"\Re(z)", "(call re z)"),
+            (r"\ln A(r)", "(call ln (call A r))"),  # a call in an unbracketed argument
+            (r"\sin f(x) g(x)", "(call sin (* (call f x) (call g x)))"),
         ],
     )
     def test_function_commands(self, text, expected):
         assert sexpr(text) == expected
+
+    @pytest.mark.parametrize("text", [r"\max_x f(x)", r"\min_{x} f", r"\det_g A"])
+    def test_only_log_takes_a_subscript(self, text):
+        # \max_x is a maximum over x, not a logarithm to the base x
+        command = text.split("_")[0]
+        assert f"a subscript on {command} is not supported" in str(error(text))
 
     def test_a_function_argument_stops_at_a_differential(self):
         assert sexpr(r"\sin^2\theta d\phi^2") == "(* (* (^ (call sin theta) 2) d) (^ phi 2))"
@@ -807,6 +832,8 @@ class TestMoreErrors:
             (r"\sum_{n=0}^", r"expected a limit after \sum"),
             (r"\lim x", r"\lim needs a subscript"),
             (r"\pdv[2]{f}{x}{y}", "a mixed derivative cannot also have an order"),
+            (r"\pdv[1.5]{f}{x}", "the order of a derivative must be a whole number"),
+            ("d^{1.5}{f}/d{x}", "the order of a derivative must be a whole number"),
             (r"\lfloor x", r"expected \rfloor to close \lfloor"),
             (r"\sin^{} x", "expected an expression"),
             (r"\sin + 1", "expected an argument, found '+'"),

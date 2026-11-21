@@ -37,11 +37,13 @@ language.
 ```
 
 **Functions take what follows them.** `\sin x` is \(\sin(x)\), `\sin^2\theta`
-is \(\sin^2(\theta)\) and `\sin^{-1} x` is \(\arcsin(x)\). Without parentheses a
-function's argument runs over the following factors (`\sin\omega t` is
-\(\sin(\omega t)\)) and stops at explicit spacing, an operator, another
-function or a differential: in `\sin^2\theta\, d\phi^2` the argument is
-\(\theta\).
+is \(\sin^2(\theta)\) and `\sin^{-1} x` is \(\arcsin(x)\). Square brackets hold
+an argument as parentheses do: `\exp[-x^2]`. Without brackets a function's
+argument runs over the following factors (`\sin\omega t` is
+\(\sin(\omega t)\), and `\ln A(r)` is \(\ln A(r)\)) and stops at explicit
+spacing, an operator, another function or a differential: in
+`\sin^2\theta\, d\phi^2` the argument is \(\theta\). Only `\log` takes a
+subscript, its base, as in `\log_2 x`; `\max_x` and `\det_g` are errors.
 
 **Brackets group.** `\left[ ... \right]` and `\{ ... \}` group like parentheses.
 `\left| ... \right|` is an absolute value and `\left. ... \right|_{x=a}` an
@@ -55,7 +57,7 @@ evaluation bar.
 |---|---|
 | `matrix`, `pmatrix`, `bmatrix`, `Bmatrix`, `smallmatrix`, `array` | a matrix |
 | `vmatrix` | a determinant |
-| `cases` | a piecewise function, with `\text{if}` and `\text{otherwise}` |
+| `cases` | a piecewise function, with `\text{if}` and `\text{otherwise}`; so is an `array` in `\left\{ ... \right.` |
 | `align`, `equation`, `gather`, `multline`, `split` and starred forms | statements separated by `\\` |
 
 ```python
@@ -150,7 +152,7 @@ separate them, as do `\Rightarrow`, `\implies` and `\iff`:
 | Relations read but not computed | `\sim` `\simeq` `\approx` `\cong` `\propto` `\ll` `\gg` `\in` `\subset` `\to` `\leftrightarrow`, and `:` as in `\phi : M \to N` |
 | Identities | `A \equiv B`, when A cannot be defined, states that the two are equal |
 | Labels on symbols | `r_+`, `i^-`, `r_\pm`, `r^*` and prescripts such as `{}^{(3)}R` name symbols rather than raising to powers |
-| Index labels | `\mu'`, `\mu_1`, `\mu_{p+1}`, `\phi_{t*}`, nested groups such as `R_{\rho\sigma{\mu\nu}}`, and `\phi,{}_\mu` for \(\phi_{,\mu}\) |
+| Index labels | `\mu'`, `\mu_1`, `\mu_{p+1}`, `\phi_{t*}`, nested groups such as `R_{\rho\sigma{\mu\nu}}`, `\phi,{}_\mu` for \(\phi_{,\mu}\), and MTW's staggered `{\Gamma^r}_{tt}` |
 | Operators | `\Box` (\(\nabla^\mu\nabla_\mu\)), the Lie derivative `\pounds_V`, the wedge product `A_{\mu} \wedge B_{\nu}`, `\otimes`, `\pm` and `\mp` (both values) |
 | Not computed | `\cdots` and `\ldots`, the Hodge dual `*F`, composition `\circ`, integrals over regions `\int d^4x`, and sums over indices without limits, `\sum_b`, are read, and say why they cannot be computed |
 

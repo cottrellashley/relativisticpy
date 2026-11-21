@@ -46,6 +46,17 @@ class TestPlainTex:
         assert sexpr(r"\pmatrix{a & b \cr c & d}") == "(pmatrix (a b) (c d))"
         assert sexpr(r"\cases{a = 1 \cr b = 2 \cr}") == "(list (= a 1) (= b 2))"
 
+    def test_cases_written_as_an_array_in_a_brace(self):
+        source = r"""
+            \left\{ \begin{array}{ll}
+                x & \mbox{if } x > 0 \\
+                0 & \mbox{otherwise}
+            \end{array} \right.
+        """
+        assert sexpr(source) == "(piecewise (x if (> x 0)) (0 if otherwise))"
+        # in brackets that close, an array is still a matrix
+        assert sexpr(r"\left( \begin{array}{cc} 1 & 2 \end{array} \right)") == "(array (1 2))"
+
     def test_symbol_commands_are_single_symbols(self):
         assert [t.verbatim for t in tokenize(r"\hbar \ell")[:2]] == [True, True]
 
@@ -113,6 +124,8 @@ class TestIndices:
             (r"R_{\rho\sigma{\mu\nu}}", "(R _[rho sigma mu nu])"),  # as from a macro
             (r"\phi,{}_\mu", "(phi _[, mu])"),
             (r"x^\mu'", "(x ^[mu'])"),
+            (r"{\Gamma^r}_{tt}", "(Gamma ^[r] _[t t])"),  # MTW's staggered indices
+            (r"{T_{\alpha}}^{\beta}", "(T _[alpha] ^[beta])"),
         ],
     )
     def test_index_labels(self, text, expected):

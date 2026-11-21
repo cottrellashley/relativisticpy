@@ -83,6 +83,9 @@ _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
 }  # fmt: skip
 _CASE_WORDS = frozenset({"if", "for", "when", "where"})
 _OTHERWISE = frozenset({"otherwise", "else"})
+# The halves of old-style cases, \left\{ \begin{array} ... \end{array} \right.
+_LEFT_BRACE = re.compile(r"\\left\s*(?:\\\{|\\lbrace)")
+_RIGHT_DOT = re.compile(r"\\right\s*\.")
 # A name that reads as a differential inside an integral or a derivative: dx, dtheta, dx1.
 _DIFFERENTIAL = re.compile(
     r"d(?:" + "|".join(sorted(vocab.GREEK, key=len, reverse=True)) + r"|[A-Za-z][0-9]*)"
@@ -603,7 +606,8 @@ class Parser:
             return self._prefix()
         if kind in (K.CARET, K.UNDERSCORE):
             return self._prescripted()
-        return self._postfix(self._atom(), grouped=kind in (K.LPAREN, K.LBRACE))
+        grouped = kind in (K.LPAREN, K.LBRACE)
+        return self._postfix(self._atom(), grouped=grouped, braced=kind is K.LBRACE)
 
     def _prescripted(self) -> ast.Expr:
         """A script before its symbol labels it: ``{}^{(3)}R`` is the curvature of space."""
@@ -651,16 +655,19 @@ class Parser:
             return self._absolute_value()
         raise ParseError(f"expected an expression, found {token.describe()}", span=token.span)
 
-    def _postfix(self, node: ast.Expr, *, grouped: bool = False) -> ast.Expr:
+    def _postfix(self, node: ast.Expr, *, grouped: bool = False, braced: bool = False) -> ast.Expr:
         """Scripts, calls, primes and factorials. A ``grouped`` node (from brackets)
-        starts new scripts rather than extending its own: ``(x^2)^3`` is not ``x^{2^3}``."""
+        starts new scripts rather than extending its own: ``(x^2)^3`` is not ``x^{2^3}``.
+        A ``braced`` one staggers its indices, as MTW write ``{\\Gamma^r}_{tt}``: a script
+        of a kind it does not have yet extends it."""
         while True:
             token = self.peek()
             kind = token.kind
             if kind in (K.CARET, K.UNDERSCORE):
                 if isinstance(node, ast.Operator) and node.kind == "lie":
                     self._one_letter_script()
-                node = self._attach_script(node, extend=not grouped)
+                staggered = braced and _without_script(node, "^" if kind is K.CARET else "_")
+                node = self._attach_script(node, extend=not grouped or staggered)
                 grouped = False
             elif (
                 kind is K.LBRACE
@@ -673,7 +680,7 @@ class Parser:
                 kind is K.LPAREN
                 and not token.space_before
                 and isinstance(node, ast.Name | ast.Prime)
-                and not self._function_argument
+                and (not self._function_argument or _plain_call(node, token))
             ):
                 node = self._call(node)
             elif kind is K.PRIME and isinstance(node, ast.Name):
@@ -704,7 +711,12 @@ class Parser:
                 node = ast.Scripted(base, (*scripts, script), span=self._span(base.span))
             elif kind is K.BANG:
                 self.advance()
-                node = ast.Factorial(node, span=self._span(node.span))
+                if self.check(K.BANG) and not self.peek().space_before:  # n!!
+                    bangs = token.span.to(self.advance().span)
+                    double = ast.Name("factorial2", span=bangs)
+                    node = ast.Call(double, (node,), span=self._span(node.span))
+                else:
+                    node = ast.Factorial(node, span=self._span(node.span))
             else:
                 return node
 
@@ -731,6 +743,11 @@ class Parser:
 
     def _parenthesized(self) -> ast.Expr:
         opener = self.advance()
+        if self._at_brace_cases(opener):  # \left\{ \begin{array} ... \end{array} \right.
+            with self._nested():
+                cases = self._cases()
+                self.expect(K.RPAREN, opener=opener)
+            return replace(cases, span=self._span(opener))
         with self._nested():
             if self.accept(K.RPAREN):
                 return ast.Tuple((), span=self._span(opener))
@@ -778,14 +795,40 @@ class Parser:
         return ast.Piecewise(tuple(pieces), span=self._span(opener))
 
     def _condition(self) -> ast.Expr | None:
-        """A piecewise condition, optionally introduced by a word: ``\\text{if } x > 0``."""
+        """A piecewise condition, optionally introduced by a word: ``\\text{if } x > 0``.
+        The word may carry the sentence's punctuation, as in ``\\text{otherwise.}``"""
         token = self.peek()
-        if token.kind in (K.IDENT, K.STRING) and token.value.strip().lower() in _OTHERWISE:
+        word = token.value.strip().rstrip(".,;").strip().lower()
+        if token.kind in (K.IDENT, K.STRING) and word in _OTHERWISE:
             self.advance()
             return None
-        if token.kind in (K.IDENT, K.STRING) and token.value.strip().lower() in _CASE_WORDS:
+        if token.kind in (K.IDENT, K.STRING) and word in _CASE_WORDS:
             self.advance()
         return self.expression(Power.SUBSTITUTION)
+
+    def _at_brace_cases(self, opener: Token) -> bool:
+        """Whether ``opener`` starts cases written the old way, as an array in a brace
+        that only opens: ``\\left\\{ \\begin{array}{ll} ... \\end{array} \\right.``"""
+        begin = self.peek()
+        if not (
+            _LEFT_BRACE.fullmatch(opener.span.text)
+            and begin.kind is K.BEGIN
+            and begin.value in ("array", "matrix")
+        ):
+            return False
+        index, depth = self._significant(self.pos), 0
+        while True:  # to the \end{array}
+            kind = self.tokens[index].kind
+            if kind is K.EOF:
+                return False
+            depth += 1 if kind is K.BEGIN else -1 if kind is K.END else 0
+            index += 1
+            if depth == 0:
+                break
+        while self.tokens[index].kind is K.NEWLINE:
+            index += 1
+        closer = self.tokens[index]
+        return closer.kind is K.RPAREN and _RIGHT_DOT.fullmatch(closer.span.text) is not None
 
     def _absolute_value(self) -> ast.Abs:
         opener = self.advance()
@@ -821,7 +864,7 @@ class Parser:
             base, scripts = node.base, (*node.scripts, script)
         else:
             base, scripts = node, (script,)
-        return ast.Scripted(base, scripts, span=base.span.to(script.span))
+        return ast.Scripted(base, scripts, span=node.span.to(script.span))
 
     def _script(self, kind: Literal["^", "_"], marker: Token) -> ast.Script:
         token = self.peek()
@@ -1330,7 +1373,7 @@ class Parser:
         order = 1
         if self.tokens[self.pos].kind is K.LBRACKET:
             self.pos += 1
-            order = int(self.expect(K.NUMBER, after="'['").value)
+            order = _order(self.expect(K.NUMBER, after="'['"))
             self.expect(K.RBRACKET)
         first = self._brace_argument(command)
         variables: list[ast.Expr] = []
@@ -1361,7 +1404,8 @@ class Parser:
         return ast.Call(func, (operand,), span=self._span(opener))
 
     def _function(self) -> ast.Expr:
-        r"""``\sin x``, ``\sin(x)``, ``\sin^2\theta``, ``\sin^{-1} x``, ``\log_{2} x``."""
+        r"""``\sin x``, ``\sin(x)``, ``\sin^2\theta``, ``\sin^{-1} x``, ``\log_{2} x``.
+        Only ``\log`` takes a subscript, its base: ``\max_x`` and ``\det_g`` are errors."""
         command = self.advance()
         name = vocab.FUNCTION_COMMANDS[command.value]
         power: ast.Expr | None = None
@@ -1373,8 +1417,14 @@ class Parser:
                 raise ParseError("expected an expression", span=script.span)
             if marker.kind is K.CARET:
                 power = script.body
-            else:
+            elif command.value == "log":
                 base = script.body
+            else:
+                raise ParseError(
+                    f"a subscript on \\{command.value} is not supported",
+                    span=command.span.to(script.span),
+                    hint="only \\log takes a subscript, its base, as in \\log_{2} x",
+                )
         if _is_minus_one(power) and command.value in vocab.INVERSE_FUNCTIONS:
             name, power = vocab.INVERSE_FUNCTIONS[command.value], None
         args = self._function_arguments()
@@ -1390,18 +1440,19 @@ class Parser:
         return node
 
     def _function_arguments(self) -> tuple[ast.Expr, ...]:
-        """Arguments in parentheses, or (as typeset maths reads it) the factors that
-        follow, up to explicit spacing, an operator, another function or a
-        differential: ``\\sin\\omega t`` is sin(ωt) but ``\\sin\\theta\\, d\\phi`` is not."""
+        """Arguments in parentheses or square brackets (``\\exp[-x^2]``), or (as typeset
+        maths reads it) the factors that follow, up to explicit spacing, an operator,
+        another function or a differential: ``\\sin\\omega t`` is sin(ωt) but
+        ``\\sin\\theta\\, d\\phi`` is not."""
         token = self.peek()
-        if token.kind is K.LPAREN:
+        if token.kind in (K.LPAREN, K.LBRACKET):
             opener = self.advance()
             args: list[ast.Expr] = []
             with self._nested():
                 args.append(self.expression())
                 while self.accept(K.COMMA):
                     args.append(self.expression())
-                self.expect(K.RPAREN, opener=opener)
+                self.expect(K.RPAREN if token.kind is K.LPAREN else K.RBRACKET, opener=opener)
             return tuple(args)
         if token.kind is K.LBRACE:
             opener = self.advance()
@@ -1455,10 +1506,10 @@ class Parser:
         order = 1
         if self.accept(K.CARET):
             if self.accept(K.LBRACE):
-                order = int(self.expect(K.NUMBER).value)
+                order = _order(self.expect(K.NUMBER))
                 self.expect(K.RBRACE)
             else:
-                order = int(self.expect(K.NUMBER).value)
+                order = _order(self.expect(K.NUMBER))
         opener = self.expect(K.LBRACE)
         with self._nested():
             expr = self.expression()
@@ -1537,6 +1588,11 @@ class Parser:
                 self.expect(K.AMPERSAND, after="a case's value")
                 pieces.append((value, self._condition()))
                 conditions = True
+                if self.peek().kind in (K.COMMA, K.PERIOD, K.SEMICOLON) and self.peek(1).kind in (
+                    K.ROW_SEP,
+                    K.END,
+                ):
+                    self.advance()  # the punctuation of a sentence: x > 0, \\
                 if not self.accept(K.ROW_SEP) and not self.check(K.END):
                     token = self.peek()
                     raise ParseError(
@@ -1560,6 +1616,32 @@ def _is_latex(token: Token) -> bool:
     """Whether a token was written as a LaTeX command or in Unicode mathematics."""
     text = token.span.text
     return text.startswith("\\") or not text.isascii()
+
+
+def _plain_call(node: ast.Name | ast.Prime, parenthesis: Token) -> bool:
+    """Whether, inside the unbracketed argument of a function, ``node`` followed by
+    ``parenthesis`` is a call: a name written plainly with a plain parenthesis, as in
+    ``\\ln A(r)``, but not ``\\cos\\theta\\left(...\\right)``, a product."""
+    name = node.func if isinstance(node, ast.Prime) else node
+    return parenthesis.span.text == "(" and not (
+        name.span.text.startswith("\\") or not name.span.text.isascii()
+    )
+
+
+def _without_script(node: ast.Expr, kind: Literal["^", "_"]) -> bool:
+    """Whether ``node`` is a name with scripts, none of them of this kind."""
+    return (
+        isinstance(node, ast.Scripted)
+        and isinstance(node.base, ast.Name)
+        and all(script.kind != kind for script in node.scripts)
+    )
+
+
+def _order(token: Token) -> int:
+    """The order of a derivative, as in ``\\pdv[2]`` or ``d^{2}{f}``."""
+    if not token.value.isdigit():
+        raise ParseError("the order of a derivative must be a whole number", span=token.span)
+    return int(token.value)
 
 
 def _is_minus_one(node: ast.Expr | None) -> bool:
