@@ -288,3 +288,20 @@ symmetries (Christoffel symbols for \(b \le c\), Riemann components for
 Results that vanish are recognised exactly by algebra alone (see
 [How it works](architecture.md#simplification)), which is why checking that the
 Kerr metric solves the vacuum equations takes seconds.
+
+Some times, measured on an eight-core laptop processor (AMD Ryzen 7 8745HS):
+
+| | One worker | Eight workers |
+|---|---|---|
+| A sum of 1,000 fractions, and its derivative | 0.4 s, 1.1 s | |
+| Christoffel symbols to the Kretschmann scalar, for Schwarzschild, Reissner–Nordström, FLRW or a general spherically symmetric metric | 0.2 to 0.6 s | |
+| The Christoffel symbols of Kerr | 3.5 s | 1.6 s |
+| `R_{\mu\nu} = 0` for Kerr, a vacuum solution | 14 s | 5.4 s |
+| The Ricci tensor of Kerr–Newman | 47 s | 49 s |
+| Carroll's lecture notes, checked whole | 4 s | |
+
+Some quantities are far harder. The full Riemann tensor of Kerr, simplified
+component by component, takes more than a quarter of an hour even with eight
+workers, because a few of its components take that long on their own. Ask for
+what you need: the vacuum equations need only the Ricci tensor, which is
+computed straight from the connection.
