@@ -153,7 +153,7 @@ True
 
 | | |
 |---|---|
-| `(\Sigma^{-1})^{ab}` | the inverse of a two-index tensor, its indices in the other position |
+| `(\Sigma^{-1})^{ab}` | the inverse of a two-index tensor: of a form, its indices in the other position; of a map, a map, `(A^{-1})^a{}_b` |
 | `\operatorname{eig}(A^a{}_b)` | eigenvalues and eigenvectors: `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)` |
 | `\operatorname{spec}(A)` | the eigenvalues; with a second argument `n`, the `n` largest, or smallest if negative, as for a large sparse matrix |
 | `\operatorname{svd}(X_{ta})` | `U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})`, so that \(X_{ta} = U_{tk} \operatorname{diag}(s)_{kl} V_{al}\) |

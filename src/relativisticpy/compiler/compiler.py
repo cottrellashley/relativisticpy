@@ -1138,37 +1138,43 @@ class Compiler:
     def _solves(self, tensors: list[Node], span: Span) -> list[Node]:
         """Replace an inverse and what it multiplies, :math:`(A^{-1})^{ab} b_b`, by the
         solution of :math:`A x = b`: solving is faster and more accurate than inverting,
-        and with a symmetric :math:`A` it is a Cholesky solve."""
+        and with a symmetric :math:`A` it is a Cholesky solve. What the inverse multiplies
+        is every factor joined to it through one of its indices, contracted first: in
+        :math:`(G^{-1})^{kl} X_{tl} y_t`, the vector :math:`X_{tl} y_t`. It is a solve only
+        where that index is written once more and the other is not among those factors;
+        otherwise, as in the trace :math:`(\\Sigma^{-1})^{ab} \\Sigma_{ab}`, the product
+        is contracted as it is written."""
         tensors = list(tensors)
-        while True:
-            inverse = next(
+        written: set[int] = set()  # inverses that are no solve
+        while not self._bound:
+            position = next(
                 (
-                    t
-                    for t in tensors
+                    k
+                    for k, t in enumerate(tensors)
                     if isinstance(t.op, ops.Inverse)
-                    and any(o is not t and _shares(o, t) for o in tensors)
+                    and t.id not in written
+                    and any(j != k and _shares(o, t) for j, o in enumerate(tensors))
                 ),
                 None,
             )
-            if inverse is None or self._bound:
-                return tensors
-            assert isinstance(inverse.type, TensorType)
-            first, second = inverse.type.indices
-            others = [t for t in tensors if t is not inverse]
-            along, transpose = (second, False)
-            if not any(along.name in _indices(t).names for t in others):
-                along, transpose = (first, True)
-            connected = [t for t in others if along.name in _indices(t).names]
-            rhs = connected[0]
-            if len(connected) > 1:
-                rhs = self._contract([(t, _indices(t)) for t in connected], span)
+            if position is None:
+                break
+            inverse = tensors[position]
+            plan = self._solve_plan(tensors, position)
+            if plan is None:
+                written.add(inverse.id)
+                continue
+            along, kept, transpose, joined = plan
+            rhs = tensors[joined[0]]
+            if len(joined) > 1:
+                rhs = self._contract([(tensors[k], _indices(tensors[k])) for k in joined], span)
             assert isinstance(rhs.type, TensorType)
+            assert isinstance(inverse.type, TensorType)
             names = rhs.type.indices.names
             axis = names.index(along.name)
             order = [axis, *(i for i in range(len(names)) if i != axis)]
             rhs = self._permute(rhs, order, Indices(rhs.type.indices[i] for i in order))
             assert isinstance(rhs.type, TensorType)
-            kept = first if not transpose else second
             space = inverse.type.space(kept.name)
             indices = Indices([kept, *rhs.type.indices[1:]])
             kind = TensorType(indices, (space, *rhs.type.spaces[1:]))
@@ -1178,7 +1184,35 @@ class Compiler:
                 kind,
                 span,
             )
-            tensors = [t for t in others if all(t is not c for c in connected)] + [solution]
+            used = {position, *joined}
+            tensors = [t for k, t in enumerate(tensors) if k not in used] + [solution]
+        return tensors
+
+    def _solve_plan(
+        self, tensors: Sequence[Node], position: int
+    ) -> tuple[Index, Index, bool, list[int]] | None:
+        """How the inverse at ``position`` is a solve: the index it sums with what it
+        multiplies, the index it keeps, whether that is its transpose's solve, and the
+        positions of the factors joined to it through the index; ``None`` where it is
+        no solve."""
+        first, second = _indices(tensors[position])
+        if first.name == second.name:
+            return None
+        others = [k for k in range(len(tensors)) if k != position]
+        for along, kept, transpose in ((second, first, False), (first, second, True)):
+            carriers = [k for k in others if along.name in _indices(tensors[k]).names]
+            if sum(_indices(tensors[k]).names.count(along.name) for k in carriers) != 1:
+                continue
+            joined, pending = [carriers[0]], [carriers[0]]
+            while pending:  # every factor joined to it through shared indices
+                names = set(_indices(tensors[pending.pop()]).names)
+                for k in others:
+                    if k not in joined and names & set(_indices(tensors[k]).names):
+                        joined.append(k)
+                        pending.append(k)
+            if not any(kept.name in _indices(tensors[k]).names for k in joined):
+                return along, kept, transpose, sorted(joined)
+        return None
 
     def _linear_algebra(self, name: str, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
         """Linear algebra on a tensor: ``eig`` and ``spec`` (its spectrum), ``svd``,
@@ -2331,11 +2365,18 @@ class Compiler:
         return not space.spacetime and space not in self.session.space_metrics
 
     def _inverse(self, node: Node, span: Span) -> Node:
-        """The inverse of a two-index tensor: its indices change position."""
+        """The inverse of a two-index tensor, whose components are the inverse matrix. Of
+        a form, with both indices down, it has both up, as :math:`(\\Sigma^{-1})^{ab}`
+        does; of a map it is a map, :math:`(A^{-1})^a{}_b`. It goes the other way between
+        two spaces: its first index ranges over the space of the tensor's second."""
         assert isinstance(node.type, TensorType)
         assert node.type.rank == 2
-        flipped = Indices(index.flip() for index in node.type.indices)
-        return self.graph.add(ops.Inverse(), (node,), node.type.with_indices(flipped), span)
+        first, second = node.type.indices
+        if first.upper == second.upper:
+            first, second = first.flip(), second.flip()
+        indices = Indices([Index(second.name, first.upper), Index(first.name, second.upper)])
+        kind = TensorType(indices, node.type.spaces[::-1])
+        return self.graph.add(ops.Inverse(), (node,), kind, span)
 
     # -- spaces ----------------------------------------------------------------------
     #
@@ -2375,16 +2416,20 @@ class Compiler:
         labels: dict[str, Space] = {}
         scripted = (node for node in _walk(statement) if isinstance(node, ast.Scripted))
         for current in sorted(scripted, key=lambda node: node.span.start):
-            base = current.base
+            base, inverse = current.base, False
             if isinstance(base, ast.Scripted) and len(base.scripts) == 1:  # (\Sigma^{-1})^{cd}
                 if not _is_minus_one(base.scripts[0].body):
                     continue
-                base = base.base
+                base, inverse = base.base, True
             if not isinstance(base, ast.Name):
                 continue
             binding = scope.lookup(base.id)
             node = binding.node if isinstance(binding, VariableBinding | TensorBinding) else None
             spaces = _spaces(node) if node is not None else None
+            if inverse:  # of two indices, and going the other way
+                if spaces is None or len(spaces) != 2:
+                    continue
+                spaces = spaces[::-1]
             pattern = _tensor_pattern(replace(current, base=base))
             if not spaces or pattern is None or len(pattern[1]) != len(spaces):
                 continue

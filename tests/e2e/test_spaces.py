@@ -202,6 +202,56 @@ class TestLinearAlgebra:
         assert "solve" in market.ir(expression)
         assert np.allclose(market.expr(expression).to_numpy(), np.linalg.solve(COVARIANCE, MEAN))
 
+    def test_the_inverse_of_a_map_is_a_map(self, wb):
+        a = rng.normal(size=(3, 3)) + 3 * np.eye(3)
+        metric = np.array([[2.0, 0.3, 0.0], [0.3, 1.0, 0.2], [0.0, 0.2, 1.5]])
+        v = rng.normal(size=3)
+        wb.exe(r"\mathcal{A} := \mathbb{R}^{3}" "\n" r"a, b, c \in \mathcal{A}")
+        wb["A^a_b"] = a
+        wb["G_{ab}"] = metric
+        wb["v^a"] = v
+        wb.exe(r"g_{ab} := G_{ab}")  # raising and lowering would change the components
+        assert np.allclose(wb.expr(r"(A^{-1})^{a}{}_{b} A^{b}{}_{c}").to_numpy(), np.eye(3))
+        assert np.allclose(wb.expr(r"(A^{-1})^{a}{}_{b} v^{b}").to_numpy(), np.linalg.solve(a, v))
+        assert str(wb.expr(r"\operatorname{inv}(A)").indices) == "^{b}_{a}"
+
+    def test_the_inverse_goes_between_two_spaces_the_other_way(self, wb):
+        m, v = rng.normal(size=(3, 3)) + 3 * np.eye(3), rng.normal(size=3)
+        wb.exe(r"""
+            \mathcal{A} := \mathbb{R}^{3}
+            \mathcal{B} := \mathbb{R}^{3}
+            a, c \in \mathcal{A}
+            b, d \in \mathcal{B}
+        """)
+        wb["T_{ab}"] = m
+        wb["v_a"] = v
+        assert [space.name for space in wb.expr(r"(T^{-1})^{ba}").spaces] == ["B", "A"]
+        assert np.allclose(wb.expr(r"(T^{-1})^{ba} T_{ad}").to_numpy(), np.eye(3))
+        assert np.allclose(wb.expr(r"(T^{-1})^{ba} v_a").to_numpy(), np.linalg.solve(m, v))
+        with pytest.raises(IndexNotationError, match="the index a ranges over A, but"):
+            wb.expr(r"(T^{-1})^{ab}")
+
+    def test_an_inverse_is_a_solve_only_where_the_product_is_one(self, market):
+        assert market.expr(r"(\Sigma^{-1})^{ab} \Sigma_{ab}") == pytest.approx(5.0)
+        assert market.expr(r"(\Sigma^{-1})^{ab} \Sigma_{ba}") == pytest.approx(5.0)
+        for written in [
+            r"(\Sigma^{-1})^{ab} \mu_b \mu_b",
+            r"\mu_b \mu_b (\Sigma^{-1})^{ab}",
+            r"(\Sigma^{-1})^{ab} \mu_a \mu_a",
+        ]:
+            with pytest.raises(IndexNotationError, match="appears 3 times"):
+                market.expr(written)
+
+    def test_what_an_inverse_multiplies_is_contracted_first(self, wb):
+        x, y = rng.normal(size=(50, 3)), rng.normal(size=50)
+        wb["X_{tk}"] = x
+        wb["y_t"] = y
+        wb.exe(r"G_{kl} := X_{tk} X_{tl}")
+        written = r"(G^{-1})^{kl} X_{tl} y_t"
+        solve = next(line for line in wb.ir(written).splitlines() if "call solve" in line)
+        assert solve.endswith("Tensor^{k}")  # the solve of a vector, not of a matrix of rows
+        assert np.allclose(wb.expr(written).to_numpy(), np.linalg.lstsq(x, y, rcond=None)[0])
+
     def test_eigenvalues_eigenvectors_and_the_spectrum(self, market):
         market.exe(r"\lambda_k, v^a{}_k := \operatorname{eig}(\Sigma^a{}_b)")
         values, vectors = market["lambda"].to_numpy(), market["v"].to_numpy()
