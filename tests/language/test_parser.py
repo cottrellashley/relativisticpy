@@ -635,6 +635,10 @@ class TestSumsLimitsIntegrals:
     def test_differentials(self, text, expected):
         assert sexpr(text) == expected
 
+    def test_the_variable_of_a_differential_spans_the_variable(self):
+        integral = parse_expression(r"\int f(t') dt'")
+        assert integral.bounds[0].variable.span.text == "t'"  # type: ignore[attr-defined]
+
 
 class TestStatements:
     def test_definitions(self):

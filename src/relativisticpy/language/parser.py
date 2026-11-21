@@ -322,9 +322,9 @@ class Parser:
 
     def _expression_statements(self) -> list[ast.Statement]:
         """Expressions and definitions, such as ``x, y := ...``, separated by commas, wide
-        spaces or the words ``\\text{and}`` and ``\\text{or}``, as in
-        ``a = b, \\quad c \\equiv d``. A comma or full stop that ends the statement is the
-        punctuation of the sentence the equation belongs to: ``E = mc^2 \\ .``"""
+        spaces or words of prose such as ``\\text{and}``, as in ``a = b, \\quad c \\equiv d``.
+        A comma or full stop that ends the statement is the punctuation of the sentence
+        the equation belongs to: ``E = mc^2 \\ .``"""
         statements: list[ast.Statement] = []
         if self._at_connective(self.peek()) and self._starts_operand(self.peek(1)):
             self.advance()  # \text{where} \ E^* \equiv ...: the word is prose
@@ -381,11 +381,11 @@ class Parser:
     def _relates(self, index: int) -> bool:
         """Whether the expression starting at token ``index`` relates or defines at its
         top level, as ``y \\equiv t/M`` does and ``2`` does not."""
-        depth = 0
+        depth, start = 0, index
         while True:
             token = self.tokens[index]
             kind = token.kind
-            if kind is K.EOF:
+            if kind is K.EOF or (depth == 0 and token.wide_space and index > start):
                 return False
             if kind in _OPENERS or kind is K.BEGIN:
                 depth += 1
@@ -974,7 +974,10 @@ class Parser:
             kind = self.tokens[index].kind
             if kind is K.EOF:
                 return False
-            depth += 1 if kind is K.BEGIN else -1 if kind is K.END else 0
+            if kind is K.BEGIN:
+                depth += 1
+            elif kind is K.END:
+                depth -= 1
             index += 1
             if depth == 0:
                 break
@@ -1513,8 +1516,9 @@ class Parser:
         else:
             token = self.advance()
         if token.value != "d":  # dx, and dt' whose variable is t'
-            span = Span(self.source, token.span.start + 1, token.span.end)
-            return ast.Name(token.value[1:] + self._primes(), span=self._span(span))
+            primes = self._primes()
+            span = Span(self.source, token.span.start + 1, self.previous.span.end)
+            return ast.Name(token.value[1:] + primes, span=span)
         if self.check(K.LBRACE):
             opener = self.advance()
             with self._nested():

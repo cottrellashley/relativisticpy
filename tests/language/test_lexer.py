@@ -63,7 +63,7 @@ class TestPlainText:
         [
             (r"10\,000", "10000"),
             (r"299\,792\,458", "299792458"),
-            ("10~000 10 000 10 000", "10000 10000 10000"),
+            ("10~000 10\u2009000 10\u202f000", "10000 10000 10000"),
             (r"3.141\,592", "3.141592"),
             (r"6.022\,140\,76", "6.02214076"),  # the last group of decimals may be shorter
             (r"1\,000.5", "1000.5"),
@@ -211,8 +211,8 @@ class TestLatexTypesetting:
         assert all(t.space_before for t in tokenize(r"a\,b")[1:-1])
 
     def test_unicode_spaces_are_spacing_and_a_byte_order_mark_is_nothing(self):
-        assert lex("﻿x = 1 + 2") == "x = 1 + 2"
-        tokens = tokenize("﻿a b c")
+        assert lex("\ufeffx =\u00a01\u2009+\u202f2") == "x = 1 + 2"
+        tokens = tokenize("\ufeffa\u00a0b\u2009c")
         assert [(t.value, t.space_before, t.explicit_space) for t in tokens[:-1]] == [
             ("a", False, False),
             ("b", True, True),

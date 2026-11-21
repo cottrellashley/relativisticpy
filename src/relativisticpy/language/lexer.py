@@ -38,7 +38,7 @@ _DIGITS = frozenset("0123456789")
 # A group of three digits after a thin space, \, or ~, continuing a number as SI
 # groups digits: 10\,000, and 3.141\,592, where the last group of decimals may be
 # shorter: 6.022\,140\,76.
-_GROUP_SPACE = r"(?:\\,|\\thinspace(?![A-Za-z])[ \t]*|~|[   ])"
+_GROUP_SPACE = r"(?:\\,|\\thinspace(?![A-Za-z])[ \t]*|~|[\u00a0\u2009\u202f])"
 _DIGIT_GROUP = re.compile(_GROUP_SPACE + r"(?P<digits>[0-9]{3})(?![0-9])")
 _LAST_DIGIT_GROUP = re.compile(_GROUP_SPACE + r"(?P<digits>[0-9]{1,2})(?![0-9])")
 _FRACTION = re.compile(r"\.[0-9]+")
@@ -68,11 +68,10 @@ _BROKEN_BRACKET = re.compile(
 )
 
 # Unicode's spaces, which typeset as LaTeX's deliberate spacing does: the no-break space
-# is ~, the thin space \, and so on.
-_UNICODE_SPACE = frozenset("           ")
-_UNICODE_SPACE |= frozenset("   　")
+# is ~, the thin space (U+2009) \, and so on.
+_UNICODE_SPACE = frozenset("\u00a0\u202f\u205f\u3000") | {chr(c) for c in range(0x2000, 0x200B)}
 # Characters that take no room at all, such as the byte order mark that starts some files.
-_INVISIBLE = frozenset("﻿​‌‍⁠")
+_INVISIBLE = frozenset("\ufeff\u200b\u200c\u200d\u2060")
 _SPACE = frozenset(" \t\r\f\v~") | _UNICODE_SPACE
 _ARGUMENT_SPACE = _SPACE | {"\n"}  # whitespace allowed between a command and its argument
 
