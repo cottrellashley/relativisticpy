@@ -60,6 +60,16 @@ def test_metric_from_a_tensor(wb):
         wb.expr("w_{a} := [1, 2]\ng_{ab} := w_{a}")
 
 
+def test_a_metric_from_a_tensor_takes_it_as_written(wb):
+    wb.exe("Coordinates := [x, y]\nh_{ab} := [[-1, 0], [0, 4]]")
+    with pytest.raises(IndexNotationError, match=r"must agree: \^\{a\}\^\{b\} and _\{a\}_\{b\}"):
+        wb.exe("g^{ab} := h_{ab}")  # h has its indices down
+    with pytest.raises(IndexNotationError, match="must agree"):
+        wb.exe(r"g_{\mu\nu} := h_{ab}")
+    wb.exe("g_{ab} := h_{ab}")
+    assert wb.expr("g^{ab}").components == Array([[-1, 0], [0, sympy.Rational(1, 4)]])
+
+
 def test_literal_components_are_scalars(plane):
     with pytest.raises(CompileError, match="a component must be a scalar"):
         plane.expr("T_{a} := [V^{b}, 0]")

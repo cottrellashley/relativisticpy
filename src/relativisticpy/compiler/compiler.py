@@ -385,6 +385,9 @@ class Compiler:
         coordinates = self.session.require_coordinates(target.span, "a metric")
         if components is None:
             components = self._components(value, (len(coordinates),) * 2, scope, ctx)
+        if isinstance(components.type, TensorType):  # g_{ab} := h_{ab}, as written
+            written = Indices(Index(str(item.label), upper) for item, upper in entries)
+            components = self._align(components, written, value.span, what="a definition")
         if positions == {True}:
             components = self.graph.add(
                 ops.Geometry("inverse", coordinates), (components,), VALUE, value.span
