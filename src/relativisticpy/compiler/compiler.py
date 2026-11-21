@@ -989,8 +989,10 @@ class Compiler:
 
     def _expectation(self, node: Node, label: str, span: Span) -> Node:
         """The average over ``label`` with its space's measure: a contraction with the
-        measure, fused with the contraction that made ``node``, so that the product of
-        everything averaged is never formed."""
+        measure, fused with the contraction that made ``node``, and taken term by term of a
+        sum, so that the product of everything averaged is never formed: the average of
+        R_{ta} R_{tb} - \\mu_a \\mu_b is two contractions, neither over days, assets and
+        assets."""
         assert isinstance(node.type, TensorType)
         names = node.type.indices.names
         if label not in names:
@@ -1003,6 +1005,14 @@ class Compiler:
             s for i, s in zip(node.type.indices, node.type.spaces, strict=True) if i.name != label
         )
         kind: Type = TensorType(remaining, spaces) if remaining else SCALAR
+        if (parts := self._averaged_parts(node, label, span)) is not None:
+            if remaining:
+                parts = [self._align(part, remaining, span) for part in parts]
+            if isinstance(node.op, ops.Add):
+                return self.graph.add(ops.Add(node.op.signs), parts, kind, span)
+            if isinstance(node.op, ops.Scale):  # what multiplies it is constant in label
+                return self.graph.add(ops.Scale(), [*node.args[:-1], parts[0]], kind, span)
+            return parts[0]
         if isinstance(node.op, ops.Contract):
             number = node.op.output[names.index(label)]
             op = ops.Contract(
@@ -1016,6 +1026,33 @@ class Compiler:
             return self._contract(
                 [(node, node.type.indices), (measure, measure.type.indices)], span
             )
+
+    def _averaged_parts(self, node: Node, label: str, span: Span) -> list[Node] | None:
+        """The averages over ``label`` of the tensors that a sum adds, a product with
+        scalars scales or a permutation reorders, each with the indices it has in
+        ``node``; ``None`` for any other tensor."""
+        assert isinstance(node.type, TensorType)
+        indices = node.type.indices
+        parts: list[tuple[Node, Indices]]
+        if isinstance(node.op, ops.Permute):  # the result's axis i is the argument's axes[i]
+            unpermuted = list(indices)
+            for position, axis in enumerate(node.op.axes):
+                unpermuted[axis] = indices[position]
+            parts = [(node.args[0], Indices(unpermuted))]
+        elif isinstance(node.op, ops.Add):
+            parts = [(term, indices) for term in node.args]
+        elif isinstance(node.op, ops.Scale):
+            parts = [(node.args[-1], indices)]
+        else:
+            return None
+        if not all(isinstance(part.type, TensorType) for part, _ in parts):
+            return None
+        averaged = []
+        for part, named in parts:
+            assert isinstance(part.type, TensorType)
+            renamed = self.graph.retype(part, TensorType(named, part.type.spaces))
+            averaged.append(self._expectation(renamed, label, span))
+        return averaged
 
     def _measure(self, space: Space, index: Index, span: Span) -> Node:
         """The weights an expectation over ``space`` averages with: those declared for it,

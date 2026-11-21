@@ -179,6 +179,12 @@ class TestStatistics:
         listing = market.ir(r"\mathbb{E}_t[(R_{ta} - \mu_a)(R_{tb} - \mu_b)]")
         assert re.search(r"contract ab,ac,a->bc", listing)
 
+    def test_the_expectation_of_a_sum_is_taken_term_by_term(self, market):
+        written = r"\mathbb{E}_t[R_{ta} R_{tb} - 2 \mu_a \mu_b] + \mu_a \mu_b"
+        kinds = [line.split()[-1] for line in market.ir(written).splitlines() if "Tensor" in line]
+        assert max(kind.count("{") for kind in kinds) == 2  # nothing of days, assets and assets
+        assert np.allclose(market.expr(written).to_numpy(), COVARIANCE)
+
     def test_a_declared_measure_weights_the_expectation(self, wb):
         weights = np.linspace(1, 2, 300)
         wb.space("days", 300, labels="t", measure=weights)
