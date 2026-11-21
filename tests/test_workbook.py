@@ -84,6 +84,15 @@ def test_looking_inside():
     assert "out" in wb.ir("x^2")
 
 
+def test_looking_at_the_ir_changes_nothing():
+    wb = Workbook()
+    assert "out" in wb.ir("y := 2\ny^2")
+    assert wb.expr("y") == Symbol("y")  # the definition was not made
+    wb.exe("Coordinates := [t, x]")
+    wb.ir("Coordinates := [r]")
+    assert [c.name for c in wb.coordinates] == ["t", "x"]
+
+
 def test_getitem():
     wb = Workbook()
     wb.exe("y := 3\nCoordinates := [x, z]\nT_{a} := [1, x]")
@@ -115,6 +124,8 @@ def test_run_file(tmp_path):
     program = tmp_path / "program.relpy"
     program.write_text("y := 2\ny^2\n")
     assert Workbook().run_file(program) == [4]
+    program.write_text("y := 2\ny^3\n", encoding="utf-8-sig")  # as some editors save it
+    assert Workbook().run_file(program) == [8]
     notes = tmp_path / "notes.md"
     notes.write_text("Some prose.\n\n$$ z := 3 $$\n\nMore.\n\n$$ z^2 $$\n")
     assert Workbook().run_file(notes) == [9]

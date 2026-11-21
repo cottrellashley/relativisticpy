@@ -135,7 +135,7 @@ class Workbook:
     def run_file(self, path: str | Path) -> list[Any]:
         """Run a program from a file. In a Markdown file, the ``$$...$$`` blocks are the program."""
         path = Path(path)
-        text = path.read_text(encoding="utf-8")
+        text = path.read_text(encoding="utf-8-sig")  # with a byte order mark or without
         if path.suffix.lower() in (".md", ".markdown"):
             return [result for block in math_blocks(text, str(path)) for result in self.exe(block)]
         return self.exe(text, name=str(path))
@@ -163,8 +163,10 @@ class Workbook:
         return parse(source)
 
     def ir(self, source: str | Source) -> str:
-        """The IR that ``source`` compiles to, as text; nothing is computed."""
-        outputs = self._compiler.compile(self._parse(source, "<input>"))
+        """The IR that ``source`` compiles to, as text. Nothing is computed, and the
+        workbook is left as it was: a definition in ``source`` is not made."""
+        compiler = Compiler(self._session.fork())
+        outputs = compiler.compile(self._parse(source, "<input>"))
         return render([output.node for output in outputs])
 
     def __getitem__(self, name: str) -> Any:
