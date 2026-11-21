@@ -1,8 +1,10 @@
 """The Metric class: geometry in Python."""
 
+import inspect
+
 import pytest
 import sympy
-from sympy import Array, Function, Matrix, Rational, Symbol, cos, diag, sin, symbols
+from sympy import Array, Function, Matrix, Rational, Symbol, cos, diag, sin, sqrt, symbols
 
 from relativisticpy import Metric, Tensor, Workbook, spacetimes
 from relativisticpy.diffgeom import differential, metric_from_line_element
@@ -88,6 +90,7 @@ def test_de_sitter_has_constant_curvature():
 def test_minkowski():
     assert spacetimes.minkowski().riemann.components == Array.zeros(4, 4, 4, 4)
     assert spacetimes.minkowski("spherical").ricci_scalar == 0
+    assert spacetimes.minkowski(Symbol("spherical")).coordinates == (t, r, theta, phi)  # a name
     with pytest.raises(ValueError, match="unknown coordinates"):
         spacetimes.minkowski("cylindrical")
 
@@ -97,6 +100,30 @@ def test_parameters_in_any_units():
     g = spacetimes.schwarzschild("M", G="G", c="c")
     assert g.kretschmann == 48 * G**2 * M**2 / (c**4 * r**6)
     assert spacetimes.schwarzschild(2).kretschmann == 48 * 4 / r**6
+
+
+def test_every_spacetime_takes_G_and_c():
+    G, c = symbols("G c", positive=True)
+    for name in spacetimes.__all__:
+        assert list(inspect.signature(getattr(spacetimes, name)).parameters)[-2:] == ["G", "c"]
+    # in any units, Kerr-Newman is the geometric metric with M → GM/c², Q² → GQ²/c⁴, t → ct
+    geometric = spacetimes.kerr_newman().matrix.subs({M: G * M / c**2, Q: sqrt(G) * Q / c**2})
+    stretch = diag(c, 1, 1, 1)
+    difference = spacetimes.kerr_newman(M, a, Q, G, c).matrix - stretch * geometric * stretch
+    assert difference.applyfunc(sympy.simplify) == sympy.zeros(4, 4)
+    assert spacetimes.kerr(M, a, G, c).matrix == spacetimes.kerr_newman(M, a, 0, G, c).matrix
+    assert spacetimes.de_sitter(L, G, c).ricci_scalar == 12 / L**2
+    assert spacetimes.de_sitter(L, G, c).matrix[0, 0] == -(1 - r**2 / L**2) * c**2
+    assert spacetimes.anti_de_sitter(L, G, c).matrix[0, 0] == -(1 + r**2 / L**2) * c**2
+    assert spacetimes.flrw(k, "a", G, c).matrix[0, 0] == -(c**2)
+    assert spacetimes.minkowski("spherical", G, c).matrix[0, 0] == -(c**2)
+
+
+def test_units_in_the_language():
+    wb = Workbook()
+    wb.exe(r"g_{\mu\nu} := Schwarzschild(M, G, c)")
+    G, c = symbols("G c")
+    assert sympy.simplify(wb.expr("g_{tt}") + (1 - 2 * G * M / (c**2 * r)) * c**2) == 0
 
 
 def test_decimal_parameters_are_exact():
