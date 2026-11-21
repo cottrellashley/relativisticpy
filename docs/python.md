@@ -174,7 +174,20 @@ False
 ```
 
 `relativisticpy.abstract` also offers the algebra on its own: `canonical`,
-`solve`, `trace` and `substitute`, over a `Space` of a given dimension.
+`solve`, `trace` and `substitute`. Each works in an `Algebra`, the tensors of a
+computation in a given number of dimensions: their indices, the metric, the
+Kronecker delta, and a head for every tensor by name and rank.
+
+```python
+>>> from relativisticpy.abstract import Algebra, canonical, trace
+>>> algebra = Algebra(dim=3)
+>>> a, b = algebra.index("a", True), algebra.index("b", False)
+>>> canonical(algebra.delta(a, -a), algebra)
+3
+>>> trace(algebra.head("R", 2, "ricci")(a, b), algebra)
+R
+
+```
 
 ## Errors
 
