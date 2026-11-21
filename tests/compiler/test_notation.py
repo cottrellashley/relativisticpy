@@ -181,6 +181,14 @@ class TestDefinitionsAndEquations:
         with pytest.raises(CompileError, match="T is not a tensor"):
             wb.expr(r"G_{tt} = 8\pi T_{tt}")
 
+    def test_the_identity_of_a_space_of_data_has_components(self, wb):
+        # \delta_{ab} over the space of w is its identity matrix, not index notation
+        numpy = pytest.importorskip("numpy")
+        wb["w^a"] = numpy.array([1.0, 2.0])
+        assert wb.expr(r"w^a \delta_{ab} w^b = 5") is sympy.true
+        assert wb.expr(r"w^a \delta_{ab} w^b = 4") is not sympy.true
+        assert wb.expr(r"w_a = \delta_{ab} w^b")
+
     def test_data_named_without_braces_is_compared_not_overwritten(self, wb):
         numpy = pytest.importorskip("numpy")
         wb["w^a"] = numpy.array([1.0, 2.0])

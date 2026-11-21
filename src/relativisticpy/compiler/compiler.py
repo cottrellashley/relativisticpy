@@ -2735,7 +2735,13 @@ class Compiler:
                     return False
                 labels.update(label for label, _ in entries)
                 if scope.lookup(name) is None and name not in BUILTINS and name not in CONSTANTS:
-                    if self._builtin_tensor(name, len(entries)) is not None:
+                    quantity = self._builtin_tensor(name, len(entries))
+                    first = self._labels.get(entries[0][0]) or self.session.labels.get(
+                        entries[0][0]
+                    )
+                    if quantity in ("kronecker", "metric") and first and not first.spacetime:
+                        pass  # the identity or metric of a space of data: it has components
+                    elif quantity is not None:
                         builtin = True
                     elif any(self._builtin_tensor(name, rank) for rank in range(5)):
                         pass  # a built-in with the wrong number of indices: an error
