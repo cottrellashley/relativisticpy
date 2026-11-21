@@ -5,7 +5,7 @@ import time
 import pytest
 import sympy
 
-from relativisticpy import Workbook
+from relativisticpy import Workbook, checking
 from relativisticpy.checking import Verdict, _time_limit
 from relativisticpy.cli import main
 from relativisticpy.documents import Document
@@ -259,6 +259,30 @@ def test_a_computation_over_its_time_limit_is_not_computed(monkeypatch):
     assert (finding.verdict, finding.detail) == (Verdict.NOT_COMPUTED, "took longer than 0.1 s")
 
 
+def test_judging_is_within_the_time_limit(monkeypatch):
+    def slowly(value):
+        time.sleep(5)
+        return Verdict.HOLDS, ""
+
+    monkeypatch.setattr(checking, "_judge", slowly)
+    start = time.monotonic()
+    square = Document(r"\begin{equation} x^2 = x x \end{equation}")
+    finding = Workbook().check(square, time_limit=0.1).findings[0]
+    assert (finding.verdict, finding.detail) == (Verdict.NOT_COMPUTED, "took longer than 0.1 s")
+    assert time.monotonic() - start < 2
+
+
+@pytest.mark.parametrize("seconds", [0, -1, float("nan")])
+def test_a_time_limit_is_a_positive_number_of_seconds(seconds):
+    with pytest.raises(ValueError, match="a time limit is a positive number of seconds"):
+        Workbook().check(Document(PAPER), time_limit=seconds)
+
+
+def test_an_infinite_time_limit_is_none():
+    report = Workbook().check(Document(PAPER), time_limit=float("inf"))
+    assert verdicts(report)[:2] == [(8, Verdict.DEFINES), (11, Verdict.HOLDS)]
+
+
 def test_a_statement_can_be_given_a_time_limit():
     def spin() -> None:
         start = time.monotonic()
@@ -295,3 +319,15 @@ class TestCommandLine:
             main(["check", "paper.tex", "--lines", "five"])
         assert "--lines takes two line numbers" in capsys.readouterr().err
         assert main(["check", str(tmp_path / "missing.tex")]) == 1
+
+    @pytest.mark.parametrize("seconds", ["0", "-1", "nan", "soon"])
+    def test_a_time_limit_is_a_positive_number(self, seconds, capsys):
+        with pytest.raises(SystemExit):
+            main(["check", "paper.tex", "--time-limit", seconds])
+        assert "--time-limit: takes a positive number of seconds" in capsys.readouterr().err
+
+    def test_inf_is_no_time_limit(self, tmp_path, capsys):
+        paper = tmp_path / "paper.tex"
+        paper.write_text(PAPER)
+        assert main(["check", str(paper), "--time-limit", "inf"]) == 0
+        assert "line 11     ✓ holds" in capsys.readouterr().out

@@ -20,6 +20,7 @@ From the command line: ``relativisticpy check notes.tex``.
 from __future__ import annotations
 
 import contextlib
+import math
 import signal
 import threading
 from collections import Counter
@@ -125,7 +126,9 @@ def check(
 ) -> Report:
     """Check a :class:`~relativisticpy.documents.Document`, or a file: a LaTeX document,
     with the macros of its local packages and of the files it includes, or, by its
-    suffix, a Markdown notebook."""
+    suffix, a Markdown notebook. ``time_limit`` is in seconds, for each statement; an
+    infinite one is no limit."""
+    time_limit = _seconds(time_limit)
     if not isinstance(document, Document):
         path = Path(document)
         if path.suffix.lower() in (".md", ".markdown"):
@@ -156,6 +159,7 @@ def check_equations(
     The equations run in a new workbook with the same workers, so that the workbook's
     own definitions neither take part nor are lost. Whatever goes wrong with one
     statement is a finding about it; nothing stops the check."""
+    time_limit = _seconds(time_limit)
     if lines is not None:
         first, last = lines
         equations = [equation for equation in equations if first <= equation.line <= last]
@@ -177,11 +181,12 @@ def _check_equation(session: Workbook, source: Source, time_limit: float | None)
     try:
         steps = session.each(source)
         while True:
-            with _time_limit(time_limit):
+            with _time_limit(time_limit):  # computing and judging alike
                 step = next(steps, None)
-            if step is None:
-                break
-            findings.append(_finding(step))
+                if step is None:
+                    break
+                finding = _finding(step)
+            findings.append(finding)
     except ParseError as error:
         findings.append(Finding(Verdict.NOT_PARSED, error.span or whole, error.message))
     except TimeoutError:
@@ -200,6 +205,16 @@ def _why(error: Exception) -> str:
     """An unexpected error, as a finding's detail: its kind and its message."""
     message = " ".join(str(error).split())
     return f"{type(error).__name__}: {message}" if message else type(error).__name__
+
+
+def _seconds(time_limit: float | None) -> float | None:
+    """A time limit in seconds, or ``None`` for none, which infinity also means, as does
+    anything over thirty years: more than the system's timer can count anyway."""
+    if time_limit is None or time_limit == math.inf:
+        return None
+    if not time_limit > 0:  # nor nan
+        raise ValueError(f"a time limit is a positive number of seconds, not {time_limit}")
+    return float(time_limit) if time_limit < 1e9 else None
 
 
 def _finding(step: Step) -> Finding:

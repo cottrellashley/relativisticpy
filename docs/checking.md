@@ -8,8 +8,12 @@ became of each: which hold, which do not, and which it could not read.
 relativisticpy check notes.tex                    # the whole document
 relativisticpy check notes.tex --lines 9058:9112  # one passage
 relativisticpy check notes.tex --all              # every statement, with reasons
+relativisticpy check notes.tex --time-limit 60    # seconds for each statement; inf for none
 relativisticpy check notebook.md                  # a Markdown notebook
 ```
+
+A statement gets 30 seconds by default, to be computed and judged; one that takes
+longer is not computed.
 
 ## An example
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import math
 import os
 import sys
 from collections.abc import Callable, Sequence
@@ -104,7 +105,10 @@ def check(argv: Sequence[str]) -> int:
         help="list every statement, not only those that hold or differ",
     )
     parser.add_argument(
-        "--time-limit", type=float, default=30.0, help="seconds allowed for each statement"
+        "--time-limit",
+        type=_seconds,
+        default=30.0,
+        help="seconds allowed for each statement, or inf for no limit (default: 30)",
     )
     args = parser.parse_args(argv)
     lines = None
@@ -127,6 +131,20 @@ def check(argv: Sequence[str]) -> int:
     for finding in findings:
         print(finding.describe())
     return 0
+
+
+def _seconds(text: str) -> float:
+    """The value of ``--time-limit``: a positive number of seconds, or ``inf``."""
+    try:
+        seconds = float(text)
+    except ValueError:
+        seconds = math.nan
+    if not seconds > 0:  # nor nan
+        raise argparse.ArgumentTypeError(
+            f"takes a positive number of seconds, as in --time-limit 30, or inf for no "
+            f"limit, not {text}"
+        )
+    return seconds
 
 
 def display(value: Any, *, latex_output: bool = False) -> str:
