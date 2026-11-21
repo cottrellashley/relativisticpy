@@ -1,11 +1,12 @@
 """The Tensor value: index notation in Python."""
 
+import numpy as np
 import pytest
 import sympy
 from sympy import Array, symbols
 
 from relativisticpy.errors import IndexNotationError
-from relativisticpy.tensors import Index, Indices, Tensor, contract
+from relativisticpy.tensors import Index, Indices, Space, Tensor, contract
 
 t, x = symbols("t x")
 ETA = Tensor([[-1, 0], [0, 1]], "_{a b}", (t, x), name="eta")
@@ -111,6 +112,33 @@ class TestTensor:
         gamma = Tensor(Array.zeros(2, 2, 2), "^{a}_{b c}", (t, x), name="Gamma")
         assert gamma.latex() == r"\Gamma^{a}{}_{b c} = 0"
         assert ETA._repr_latex_().startswith("$\\displaystyle")
+
+    def test_numerical_tensors_across_spaces(self):
+        days, assets = Space("days", 6), Space("assets", 3)
+        returns = Tensor(np.arange(18.0).reshape(6, 3), "_{t a}", spaces=(days, assets))
+        weights = Tensor(np.ones(3), "^{a}", spaces=(assets,))
+        portfolio = returns * weights
+        assert np.allclose(portfolio.components, returns.components.sum(axis=1))
+        assert portfolio.spaces == (days,)
+        with pytest.raises(IndexNotationError, match="3 components in one place and 6"):
+            returns * Tensor(np.ones(6), "^{a}")
+        other = Space("other", 3)
+        with pytest.raises(IndexNotationError, match="ranges over assets in one place"):
+            returns * Tensor(np.ones(3), "^{a}", spaces=(other,))
+
+    def test_numbers_keep_numerical_components_numbers(self):
+        w = Tensor(np.array([1.0, 2.0]), "^{a}")
+        for result in (w * 2, 2 * w, w / 2):
+            assert result.components.dtype == np.float64
+        assert np.allclose((w * 2).components, [2.0, 4.0])
+
+    def test_equal_numerical_tensors_have_equal_hashes(self):
+        w = Tensor(np.array([1.0, 2.0]), "^{a}")
+        nearly = Tensor(np.array([1.0, 2.0 + 1e-15]), "^{a}")
+        assert w == nearly
+        assert hash(w) == hash(nearly)
+        assert w != Tensor(np.array([1.0]), "^{a}")
+        assert w != Tensor([x, 1], "^{a}")  # a symbol is no number
 
     def test_equality_and_hash(self):
         same = Tensor([[-1, 0], [0, 1]], "_{a b}")

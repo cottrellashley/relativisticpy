@@ -9,7 +9,7 @@ from typing import Any
 import sympy
 from sympy import Expr, Symbol
 
-from relativisticpy.errors import IndexNotationError
+from relativisticpy.errors import EvaluationError, IndexNotationError
 from relativisticpy.tensors import arrays, numerical
 from relativisticpy.tensors.indices import Index, Indices, latex_label
 from relativisticpy.tensors.spaces import Space
@@ -136,16 +136,19 @@ class Tensor:
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Tensor):
             return NotImplemented
-        if self.numerical or other.numerical:
-            return self.indices == other.indices and numerical.close(
-                self.components, other.components
-            )
-        return self.indices == other.indices and self.components == other.components
+        if self.indices != other.indices or self.shape != other.shape:
+            return False
+        if self.numerical or other.numerical:  # to rounding error
+            try:
+                return numerical.close(self.components, other.components)
+            except EvaluationError:  # symbols, which no numbers equal
+                return False
+        return bool(self.components == other.components)
 
     def __hash__(self) -> int:
-        if self.numerical:
-            return hash((self.indices, id(self.components)))
-        return hash((self.indices, self.components))
+        # Equal tensors have the same indices and shape. Numerical ones are equal to
+        # rounding error, which no hash of their components could respect.
+        return hash((self.indices, self.shape))
 
     def __str__(self) -> str:
         return str(self.components)
@@ -244,13 +247,18 @@ class Tensor:
 
     # -- arithmetic --------------------------------------------------------------
 
+    def _scalar(self, value: object) -> Any:
+        """A scalar to combine with the components: a plain number with numerical ones,
+        which would otherwise become an array of SymPy objects."""
+        return numerical.number(value) if self.numerical else sympy.sympify(value)
+
     def __neg__(self) -> Tensor:
         return self._like(-self.components)
 
     def __add__(self, other: object) -> Tensor:
         if not isinstance(other, Tensor):
             if self.rank == 0:
-                return self._like(self.components + sympy.sympify(other))
+                return self._like(self.components + self._scalar(other))
             return NotImplemented
         return self._like(self.components + _aligned(other, self.indices))
 
@@ -259,7 +267,7 @@ class Tensor:
     def __sub__(self, other: object) -> Tensor:
         if not isinstance(other, Tensor):
             if self.rank == 0:
-                return self._like(self.components - sympy.sympify(other))
+                return self._like(self.components - self._scalar(other))
             return NotImplemented
         return self._like(self.components - _aligned(other, self.indices))
 
@@ -268,27 +276,45 @@ class Tensor:
 
     def __mul__(self, other: object) -> Any:
         if not isinstance(other, Tensor):
-            return self._like(self.components * sympy.sympify(other))
+            return self._like(self.components * self._scalar(other))
         return contract(self, other)
 
     def __rmul__(self, other: object) -> Tensor:
-        return self._like(sympy.sympify(other) * self.components)
+        return self._like(self._scalar(other) * self.components)
 
     def __truediv__(self, other: object) -> Tensor:
         if isinstance(other, Tensor):
             return NotImplemented
-        return self._like(self.components / sympy.sympify(other))
+        return self._like(self.components / self._scalar(other))
 
 
 def contract(*tensors: Tensor) -> Any:
     """Multiply tensors, summing over each label that appears once up and once down.
+    Each index has as many components as the axes it labels, and ranges over their space,
+    as the result's free indices do: returns from 500 assets over 2,520 days times
+    weights on the assets are a tensor over the days.
 
     Returns a :class:`Tensor`, or a SymPy expression when no index is left free.
     """
     occurrences: dict[str, list[Index]] = {}
+    sizes: dict[str, int] = {}
+    spaces: dict[str, Space] = {}
     for tensor in tensors:
-        for index in tensor.indices:
+        for axis, index in enumerate(tensor.indices):
             occurrences.setdefault(index.name, []).append(index)
+            size = int(tensor.shape[axis])
+            if sizes.setdefault(index.name, size) != size:
+                raise IndexNotationError(
+                    f"index {index.name!r} has {sizes[index.name]} components in one place "
+                    f"and {size} in another"
+                )
+            if tensor.spaces is not None:
+                space = tensor.spaces[axis]
+                if spaces.setdefault(index.name, space) != space:
+                    raise IndexNotationError(
+                        f"index {index.name!r} ranges over {spaces[index.name]} in one place "
+                        f"and {space} in another"
+                    )
     free = []
     for name, found in occurrences.items():
         if len(found) > 2:
@@ -301,17 +327,22 @@ def contract(*tensors: Tensor) -> Any:
             )
         if len(found) == 1:
             free.append(found[0])
-    dims = {t.dim for t in tensors if t.rank}
-    if len(dims) > 1:
-        raise ValueError(f"cannot contract tensors of different dimensions {sorted(dims)}")
-    dim = dims.pop() if dims else 0
+    numbers = {name: number for number, name in enumerate(occurrences)}
     components = arrays.contract(
-        [(t.components, t.indices.names) for t in tensors], [i.name for i in free], dim
+        [(t.components, [numbers[name] for name in t.indices.names]) for t in tensors],
+        [numbers[i.name] for i in free],
+        [sizes[name] for name in occurrences],
     )
     if not free:
         return components
     coordinates = next((t.coordinates for t in tensors if t.coordinates), ())
-    return Tensor(components, Indices(free), coordinates)
+    known = all(i.name in spaces for i in free)
+    return Tensor(
+        components,
+        Indices(free),
+        coordinates,
+        spaces=[spaces[i.name] for i in free] if known else None,
+    )
 
 
 def _aligned(tensor: Tensor, indices: Indices) -> Any:
