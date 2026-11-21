@@ -24,11 +24,13 @@ class Executor:
     costs one computation.
 
     Component-wise work (simplifying every component of a tensor, the curvature
-    kernels) goes through :meth:`map`. With ``workers`` above one, large batches
-    are spread over a pool of worker processes, started when first needed.
+    kernels) goes through :meth:`map`. With ``workers`` above one, batches of
+    ``batch`` items or more are spread over a pool of worker processes, started when
+    first needed. Even the ten components of a Ricci tensor are worth spreading: one
+    of Kerr's takes seconds to simplify.
     """
 
-    def __init__(self, workers: int | None = 1, *, batch: int = 16) -> None:
+    def __init__(self, workers: int | None = 1, *, batch: int = 4) -> None:
         self.workers = (os.cpu_count() or 1) if workers is None else max(1, workers)
         self.batch = batch
         self._values: dict[Hashable, Any] = {}  # by computation key

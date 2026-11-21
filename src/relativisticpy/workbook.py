@@ -48,7 +48,8 @@ class Workbook:
     coordinates.
 
     ``workers`` sets how many processes share component-wise work such as
-    simplification (``None`` means one per CPU). Only large batches use them.
+    simplification (``None`` means one per CPU). Batches of a few components or more
+    use them.
     """
 
     def __init__(self, *, workers: int | None = 1) -> None:
