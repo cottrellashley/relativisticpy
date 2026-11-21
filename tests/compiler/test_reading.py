@@ -183,6 +183,25 @@ class TestLatexReading:
         wb.exe("e = 3")  # e is often named afresh: a charge, an eccentricity
         assert wb.expr("e") == 3
 
+    def test_an_order_in_brackets_labels_a_name(self, wb):
+        # E^{(2)}, the second order of a perturbation, is no power; = defines it as a name
+        E1, E2 = (Symbol(f"E^({n})") for n in range(1, 3))
+        wb.exe(r"E^{(0)} = E^{(1)} + E^{(2)}")
+        assert wb.expr(r"E^{(0)}") == E1 + E2
+        assert wb.expr(r"\alpha^{(n)} + x^{2}") == Symbol("alpha^(n)") + Symbol("x") ** 2
+
+    def test_a_coordinate_along_a_path_is_not_differentiated_to_zero(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        with pytest.raises(CompileError, match="the coordinate t along a path"):
+            wb.expr(r"\frac{dt}{d\lambda} = E")
+        assert wb.expr(r"\frac{d}{dr} (r^2)") == 2 * r  # by a coordinate, as ever
+
+    def test_a_decorated_name_is_defined_as_a_name_is(self, wb):
+        # Carroll's null coordinates: \tilde u = t + r^* defines \tilde u
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        wb.exe(r"\tilde u = t + r^*")
+        assert wb.expr(r"\tilde u") == t + Symbol("r^*")
+
     def test_symbols_and_decorations(self, wb):
         assert wb.expr(r"\hbar\omega") == Symbol("hbar") * Symbol("omega")
         assert wb.expr(r"r^* + r_+ + \alpha") == Symbol("r^*") + Symbol("r_+") + Symbol("alpha")

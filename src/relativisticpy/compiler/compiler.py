@@ -233,7 +233,7 @@ class Compiler:
         scalar, as in ``R = 0``."""
         if _is_line_element(target):
             return True
-        target = _unprimed(target)
+        target = _named(_unprimed(target))
         if isinstance(target, ast.Prime) and self._names_a_symbol(target, scope):
             return True  # t' = \gamma(t - vx), a new coordinate
         if isinstance(target, ast.Name):
@@ -268,6 +268,24 @@ class Compiler:
             return False
         return any(c.name == label for c in self.session.coordinates or ())
 
+    def _along_a_path(self, node: ast.Derivative, scope: Scope) -> str | None:
+        """The coordinate a derivative is of, when it is by a parameter that is no
+        coordinate, as dt/d\\lambda along a geodesic is: the coordinate is no function
+        of it, so the derivative would be zero, which is not what is meant."""
+        coordinates = {c.name for c in self.session.coordinates or ()}
+
+        def free(node: ast.Expr | None) -> str | None:
+            if isinstance(node, ast.Name) and scope.lookup(node.id) is None:
+                return node.id
+            return None
+
+        coordinate = free(node.expr)
+        if coordinate is None or coordinate not in coordinates:
+            return None
+        parameters = [free(variable) for variable, _ in node.variables]
+        along = all(p is not None and p not in coordinates for p in parameters)
+        return node.expr.span.text if along and node.expr is not None else None
+
     def _names_coordinate(self, target: ast.Expr, scope: Scope) -> bool:
         """Whether ``target`` is the bare name of a coordinate in force, bound to nothing
         else in the program."""
@@ -290,6 +308,7 @@ class Compiler:
         )
 
     def _define(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
+        target = _named(target)
         if isinstance(target, ast.Prime):  # t' = ..., a name of its own
             primed = target.func.id + "'" * target.order
             target = ast.Name(primed, verbatim=True, span=target.span)
@@ -1822,6 +1841,13 @@ class Compiler:
     # -- calculus ------------------------------------------------------------
 
     def _Derivative(self, node: ast.Derivative, scope: Scope, ctx: Context) -> Term:
+        if (coordinate := self._along_a_path(node, scope)) is not None:
+            raise CompileError(
+                f"the derivative of the coordinate {coordinate} along a path is read "
+                "but not computed",
+                span=node.span,
+                hint=r"write the path's coordinates as functions of its parameter, as in r(\tau)",
+            )
         variables = tuple((self.value(v, scope, ctx), order) for v, order in node.variables)
         if node.expr is None:
             return LeibnizDerivative(node.span, variables)
@@ -2927,7 +2953,7 @@ class Compiler:
                 return self._multiply([*whole.args[:-1], rest], node.span)
         decorations = [s for s in scripts if s.kind == "^" and _decoration(s)]
         if decorations and isinstance(base, ast.Name):  # r^* is a name, not a power
-            marks = "".join(s.body.id for s in decorations if isinstance(s.body, ast.Name))
+            marks = "".join(_mark(s) for s in decorations)
             base = ast.Name(f"{base.id}^{marks}", verbatim=True, span=base.span)
             scripts = [s for s in scripts if s not in decorations]
         subscripts = [s for s in scripts if s.kind == "_"]
@@ -3676,6 +3702,34 @@ def _written_as_letter(node: ast.Name) -> bool:
     return written == "\\" + node.id or len(written) == 1  # the command, or the character
 
 
+def _named(target: ast.Expr) -> ast.Expr:
+    """A decorated name, as ``\\tilde u`` or ``E^{(2)}``, as the name it is read as,
+    ``utilde`` or ``E^(2)``; a dot is a time derivative, and anything else is left as it
+    is."""
+    if (
+        isinstance(target, ast.Accent)
+        and target.accent not in ("dot", "ddot")
+        and isinstance(target.base, ast.Name)
+    ):
+        return ast.Name(target.base.id + target.accent, verbatim=True, span=target.span)
+    if (
+        isinstance(target, ast.Scripted)
+        and isinstance(target.base, ast.Name)
+        and all(script.kind == "^" and _decoration(script) for script in target.scripts)
+    ):
+        marks = "".join(_mark(script) for script in target.scripts)
+        return ast.Name(f"{target.base.id}^{marks}", verbatim=True, span=target.span)
+    return target
+
+
+def _mark(script: ast.Script) -> str:
+    """How a decoration marks a name: ``*`` in ``r^*``, ``(2)`` in ``E^{(2)}``."""
+    body = script.body
+    if isinstance(body, ast.Name) and not _bracketed_order(body):
+        return body.id
+    return body.span.text if body is not None else ""
+
+
 def _script_labels(statement: ast.Node) -> dict[str, Counter[str]]:
     """How often a statement writes each index label as a subscript (``"_"``), as
     \\mu in x_\\mu, and as a superscript (``"^"``)."""
@@ -4185,9 +4239,22 @@ def _bracket_groups(
 
 
 def _decoration(script: ast.Script) -> bool:
-    """A script that marks a name rather than raising it to a power: ``r^*``, ``i^+``."""
+    """A script that marks a name rather than raising it to a power: ``r^*``, ``i^+``, or
+    an order in brackets, as of a perturbation, ``E^{(2)}``."""
     body = script.body
-    return isinstance(body, ast.Name) and body.verbatim and body.id in ("*", "+", "-", "±", "∓")
+    if isinstance(body, ast.Name) and body.verbatim and body.id in ("*", "+", "-", "±", "∓"):
+        return True
+    return _bracketed_order(body)
+
+
+def _bracketed_order(body: ast.Expr | None) -> bool:
+    """``(2)`` or ``(n)``: a whole number or one letter in brackets."""
+    if isinstance(body, ast.Number):
+        whole = body.text.isdigit()
+    else:
+        whole = isinstance(body, ast.Name) and (len(body.id) == 1 or body.id in GREEK)
+    text = body.span.text if body is not None else ""
+    return whole and text.startswith("(") and text.endswith(")")
 
 
 _DIFFERENTIAL_NAME = re.compile(
