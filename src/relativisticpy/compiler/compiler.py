@@ -704,12 +704,12 @@ class Compiler:
         r"""In LaTeX, ``GM`` is :math:`G \cdot M`: one factor per letter (or Greek name)."""
         factors = []
         offset = node.span.start if node.span.text == node.id else None
-        for label in split_index_labels(node.id):
+        for position, label in enumerate(split_index_labels(node.id)):
             span = node.span
             if offset is not None:
                 span = Span(node.span.source, offset, offset + len(label))
                 offset += len(label)
-            factors.append(self.value(ast.Name(label, verbatim=True, span=span), scope, ctx))
+            factors.append(self.value(_letter(label, span, first=position == 0), scope, ctx))
         return self._multiply(factors, node.span)
 
     def _Dots(self, node: ast.Dots, scope: Scope, ctx: Context) -> Node:
@@ -1453,8 +1453,10 @@ class Compiler:
         if ctx.latex and binding is None and not builtin and _splittable(func):
             # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
             labels = split_index_labels(name)
-            last = replace(func, id=labels[-1], verbatim=True)
-            leading = [ast.Name(label, verbatim=True, span=func.span) for label in labels[:-1]]
+            last = _letter(labels[-1], func.span, first=False)
+            leading = [
+                _letter(label, func.span, first=n == 0) for n, label in enumerate(labels[:-1])
+            ]
             factors = [self.value(n, scope, ctx) for n in leading]
             factors.append(self.value(replace(node, func=last), scope, ctx))
             return self._multiply(factors, node.span)
@@ -2610,7 +2612,7 @@ class Compiler:
             ):
                 # re^{x} is r e^{x}: in LaTeX a script binds to the last letter only, which
                 # may be a tensor, as in Rg_{\mu\nu}
-                last = ast.Name(labels[-1], verbatim=True, span=base.span)
+                last = _letter(labels[-1], base.span, first=False)
                 rest = self.value(replace(node, base=last), scope, ctx)
                 return self._multiply([*whole.args[:-1], rest], node.span)
         decorations = [s for s in scripts if s.kind == "^" and _decoration(s)]
@@ -3045,9 +3047,9 @@ class Compiler:
         if len(letters) < 2:
             return node
         factors: list[ast.Expr] = [
-            ast.Name(letter, verbatim=True, span=base.span) for letter in letters[:-1]
+            _letter(letter, base.span, first=n == 0) for n, letter in enumerate(letters[:-1])
         ]
-        factors.append(replace(node, base=ast.Name(letters[-1], verbatim=True, span=base.span)))
+        factors.append(replace(node, base=_letter(letters[-1], base.span, first=False)))
         return reduce(lambda a, b: ast.Binary("*", a, b, implicit=True, span=node.span), factors)
 
     def _abstract_tensor(
@@ -3314,6 +3316,13 @@ def _is_line_element(target: ast.Expr) -> bool:
 def _splittable(node: ast.Name) -> bool:
     name = node.id
     return not node.verbatim and len(name) > 1 and name.isalpha() and name not in GREEK
+
+
+def _letter(label: str, span: Span, *, first: bool) -> ast.Name:
+    """One letter, or Greek name, of a run of letters read as a product, as G is of GM.
+    No letter is split again. A d is the letter d, as in ad - bc, except first in its run,
+    where it is the d of a differential, as in ds or dx, as {\\rm d} is."""
+    return ast.Name(label, verbatim=first and label == "d", span=span)
 
 
 def _written_as_letter(node: ast.Name) -> bool:

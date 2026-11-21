@@ -61,6 +61,15 @@ class TestLatexReading:
     def test_a_script_binds_to_the_last_letter(self, wb):
         assert wb.expr(r"re^{-2\beta}") == r * exp(-2 * Symbol("beta"))
 
+    def test_a_d_in_a_run_of_letters_is_a_letter(self, wb):
+        a, b, c, d = (Symbol(name) for name in "abcd")
+        assert wb.expr(r"\frac{ad - bc}{2}") == (a * d - b * c) / 2
+        assert wb.expr(r"\begin{vmatrix} a & b \\ c & d \end{vmatrix} = ad - bc") is true
+        differentials = (r"{\rm d}t = 2\,{\rm d}x", r"ds^2 = \eta_{\mu\nu} dx^\mu dx^\nu")
+        for source in differentials:  # the d of a differential, first in ds and dx
+            with pytest.raises(CompileError, match="a relation between differentials"):
+                wb.expr(source)
+
     def test_only_the_last_letter_is_called(self, wb):
         assert wb.expr(r"2Gm(r) + \alpha") == 2 * Symbol("G") * Function("m")(r) + Symbol("alpha")
 
