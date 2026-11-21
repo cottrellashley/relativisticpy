@@ -312,11 +312,16 @@ class Parser:
         else:
             statements = self._expression_statements()
         # A statement in a LaTeX display is LaTeX however it is written: in
-        # \begin{equation} E = mc^2 \end{equation}, mc is m times c.
+        # \begin{equation} E = mc^2 \end{equation}, mc is m times c. So is one with any
+        # command, even one that leaves no token of its own, as \, and {\rm d} do.
+        tokens = self.tokens[start : self.pos]
+        begin = self.tokens[start - 1].span.end if start else 0  # with \mathrm before d
+        written = self.source.text[begin : tokens[-1].span.end] if tokens else ""
         latex = (
             self._display > 0
             or self.source.latex
-            or any(_is_latex(t) for t in self.tokens[start : self.pos])
+            or "\\" in written
+            or any(_is_latex(t) for t in tokens)
         )
         return [replace(statement, latex=latex) for statement in statements]
 

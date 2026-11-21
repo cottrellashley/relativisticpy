@@ -221,7 +221,10 @@ class Compiler:
         scalar, as in ``R = 0``."""
         if _is_line_element(target):
             return True
+        target = _unprimed(target)
         if isinstance(target, ast.Name):
+            if target.id in _CLAIMED:
+                return False  # \pi = 3.14159: a claim about the constant
             if scope.lookup(target.id) is not None:
                 return True  # a name defined again, as x = 5 and then x = 6
             return _indexed_name(target, scope) is None and self._builtin_scalar(target.id) is None
@@ -274,6 +277,7 @@ class Compiler:
         if _is_line_element(target):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
             return
+        target = _unprimed(target)
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
             raise CompileError("cannot define this", span=target.span)
         entries = self._entries(target, "a definition")
@@ -681,7 +685,7 @@ class Compiler:
             return self._latex_letters(node, scope, ctx)
         # A builtin applies to what follows it, as sin does in sin x; in LaTeX only if it
         # is written as a command, \operatorname{sign} x, so that N dt^2 is a product.
-        if _names_builtin(node) and (node.verbatim or not ctx.latex):
+        if _names_builtin(node, latex=ctx.latex) and (node.verbatim or not ctx.latex):
             return FunctionReference(node.span, name)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
 
@@ -1455,7 +1459,7 @@ class Compiler:
             raise CompileError(f"{name} is not a function", span=func.span)
         if name == "geodesic_equations":
             return self._geodesic_equations(node, scope, ctx)
-        builtin = _names_builtin(func)  # \gamma(r) is an unknown function, not Euler's
+        builtin = _names_builtin(func, latex=ctx.latex)  # \gamma(r) is an unknown function
         if ctx.latex and binding is None and not builtin and _splittable(func):
             # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
             labels = split_index_labels(name)
@@ -1568,7 +1572,7 @@ class Compiler:
             body = self._inline(binding, [dummy], span, ctx)
         elif binding is not None:
             raise CompileError(f"{name} is not a function", span=prime.func.span)
-        elif _names_builtin(prime.func):
+        elif _names_builtin(prime.func, latex=ctx.latex):
             body = self._builtin(BUILTINS[name], [dummy], span)
         else:
             body = self._call(sympy.Function(name), name, [dummy], SCALAR, span)
@@ -1830,14 +1834,29 @@ class Compiler:
         return self._call(_piecewise, "piecewise", args, SCALAR, node.span)
 
     def _Prime(self, node: ast.Prime, scope: Scope, ctx: Context) -> Node:
-        name = node.func.id + "'" * node.order
-        raise CompileError(f"{name} needs an argument, as in {name}(x)", span=node.span)
+        """A primed name written alone. Of a function written once with its one argument,
+        as A(r) is, it is the derivative there: A' is dA/dr. Otherwise it is a name of its
+        own, as t' is in \\int f(t')\\, dt', or x' in a change of coordinates."""
+        name = node.func.id
+        primed = name + "'" * node.order
+        if isinstance(binding := scope.lookup(primed), VariableBinding):
+            return binding.node
+        binding = scope.lookup(name)
+        arguments = self.session.functions.get(name, ())
+        if binding is None and len(arguments) == 1:
+            at = ast.Name(str(arguments[0]), verbatim=True, span=node.span)
+            return self._prime(node, (at,), node.span, scope, ctx)
+        if binding is not None or _names_builtin(node.func, latex=ctx.latex):
+            raise CompileError(f"{primed} needs an argument, as in {primed}(x)", span=node.span)
+        return self.graph.const(self.session.symbol(primed), SCALAR, node.span)
 
     # ======================================================================
     # Scripts and tensors
     # ======================================================================
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
+        if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
+            node = named  # R'_{\mu\nu}: the tensor R'
         base = node.base
         if isinstance(base, ast.Operator) and base.kind == "lie":
             return self._lie_operator(node)
@@ -3042,7 +3061,8 @@ class Compiler:
                         "an equation cannot be part of an expression", span=node.span
                     )
                 return found.value
-            function = isinstance(scope.lookup(name), FunctionBinding) or _names_builtin(node.func)
+            builtin = _names_builtin(node.func, latex=ctx.latex)
+            function = isinstance(scope.lookup(name), FunctionBinding) or builtin
             if not function and len(node.args) == 1 and _mentions_tensor(node):
                 # \kappa(T_{\mu\nu} - ...), as typeset: a product
                 times = ast.Binary("*", node.func, node.args[0], implicit=True, span=node.span)
@@ -3385,9 +3405,27 @@ def _written_as_letter(node: ast.Name) -> bool:
     return written == "\\" + node.id or len(written) == 1  # the command, or the character
 
 
-def _names_builtin(node: ast.Name) -> bool:
+def _unprimed(node: ast.Expr) -> ast.Expr:
+    """A primed name with subscripts, as ``R'_{\\mu\\nu}``, read as the name ``R'`` with
+    them: a tensor or symbol of its own. A power of a primed name, ``A'^2``, is left as
+    it is, to be the power of what ``A'`` means."""
+    if (
+        isinstance(node, ast.Scripted)
+        and isinstance(node.base, ast.Prime)
+        and any(script.kind == "_" for script in node.scripts)
+    ):
+        prime = node.base
+        name = ast.Name(prime.func.id + "'" * prime.order, verbatim=True, span=prime.span)
+        return replace(node, base=name)
+    return node
+
+
+def _names_builtin(node: ast.Name, *, latex: bool = False) -> bool:
     """Whether a name, bound to nothing in the program, is a builtin function: never a
-    Greek letter written as one, so that \\gamma(r) in a metric is an unknown function."""
+    Greek letter written as one, so that \\gamma(r) in a metric is an unknown function,
+    and in LaTeX never a single letter, so that N(t) there is the lapse, not ``N``."""
+    if latex and len(node.id) == 1:
+        return False
     return node.id in BUILTINS and not _written_as_letter(node)
 
 
@@ -3688,6 +3726,10 @@ def _written(scripts: Sequence[ast.Script]) -> str:
 
 # Index labels for examples in messages, where the labels written name components.
 _EXAMPLE_LABELS = ("\\mu", "\\nu", "\\rho", "\\sigma", "\\lambda", "\\kappa")
+
+# Constants that an equation can only make a claim about: \pi = 3.14159 is not a new \pi.
+# (e and i are often named afresh, as a charge or an index.)
+_CLAIMED = frozenset({"pi", "infty", "oo"})
 
 
 def _bracket_groups(

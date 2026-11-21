@@ -181,7 +181,8 @@ def test_primes(wb):
     with pytest.raises(CompileError, match="y is not a function"):
         wb.expr("y := 2\ny'(x)")
     with pytest.raises(CompileError, match="needs an argument"):
-        wb.expr("f''")
+        wb.expr("f(x) := x^3\nf''")  # a defined function: at what point?
+    assert wb.expr("g''") == Symbol("g''")  # undefined, a name of its own, as t' is
 
 
 def test_geodesic_equations_arguments(wb):

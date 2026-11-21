@@ -754,6 +754,11 @@ class TestStatements:
         # even without a command of its own: in a display mc is m times c
         assert all(statement.latex for statement in parse(text).statements)
 
+    def test_a_command_that_leaves_no_token_makes_a_statement_latex(self):
+        # \, and {\rm d} leave no token of their own; plain text has no backslash
+        sources = [r"a = N(t)\,dt", r"-N^2 {\rm d}t^2", r"\mathrm{d}x", "E = mc^2"]
+        assert [parse(s).statements[0].latex for s in sources] == [True, True, True, False]
+
     def test_a_source_can_be_latex_throughout(self):
         from relativisticpy.language import Source
 

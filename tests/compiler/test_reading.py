@@ -109,6 +109,38 @@ class TestLatexReading:
         assert wb.expr("N(pi, 3)") == sympify("pi").evalf(3)
         assert wb.expr("sin x") == wb.expr(r"\sin x") == sympify("sin(x)")
 
+    def test_a_one_letter_builtin_is_a_letter_in_latex(self, wb):
+        # The lapse N(t) of cosmology, never numerical evaluation, which would give t.
+        wb.exe(r"ds^2 = -N(t)^2 {\rm d}t^2 + a(t)^2 {\rm d}x^2")
+        lapse = Function("N")(t)
+        assert wb.expr(r"g_{tt}") == -(lapse**2)
+        assert wb.expr(r"\alpha + N(t)") == Symbol("alpha") + lapse
+        assert wb.expr("N(pi, 3)") == sympify("pi").evalf(3)  # in plain text, the builtin
+
+    def test_a_primed_name_alone(self, wb):
+        # t' is a variable of its own; A' of a function written once as A(r) is dA/dr.
+        assert wb.expr(r"\int_0^1 t' \, dt'") == sympify("1/2")
+        assert wb.expr(r"x' + 2 x'") == 3 * Symbol("x'")
+        wb.exe(r"ds^2 = -A(r) dt^2 + B(r) dr^2 + r^2 d\Omega^2")
+        A = Function("A")(r)
+        assert wb.expr("A'") == diff(A, r)
+        assert wb.expr("A'' + A'^2") == diff(A, r, 2) + diff(A, r) ** 2
+        with pytest.raises(CompileError, match="sin' needs an argument"):
+            wb.expr("sin'")
+
+    def test_a_primed_tensor(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        wb.exe(r"T'_{\mu\nu} := 2 g_{\mu\nu}")
+        assert wb.expr(r"T'_{tt}") == 2 * wb.expr(r"g_{tt}")
+        assert wb.expr(r"T_{\mu\nu}' = 2 g_{\mu\nu}")  # TeX sets the prime the same
+
+    def test_a_constant_is_claimed_not_defined(self, wb):
+        assert wb.expr(r"\pi = 3.141592653589793") is true
+        assert not wb.expr(r"\pi = 3")  # a false claim, which leaves \pi as it is
+        assert wb.expr(r"\pi") == sympify("pi")
+        wb.exe("e = 3")  # e is often named afresh: a charge, an eccentricity
+        assert wb.expr("e") == 3
+
     def test_symbols_and_decorations(self, wb):
         assert wb.expr(r"\hbar\omega") == Symbol("hbar") * Symbol("omega")
         assert wb.expr(r"r^* + r_+ + \alpha") == Symbol("r^*") + Symbol("r_+") + Symbol("alpha")
