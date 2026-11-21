@@ -162,6 +162,10 @@ class Compiler:
         if isinstance(statement, ast.FunctionDefinition):
             scope.bind(statement.name, FunctionBinding(statement, scope))
             return []
+        if isinstance(statement, ast.Define) and self._states_identity(statement, scope):
+            target = statement.targets[0]
+            equation = ast.Equation(target, statement.value, span=statement.span)
+            statement = ast.Evaluate(equation, span=statement.span, latex=statement.latex)
         if isinstance(statement, ast.Define):
             if len(statement.targets) > 1:
                 self._destructure(statement.targets, statement.value, scope, ctx)
@@ -191,15 +195,36 @@ class Compiler:
         )
         return [Output(self.value(expr, scope, ctx), expr.span, name)]
 
+    def _states_identity(self, statement: ast.Define, scope: Scope) -> bool:
+        """Whether a definition written with ``\\equiv`` says what a built-in already is,
+        as ``R_{\\mu\\nu} \\equiv R^\\alpha{}_{\\mu\\alpha\\nu}`` does: then it is a claim to
+        check, which leaves the built-in as it is, rather than a new meaning for its name.
+        The metric is defined this way, as any new tensor is."""
+        if len(statement.targets) != 1:
+            return False
+        target, value = statement.targets[0], statement.value
+        written = Span(statement.span.source, target.span.end, value.span.start).text
+        if "\\equiv" not in written and "≡" not in written:
+            return False
+        if isinstance(target, ast.Name):
+            return scope.lookup(target.id) is None and self._builtin_scalar(target.id) is not None
+        pattern = _tensor_pattern(target) if isinstance(target, ast.Scripted) else None
+        if pattern is None or scope.lookup(pattern[0]) is not None:
+            return False
+        return self._builtin_tensor(pattern[0], len(pattern[1])) not in (None, "metric")
+
     def _defines(self, target: ast.Expr, scope: Scope) -> bool:
         """Whether ``target = value`` is a definition rather than an equation. What already
         has a meaning is compared, not overwritten: a tensor that exists, written with its
-        indices or, as data is, without braces (``w_a``), and a component, as in ``g_{tt}``
-        or ``T_{tr}``, whose indices name coordinates."""
+        indices or, as data is, without braces (``w_a``), a component, as in ``g_{tt}`` or
+        ``T_{tr}``, whose indices name coordinates, and, with a metric in force, a built-in
+        scalar, as in ``R = 0``."""
         if _is_line_element(target):
             return True
         if isinstance(target, ast.Name):
-            return scope.lookup(target.id) is not None or _indexed_name(target, scope) is None
+            if scope.lookup(target.id) is not None:
+                return True  # a name defined again, as x = 5 and then x = 6
+            return _indexed_name(target, scope) is None and self._builtin_scalar(target.id) is None
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
             return False
         if any(s.indices is None for s in target.scripts):
@@ -371,7 +396,7 @@ class Compiler:
             TensorType(indices, (spacetime(coordinates),) * 2),
             target.span.to(value.span),
         )
-        self.session.metric = MetricState(metric, _mentioned(value))
+        self.session.metric = MetricState(metric, _mentioned(value, latex=ctx.latex))
 
     def _define_space_metric(
         self,
@@ -496,7 +521,7 @@ class Compiler:
             TensorType(indices, (spacetime(coordinates),) * 2),
             span,
         )
-        self.session.metric = MetricState(metric, _mentioned(value))
+        self.session.metric = MetricState(metric, _mentioned(value, latex=ctx.latex))
 
     def _define_tensor(
         self,
@@ -629,16 +654,8 @@ class Compiler:
         session = self.session
         if name == "Coordinates" and session.coordinates is not None:
             return self.graph.const(list(session.coordinates), VALUE, node.span)
-        if session.metric is not None:
-            coordinates = {c.name for c in session.coordinates or ()}
-            if name == session.names["metric"]:
-                return self._geometry("determinant", node.span)
-            if name == session.names["ricci"]:
-                return self._geometry("ricci_scalar", node.span)
-            if name == "R" and "R" not in session.metric.names and "R" not in coordinates:
-                return self._geometry("ricci_scalar", node.span)
-            if name == "Kretschmann":
-                return self._geometry("kretschmann", node.span)
+        if (quantity := self._builtin_scalar(name)) is not None:
+            return self._geometry(quantity, node.span)
         if name in session.assumptions:
             return self.graph.const(session.assumptions[name], SCALAR, node.span)
         if name in CONSTANTS:
@@ -653,6 +670,24 @@ class Compiler:
         if name in BUILTINS:
             return FunctionReference(node.span, name)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
+
+    def _builtin_scalar(self, name: str) -> str | None:
+        """The geometric quantity that ``name``, bound to nothing in the program, denotes
+        with a metric in force: the metric determinant ``g``, the Ricci scalar ``Ric`` or
+        ``R``, or the Kretschmann scalar. A name the metric itself is written with, such as
+        the radius R of a sphere, or a coordinate's name, stays a symbol; ``Ric`` is always
+        the Ricci scalar."""
+        session = self.session
+        if session.metric is None:
+            return None
+        own = name in session.metric.names or any(c.name == name for c in session.coordinates or ())
+        if name == session.names["metric"] and not own:
+            return "determinant"
+        if name == session.names["ricci"] or (name == "R" and not own):
+            return "ricci_scalar"
+        if name == "Kretschmann":
+            return "kretschmann"
+        return None
 
     def _latex_letters(self, node: ast.Name, scope: Scope, ctx: Context) -> Node:
         r"""In LaTeX, ``GM`` is :math:`G \cdot M`: one factor per letter (or Greek name)."""
@@ -3355,13 +3390,17 @@ def _walk(node: ast.Node) -> Iterator[ast.Node]:
             pending.extend(vars(current).values())
 
 
-def _mentioned(value: ast.Expr) -> frozenset[str]:
-    """Every name written in an expression."""
+def _mentioned(value: ast.Expr, *, latex: bool) -> frozenset[str]:
+    """Every name written in an expression and, in LaTeX, every letter of a run of
+    letters read as a product, as GM is in \\frac{2GM}{r}. The name of a builtin, such as
+    FLRW in FLRW(k) or diag, is one name and never its letters."""
     found: set[str] = set()
     for node in _walk(value):
         if isinstance(node, ast.Name):
             found.add(node.id)
-            found.update(split_index_labels(node.id))
+            builtin = node.id in BUILTINS or node.id in CONSTANTS
+            if latex and _splittable(node) and not builtin:
+                found.update(split_index_labels(node.id))
     return frozenset(found)
 
 

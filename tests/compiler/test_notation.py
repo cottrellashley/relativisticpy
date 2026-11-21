@@ -100,6 +100,43 @@ class TestBuiltInTensorNames:
         wb.exe("Coordinates := [x, y]\nGamma^{a}_{bc} := 0")
         assert wb.expr("Gamma^{a}_{bc}").components == Array.zeros(2, 2, 2)
 
+    @pytest.mark.parametrize("spacetime", ["FLRW(k)", "ReissnerNordstrom(M, Q)"])
+    def test_r_is_the_ricci_scalar_whatever_the_spacetime_is_called(self, wb, spacetime):
+        # The names of spacetimes are not runs of letters: FLRW holds no R.
+        wb.exe(rf"g_{{\mu\nu}} := {spacetime}")
+        assert wb.expr("R") == wb.expr("Ric")
+        assert wb.expr("R") != Symbol("R")
+
+    def test_g_is_a_symbol_when_the_metric_uses_it(self, wb):
+        wb.exe(r"Coordinates := [t, x]" "\n" r"g_{ab} := diag(-1, g^2 t^2)")
+        g, t = Symbol("g"), Symbol("t")
+        assert wb.expr("g") == g
+        assert wb.expr(r"\det(g_{ab})") == -(g**2) * t**2
+        wb.exe(r"g_{ab} := diag(-1, t^2)")
+        assert wb.expr("g") == -(t**2)  # the determinant again
+
+    @pytest.mark.parametrize(
+        ("claim", "name"),
+        [("R = 1", "R"), ("Ric = 1", "Ric"), ("g = 5", "g"), ("Kretschmann = 0", "Kretschmann")],
+    )
+    def test_with_a_metric_a_built_in_scalar_is_claimed_not_defined(self, wb, claim, name):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        before = wb.expr(name)
+        assert wb.expr(claim) is not sympy.true  # a claim that fails
+        assert wb.expr(name) == before  # and the built-in is as it was
+
+    def test_a_built_in_defined_by_equiv_is_an_identity(self, wb):
+        definition = r"R_{\mu\nu} \equiv R^{\alpha}{}_{\mu\alpha\nu}"
+        assert wb.expr(definition).holds()  # without a metric, an identity of notation
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        assert wb.expr(definition)  # with one, a claim that holds component by component
+        assert wb.expr(r"R \equiv g^{\mu\nu} R_{\mu\nu}") is sympy.true
+        M = Symbol("M")
+        assert wb.expr("R_{abcd} R^{abcd}") == 48 * M**2 / r**6  # R is still built in
+        assert wb.expr("R") == 0
+        wb.exe(r"x \equiv \frac{r}{M}")  # a new name is still defined
+        assert wb.expr("x") == r / M
+
 
 class TestDefinitionsAndEquations:
     def test_an_existing_tensor_is_compared_not_overwritten(self, plane):

@@ -113,9 +113,26 @@ $$
 
 `R` is the Ricci scalar unless your metric uses `R` as a symbol (the radius of a
 sphere, say), in which case `R` stays a symbol; `Ric` is always the Ricci
-scalar. To rename a built-in, write `MetricSymbol := G`; likewise
+scalar. Likewise `g` is the metric determinant unless the metric uses `g`, when
+`\det(g_{\mu\nu})` still is. To rename a built-in, write `MetricSymbol := G`; likewise
 `ConnectionSymbol`, `RiemannSymbol`, `RicciSymbol`, `EinsteinSymbol`,
 `WeylSymbol`, `DerivativeSymbol` and `CovariantDerivativeSymbol`.
+
+With a metric in force, an equation about a built-in is a claim to check, never
+a new definition: `R = 0` asks whether the Ricci scalar vanishes, and
+`R_{\mu\nu} \equiv R^\alpha{}_{\mu\alpha\nu}`, as papers define the Ricci tensor,
+checks that it is the contraction of the Riemann tensor:
+
+```python
+>>> wb.exe(r"""
+...     R = 0
+...     R_{\mu\nu} \equiv R^\alpha{}_{\mu\alpha\nu}
+... """)
+[True, TensorEquation(_{mu}_{nu}, 0 equations)]
+
+```
+
+To give a built-in's name a meaning of your own, use `:=`.
 
 ## Components
 
@@ -161,7 +178,10 @@ The free indices on the right must match the left, in any order:
 ```
 
 `:=` always (re)defines. `=` defines a tensor the first time, but once a tensor
-exists `=` states an equation about it rather than overwriting it.
+exists `=` states an equation about it rather than overwriting it. An equation
+about a component, such as `g_{tt} = -(1 - 2M/r)`, whose indices name
+coordinates, is always a claim: it neither replaces the metric nor defines a new
+tensor's every component.
 
 ## Derivatives
 
