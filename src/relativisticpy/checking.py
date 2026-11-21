@@ -36,6 +36,7 @@ from relativisticpy.abstract import IndexEquation
 from relativisticpy.documents import Document, Equation, math_blocks
 from relativisticpy.errors import CompileError, EvaluationError, ParseError
 from relativisticpy.language import Source, Span, parse
+from relativisticpy.language import syntax as ast
 from relativisticpy.runtime.kernels import differs
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import tidy
@@ -237,6 +238,12 @@ def _finding(step: Step) -> Finding:
         lhs, rhs = step.sides
         if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr):
             detail = f"the left side minus the right is {_short(tidy(lhs - rhs))}"
+    elif verdict is Verdict.DIFFERS and isinstance(step.statement, ast.Evaluate):
+        expr = step.statement.expr
+        if isinstance(expr, ast.Comparison) and set(expr.ops) == {"!="}:
+            detail = "the two sides are equal"
+        elif isinstance(expr, ast.Comparison) and "==" not in expr.ops:
+            detail = "the inequality does not hold"
     return Finding(verdict, step.span, detail)
 
 

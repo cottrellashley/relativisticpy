@@ -155,6 +155,11 @@ class TestScalarEquations:
         assert wb.expr("0.1 + 0.2 = 0.30001") is sympy.false
         assert wb.expr(r"\sqrt{x^2} = x") == sympy.Eq(sympy.sqrt(x**2), x)
 
+    def test_a_false_relation_says_why(self):
+        assert judged(r"2 \neq 2") == (Verdict.DIFFERS, "the two sides are equal")
+        assert judged("3 < 2") == (Verdict.DIFFERS, "the inequality does not hold")
+        assert judged("x + 1 = x") == (Verdict.DIFFERS, "the left side minus the right is 1")
+
 
 def test_a_check_neither_uses_nor_changes_the_workbooks_definitions():
     wb = Workbook()
