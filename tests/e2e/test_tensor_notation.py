@@ -166,6 +166,13 @@ class TestComponents:
         friedmann = (3 * (diff(a, t) ** 2 + k) - Lam * a**2) / (8 * pi * G * a**2)
         assert same(flrw.expr(r"T_{tt}"), friedmann)
 
+    def test_a_solution_defines_with_an_equals_sign_too(self, flrw):
+        # The T_{\mu\nu} that solve is asked for names the unknown: T is defined.
+        assert flrw.exe(r"T_{\mu\nu} = RHS(solve(EFE, T_{\mu\nu}))") == []
+        a = Function("a")(t)
+        friedmann = (3 * (diff(a, t) ** 2 + k) - Lam * a**2) / (8 * pi * G * a**2)
+        assert same(flrw.expr(r"T_{tt}"), friedmann)
+
     def test_notation_meets_components(self, flrw):
         flrw.exe(r"T_{\mu\nu} := RHS(solve(EFE, T_{\mu\nu}))")
         # The trace-reversed equations, solved as notation, hold component by component.

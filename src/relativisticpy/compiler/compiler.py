@@ -2691,10 +2691,11 @@ class Compiler:
         indices follow the rules of the notation and none is a coordinate, since
         \\Gamma^\\theta_{r\\theta} = 1/r is a component. A tensor written with a coordinate
         as an index never counts: ``G_{tt} = 8\\pi T_{tt}`` is about components, which T
-        has not yet. In an operation, something kept as notation always counts."""
+        has not yet; nor does the tensor ``solve`` is asked to solve for. In an operation,
+        something kept as notation always counts."""
         builtin = single = False
         labels: set[str] = set()
-        for current in _walk(node):
+        for current in _used(node):
             if isinstance(current, ast.Name):
                 binding = scope.lookup(current.id)
                 notation = isinstance(binding, VariableBinding) and _notation_of(binding.node)
@@ -3522,6 +3523,29 @@ def _walk(node: ast.Node) -> Iterator[ast.Node]:
         elif isinstance(current, ast.Node):
             yield current
             pending.extend(vars(current).values())
+
+
+def _used(node: ast.Node) -> Iterator[ast.Node]:
+    """Every node of an expression as :func:`_walk` gives them, except the tensor that
+    ``solve(E, T_{\\mu\\nu})`` is asked to solve for: that names the unknown, and is not a
+    tensor the expression uses."""
+    pending: list[object] = [node]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, tuple):
+            pending.extend(current)
+        elif isinstance(current, ast.Node):
+            yield current
+            solving = (
+                isinstance(current, ast.Call)
+                and isinstance(current.func, ast.Name)
+                and current.func.id == "solve"
+                and len(current.args) == 2
+            )
+            if isinstance(current, ast.Call) and solving:
+                pending.extend((current.func, current.args[0]))
+            else:
+                pending.extend(vars(current).values())
 
 
 def _mentioned(value: ast.Expr, *, latex: bool) -> frozenset[str]:
