@@ -156,6 +156,70 @@ class TestScalarEquations:
         assert wb.expr(r"\sqrt{x^2} = x") == sympy.Eq(sympy.sqrt(x**2), x)
 
 
+def test_a_check_neither_uses_nor_changes_the_workbooks_definitions():
+    wb = Workbook()
+    wb.exe("x := 3")
+    assert verdicts(wb.check(Document(r"\begin{equation} x = 3 \end{equation}"))) == [
+        (1, Verdict.DEFINES)
+    ]
+    wb.check(Document(PAPER))  # whose sections each start afresh
+    assert wb.expr("x") == 3
+
+
+def test_no_statement_stops_a_check():
+    report = Workbook().check(
+        Document(r"""
+        \begin{equation} [1, 2] < [3, 4] \end{equation}
+        \begin{equation} 5.² = 25 \end{equation}
+        \begin{equation} 2 + 2 = 4 \end{equation}
+        """)
+    )
+    assert [finding.verdict for finding in report.findings] == [
+        Verdict.NOT_UNDERSTOOD,
+        Verdict.NOT_PARSED,
+        Verdict.HOLDS,
+    ]
+
+
+def test_a_failure_of_relativisticpy_is_a_finding(monkeypatch):
+    def broken(self, output):
+        raise RuntimeError("something broke")
+
+    monkeypatch.setattr(Workbook, "_present", broken)
+    report = Workbook().check(Document(PAPER))
+    assert verdicts(report) == [
+        (8, Verdict.DEFINES),  # definitions present nothing
+        (10, Verdict.NOT_UNDERSTOOD),
+        (16, Verdict.NOT_UNDERSTOOD),
+        (17, Verdict.NOT_COMPUTED),
+        (19, Verdict.NOT_PARSED),
+    ]
+    assert report.findings[1].detail == "failed: RuntimeError: something broke"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        r"\let\old\vec \renewcommand{\vec}[1]{\old{#1}} \begin{equation} \vec{x} \end{equation}",
+        r"\newcommand{\foo}[1][x]{#1} \begin{equation} \foo[ = 1 \end{equation}",
+        "\\begin{equation} x = 1 \\end{equation} \\",
+    ],
+)
+def test_a_document_that_cannot_be_read_gives_a_report(text):
+    assert Workbook().check(Document(text)).findings
+
+
+def test_a_document_whose_equations_cannot_be_found_is_a_finding(monkeypatch):
+    def broken(self):
+        raise ValueError(r"the macro \vec expands without end")
+
+    monkeypatch.setattr(Document, "equations", broken)
+    findings = Workbook().check(Document(PAPER, "paper.tex")).findings
+    assert [(finding.verdict, finding.detail) for finding in findings] == [
+        (Verdict.NOT_PARSED, r"cannot read: ValueError: the macro \vec expands without end")
+    ]
+
+
 def test_the_summary_counts_verdicts():
     summary = Workbook().check(Document(PAPER, "paper.tex")).summary()
     assert summary.splitlines()[0] == "paper.tex: 5 equations, 7 statements"
@@ -175,11 +239,12 @@ def test_a_computation_over_its_time_limit_is_not_computed(monkeypatch):
         time.sleep(5)
         return component
 
-    wb = Workbook()
-    wb.exe(r"ds^2 = -dt^2 + dx^2")
     monkeypatch.setattr(executor, "simplify_component", slowly)
-    curvature = Document(r"\begin{equation} R_{txtx} = 0 \end{equation}")
-    finding = wb.check(curvature, time_limit=0.1).findings[0]
+    curvature = Document(r"""
+    \begin{equation} ds^2 = -dt^2 + dx^2 \end{equation}
+    \begin{equation} R_{txtx} = 0 \end{equation}
+    """)
+    finding = Workbook().check(curvature, time_limit=0.1).findings[1]
     assert (finding.verdict, finding.detail) == (Verdict.NOT_COMPUTED, "took longer than 0.1 s")
 
 

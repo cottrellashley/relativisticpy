@@ -34,7 +34,7 @@ import sympy
 from relativisticpy.abstract import IndexEquation
 from relativisticpy.documents import Document, Equation, math_blocks
 from relativisticpy.errors import CompileError, EvaluationError, ParseError
-from relativisticpy.language import Span
+from relativisticpy.language import Source, Span, parse
 from relativisticpy.runtime.kernels import differs
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import tidy
@@ -125,14 +125,21 @@ def check(
 ) -> Report:
     """Check a :class:`~relativisticpy.documents.Document`, or a file: a LaTeX
     document or, by its suffix, a Markdown notebook."""
-    if isinstance(document, Document):
-        return check_equations(workbook, document.equations(), document.name, lines, time_limit)
-    path = Path(document)
-    text = path.read_text(encoding="utf-8", errors="replace")
-    if path.suffix.lower() in (".md", ".markdown"):
-        blocks = [Equation(source, "$$") for source in math_blocks(text, str(path))]
-        return check_equations(workbook, blocks, str(path), lines, time_limit)
-    return check(workbook, Document(text, str(path)), lines=lines, time_limit=time_limit)
+    if not isinstance(document, Document):
+        path = Path(document)
+        text = path.read_text(encoding="utf-8", errors="replace")
+        if path.suffix.lower() in (".md", ".markdown"):
+            blocks = [Equation(source, "$$") for source in math_blocks(text, str(path))]
+            return check_equations(workbook, blocks, str(path), lines, time_limit)
+        document = Document(text, str(path))
+    try:
+        equations = document.equations()
+    except Exception as error:  # a document that cannot be read is reported, as a statement is
+        report = Report(document.name, 0)
+        span = Span(Source(document.text, document.name), 0, 0)
+        report.findings.append(Finding(Verdict.NOT_PARSED, span, f"cannot read: {_why(error)}"))
+        return report
+    return check_equations(workbook, equations, document.name, lines, time_limit)
 
 
 def check_equations(
@@ -143,33 +150,55 @@ def check_equations(
     time_limit: float | None = None,
 ) -> Report:
     """Check equations in order. Each section starts afresh, as a reader does: texts
-    reuse symbols, and \\Omega in one chapter need not be \\Omega in the next."""
+    reuse symbols, and \\Omega in one chapter need not be \\Omega in the next.
+
+    The equations run in a new workbook with the same workers, so that the workbook's
+    own definitions neither take part nor are lost. Whatever goes wrong with one
+    statement is a finding about it; nothing stops the check."""
     if lines is not None:
         first, last = lines
         equations = [equation for equation in equations if first <= equation.line <= last]
     report = Report(name, len(equations))
     section = equations[0].section if equations else 0
-    for equation in equations:
-        if equation.section != section:
-            workbook.reset()
-            section = equation.section
-        source = equation.source
-        try:
-            steps = workbook.each(source)
-            while True:
-                with _time_limit(time_limit):
-                    step = next(steps, None)
-                if step is None:
-                    break
-                report.findings.append(_finding(step))
-        except ParseError as error:
-            span = error.span or Span(source, 0, len(source.text))
-            report.findings.append(Finding(Verdict.NOT_PARSED, span, error.message))
-        except TimeoutError:
-            span = Span(source, 0, len(source.text))
-            detail = f"took longer than {time_limit:g} s"
-            report.findings.append(Finding(Verdict.NOT_COMPUTED, span, detail))
+    with type(workbook)(workers=workbook._workers, backend=workbook._backend) as session:
+        for equation in equations:
+            if equation.section != section:
+                session.reset()
+                section = equation.section
+            report.findings.extend(_check_equation(session, equation.source, time_limit))
     return report
+
+
+def _check_equation(session: Workbook, source: Source, time_limit: float | None) -> list[Finding]:
+    """The findings of one equation: one for each statement it makes, as far as they run."""
+    findings: list[Finding] = []
+    whole = Span(source, 0, len(source.text))
+    try:
+        steps = session.each(source)
+        while True:
+            with _time_limit(time_limit):
+                step = next(steps, None)
+            if step is None:
+                break
+            findings.append(_finding(step))
+    except ParseError as error:
+        findings.append(Finding(Verdict.NOT_PARSED, error.span or whole, error.message))
+    except TimeoutError:
+        findings.append(Finding(Verdict.NOT_COMPUTED, whole, f"took longer than {time_limit:g} s"))
+    except Exception as error:  # a failure of RelativisticPy's own: reported, not raised
+        try:
+            parse(source)
+        except Exception as failure:
+            findings.append(Finding(Verdict.NOT_PARSED, whole, _why(failure)))
+        else:
+            findings.append(Finding(Verdict.NOT_UNDERSTOOD, whole, f"failed: {_why(error)}"))
+    return findings
+
+
+def _why(error: Exception) -> str:
+    """An unexpected error, as a finding's detail: its kind and its message."""
+    message = " ".join(str(error).split())
+    return f"{type(error).__name__}: {message}" if message else type(error).__name__
 
 
 def _finding(step: Step) -> Finding:

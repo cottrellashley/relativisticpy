@@ -53,7 +53,9 @@ equations. The sign in R₂₂ should be the other way round.
 
 `Workbook.check` takes a `Document`, a path to a LaTeX file or a Markdown
 notebook, and optionally `lines=(first, last)` and a `time_limit` in seconds
-for each statement.
+for each statement. The document runs in a workbook of its own, with the same
+workers, so the workbook's definitions take no part and are kept. Whatever
+fails in one statement is a finding about it, and the check goes on.
 
 ## Verdicts
 
