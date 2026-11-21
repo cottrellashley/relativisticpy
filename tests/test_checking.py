@@ -1,8 +1,11 @@
 r"""Checking documents: every statement gets a verdict, in the document's order."""
 
 import io
+import runpy
 import sys
+import tarfile
 import time
+from pathlib import Path
 
 import pytest
 import sympy
@@ -13,6 +16,7 @@ from relativisticpy.cli import main
 from relativisticpy.documents import Document
 from relativisticpy.runtime import executor
 
+BENCHMARKS = Path(__file__).parent.parent / "benchmarks"
 PAPER = r"""
 \documentclass{article}
 \newcommand{\be}{\begin{equation}}
@@ -288,6 +292,27 @@ def test_a_time_limit_is_a_positive_number_of_seconds(seconds):
 def test_an_infinite_time_limit_is_none():
     report = Workbook().check(Document(PAPER), time_limit=float("inf"))
     assert verdicts(report)[:2] == [(8, Verdict.DEFINES), (11, Verdict.HOLDS)]
+
+
+def test_the_corpus_is_unpacked_on_pythons_without_extraction_filters(tmp_path, monkeypatch):
+    # Python 3.10.0 to 3.10.11 have no data filter, and refuse the argument for one.
+    corpus = runpy.run_path(str(BENCHMARKS / "corpus.py"))
+    paper = rb"\begin{equation} x \end{equation}"
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as tar:
+        member = tarfile.TarInfo("notes/paper.tex")
+        member.size = len(paper)
+        tar.addfile(member, io.BytesIO(paper))
+        tar.addfile(tarfile.TarInfo("../outside.tex"))  # what the filter is there to refuse
+
+    def extractall(self, path=".", members=None, **options):
+        raise TypeError("extractall() got an unexpected keyword argument 'filter'")
+
+    monkeypatch.delattr(tarfile, "data_filter")
+    monkeypatch.setattr(tarfile.TarFile, "extractall", extractall)
+    corpus["unpack"](archive.getvalue(), tmp_path / "src")
+    assert (tmp_path / "src" / "notes" / "paper.tex").read_bytes() == paper
+    assert not (tmp_path / "outside.tex").exists()
 
 
 def test_a_statement_can_be_given_a_time_limit():

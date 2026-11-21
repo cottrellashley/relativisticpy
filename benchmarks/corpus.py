@@ -50,12 +50,33 @@ def fetch(identifier: str) -> Path:
     )
     with urllib.request.urlopen(request, timeout=60) as response:
         data = response.read()
-    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
-        archive.extractall(folder / "src", filter="data")
+    unpack(data, folder / "src")
     # Packages first, for their macros, then the documents.
     files = sorted((folder / "src").rglob("*.sty")) + sorted((folder / "src").rglob("*.tex"))
     combined.write_text("\n".join(path.read_text(errors="replace") for path in files))
     return combined
+
+
+def unpack(data: bytes, folder: Path) -> None:
+    """Extract a tar archive into ``folder``, with Python's data filter, which refuses
+    links, devices and anything that would land outside it. Python 3.10.0 to 3.10.11 do
+    not have the filter: there, only the files and folders that land inside are written."""
+    with tarfile.open(fileobj=io.BytesIO(data)) as archive:
+        if hasattr(tarfile, "data_filter"):
+            archive.extractall(folder, filter="data")
+            return
+        root = folder.resolve()
+        for member in archive.getmembers():
+            target = (folder / member.name).resolve()
+            if target != root and root not in target.parents:
+                continue  # it would land outside the folder
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+            elif member.isfile():  # not a link or a device
+                content = archive.extractfile(member)
+                assert content is not None
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content.read())
 
 
 def reason(error: Exception) -> str:
