@@ -1449,7 +1449,16 @@ class Compiler:
             return binding.node
         one_name = len(node.args) == 1 and isinstance(node.args[0], ast.Name)
         product = (name in names and not one_name) or (
-            ctx.latex and (isinstance(binding, VariableBinding) or name in CONSTANTS)
+            ctx.latex
+            and (
+                isinstance(binding, VariableBinding)
+                or name in CONSTANTS
+                or (
+                    binding is None
+                    and not _names_builtin(func, latex=True)
+                    and self._a_factor(name, node.args, one_name)
+                )
+            )
         )
         if product:  # r(\partial_1 \beta - 1), with r a coordinate: as typeset, a product
             group = node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
@@ -1484,6 +1493,21 @@ class Compiler:
             self.session.functions[name] = tuple(values)
         function = sympy.Function(name)
         return self._call(function, name, args, SCALAR, node.span)
+
+    def _a_factor(self, name: str, args: tuple[ast.Expr, ...], one_name: bool) -> bool:
+        """Whether, in LaTeX, ``name(...)`` is a product: where the name is written inside
+        its own brackets, as M is in M(r - 2M), since nothing is its own argument; or
+        where it is a parameter of the metric, as M is in Schwarzschild's, and the
+        brackets hold more than a name: M(1 - 2M/r) is M times 1 - 2M/r."""
+        if any(_names_inside(name, arg) for arg in args):
+            return True
+        metric = self.session.metric
+        return (
+            metric is not None
+            and name in metric.names
+            and name not in self.session.functions
+            and not one_name
+        )
 
     def _metric_trace(self, argument: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """``trace(R_{\\mu\\nu})``: the two indices of a tensor on spacetime contracted with
@@ -3403,6 +3427,15 @@ def _written_as_letter(node: ast.Name) -> bool:
         return False
     written = node.span.text
     return written == "\\" + node.id or len(written) == 1  # the command, or the character
+
+
+def _names_inside(name: str, node: ast.Expr) -> bool:
+    """Whether ``name`` is written in ``node`` other than as a function called there: M
+    is in r - 2M, and f is not in f(x)."""
+    called = {id(n.func) for n in _walk(node) if isinstance(n, ast.Call)}
+    return any(
+        isinstance(n, ast.Name) and n.id == name and id(n) not in called for n in _walk(node)
+    )
 
 
 def _unprimed(node: ast.Expr) -> ast.Expr:

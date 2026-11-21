@@ -78,6 +78,22 @@ class TestLatexReading:
         assert wb.expr(r"r(\beta - 1)") == r * (Symbol("beta") - 1)
         assert wb.expr(r"r(\tau) + \alpha") == Function("r")(Symbol("tau")) + Symbol("alpha")
 
+    def test_a_symbol_with_brackets_around_itself_is_a_product(self, wb):
+        alpha, x = Symbol("alpha"), Symbol("x")
+        assert wb.expr(r"\alpha + M(r - 2M)") == M * (r - 2 * M) + alpha  # not its own argument
+        assert wb.expr(r"\alpha + f(f(x))") == Function("f")(Function("f")(x)) + alpha
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")  # M is a parameter of the metric
+        assert wb.expr(r"\alpha + M(1 - 2M/r)") == M * (1 - 2 * M / r) + alpha
+        assert wb.expr(r"\alpha + M(r)") == Function("M")(r) + alpha  # a mass function
+        wb.exe(r"ds^2 = -A(r) dt^2 + B(r) dr^2 + r^2 d\Omega^2")
+        assert wb.expr(r"\alpha + A(r - 1)") == Function("A")(r - 1) + alpha
+
+    def test_a_builtin_with_brackets_is_never_a_product(self, wb):
+        wb.exe(r"Coordinates := [t, r, \theta, \phi]")
+        wb.exe(r"g_{\mu\nu} := \mathrm{diag}(-1, 1, r^2, r^2 \sin^2\theta)")  # diag is in it
+        wb.exe(r"g_{\mu\nu} := \mathrm{diag}(-(1 - 2M/r), 1, r^2, r^2)")
+        assert wb.expr(r"g_{tt}") == -(1 - 2 * M / r)
+
     def test_in_latex_a_defined_value_with_brackets_is_a_product(self, wb):
         wb.exe("y := 2")
         assert wb.expr(r"y(3) + \alpha") == 6 + Symbol("alpha")
