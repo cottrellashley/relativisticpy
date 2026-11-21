@@ -97,6 +97,12 @@ def test_four_velocity_rejects_the_impossible():
         four_velocity(SCHWARZSCHILD, [0, 1.5, numpy.pi / 2, 0], [0, 0, 0], M=1)
 
 
+def test_a_four_velocity_is_timelike_or_null():
+    position = [0.0, 10.0, numpy.pi / 2, 0.0]
+    with pytest.raises(ValueError, match="kind must be 'timelike' or 'null', not 'spacelike'"):
+        four_velocity(SCHWARZSCHILD, position, [0, 0, 0.01], kind="spacelike", M=1)
+
+
 def test_a_circular_orbit_stays_circular():
     radius = 10.0
     position = [0.0, radius, numpy.pi / 2, 0.0]

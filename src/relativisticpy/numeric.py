@@ -158,11 +158,14 @@ def four_velocity(
     particle) or :math:`0` (``kind="null"``, light) for the time component,
     taking the future-directed root.
     """
+    norms = {"timelike": -1.0, "null": 0.0}
+    if kind not in norms:
+        raise ValueError(f"kind must be 'timelike' or 'null', not {kind!r}")
     numpy = _numpy()
     point = {**(parameters or {}), **named, **_point(metric, position)}
     g = numpy.asarray(evaluate(metric, point), dtype=float)
     u = numpy.concatenate([[0.0], numpy.asarray(spatial, dtype=float)])
-    norm = {"timelike": -1.0, "null": 0.0}[kind]
+    norm = norms[kind]
     a = g[0, 0]
     b = 2 * g[0, 1:] @ u[1:]
     c = u[1:] @ g[1:, 1:] @ u[1:] - norm
