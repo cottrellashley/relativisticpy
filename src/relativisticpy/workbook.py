@@ -197,10 +197,11 @@ class Workbook:
         - otherwise a space of its own, the size of the axis, named after the pandas axis
           if it has a name, with the pandas labels as its basis.
 
-        Each needs the axis's size. Data labelled by pandas is put in the order of its
-        space's basis, by label. Binding declares nothing: the labels of ``R_{ta}`` range
-        over its spaces in statements that write them on it, and are free everywhere
-        else, so that ``t`` may still be a coordinate in ``\Gamma^{t}_{tr}``::
+        A declared or named space must be the axis's size, and the others are shared
+        only where they are. Data labelled by pandas is put in the order of its space's
+        basis, by label. Binding declares nothing: the labels of ``R_{ta}`` range over its
+        spaces in statements that write them on it, and are free everywhere else, so that
+        ``t`` may still be a coordinate in ``\Gamma^{t}_{tr}``::
 
             >>> import numpy as np
             >>> wb = Workbook()
@@ -251,7 +252,7 @@ class Workbook:
             import jax.numpy as jnp
 
             _double_precision(jax)
-            if not numerical.is_sparse(components):  # sparse stays SciPy's, and sparse
+            if not numerical.is_sparse(components):  # a sparse matrix stays SciPy's
                 components = jnp.asarray(components)
         indices = Indices(Index(label, upper) for label, upper in entries)
         node = session.graph.const(components, TensorType(indices, tuple(spaces)))

@@ -1912,7 +1912,7 @@ class Compiler:
         of SymPy's over a complex space, where a symbol need not be real."""
         assert isinstance(tensor.type, TensorType)
         complex_space = self.graph.const(_complex(tensor.type), VALUE)
-        call = ops.Call(_conjugate, "conjugate")
+        call = ops.Call(_conjugated, "conjugate")
         return self.graph.add(call, (tensor, complex_space), tensor.type, span)
 
     def _Substitution(self, node: ast.Substitution, scope: Scope, ctx: Context) -> Node:
@@ -3824,7 +3824,7 @@ def _complex(kind: TensorType) -> bool:
     return any(space.field == "complex" for space in kind.spaces)
 
 
-def _conjugate(components: Any, complex_space: bool) -> Any:
+def _conjugated(components: Any, complex_space: bool) -> Any:
     """The complex conjugate of components: of numbers, always (real ones are their own),
     and of SymPy's where they are over a complex space."""
     from relativisticpy.tensors import arrays, numerical
