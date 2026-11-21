@@ -48,7 +48,7 @@ paper.tex: 3 equations, 5 statements
   = defines             1
 >>> for finding in report.findings[-2:]:
 ...     print(finding.describe())
-line 9      ✓ holds           \Gamma^3_{23} = {\cos\theta \over \sin\theta
+line 9      ✓ holds           \Gamma^3_{23} = {\cos\theta \over \sin\theta}
 line 12     ✗ differs         R_{22} = e^{-2\beta}[r(\partial_1\alpha - \partial_1\beta) - 1] + 1
               the left side minus the right is (-2*r*Derivative(alpha(r), r) + 2*r*Derivative(beta(r), r))*exp(-2*beta(r))
 
