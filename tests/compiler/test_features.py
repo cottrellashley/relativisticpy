@@ -138,6 +138,27 @@ def test_spacetime_values(wb):
     assert isinstance(wb.expr("Schwarzschild(M)"), Metric)
 
 
+@pytest.mark.parametrize(
+    ("name", "function"),
+    [("Schwarzschild", "schwarzschild"), ("Kerr", "kerr"), ("FLRW", "flrw")],
+)
+def test_a_spacetime_takes_the_arguments_its_function_does(wb, name, function):
+    import inspect
+
+    from relativisticpy import spacetimes
+
+    parameters = inspect.signature(getattr(spacetimes, function)).parameters.values()
+    count = sum(1 for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD))
+    assert wb.expr(f"{name}({', '.join(['1'] * count)})") is not None
+    with pytest.raises(CompileError, match=rf"{name}\(\) takes 0 to {count} arguments"):
+        wb.expr(f"{name}({', '.join(['1'] * (count + 1))})")
+
+
+def test_the_double_factorial(wb):
+    assert wb.expr("factorial2(5)") == 15
+    assert wb.expr("factorial2(6)") == 48
+
+
 def test_primes(wb):
     with pytest.raises(CompileError, match="takes one argument"):
         wb.expr("f'(x, y)")

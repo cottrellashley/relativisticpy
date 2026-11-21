@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from types import MappingProxyType
@@ -155,6 +156,17 @@ def _spacetime(factory: Callable[..., Metric]) -> Callable[..., Metric]:
     return make
 
 
+def _arity(factory: Callable[..., Metric]) -> tuple[int, int | None]:
+    """How many arguments a spacetime takes in the language, from its signature: its
+    positional parameters, of which those without a default are needed."""
+    parameters = list(inspect.signature(factory).parameters.values())
+    positional = [p for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)]
+    needed = sum(1 for p in positional if p.default is p.empty)
+    if any(p.kind is p.VAR_POSITIONAL for p in parameters):
+        return needed, None
+    return needed, len(positional)
+
+
 # -- the table ---------------------------------------------------------------------
 
 _ELEMENTARY = {
@@ -167,7 +179,8 @@ _ELEMENTARY = {
     "atanh": sympy.atanh, "acoth": sympy.acoth, "asech": sympy.asech, "acsch": sympy.acsch,
     "exp": sympy.exp, "ln": sympy.log, "sqrt": sympy.sqrt, "abs": sympy.Abs,
     "Abs": sympy.Abs, "sign": sympy.sign, "floor": sympy.floor, "ceiling": sympy.ceiling,
-    "factorial": sympy.factorial, "gamma": sympy.gamma, "re": sympy.re, "Re": sympy.re,
+    "factorial": sympy.factorial, "factorial2": sympy.factorial2, "gamma": sympy.gamma,
+    "re": sympy.re, "Re": sympy.re,
     "im": sympy.im, "Im": sympy.im, "conjugate": sympy.conjugate, "conj": sympy.conjugate,
     "arg": sympy.arg, "erf": sympy.erf,
 }  # fmt: skip
@@ -241,7 +254,8 @@ def _table() -> dict[str, Builtin]:
         )
         table[name] = Builtin(name, func, scalar=scalar, min_args=low, max_args=high)
     for name, factory in _SPACETIMES.items():
-        table[name] = Builtin(name, _spacetime(factory), min_args=0, max_args=3)
+        low, high = _arity(factory)
+        table[name] = Builtin(name, _spacetime(factory), min_args=low, max_args=high)
     return table
 
 
