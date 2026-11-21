@@ -277,7 +277,29 @@ UNICODE_COMMANDS: Mapping[str, str] = MappingProxyType(
     }
 )  # fmt: skip
 
+
 #: Unicode operators that lex directly as an operator token.
+def double_struck(letter: str) -> str:
+    """The double-struck form of a letter or digit, as ``\\mathbb`` sets it: ℝ for R."""
+    special = {"C": "ℂ", "H": "ℍ", "N": "ℕ", "P": "ℙ", "Q": "ℚ", "R": "ℝ", "Z": "ℤ"}
+    if letter in special:
+        return special[letter]
+    if letter.isdigit():
+        return chr(0x1D7D8 + int(letter))
+    if letter.isupper():
+        return chr(0x1D538 + ord(letter) - ord("A"))
+    return chr(0x1D552 + ord(letter) - ord("a"))
+
+
+#: Blackboard bold, ``\mathbb{R}`` or ℝ: a name of its own, so that ℝ is not R, the
+#: Ricci scalar, and 𝔼, an expectation, is not E. Each maps to itself.
+DOUBLE_STRUCK: Mapping[str, str] = MappingProxyType(
+    {
+        double_struck(c): double_struck(c)
+        for c in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    }
+)
+
 UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
     {
         "·": TokenKind.STAR,
@@ -297,6 +319,7 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
         "∓": TokenKind.MINUS_PLUS,
         "∧": TokenKind.WEDGE,
         "∘": TokenKind.COMPOSE,
+        "⊙": TokenKind.HADAMARD,
         "⊗": TokenKind.STAR,
         "…": TokenKind.ELLIPSIS,
         "⋯": TokenKind.ELLIPSIS,

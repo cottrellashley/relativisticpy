@@ -314,7 +314,7 @@ class Parser:
             self._skip_punctuation()
             return [self._definition(targets, value, define)]
         self._skip_punctuation()
-        return [ast.Evaluate(target, span=target.span) for target in targets]
+        return [ast.Evaluate(target, span=target.span) for target in _memberships(targets)]
 
     def _at_wide_space(self) -> bool:
         """Wide spacing at a statement's top level separates equations:
@@ -482,7 +482,7 @@ class Parser:
             return Power.COMPARISON
         if kind in (K.PLUS, K.MINUS, K.PLUS_MINUS, K.MINUS_PLUS):
             return Power.SUM
-        if kind in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
+        if kind in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE) or self._hadamard(token):
             return Power.PRODUCT
         if kind is K.DOUBLE_STAR:
             return Power.POWER
@@ -494,6 +494,10 @@ class Parser:
         kind = token.kind
         if kind is K.BAR and power == Power.SUBSTITUTION:
             return self._substitution(left)
+        if self._hadamard(token):
+            self.advance()
+            right = self.expression(Power.PRODUCT)
+            return ast.Binary("⊙", left, right, span=left.span.to(right.span))
         if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
@@ -518,6 +522,19 @@ class Parser:
         if op == "/":
             return _quotient(left, right, left.span.to(right.span), leibniz=False)
         return ast.Binary(op, left, right, span=left.span.to(right.span))
+
+    def _hadamard(self, token: Token) -> bool:
+        """``A \\odot B`` or ``A ⊙ B``: the elementwise product, where ``\\odot`` stands
+        between two operands. Elsewhere, as in ``M_\\odot``, it is the Sun."""
+        if token.kind is K.HADAMARD:
+            return True
+        return (
+            token.kind is K.IDENT
+            and token.value == "odot"
+            and token.span.text.startswith("\\")
+            and not self._in_script
+            and self._starts_operand(self.peek(1))
+        )
 
     def _relations(self, left: ast.Expr, first: Token) -> ast.Expr:
         """``a = b``, ``a \\sim b``, or relations in a row: ``a = b = c``."""
@@ -1749,6 +1766,31 @@ def _describe_node(node: ast.Expr) -> str:
         ast.Equation: "an equation",
     }
     return names.get(type(node), "this")
+
+
+def _memberships(targets: list[ast.Expr]) -> list[ast.Expr]:
+    """``a, b \\in \\mathcal{A}``: names listed before a membership are members too, so
+    the list is one statement, ``(a, b) \\in \\mathcal{A}``, not ``a`` and ``b \\in ...``."""
+    grouped: list[ast.Expr] = []
+    names: list[ast.Name] = []
+    for target in targets:
+        if isinstance(target, ast.Name):
+            names.append(target)
+            continue
+        if (
+            isinstance(target, ast.Relation)
+            and target.op == "∈"
+            and names
+            and isinstance(target.lhs, ast.Name)
+        ):
+            members = ast.Tuple((*names, target.lhs), span=names[0].span.to(target.lhs.span))
+            target = ast.Relation(members, "∈", target.rhs, span=names[0].span.to(target.span))
+        else:
+            grouped.extend(names)
+        names = []
+        grouped.append(target)
+    grouped.extend(names)
+    return grouped
 
 
 def _relation(token: Token) -> str:

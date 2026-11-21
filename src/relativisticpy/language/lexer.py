@@ -40,6 +40,8 @@ _IDENT = re.compile(r"[A-Za-z](?:[A-Za-z0-9]|_(?=[A-Za-z0-9]))*")
 # What may follow an escaped underscore in a name, as in ``geodesic\_equations``.
 _NAME_TAIL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9]|_(?=[A-Za-z0-9]))*")
 _COMMAND_NAME = re.compile(r"[A-Za-z]+")
+# The argument of \mathbb when it is one letter or digit: {R}, { R }, or R itself.
+_BLACKBOARD_ARGUMENT = re.compile(r"\s*(?:\{\s*([A-Za-z0-9])\s*\}|([A-Za-z0-9]))")
 _TEXT_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
 # The optional spacing argument of a row break, as in ``\\[2pt]``.
 _ROW_SPACING = re.compile(
@@ -271,6 +273,8 @@ class Lexer:
         start = self.pos
         if (name := vocab.UNICODE_LETTERS.get(char)) is not None:
             self._emit(TokenKind.IDENT, name, start, start + 1)
+        elif (name := vocab.DOUBLE_STRUCK.get(char)) is not None:
+            self._emit(TokenKind.IDENT, name, start, start + 1, verbatim=True)
         elif (relation := vocab.UNICODE_RELATIONS.get(char)) is not None:
             self._emit(TokenKind.RELATION, relation, start, start + 1)
         elif (command := vocab.UNICODE_COMMANDS.get(char)) is not None:
@@ -342,6 +346,8 @@ class Lexer:
             self._environment(name, start)
         elif name in vocab.TEXT_COMMANDS:
             self._text_command(start)
+        elif name == "mathbb" and (letter := self._blackboard_letter()) is not None:
+            self._emit(TokenKind.IDENT, letter, start, self.pos, verbatim=True)
         elif name in vocab.STYLE_COMMANDS:
             self._style_command()
         elif name in vocab.FONT_DECLARATIONS:
@@ -419,6 +425,15 @@ class Lexer:
             self._emit(TokenKind.IDENT, contents, start, self.pos, verbatim=True)
         else:
             self._emit(TokenKind.STRING, contents, start, self.pos)
+
+    def _blackboard_letter(self) -> str | None:
+        r"""``\mathbb{R}``: the double-struck letter, ℝ, read up to the closing brace;
+        ``None``, reading nothing, if the argument is not a single letter or digit."""
+        match = _BLACKBOARD_ARGUMENT.match(self.text, self.pos)
+        if match is None:
+            return None
+        self.pos = match.end()
+        return vocab.double_struck(match.group(1) or match.group(2))
 
     def _style_command(self) -> None:
         r"""Drop the command and its braces, but lex the argument: ``\mathrm{d}`` is ``d``."""

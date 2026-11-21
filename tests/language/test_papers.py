@@ -168,6 +168,50 @@ class TestOperators:
         )
 
 
+class TestAnalysis:
+    """The notation of analysis and statistics: spaces, memberships, elementwise
+    products."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\mathbb{R}^{500}", "(^ ℝ 500)"),  # not R, the Ricci scalar
+            (r"\mathbb{E}_t[X_{ta}]", "(* (𝔼 _[t]) (list (X _[t a])))"),
+            (r"\mathbb C", "ℂ"),
+            ("ℝ^3", "(^ ℝ 3)"),  # typed directly
+            (r"\mathbb{1}_a", "(𝟙 _[a])"),
+            (r"\mathbb{Ricci}", "Ricci"),  # more than a letter: only a typeface
+        ],
+    )
+    def test_blackboard_bold_is_a_name_of_its_own(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"a, b \in \mathcal{A}", ["(∈ (tuple a b) A)"]),
+            (r"t \in \mathcal{T}, \quad a, b \in \mathcal{A}", ["(∈ t T)", "(∈ (tuple a b) A)"]),
+            (r"x, y", ["x", "y"]),  # without a membership, still two statements
+            (r"p \in M, \quad q", ["(∈ p M)", "q"]),
+        ],
+    )
+    def test_members_listed_together_are_one_declaration(self, text, expected):
+        assert program(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"A \odot B", "(⊙ A B)"),
+            ("x ⊙ y", "(⊙ x y)"),
+            (r"A_{ab} \odot B_{ab} + C", "(+ (⊙ (A _[a b]) (B _[a b])) C)"),
+            (r"M_\odot", "(M _[odot])"),  # a subscript: the Sun
+            (r"2 M_\odot r", "(* (* 2 (M _[odot])) r)"),
+        ],
+    )
+    def test_odot_between_operands_is_the_elementwise_product(self, text, expected):
+        assert sexpr(text) == expected
+
+
 def test_unknown_notation_still_fails_clearly():
     with pytest.raises(ParseError, match="unknown LaTeX command"):
         parse_expression(r"\bowtie x")
