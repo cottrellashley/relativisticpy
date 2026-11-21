@@ -303,6 +303,33 @@ class TestFunctionsAndOperators:
         result = plane.expr(r"\partial_a V^{a}")  # a divergence: a trace
         assert result == 0
 
+    def test_comma_and_semicolon_derivatives_of_a_scalar(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)" "\n" r"\phi := r^2 \cos\theta")
+        gradient = [0, 2 * r * sympy.cos(theta), -(r**2) * sympy.sin(theta), 0]
+        assert wb.expr(r"\phi_{,\mu}").components == Array(gradient)
+        assert wb.expr(r"\phi_{;\mu}").components == Array(gradient)
+        assert wb.expr(r"\phi_{,r}") == 2 * r * sympy.cos(theta)
+        assert sympy.simplify(wb.expr(r"\phi_{;\mu}{}^{;\mu}") - wb.expr(r"\Box \phi")) == 0
+
+    def test_the_gradient_of_a_built_in_scalar_or_a_function(self, wb):
+        wb.exe(r"ds^2 = -e^{2\alpha(r)} dt^2 + e^{2\beta(r)} dr^2 + r^2 d\Omega^2")
+        assert wb.expr(r"\alpha_{,r}") == sympy.diff(Function("alpha")(r), r)
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        assert wb.expr(r"R_{;\mu}").components == Array([0, 0, 0, 0])
+
+    @pytest.mark.parametrize(
+        ("source", "message", "hint"),
+        [
+            (r"\psi_{,\mu}", "psi is not defined, so it has no derivative", r"\psi := ..."),
+            (r"F_{\mu\nu,\lambda}", "F is not a tensor", r"F_{\mu\nu} := [...]"),
+        ],
+    )
+    def test_a_derivative_of_what_is_not_defined(self, wb, source, message, hint):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        with pytest.raises(CompileError, match=message) as error:
+            wb.expr(source)  # never a symbol named psi_mu
+        assert hint in str(error.value)
+
     def test_divergence_with_the_covariant_derivative(self, wb):
         wb.exe(r"Coordinates := [r, \theta]" "\n" r"g_{ab} := diag(1, r^2)" "\n" "V^{a} := [r, 0]")
         assert wb.expr(r"\nabla_a V^{a}") == 2  # ∇·(r e_r) = 2 in the plane

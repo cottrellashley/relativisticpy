@@ -190,6 +190,10 @@ tensor's every component.
 so \(\partial_\mu \phi\, \partial^\mu \phi\) means
 \((\partial_\mu\phi)(\partial^\mu\phi)\); use brackets for more. The comma and
 semicolon notations mean the same: `T^{\mu\nu}{}_{;\nu}` is \(\nabla_\nu T^{\mu\nu}\).
+They apply to a scalar too, one you define, a built-in one such as `R`, or a
+function of the coordinates: `\phi_{,\mu}` is \(\partial_\mu \phi\) and
+`\phi_{;\mu}{}^{;\mu}` is \(\Box\phi\). A name with no value has no derivative, so
+that is an error.
 
 ```python
 >>> [tensor.nonzero() for tensor in wb.exe(r"""

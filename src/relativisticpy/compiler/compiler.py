@@ -1823,11 +1823,51 @@ class Compiler:
                 source = self._space_tensor(name, pattern[1], node.span)
             if source is None:
                 source = self._tensor_source(name, binding, rank, node.span, strict=labels_only)
+            differentiated = _has_derivative(node)
+            if source is None and rank == 0 and differentiated:  # \phi_{;\mu}
+                source = self._scalar_source(base, binding, scope, ctx)
             if source is not None:
                 return self._access(source, node, scope, ctx)
+            if differentiated:  # never a symbol named phi_mu
+                raise self._underivable(node, base, binding, rank)
         if (ones := _tensor_pattern_of_one(node)) is not None:  # 𝟙_a, or 1_a
             return self._ones(ones, node.span)
         return self._script_math(node, scope, ctx)
+
+    def _scalar_source(
+        self, base: ast.Name, binding: object, scope: Scope, ctx: Context
+    ) -> TensorSource | None:
+        """A scalar written with derivative indices only, as ``\\phi_{;\\mu}``: one defined
+        in the program, a built-in one such as ``R``, or a function of the coordinates
+        written once with its arguments. It has no indices of its own."""
+        if isinstance(binding, VariableBinding) and binding.node.type == SCALAR:
+            return TensorSource(binding.node, Indices(), base.id)
+        written = self._builtin_scalar(base.id) is not None or base.id in self.session.functions
+        if binding is None and written:
+            return TensorSource(self.value(base, scope, ctx), Indices(), base.id)
+        return None
+
+    def _underivable(
+        self, node: ast.Scripted, base: ast.Name, binding: object, rank: int | None
+    ) -> CompileError:
+        """The error for a comma or semicolon derivative of what has none to take."""
+        name, written = base.id, base.span.text
+        if binding is not None:
+            return CompileError(
+                f"{name} is not a scalar or a tensor, so it has no derivative", span=node.span
+            )
+        if not rank:
+            return CompileError(
+                f"{name} is not defined, so it has no derivative",
+                span=node.span,
+                hint=f"define it first, for example {written} := ...",
+            )
+        labels = "".join(_EXAMPLE_LABELS[:rank])
+        return CompileError(
+            f"{name} is not a tensor",
+            span=node.span,
+            hint=f"define it first, for example {written}_{{{labels}}} := [...]",
+        )
 
     def _inverse_access(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
         """``(\\Sigma^{-1})^{ab}``: the inverse of a two-index tensor, written with indices
@@ -1990,7 +2030,9 @@ class Compiler:
             if _plain_label(item):
                 self._check_label(str(item.label), space, node.span)
         current = Indices(Index(f"#{k}", index.upper) for k, index in enumerate(source.indices))
-        result = self.graph.retype(source.node, TensorType(current, spaces))
+        result = source.node  # a scalar, \phi in \phi_{;\mu}, stays one
+        if rank:
+            result = self.graph.retype(source.node, TensorType(current, spaces))
         for position, (_, upper) in enumerate(main):
             if current[position].upper != upper:
                 result, current = self._move_index(result, current, position, node.span)
@@ -3174,6 +3216,17 @@ def _rank(node: ast.Scripted) -> int | None:
             return None
         count += sum(1 for item in script.indices.items if item.derivative is None)
     return count
+
+
+def _has_derivative(node: ast.Scripted) -> bool:
+    """Whether an index is written after a comma or a semicolon, as in ``\\phi_{;\\mu}``, in
+    a script that is nothing but indices: ``e^{2\\alpha(t,r)}`` is a power."""
+    return any(
+        item.derivative is not None
+        for script in node.scripts
+        if script.indices is not None and script.body is None
+        for item in script.indices.items
+    )
 
 
 def _is_line_element(target: ast.Expr) -> bool:
