@@ -39,6 +39,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except BrokenPipeError:  # the reader stopped reading, as `| head` does
         os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
         return 1
+    except KeyboardInterrupt:  # Ctrl-C: stop, as the shell expects, without a traceback
+        print(file=sys.stderr)
+        return 130
 
 
 def _main(arguments: list[str]) -> int:
@@ -189,9 +192,12 @@ def interact(
     while True:
         try:
             source = _read_statement(read)
-        except (EOFError, KeyboardInterrupt):
+        except EOFError:
             print(file=out)
             return 0
+        except KeyboardInterrupt:  # Ctrl-C, as the shell counts it
+            print(file=out)
+            return 130
         if not source.strip():
             continue
         try:

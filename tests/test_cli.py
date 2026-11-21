@@ -56,6 +56,26 @@ def test_help_mentions_check(capsys):
     assert "relativisticpy check FILE" in capsys.readouterr().out
 
 
+def test_ctrl_c_stops_a_run_quietly(monkeypatch, capsys):
+    def interrupted(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(Workbook, "exe", interrupted)
+    assert main(["-c", "x^2"]) == 130
+    assert "Traceback" not in capsys.readouterr().err
+
+
+def test_ctrl_c_leaves_the_interactive_session(monkeypatch):
+    def interrupted(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    out = io.StringIO()
+    assert interact(Workbook(), read=interrupted, out=out) == 130  # at the prompt
+    monkeypatch.setattr("sys.stdin", io.StringIO("x^2\n"))
+    monkeypatch.setattr(Workbook, "exe", interrupted)
+    assert main([]) == 130  # while computing
+
+
 def test_display():
     tensor = Tensor([[1, 0], [0, 2]], "_{ab}", name="h")
     assert display(tensor) == "h_{a}_{b}:\n  [0, 0] = 1\n  [1, 1] = 2"
