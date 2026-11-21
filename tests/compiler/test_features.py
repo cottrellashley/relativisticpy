@@ -165,6 +165,13 @@ def test_integrals_limits_and_substitutions_of_tensors(plane):
         plane.expr(r"\int_0 x \, dx")
 
 
+def test_a_symmetrisation_is_over_indices_at_one_level(plane):
+    plane.exe("T^{a}{}_{bc} := [[[1, 2], [3, 4]], [[5, 6], [7, x]]]")
+    assert plane.expr(r"T_{(a}{}^{b}{}_{c)} = \frac{1}{2}(T_{a}{}^{b}{}_{c} + T_{c}{}^{b}{}_{a})")
+    with pytest.raises(IndexNotationError, match="opens on lower indices and closes on upper"):
+        plane.expr(r"V_{(a} V^{b)}")
+
+
 def test_sums_and_products_of_tensors(plane):
     # component by component, as integrals are, and kept as written until doit
     assert isinstance(plane.expr(r"\sum_{n=0}^{3} n V^{a}"), Tensor)
@@ -197,7 +204,7 @@ def test_subscripts_need_names(wb):
 
 def test_symmetrising_needs_free_indices(plane):
     with pytest.raises(IndexNotationError, match="only free indices"):
-        plane.expr("V^{(a} V_{a)}")
+        plane.expr("V^{(a} V^{b)} V_{b}")
     with pytest.raises(IndexNotationError, match="never closed"):
         plane.expr("V^{(a} V^{b}")
 

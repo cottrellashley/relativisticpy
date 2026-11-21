@@ -2093,7 +2093,7 @@ class Compiler:
                 labels.append(Index(str(item.label), upper))
         result = self.graph.retype(result, TensorType(Indices(labels), spaces))
         result = self._trace(result, span)
-        result = self._brackets(result, [item for item, _ in entries], span)
+        result = self._brackets(result, entries, span)
         return self._select(result, values, span)
 
     def _select(self, node: Node, values: dict[str, int], span: Span) -> Node:
@@ -2328,9 +2328,11 @@ class Compiler:
             return node
         return self._contract([(node, node.type.indices)], span)
 
-    def _brackets(self, node: Node, items: Sequence[ast.IndexItem], span: Span) -> Node:
-        """(Anti)symmetrise over bracketed indices that open and close within ``items``."""
-        for kind, labels in _bracket_groups(items, complete_only=True):
+    def _brackets(
+        self, node: Node, entries: Sequence[tuple[ast.IndexItem, bool]], span: Span
+    ) -> Node:
+        """(Anti)symmetrise over bracketed indices that open and close within ``entries``."""
+        for kind, labels, _ in _bracket_groups([entries], span, closed=False):
             node = self._symmetrize(node, kind, labels, span)
         return node
 
@@ -2338,15 +2340,17 @@ class Compiler:
         """Brackets opened in one factor and closed in another, as in the Bianchi identity
         ``\\nabla_{[\\lambda} R_{\\rho\\sigma]\\mu\\nu}``."""
         groups = []
-        items = []
+        entries = []
         for factor in factors:
             if isinstance(factor, ast.Scripted):
-                own = [i for s in factor.scripts if s.indices for i in s.indices.items]
-                items.append(own)
-        flat = [item for own in items for item in own]
+                own = [
+                    (i, s.kind == "^") for s in factor.scripts if s.indices for i in s.indices.items
+                ]
+                entries.append(own)
+        flat = [item for own in entries for item, _ in own]
         if not any(item.opens or item.closes for item in flat):
             return node
-        for kind, labels, spans_factors in _bracket_groups_across(items):
+        for kind, labels, spans_factors in _bracket_groups(entries, span, closed=True):
             if spans_factors:
                 groups.append((kind, labels))
         for kind, labels in groups:
@@ -3602,39 +3606,32 @@ _EXAMPLE_LABELS = ("\\mu", "\\nu", "\\rho", "\\sigma", "\\lambda", "\\kappa")
 
 
 def _bracket_groups(
-    items: Sequence[ast.IndexItem], *, complete_only: bool
-) -> list[tuple[str, list[str]]]:
-    """Bracketed groups of labels that open and close within ``items``."""
-    groups: list[tuple[str, list[str]]] = []
-    current: tuple[str, list[str]] | None = None
-    for item in items:
-        if item.opens is not None:
-            current = (item.opens, [])
-        if current is not None and item.label is not None:
-            current[1].append(item.label)
-        if item.closes is not None and current is not None:
-            groups.append(current)
-            current = None
-    return groups
-
-
-def _bracket_groups_across(
-    factors: Sequence[Sequence[ast.IndexItem]],
+    factors: Sequence[Sequence[tuple[ast.IndexItem, bool]]], span: Span, *, closed: bool
 ) -> list[tuple[str, list[str], bool]]:
-    """Bracketed groups across factors, each with whether it spans more than one."""
+    """Bracketed groups of index labels across the index items of ``factors``, each with
+    whether it spans more than one factor; with ``closed``, every bracket must close. A
+    bracket takes the indices at the level it opens at, so ``T_{(a}{}^{b}{}_{c)}``
+    symmetrises a and c alone, and one that closes at the other level means nothing."""
     groups: list[tuple[str, list[str], bool]] = []
-    current: tuple[str, list[str], int] | None = None
-    for number, items in enumerate(factors):
-        for item in items:
+    current: tuple[str, list[str], int, bool] | None = None
+    for number, entries in enumerate(factors):
+        for item, upper in entries:
             if item.opens is not None:
-                current = (item.opens, [], number)
-            if current is not None and item.label is not None:
+                current = (item.opens, [], number, upper)
+            if current is not None and item.label is not None and upper == current[3]:
                 current[1].append(item.label)
             if item.closes is not None and current is not None:
+                if upper != current[3]:
+                    opened, closes = ("upper", "lower") if current[3] else ("lower", "upper")
+                    raise IndexNotationError(
+                        f"this (anti)symmetrisation opens on {opened} indices and closes on "
+                        f"{closes} ones; it is over indices at one level",
+                        span=span,
+                    )
                 groups.append((current[0], current[1], current[2] != number))
                 current = None
-    if current is not None:
-        raise IndexNotationError("an (anti)symmetrisation bracket is never closed")
+    if closed and current is not None:
+        raise IndexNotationError("an (anti)symmetrisation bracket is never closed", span=span)
     return groups
 
 

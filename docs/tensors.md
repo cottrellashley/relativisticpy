@@ -237,8 +237,10 @@ force, which in spacetime is the d'Alembertian. (Some texts write
 ## Symmetrisation
 
 Round brackets symmetrise and square brackets antisymmetrise, as in
-`T_{(ab)}` and `F_{[\mu\nu]}`. The brackets may span several tensors, which is
-how the second Bianchi identity is written:
+`T_{(ab)}` and `F_{[\mu\nu]}`. A bracket takes the indices at the level it opens
+at: `T_{(a}{}^{b}{}_{c)}` symmetrises \(a\) and \(c\), and leaves \(b\) alone. The
+brackets may span several tensors, which is how the second Bianchi identity is
+written:
 
 ```python
 >>> wb.expr(r"\nabla_{[\lambda} R_{\rho\sigma]\mu\nu} = 0")
