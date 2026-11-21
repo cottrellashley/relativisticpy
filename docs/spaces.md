@@ -220,8 +220,10 @@ Tensor('_{k}', [-sqrt(Delta**2 + epsilon**2), sqrt(Delta**2 + epsilon**2)])
   rows has its whole spectrum computed as a dense one.
 - **JAX.** `Workbook(backend="jax")` keeps bound data as JAX arrays, computed with JAX,
   on a GPU if there is one; a sparse matrix stays SciPy's, and multiplies JAX arrays
-  as one of JAX's. `wb.grad(expression, "w")` differentiates any scalar expression
-  with respect to bound data, through contractions, sparse matrices and linear solves:
+  as one of JAX's. Statistics need 64-bit numbers, so it turns on JAX's
+  `jax_enable_x64` for the whole process. `wb.grad(expression, "w")` differentiates
+  any scalar expression with respect to bound data, through contractions, sparse
+  matrices and linear solves:
 
 ```python
 >>> grad = Workbook()

@@ -386,6 +386,24 @@ class TestLinearAlgebra:
         assert wb.expr(f"{residual} = 0") is sympy.true
         assert wb.expr(f"{residual} = 10^{{-6}}") is not sympy.true
 
+    def test_a_residual_of_data_is_zero_to_rounding(self, wb):
+        # a tensor residual of numbers near 10^5, as shown by expr, each and check
+        wb["P_{ta}"] = 100 + 10 * rng.normal(size=(250, 4))
+        wb.exe(r"C_{ab} := \operatorname{Cov}_t(P_{ta}, P_{tb})")
+        residual = (
+            r"\mathbb{E}_t[P_{ta} P_{tb}] - \mathbb{E}_t[P_{ta}] \mathbb{E}_t[P_{tb}] - C_{ab}"
+        )
+        assert np.abs(wb.expr(residual).to_numpy()).max() > 0  # rounding error
+        assert wb.expr(f"{residual} = 0")
+        assert not wb.expr(f"{residual} + 10^{{-6}} C_{{ab}} = 0")
+
+    def test_a_number_in_the_basis_is_a_label(self, wb):
+        # as pandas' .loc: 2020 is the year, not the 2020th position
+        years = pd.Series([1.0, 2.0, 3.0], index=pd.Index([2019, 2020, 2021], name="years"))
+        wb["x_t"] = years
+        assert wb.expr("x_{t=2020}") == 2.0
+        assert wb.expr("x_{t=1}") == 2.0  # a position, where no label says otherwise
+
     def test_a_zero_tensor_has_the_shape_of_its_spaces(self, wb):
         wb.space("days", 4, labels="t")
         wb.space("assets", 2, labels="a")

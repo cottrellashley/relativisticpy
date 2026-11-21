@@ -217,12 +217,8 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
         return sympy.true if numerical.close(lhs, rhs) else sympy.Eq(lhs, rhs, evaluate=False)
     if isinstance(lhs, sympy.NDimArray) or isinstance(rhs, sympy.NDimArray):
         array = lhs if isinstance(lhs, sympy.NDimArray) else rhs
-        lhs = (
-            lhs if isinstance(lhs, sympy.NDimArray) else arrays.zeros(array.shape[0], array.rank())
-        )
-        rhs = (
-            rhs if isinstance(rhs, sympy.NDimArray) else arrays.zeros(array.shape[0], array.rank())
-        )
+        lhs = lhs if isinstance(lhs, sympy.NDimArray) else arrays.zeros_of(array.shape)
+        rhs = rhs if isinstance(rhs, sympy.NDimArray) else arrays.zeros_of(array.shape)
         return TensorEquation(lhs, rhs)
     if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr):
         decided = _proven(lhs, rhs)

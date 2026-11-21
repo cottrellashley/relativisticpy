@@ -56,6 +56,11 @@ class Scope:
     def bind(self, name: str, binding: Binding) -> None:
         self._bindings[name] = binding
 
+    def bindings(self) -> list[tuple[str, Binding]]:
+        """The names bound at this level, with what they are bound to, in the order they
+        were first bound."""
+        return list(self._bindings.items())
+
     def child(self) -> Scope:
         return Scope(self)
 

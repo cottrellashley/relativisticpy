@@ -52,7 +52,8 @@ class Workbook:
     ``workers`` sets how many processes share component-wise work such as
     simplification (``None`` means one per CPU). Batches of a few components or more
     use them. ``backend="jax"`` keeps data bound from Python as JAX arrays, so that it
-    is computed with JAX, on a GPU if there is one.
+    is computed with JAX, on a GPU if there is one; a SciPy sparse matrix stays sparse.
+    It turns on JAX's 64-bit numbers, ``jax_enable_x64``, for the whole process.
     """
 
     def __init__(self, *, workers: int | None = 1, backend: str = "numpy") -> None:
@@ -404,7 +405,12 @@ class Workbook:
             if isinstance(kind, EquationType) and isinstance(kind.of, TensorType):
                 assert isinstance(value, TensorEquation)
                 return TensorEquation(
-                    value.lhs, value.rhs, _public(kind.of.indices), coordinates, kind.of.spaces
+                    value.lhs,
+                    value.rhs,
+                    _public(kind.of.indices),
+                    coordinates,
+                    kind.of.spaces,
+                    scale=value.scale,
                 )
             if numerical.is_numerical(value) and getattr(value, "shape", ()) == ():
                 return value.item()  # a plain Python number
@@ -576,7 +582,7 @@ def _run(label: str) -> str:
 def _spaces_of_label(scope: Scope, name: str, label: str) -> list[Space]:
     """The spaces the index ``label`` ranges over in tensors already bound, other than
     spacetime: in the tensor ``name`` first, then in the others, the latest first."""
-    bindings = list(scope._bindings.items())
+    bindings = scope.bindings()
     ordered = [b for n, b in bindings if n == name] + [b for n, b in bindings[::-1] if n != name]
     return [
         space

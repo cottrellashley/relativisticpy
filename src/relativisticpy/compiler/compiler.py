@@ -2404,6 +2404,8 @@ class Compiler:
         value = item.value
         if value is None:
             return names.index(item.label) if item.label in names else None
+        if isinstance(value, ast.Number) and value.text in map(str, names):
+            return list(map(str, names)).index(value.text)  # a label such as 2020, as .loc
         if isinstance(value, ast.Number):
             number = int(value.text)
             if number >= space.dim:
