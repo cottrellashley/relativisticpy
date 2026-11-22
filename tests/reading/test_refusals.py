@@ -6,7 +6,7 @@ read, why, and what to write instead; and the hint works."""
 import pytest
 import sympy
 
-from relativisticpy.errors import CompileError, EvaluationError
+from relativisticpy.errors import CompileError, EvaluationError, IndexNotationError
 
 x, theta = sympy.symbols("x theta")
 
@@ -496,3 +496,57 @@ class TestConstrainedSymbols:
             found.message == r"\oint p\, dq is an integral around a closed path, which is not given"
         )
         assert wb.expr(r"\int_0^1 p \, dq") == sympy.Symbol("p")
+
+
+class TestDependencesAreKept:
+    """Misreadings like the guards', each with a clear remedy: a derivative by an expression
+    whose d's cancelled, a derivative by \\bar z, a definition that relabelled its free
+    index, and a function of a coordinate whose tensors kept the coordinate."""
+
+    def test_a_derivative_by_an_expression(self, wb):
+        wb.exe("p := p_0 e^{-B/T}")
+        found = error(wb, r"-R \frac{d \ln p}{d(1/T)}")
+        assert found.message == (
+            r"\frac{d \ln p}{d(1/T)} is read as a fraction whose d's cancel, not as the "
+            "derivative by 1/T"
+        )
+        assert found.hint == (
+            r"write it by the chain rule, over dT: \frac{\frac{d}{dT} \ln p}"
+            r"{\frac{d}{dT}\left(1/T\right)}"
+        )
+        written = found.hint.removeprefix("write it by the chain rule, over dT: ")
+        assert wb.expr(f"-R {written}") == sympy.Symbol("B") * sympy.Symbol("R")  # it works
+
+    def test_a_derivative_by_a_conjugate(self, wb):
+        found = error(wb, r"\frac{\partial}{\partial \bar{z}} |z|^2")
+        assert found.message == (
+            r"\frac{\partial}{\partial \bar{z}} |z|^2 is read as a derivative by a symbol of its "
+            r"own, \bar{z}, which is 0, not as the derivative by the conjugate of z"
+        )
+        wb.exe("Reals := [x, y]\nz := x + i y")
+        x, y = sympy.symbols("x y", real=True)
+        wirtinger = (
+            r"\frac{1}{2}\left(\frac{\partial |z|^2}{\partial x} + i \frac{\partial |z|^2}"
+            r"{\partial y}\right)"
+        )
+        assert wb.expr(wirtinger) == x + sympy.I * y  # the hint works: z
+
+    def test_a_definition_keeps_its_free_indices(self, wb):
+        wb.exe(
+            "\\mathcal{E} := \\mathbb{R}^{3}\ni, j \\in \\mathcal{E}\n"
+            "I_{ij} := [[8, -3, -3], [-3, 8, -3], [-3, -3, 8]]\n\\omega_j := (1, 0, 0)"
+        )
+        found = error(wb, r"L_i = I_{ij} \omega_i", IndexNotationError)
+        assert found.message == (
+            "the two sides have different free indices: _{i} on the left, _{j} on the right"
+        )
+
+    def test_a_function_of_a_coordinate_is_taken_at_its_argument(self, wb):
+        wb.exe(
+            "g_{\\mu\\nu} := Schwarzschild(M)\n"
+            "u^\\mu := \\left[\\left(1 - \\frac{2M}{r}\\right)^{-1/2}, 0, 0, 0\\right]\n"
+            "k_\\mu := \\left[-E, \\frac{E}{1 - 2M/r}, 0, 0\\right]\n"
+            "\\omega(r) := -k_\\mu u^\\mu"
+        )
+        E, M, r_e = sympy.symbols("E M r_e")
+        assert sympy.simplify(wb.expr(r"\omega(r_e)") - E / sympy.sqrt(1 - 2 * M / r_e)) == 0

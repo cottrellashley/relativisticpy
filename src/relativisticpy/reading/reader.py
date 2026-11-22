@@ -1050,6 +1050,108 @@ class Reader(Typer):
             f"{variables[0] if variables else 'q'}",
         )
 
+    def _check_derivative_by_an_expression(self, node: ast.Binary, scope: Scope) -> None:
+        """Refuse ``\\frac{d \\ln p}{d(1/T)}``: read as a fraction, d \\ln p over d times 1/T,
+        its d's cancel, where the book means the derivative by 1/T: d before a bracket in a
+        derivative is a differential (decision 18 of design/notation.md)."""
+        if node.op != "/" or scope.lookup("d") is not None:
+            return
+        numerator, denominator = node.left, node.right
+        first = _product_factors(numerator)[0] if isinstance(numerator, ast.Binary) else numerator
+        by = None
+        if (
+            isinstance(denominator, ast.Call)
+            and isinstance(denominator.func, ast.Name)
+            and denominator.func.id == "d"
+            and len(denominator.args) == 1
+        ):
+            by = denominator.args[0]
+        if by is None or not (isinstance(first, ast.Name) and first.id == "d"):
+            return
+        names = sorted({n.id for n in _walk(by) if isinstance(n, ast.Name)})
+        self._decide(
+            "product or call",
+            node.span,
+            "a fraction, whose d's cancel",
+            "d is read as a symbol beside an expression",
+        )
+        hint = None
+        if len(names) == 1:
+            variable = _shown(names[0], True)
+            over = f"\\frac{{d}}{{d{variable}}}"
+            differentiated = numerator.span.text.strip().removeprefix("d").strip()
+            hint = (
+                f"write it by the chain rule, over d{variable}: \\frac{{{over} {differentiated}}}"
+                f"{{{over}\\left({by.span.text}\\right)}}"
+            )
+        raise CompileError(
+            f"{node.span.text} is read as a fraction whose d's cancel, not as the derivative "
+            f"by {by.span.text}",
+            span=node.span,
+            notes=["a derivative with respect to an expression is not supported yet"],
+            hint=hint,
+        )
+
+    def _check_conjugate_variable(self, expr: Node, variables: Sequence[Node], span: Span) -> None:
+        """Refuse ``\\frac{\\partial}{\\partial \\bar z} |z|^2``: \\bar z is read as a symbol of
+        its own, zbar, which |z|^2 does not mention, so the derivative would be 0, where the
+        book means the Wirtinger derivative, with \\bar z the conjugate of z (decision 8)."""
+        written = _written_with(expr)
+        for variable in variables:
+            name = (
+                getattr(variable.op, "value", None) if isinstance(variable.op, ops.Const) else None
+            )
+            name = getattr(name, "name", None)
+            if not (isinstance(name, str) and name.endswith("bar") and len(name) > 3):
+                continue
+            base = name[:-3]
+            if base not in written or name in written:
+                continue
+            shown = _shown(base, True)
+            self._decide(
+                "constant or symbol",
+                span,
+                f"a symbol of its own, {name}",
+                f"\\bar{{{shown}}} is read as a name",
+            )
+            raise CompileError(
+                f"{span.text} is read as a derivative by a symbol of its own, \\bar{{{shown}}}, "
+                f"which is 0, not as the derivative by the conjugate of {shown}",
+                span=span,
+                notes=[
+                    "the Wirtinger derivative, with \\bar z the conjugate of z, is not "
+                    "supported yet"
+                ],
+                hint=f"write {shown} = x + i y with Reals := [x, y], and take \\frac{{1}}{{2}}"
+                "\\left(\\frac{\\partial f}{\\partial x} + i \\frac{\\partial f}{\\partial y}"
+                "\\right)",
+            )
+
+    def _check_free_indices(self, target: ast.Name, value: Node, span: Span) -> None:
+        """Refuse ``L_i = I_{ij} \\omega_i``: a name written with index labels, defined as a
+        tensor whose free indices are others, which it would carry under the name L_i,
+        silently relabelled (decision 16 of design/notation.md: the free indices of both
+        sides of a definition are checked)."""
+        _, underscore, tail = target.id.partition("_")
+        if not (underscore and tail.isalpha() and isinstance(value.type, TensorType)):
+            return
+        labels = split_index_labels(tail)
+        free = value.type.indices
+        if any(index.name.startswith("#") for index in free) or len(labels) != len(free):
+            return
+        if sorted(labels) == sorted(free.names):
+            return
+        left = self._written_indices([Index(label) for label in labels])
+        raise IndexNotationError(
+            f"the two sides have different free indices: {left} on the left, "
+            f"{self._written_indices(free)} on the right",
+            span=span,
+            notes=[
+                f"a free index appears once in every term, and {target.span.text} is "
+                f"defined with {left}"
+            ],
+        )
+
     def _check_order(self, node: ast.Scripted, scope: Scope) -> None:
         """Refuse ``f^{(4)}`` where f is a function the program defined: read as written, it
         is a name of its own, f^(4), so that ``f^{(4)}(0)`` was f^(4) times 0, which is 0."""

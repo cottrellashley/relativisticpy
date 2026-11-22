@@ -32,6 +32,7 @@ chem.spectroscopy.nmr-populations
 cm.central.kepler-period
 cm.central.kepler-third-law
 cm.oscillations.angular-momentum
+cm.oscillations.mismatched-index
 cm.oscillations.pendulum-period
 cm.oscillations.two-carts
 complex.analytic.cauchy-riemann
@@ -127,6 +128,7 @@ gr.schwarzschild.g-tt
 gr.schwarzschild.killing-time
 gr.schwarzschild.kretschmann
 gr.schwarzschild.photon-sphere
+gr.schwarzschild.redshift
 gr.schwarzschild.vacuum
 gr.spacetimes.anti-de-sitter-lambda
 gr.spacetimes.de-sitter-maximally-symmetric

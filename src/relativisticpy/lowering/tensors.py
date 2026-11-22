@@ -483,6 +483,7 @@ class Tensors(Notation):
     def _differentiate(self, expr: Node, variables: Sequence[tuple[Node, int]], span: Span) -> Node:
         if any(_elements(node) is not None for node in (expr, *(v for v, _ in variables))):
             raise self._derivative_of_a_list(expr, [v for v, _ in variables], span)
+        self._check_conjugate_variable(expr, [v for v, _ in variables], span)  # \bar{z}
         vectors = [v for v, _ in variables if isinstance(v.type, TensorType)]
         if vectors:
             vector = vectors[0]

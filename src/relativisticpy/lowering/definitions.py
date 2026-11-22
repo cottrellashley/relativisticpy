@@ -94,6 +94,7 @@ class Definitions(Expressions):
                     node = self._align(value_node, indices, value.span, what="a definition")
                     scope.bind(base, TensorBinding(node, indices))
                     return
+                self._check_free_indices(target, value_node, value.span)  # L_i = I_{ij} w_i
                 if late and value_node.type == SCALAR:
                     where = ops.Call("core.where")
                     self._rewrite_metric(where, (self.graph.const(name, VALUE), value_node))

@@ -37,6 +37,7 @@ from relativisticpy.ir import (
     VALUE,
     EquationType,
     Node,
+    NotationType,
     TensorType,
     ValueType,
     dependencies,
@@ -182,6 +183,7 @@ class Expressions(LinearAlgebra):
         if node.op in ("and", "or"):
             args = [self.value(node.left, scope, ctx), self.value(node.right, scope, ctx)]
             return self._call(f"core.{node.op}", args, SCALAR, node.span)
+        self._check_derivative_by_an_expression(node, scope)  # \frac{d \ln p}{d(1/T)}
         left = self.value(_operand(node.left), scope, ctx)
         right = self.value(_operand(node.right), scope, ctx)
         if node.op == "/":
@@ -628,8 +630,26 @@ class Expressions(LinearAlgebra):
                     span=definition.span,
                     hint="end the function body with an expression",
                 )
-            return result
-        return self.value(definition.body, scope, inner)
+            return self._at_arguments(result, definition, args, span)
+        return self._at_arguments(self.value(definition.body, scope, inner), definition, args, span)
+
+    def _at_arguments(
+        self, value: Node, definition: ast.FunctionDefinition, args: Sequence[Node], span: Span
+    ) -> Node:
+        """A function's value at its arguments where a parameter is a coordinate, as r is
+        of ``\\omega(r) := -k_\\mu u^\\mu``: the components of the tensors in its body are
+        written in the coordinate, which binding the parameter does not reach, so the
+        argument is put in for the coordinate too, and \\omega(r_e) is \\omega at r_e."""
+        coordinates = {c.name: c for c in self.session.coordinates or ()}
+        pairs: list[Node] = []
+        for param, arg in zip(definition.params, args, strict=True):
+            coordinate = coordinates.get(param)
+            same = isinstance(arg.op, ops.Const) and arg.op.value == coordinate
+            if coordinate is not None and not same:
+                pairs += [self.graph.const(coordinate, SCALAR), arg]
+        if not pairs or isinstance(value.type, NotationType):  # notation has no components
+            return value
+        return self._substituted(value, pairs, span)
 
     def _prime(
         self, prime: ast.Prime, args: tuple[ast.Expr, ...], span: Span, scope: Scope, ctx: Context
