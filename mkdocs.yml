@@ -1,23 +1,44 @@
 site_name: RelativisticPy
-site_description: General Relativity for physicists in a hurry. Write tensor equations the way they look in a paper, or paste the LaTeX, and compute them.
+site_description: >-
+  RelativisticPy reads mathematics as it is written, in LaTeX, plain text or Unicode, and
+  computes it: General Relativity with SymPy, numerical data in index notation over any
+  space, and the equations of LaTeX papers, which it checks.
 site_url: https://relativisticpy.org
 repo_url: https://github.com/cottrellashley/relativisticpy
 repo_name: cottrellashley/relativisticpy
 edit_uri: edit/main/docs/
 
+# llms.txt groups the pages by these sections; tools/navigation.py writes it.
 nav:
   - Home: index.md
   - Getting started: getting-started.md
-  - The language: language.md
-  - Tensors and geometry: tensors.md
-  - Solving tensor equations: notation.md
-  - Beyond spacetime: spaces.md
-  - LaTeX: latex.md
-  - Checking papers: checking.md
-  - Numerics: numerics.md
-  - Python API: python.md
+  - Guides:
+      - The language: language.md
+      - LaTeX: latex.md
+      - Tensors and geometry: tensors.md
+      - Solving tensor equations: notation.md
+      - Checking papers: checking.md
+      - Beyond spacetime: spaces.md
+      - Numerics: numerics.md
+  - Reference:
+      - The language reference: reference.md
+      - Python API: python.md
+      - Command line: cli.md
+      - Glossary: glossary.md
+  - Troubleshooting: troubleshooting.md
+  - Coming from:
+      - Other tools: coming-from.md
+      - RelativisticPy 1.x: upgrading.md
+  - Jupyter and notebooks: jupyter.md
+  - Examples: examples.md
   - How it works: architecture.md
   - Roadmap: roadmap.md
+
+# Every page is in the navigation, and every link, to a page or to a heading, is found.
+validation:
+  omitted_files: warn
+  unrecognized_links: warn
+  anchors: warn
 
 theme:
   name: material
@@ -59,6 +80,7 @@ markdown_extensions:
 
 hooks:
   - tools/code_copy.py
+  - tools/navigation.py
 
 extra_javascript:
   - javascripts/mathjax.js

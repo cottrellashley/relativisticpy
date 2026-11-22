@@ -27,13 +27,20 @@ def tool(name):
 
 
 @pytest.fixture(scope="module")
-def site(tmp_path_factory):
+def config(tmp_path_factory):
+    """The configuration the site is built with, after building it."""
     from mkdocs.commands.build import build
     from mkdocs.config import load_config
 
     folder = tmp_path_factory.mktemp("site")
-    build(load_config(str(ROOT / "mkdocs.yml"), site_dir=str(folder), strict=True))
-    return folder
+    configuration = load_config(str(ROOT / "mkdocs.yml"), site_dir=str(folder), strict=True)
+    build(configuration)
+    return configuration
+
+
+@pytest.fixture(scope="module")
+def site(config):
+    return Path(config["site_dir"])
 
 
 def built(site, page):
@@ -65,3 +72,62 @@ def test_a_session_copies_as_doctest_reads_it():
     session = '>>> x = """\n... a\n... """\n>>> x\n\'a\\n\'\n...\n>>>\n'
     assert code_copy.session_code(session) == 'x = """\na\n"""\nx\n'
     assert code_copy.session_code("$ relativisticpy\n") is None
+
+
+def test_every_page_is_in_the_navigation(config):
+    listed = {page for _, _, page in tool("navigation").pages(config["nav"])}
+    assert listed == {page.name for page in DOCS.glob("*.md")}
+
+
+def test_llms_txt_indexes_every_page_in_a_few_lines(config, site):
+    navigation = tool("navigation")
+    entries = navigation.pages(config["nav"])
+    text = (site / "llms.txt").read_text(encoding="utf-8")
+    summary = config["site_description"]
+    assert text == navigation.llms_txt(entries, DOCS, config["site_url"], summary)
+    assert text.startswith(f"# RelativisticPy\n\n> {summary}\n")
+    for _, title, page in entries:
+        assert f"- [{title}]({config['site_url']}{navigation.url(page)}index.html.md): " in text
+    for fact in ("relativisticpy help reference", ":=", 'r"\\frac{1}{2}"', "--format json"):
+        assert fact in text
+    assert len(text) < 6_000  # about 1,500 tokens
+
+
+def test_llms_full_txt_holds_every_page_in_order(config, site):
+    text = (site / "llms-full.txt").read_text(encoding="utf-8")
+    positions = []
+    for _, _, page in tool("navigation").pages(config["nav"]):
+        source = (DOCS / page).read_text(encoding="utf-8").strip()
+        assert source in text, page
+        positions.append(text.index(source))
+    assert positions == sorted(positions)
+
+
+def test_every_page_has_a_copy_in_markdown_where_llms_txt_points(config, site):
+    navigation = tool("navigation")
+    for _, _, page in navigation.pages(config["nav"]):
+        copy = site / navigation.url(page) / "index.html.md"
+        assert copy.read_text(encoding="utf-8") == (DOCS / page).read_text(encoding="utf-8")
+
+
+def test_a_page_named_before_it_is_written_is_left_out(tmp_path):
+    navigation = tool("navigation")
+    (tmp_path / "glossary.md").write_text("# Glossary\n", encoding="utf-8")
+    reference = {"Reference": [{"Command line": "cli.md"}, {"Glossary": "glossary.md"}]}
+    nav = [{"Home": "index.md"}, reference]
+    assert navigation.pending(nav, tmp_path) == [
+        {"Home": "index.md"},
+        {"Reference": [{"Glossary": "glossary.md"}]},
+    ]
+    (tmp_path / "cli.md").write_text("# Command line\n", encoding="utf-8")
+    assert navigation.pending(nav, tmp_path) == nav
+
+
+def test_a_page_is_described_by_its_header_or_its_first_sentence():
+    describe = tool("navigation").description
+    header = (
+        "# T\n\n> **For:** you. **You will\n> learn:** what\n> [this](x.md) is. **Before:** y\n"
+    )
+    assert describe(header) == "what this is."
+    prose = "# T\n\n```pycon\n>>> 1\n\n```\n\n**A name** is a [thing](x.md). More.\n"
+    assert describe(prose) == "A name is a thing."
