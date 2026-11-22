@@ -1231,8 +1231,8 @@ class Parser:
                 kind, number, self._numeric_indices(token), span=marker.span.to(token.span)
             )
         if token.kind in (K.PLUS_MINUS, K.MINUS_PLUS) or (
-            token.kind in (K.MINUS, K.PLUS) and not self._starts_operand(self.peek(1))
-        ):  # r_+ and i^-: a label, not a sign
+            token.kind in (K.MINUS, K.PLUS) and not self._signs_operand(kind)
+        ):  # r_+, i^- and h_+ \cos\omega t: a label, not a sign
             self.advance()
             sign = ast.Name(token.value, verbatim=True, span=token.span)
             return ast.Script(kind, sign, None, span=marker.span.to(token.span))
@@ -1248,6 +1248,27 @@ class Parser:
         what = "superscript" if kind == "^" else "subscript"
         raise ParseError(
             f"expected a {what} after '{kind}', found {token.describe()}", span=token.span
+        )
+
+    def _signs_operand(self, kind: Literal["^", "_"]) -> bool:
+        """Whether the ``+`` or ``-`` after a script marker signs what follows it, as plain
+        text writes ``x^-1`` and ``e^-x``, rather than being the whole script, a label, as
+        TeX sets ``r_+``, ``h_+ \\cos\\omega t``, ``x^+ x^-`` and ``e^+e^-``. It signs a
+        number, as in ``x^-1`` and ``a_-1``; in a superscript, it also signs an operand
+        written against it, unless that is a name labelled with a sign of its own."""
+        follower = self.peek(1)
+        if not self._starts_operand(follower):
+            return False
+        if follower.kind is K.NUMBER:
+            return True
+        if kind == "_" or follower.space_before:
+            return False
+        marker, label = self.peek(2), self.peek(3)
+        return not (
+            follower.kind is K.IDENT
+            and marker.kind in (K.CARET, K.UNDERSCORE)
+            and not marker.space_before
+            and label.kind in (K.PLUS, K.MINUS)
         )
 
     def _braced_script(self, kind: Literal["^", "_"], marker: Token) -> ast.Script:

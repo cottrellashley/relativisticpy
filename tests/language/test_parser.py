@@ -169,6 +169,31 @@ class TestScripts:
         assert sexpr("x^-1") == "(^ x (- 1))"
         assert sexpr("e^{x^2}") == "(^ e (^ x 2))"
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a sign alone is the script, as TeX sets it: h_+ is a polarisation, not h_{+x}
+            (r"h_+ \cos[\omega (t - z)]", "(* (h _+) (call cos (* omega (- t z))))"),
+            ("h_+ x", "(* (h _+) x)"),
+            (r"h_+\cos\omega t", "(* (h _+) (call cos (* omega t)))"),
+            (r"C_+ e^{ik_\sigma x^\sigma}", "(* (C _+) (^ e (* (ik _[sigma]) (x ^[sigma]))))"),
+            ("r_+r_-", "(* (r _+) (r _-))"),
+            ("r_+ + r_-", "(+ (r _+) (r _-))"),
+            ("a_-n", "(* (a _-) n)"),
+            ("x^+ x^-", "(* (^ x +) (^ x -))"),
+            (r"e^+e^- \to \mu^+\mu^-", "(→ (* (^ e +) (^ e -)) (* (^ mu +) (^ mu -)))"),
+            # a sign against what it signs is a sign, as plain text writes a power
+            ("x^-1", "(^ x (- 1))"),
+            ("x^- 1", "(^ x (- 1))"),
+            ("10^-3", "(^ 10 (- 3))"),
+            ("a_-1", "(a _(- 1))"),
+            ("e^-x", "(^ e (- x))"),
+            (r"e^-\alpha t", "(* (^ e (- alpha)) t)"),
+        ],
+    )
+    def test_a_sign_as_a_script_is_a_label_unless_it_signs_what_follows(self, text, expected):
+        assert sexpr(text) == expected
+
     def test_braced_scripts_keep_both_readings(self):
         script = parse_expression("x^{a}").scripts[0]  # type: ignore[attr-defined]
         assert script.body == ast.Name("a", span=script.body.span)

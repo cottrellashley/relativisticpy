@@ -50,6 +50,18 @@ class TestScripts:
         with Workbook() as wb:
             assert str(wb.expr("r_s := 2 G M\nx_0 := 3\n1 - r_s/r + x_0^2")) == "-2*G*M/r + 10"
 
+    def test_a_sign_as_a_script_labels_its_symbol(self):
+        # h_+ is a polarisation, so a wave written with it is not zero, as h_{+\cos} made it
+        with Workbook() as wb:
+            wb.exe("ds^2 = -dt^2 + dx^2 + dy^2 + dz^2")
+            wb.exe(r"h_{\mu\nu} := h_+ \cos[\omega (t - z)] \begin{pmatrix} 0 & 0 & 0 & 0 \\ "
+                   r"0 & 1 & 0 & 0 \\ 0 & 0 & -1 & 0 \\ 0 & 0 & 0 & 0 \end{pmatrix}")  # fmt: skip
+            omega, z, h = sympy.symbols("omega z h_+")
+            assert sympy.simplify(wb.expr("h_{xx}") - h * sympy.cos(omega * (t - z))) == 0
+            assert wb.expr("x^+ x^- + e^-t") == sympy.Symbol("x^+") * sympy.Symbol("x^-") + (
+                sympy.exp(-t)
+            )
+
 
 t, r, x, theta = sympy.symbols("t r x theta")
 a, f, A = (sympy.Function(name) for name in ("a", "f", "A"))
