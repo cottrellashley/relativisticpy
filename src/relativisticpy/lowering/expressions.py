@@ -894,7 +894,11 @@ class Expressions(LinearAlgebra):
         )
 
     def _Abs(self, node: ast.Abs, scope: Scope, ctx: Context) -> Node:
-        operand = self.value(node.operand, scope, ctx)
+        return self._absolute(node, self.value(node.operand, scope, ctx))
+
+    def _absolute(self, node: ast.Abs, operand: Node) -> Node:
+        """What bars around a value write: the length of a vector, the norm of a matrix, or
+        the absolute value."""
         if isinstance(operand.type, TensorType) and operand.type.rank == 1:
             return self._norm(operand, node.span)
         if (norm := self._norm_of(node, operand)) is not None:  # \|A\| of a matrix

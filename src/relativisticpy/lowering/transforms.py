@@ -639,13 +639,10 @@ class Transforms(Definitions):
             return self.graph.add(op, (exponent, base), exponent.type, span)
         return super()._power(base, exponent, span)
 
-    def _Abs(self, node: ast.Abs, scope: Scope, ctx: Context) -> Node:
-        operand = self.value(node.operand, scope, ctx)
+    def _absolute(self, node: ast.Abs, operand: Node) -> Node:
         if self._shared(operand):  # |X_k|, for each k of a sum over k
             return self._builtin(BUILTINS["Abs"], [operand], node.span)
-        if isinstance(operand.type, TensorType) and operand.type.rank == 1:
-            return self._norm(operand, node.span)
-        return self._builtin(BUILTINS["Abs"], [operand], node.span)
+        return super()._absolute(node, operand)
 
     def _divide(self, numerator: Node, denominator: Node, span: Span) -> Node:
         if self._shared(denominator):  # 1/(n + 1), for each n
