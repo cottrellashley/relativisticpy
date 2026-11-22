@@ -385,12 +385,32 @@ def _plain(expr: Any) -> Any:
     return expr.xreplace({s: sympy.Symbol(s.name) for s in expr.free_symbols})
 
 
+#: What a result may leave undone only where the answer does too: the language is to
+#: compute an integral, a sum or a limit, not hand it back for the comparison to finish.
+_UNEVALUATED = (
+    sympy.Integral,
+    sympy.Sum,
+    sympy.Product,
+    sympy.Limit,
+    sympy.Derivative,
+    sympy.Piecewise,
+)
+
+
+def _left_undone(actual: Any, expected: Any) -> set[str]:
+    """The kinds of unevaluated operation in ``actual`` that ``expected`` has none of."""
+    kinds = {type(node).__name__ for node in actual.atoms(*_UNEVALUATED)}
+    return kinds - {type(node).__name__ for node in expected.atoms(*_UNEVALUATED)}
+
+
 def _same_expression(actual: Any, expected: Any, tolerance: float) -> bool:
     if isinstance(actual, str) or isinstance(expected, str):
         return str(actual) == str(expected)
     a, b = _plain(actual), _plain(expected)
     if a == b:
         return True
+    if _left_undone(a, b):  # an integral left as written is not its value
+        return False
     if a.is_number and b.is_number:
         x, y = complex(a.evalf()), complex(b.evalf())
         return abs(x - y) <= tolerance * max(1.0, abs(y))

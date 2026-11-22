@@ -1,7 +1,5 @@
 # Cases that pass. Written by benchmarks/curriculum.py --update.
 analysis.limits.sinc
-analysis.series.basel
-analysis.series.taylor-exp
 gr.schwarzschild.g-tt
 gr.schwarzschild.killing-time
 gr.schwarzschild.kretschmann
