@@ -3705,7 +3705,8 @@ class Compiler:
                 for space in _spaces(binding.node) or ()
             )
             hint = (
-                f"declare its space, as in {label} \\in \\mathcal{{A}}"
+                "name a space for it, as in \\mathcal{A} := \\mathbb{R}^{3}, and write "
+                f"{label} \\in \\mathcal{{A}}"
                 if data
                 else "declare coordinates first, as in Coordinates := [t, r, \\theta, \\phi]"
             )

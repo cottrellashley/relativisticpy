@@ -376,6 +376,28 @@ class TestWhatAMetricIsNeededFor:
         wb.exe(r"g_{\mu\nu} := diag(-1, 1, 1, 1)")  # and so does this one
         assert wb.expr("R_{tt}") == 0
 
+    def test_an_index_with_nowhere_to_range_says_where_it_can(self, wb):
+        found = error(wb, r"U^\mu := [1, 0, 0, 0]")
+        assert found.message == r"a tensor needs coordinates, or a space for the index \mu"
+        assert found.notes == [
+            "an index ranges over spacetime, over a space declared for it, or over the axis "
+            "of data it is written on in the same statement"
+        ]
+        assert found.hint == r"declare coordinates first, as in Coordinates := [t, r, \theta, \phi]"
+        wb.exe(r"Coordinates := [t, r, \theta, \phi]")  # the hint works
+        wb.exe(r"U^\mu := [1, 0, 0, 0]")
+        assert wb.expr("U^t") == 1
+
+    def test_beside_data_an_index_is_told_to_range_over_a_space(self, wb):
+        wb["w^a"] = [1, 1, 1]
+        found = error(wb, "V^b := [1, 2]")
+        assert found.hint == (
+            r"name a space for it, as in \mathcal{A} := \mathbb{R}^{3}, and write b \in \mathcal{A}"
+        )
+        wb.exe("\\mathcal{A} := \\mathbb{R}^{2}\nb \\in \\mathcal{A}")  # the hint works
+        wb.exe("V^b := [1, 2]")
+        assert wb.expr("V^b").spaces[0].dim == 2
+
     def test_a_metric_dropped_with_its_coordinates(self, wb):
         wb.exe(SCHWARZSCHILD + "\nCoordinates := [t, x, y, z]")
         assert notes(wb, "R") == [
