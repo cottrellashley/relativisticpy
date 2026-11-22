@@ -431,6 +431,8 @@ class Expressions(LinearAlgebra):
         name = func.id
         binding = scope.lookup(name)
         if isinstance(binding, FunctionBinding):
+            why = f"{name} is a function, defined on line {binding.definition.span.line}"
+            self._decide(CALL, node.span, f"a call of {name}", why)
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._inline(binding, args, node.span, ctx)
         trace = binding is None and name in ("trace", "tr") and len(node.args) == 1
@@ -445,10 +447,15 @@ class Expressions(LinearAlgebra):
             isinstance(a, ast.Name) and (a.id in names or _mentions_symbol(binding.node, a.id))
             for a in node.args
         ):  # \alpha(r), once \alpha is defined, or a(t) of a value in t: what it depends on
+            arguments = ", ".join(arg.span.text for arg in node.args)
+            why = f"{name} has a value, which depends on {arguments}"
+            self._decide(CALL, node.span, f"the value of {name}", why)
             return binding.node
         one_name = len(node.args) == 1 and isinstance(node.args[0], ast.Name)
         product = (name in names and not one_name) or self._a_product(func, node.args, binding, ctx)
         if product:  # r(\partial_1 \beta - 1), with r a coordinate: as typeset, a product
+            why = product if isinstance(product, str) else f"{name} is a coordinate"
+            self._decide(CALL, node.span, "a product", why)
             group = node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
             times = ast.Binary("*", func, group, implicit=True, span=node.span)
             return self.value(times, scope, ctx)
@@ -475,6 +482,9 @@ class Expressions(LinearAlgebra):
         if ctx.latex and binding is None and not builtin and _splittable(func):
             # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
             labels = split_index_labels(name)
+            read = f"{' '.join(labels[:-1])} times {labels[-1]} called"
+            why = "in LaTeX only the last letter of a run that names nothing is called"
+            self._decide("letters", node.span, read, why)
             last = _letter(labels[-1], func.span, first=False)
             leading = [
                 _letter(label, func.span, first=n == 0) for n, label in enumerate(labels[:-1])
@@ -483,8 +493,12 @@ class Expressions(LinearAlgebra):
             factors.append(self.value(replace(node, func=last), scope, ctx))
             return self._multiply(factors, node.span)
         if builtin:
+            why = f"{name} is a builtin function"
+            self._decide(CALL, node.span, f"a call of the builtin {name}", why)
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._builtin(BUILTINS[name], args, node.span)
+        why = f"nothing defines {func.span.text}"
+        self._decide(CALL, node.span, f"a call of the unknown function {func.span.text}", why)
         self._check_unknown_function(func, node)
         args = [self.value(a, scope, ctx) for a in node.args]
         for arg, source in zip(args, node.args, strict=True):
@@ -951,6 +965,8 @@ class Expressions(LinearAlgebra):
                 source = self._scalar_source(base, binding, scope, ctx)
             if source is not None:
                 self._check_component(node, base, source)
+                why = f"{base.span.text} is {self._tensor_meaning(name, binding, rank)}"
+                self._decide("index or power", node.span, "a tensor with its indices", why)
                 return self._access(source, node, scope, ctx)
             if differentiated:  # never a symbol named phi_mu
                 raise self._underivable(node, base, binding, rank)
@@ -1026,6 +1042,9 @@ class Expressions(LinearAlgebra):
         )
         return self.graph.const(element, SCALAR, span)
 
+
+#: The decision of whether a name before brackets is called or multiplies.
+CALL = "product or call"
 
 _COMPARE = {
     "<": "core.lt",

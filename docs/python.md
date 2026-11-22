@@ -33,6 +33,7 @@ holds, and how results are shown. Write LaTeX in raw strings, `r"..."`, and see
 | `wb.grad(source, wrt)` | the gradient of a scalar with respect to bound data, by automatic differentiation with JAX |
 | `wb.metric`, `wb.coordinates` | the metric in force (a `Metric`) and the coordinates |
 | `wb.ir(source)` | the IR a program compiles to, as text |
+| `wb.explain(source)` | how each statement is read, and why: see [How a statement is read](#how-a-statement-is-read) |
 | `wb.tokens(source)`, `wb.parse(source)` | the tokens and syntax tree |
 | `wb.reset()` | forget every definition |
 
@@ -71,6 +72,64 @@ statement's `span` and `statement` (its syntax tree), its `values` (an empty lis
 for a definition) or its `error`, for an equation the values of its two `sides`,
 and `notes` on how the statement was read where that could surprise. `zero`
 says whether an equation's two sides are both zero.
+
+## How a statement is read
+
+`wb.explain(source)` says how each statement of a program is read, and why: how each
+name was resolved, against what the workbook defines, its coordinates and the built-in
+names; each ambiguous form decided, with why: a definition or a claim, notation or
+components, a product or a call, an index or a power, a run of letters, a constant or a
+symbol, a function named without its argument; and the notes given where the less
+likely reading was taken. Nothing is computed, and nothing is defined: as with `wb.ir`,
+the workbook is left as it was. Printed, the readings are text, with the values known
+without computing shown as results are:
+
+```python
+>>> wb = Workbook()
+>>> wb.exe(r"Coordinates := [t, r]" "\n" r"g_{\mu\nu} := diag(-(1 - 2M/r), 1)" "\n" "K := 2")
+[]
+>>> explanation = wb.explain(r"""
+...     K = \frac{2GM}{r}
+...     e^{i\pi} + \Gamma^t_{tr}
+... """)
+>>> print(explanation)
+line 2: K = \frac{2GM}{r}
+  definition or claim: K = ... is a claim, since K already has a value
+  letters: GM is G M, since in LaTeX a run of letters that names nothing is a product
+  K: a value, defined on line 3, 2
+  G: a symbol
+  M: a symbol the metric is written with
+  r: a coordinate
+  note: K already has a value, so = compares it; to give K a new value, write K := ...
+line 3: e^{i\pi} + \Gamma^t_{tr}
+  constant or symbol: e is a constant, since nothing defines e
+  index or power: e^{i\pi} is a power, since e is not a tensor
+  constant or symbol: i is a constant, since nothing defines i
+  constant or symbol: \pi is a constant, since nothing defines \pi
+  index or power: \Gamma^t_{tr} is a tensor with its indices, since \Gamma is the Christoffel connection
+  e: a constant, e
+  i: a constant, i
+  \pi: a constant, π
+
+```
+
+Each reading is a `Reading`, with the statement's `span`; its `names`, each a
+`Resolution` with what is `written`, its `meaning` and, where it is known without
+computing, its `value`; its `decisions`, each a `Decision` with its `kind`, what is
+`written`, the `reading` taken, `why`, and the `note` given, if any; its `notes`; and
+the `error` the statement gives, if it gives one, without stopping the readings after
+it:
+
+```python
+>>> reading = explanation[0]
+>>> [(decision.kind, decision.reading) for decision in reading.decisions]
+[('definition or claim', 'a claim'), ('letters', 'G M')]
+>>> reading.names[0].value
+2
+>>> print(wb.explain("T_{ab} + v_a")[0].error.message)
+T is not a tensor
+
+```
 
 ## Results
 

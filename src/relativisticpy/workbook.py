@@ -49,6 +49,7 @@ from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.syntax import Program
 from relativisticpy.language.tokens import Token
 from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS
+from relativisticpy.reading.readings import Explanation
 from relativisticpy.runtime import Executor
 from relativisticpy.tensors import Index, Indices, Space, Tensor, arrays, numerical
 from relativisticpy.tensors.equation import TensorEquation
@@ -329,6 +330,30 @@ class Workbook:
                     listing.append(line)
                     shown.add(node)
         return "\n".join(listing)
+
+    @_from_python
+    def explain(self, source: str | Source) -> Explanation:
+        r"""How each statement of ``source`` is read, and why: how each name is resolved,
+        against what the workbook defines, its coordinates and the built-in names; each
+        ambiguous form decided, as a definition or a claim, notation or components, a
+        product or a call, an index or a power, a run of letters, a constant or a symbol;
+        and the notes said where the less likely reading is taken. Nothing is computed, and
+        the workbook is left as it was, as with :meth:`ir`: a definition in ``source`` is
+        not made. What it returns is the readings, one for each statement (see
+        :class:`~relativisticpy.reading.readings.Reading`), and ``str()`` gives them as
+        text, values shown as :mod:`relativisticpy.display` shows them::
+
+            >>> print(Workbook().explain(r"x := 2" "\n" r"\pi x"))
+            line 1: x := 2
+              definition or claim: x := ... is a definition, since it is written with :=
+            line 2: \pi x
+              constant or symbol: \pi is a constant, since nothing defines \pi
+              \pi: a constant, π
+              x: a value, defined on line 1, 2
+        """
+        compiler = Compiler(self._session.fork())
+        program = self._parse(source, "<input>", "explain")
+        return Explanation([compiler.read(statement) for statement in program.statements])
 
     @_from_python
     def __getitem__(self, written: str) -> Any:

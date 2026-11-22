@@ -41,8 +41,19 @@ from relativisticpy.reading.names import (
     _script_labels,
     _unbracketed,
 )
+from relativisticpy.reading.readings import Reading
 from relativisticpy.typing.syntax import _NOTATION_OPERATIONS as _NOTATION_OPERATIONS
 from relativisticpy.typing.syntax import _zero_literal
+
+#: The decision of whether = defines or claims.
+DEFINITION = "definition or claim"
+#: How each reading of = is said.
+_READ_AS = {
+    "define": "a definition",
+    "function": "a definition of a function",
+    "claim": "a claim",
+    "notation": "a claim, in index notation",
+}
 
 
 class Compiler(Definitions):
@@ -93,6 +104,7 @@ class Compiler(Definitions):
         top = self._depth == 0
         if top:
             self._notes = []
+            self._decided, self._resolved = {}, {}
         self._depth += 1
         try:
             self._text = statement.span.text
@@ -118,18 +130,42 @@ class Compiler(Definitions):
                 self._unshown.extend(self._notes)
         return outputs
 
+    def read(self, statement: ast.Statement) -> Reading:
+        """How a statement is read, compiled as :meth:`statement` compiles it, in the
+        session, computing nothing: how each name was resolved, each decision taken, with
+        why, the notes, and the error the statement gives, if it gives one."""
+        reading = Reading(statement)
+        try:
+            self.statement(statement, self.session.globals)
+        except RelativisticPyError as error:
+            reading.error = error
+        reading.names, reading.decisions = list(self._resolved), list(self._decided)
+        noted = [decision.note for decision in self._decided if decision.note is not None]
+        reading.notes = list(dict.fromkeys([*noted, *self._notes]))
+        return reading
+
     def _statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None
     ) -> list[Output]:
         ctx = Context(latex=statement.latex, calls=outer.calls if outer else ())
         if isinstance(statement, ast.FunctionDefinition):
+            why = "it is written with :="
+            written = f"{statement.name}({', '.join(statement.params)}) := ..."
+            reading = "a definition of a function"
+            self._decide(DEFINITION, statement.span, reading, why, written=written)
             self._define_function(statement, scope, ctx)
             return []
         if isinstance(statement, ast.Define) and self._states_identity(statement, scope):
             target = statement.targets[0]
+            why = "it says, with \\equiv, what a built-in already is"
+            written = f"{target.span.text} \\equiv ..."
+            self._decide(DEFINITION, statement.span, "a claim", why, written=written)
             equation = ast.Equation(target, statement.value, span=statement.span)
             statement = ast.Evaluate(equation, span=statement.span, latex=statement.latex)
         if isinstance(statement, ast.Define):
+            written = f"{', '.join(t.span.text for t in statement.targets)} := ..."
+            why = "it is written with :="
+            self._decide(DEFINITION, statement.span, "a definition", why, written=written)
             if len(statement.targets) > 1:
                 self._destructure(statement.targets, statement.value, scope, ctx)
             else:
@@ -182,7 +218,7 @@ class Compiler(Definitions):
                 span=equation.span,
                 hint=f"to compute with it, write it without the brackets: {_unbracketed(equation)}",
             )
-        reading, note = self._reading(equation, scope, ctx)
+        reading, note, why = self._reading(equation, scope, ctx)
         if reading == "function":
             assert isinstance(lhs, ast.Call)
             assert isinstance(lhs.func, ast.Name)
@@ -192,6 +228,8 @@ class Compiler(Definitions):
             )
             failure = self._fails_as_function(definition, scope, ctx)
             if failure is None:
+                read_as, written = "a definition of a function", f"{lhs.span.text} = ..."
+                self._decide(DEFINITION, equation.span, read_as, why, written=written)
                 self._define_function(definition, scope, ctx)
                 return []
             # Not a definition: its value means nothing as a function. As an equation,
@@ -201,6 +239,10 @@ class Compiler(Definitions):
                 f"function: as one, its value cannot be computed ({failure.message})"
             )
             note = None
+            why = "as a function, its value cannot be computed"
+            reading = "claim"
+        written = f"{lhs.span.text} = ..."
+        self._decide(DEFINITION, equation.span, _READ_AS[reading], why, note, written=written)
         if reading == "define":
             if self._is_notation(rhs, scope, ctx, equation=True):  # nothing to define it
                 return [Output(self._notation(equation, scope, ctx), equation.span)]

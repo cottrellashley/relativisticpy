@@ -35,6 +35,7 @@ from relativisticpy.compiler.session import MetricState, Session
 from relativisticpy.errors import CompileError, IndexNotationError
 from relativisticpy.ir import SCALAR, VALUE, Graph, Node, NotationType, TensorType, Type, ops
 from relativisticpy.language import syntax as ast
+from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.reading.names import _names_builtin
 from relativisticpy.reading.reader import Reader
@@ -204,6 +205,8 @@ class Notation(Reader):
         if isinstance(node, ast.Scripted) and (pattern := _tensor_pattern(node)):
             written = self._letter_run(node, scope, ctx)
             if written is not node:
+                why = "in LaTeX the indices on a run of letters that names nothing are its last's"
+                self._decide("letters", node.span, " ".join(split_index_labels(pattern[0])), why)
                 return self._tensorial(written, scope, ctx)
             return self._abstract_tensor(pattern, scope, node.span)
         if isinstance(node, ast.Name):

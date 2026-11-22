@@ -21,6 +21,7 @@ from relativisticpy.compiler.session import Session
 from relativisticpy.ir import Node, Type, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
+from relativisticpy.reading.readings import Decision, Resolution
 from relativisticpy.tensors.spaces import Space
 
 #: What compiling an expression gives: a value, or an operator that acts on what follows.
@@ -53,6 +54,10 @@ class Pass:
         # notes of statements that showed nothing to carry them, such as definitions.
         self._notes: list[str] = []
         self._unshown: list[str] = []
+        # What the reader decided of the statement being compiled, and why, and how it
+        # resolved each name: its reading (see relativisticpy.reading.readings).
+        self._decided: dict[Decision, None] = {}  # in order, each once
+        self._resolved: dict[Resolution, None] = {}
         self._depth = 0
         # What the definitions compiled need of the values they make, for the workbook to
         # compute as their statements run.

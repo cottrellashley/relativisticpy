@@ -14,7 +14,7 @@ import re
 from collections.abc import Sequence
 from dataclasses import replace
 from functools import reduce
-from typing import Literal
+from typing import Any, Literal
 
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, Builtin
 from relativisticpy.compiler.passes import Term
@@ -68,6 +68,7 @@ from relativisticpy.reading.names import (
     _writes_tensor,
     _written_with,
 )
+from relativisticpy.reading.readings import Decision, Resolution
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space
 from relativisticpy.typing import notation as rules
@@ -88,9 +89,9 @@ class Reader(Typer):
 
     def _reading(
         self, equation: ast.Equation, scope: Scope, ctx: Context
-    ) -> tuple[Literal["define", "function", "claim", "notation"], str | None]:
-        """Whether ``lhs = rhs`` defines its left side, and if not, the note that says why
-        it is a claim where it could have been read as a definition.
+    ) -> tuple[Literal["define", "function", "claim", "notation"], str | None, str]:
+        """Whether ``lhs = rhs`` defines its left side; if not, the note that says why it is
+        a claim where it could have been read as a definition; and why it is read so.
 
         ``=`` defines only what has no meaning yet: a new name, a new function written
         with plain names as its arguments, ``f(x) = x^2``, a new tensor, or the metric,
@@ -103,30 +104,31 @@ class Reader(Typer):
         target, value = _named(_unprimed(equation.lhs)), equation.rhs
         written = equation.lhs.span.text
         if _is_line_element(target):
-            return "define", None
+            return "define", None, "a line element defines the metric"
         if isinstance(target, ast.Prime):  # t' = \gamma(t - vx), a new coordinate
             primed = target.func.id + "'" * target.order
             if isinstance(scope.lookup(primed), VariableBinding):
-                return "claim", _has_a_value(written)
+                return "claim", _has_a_value(written), f"{written} already has a value"
             if self._names_a_symbol(target, scope) and not self._in_own_value(
                 primed, value, scope, ctx
             ):
-                return "define", None
-            return "claim", None
+                return "define", None, f"{written} is a name that has no meaning yet"
+            return "claim", None, f"{written} is the derivative of a function, or in its value"
         if isinstance(target, ast.Name):
             return self._name_reading(target, written, value, scope, ctx)
         if isinstance(target, ast.Call):
             return self._function_reading(target, value, scope, ctx)
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
-            return "claim", None
+            return "claim", None, "only a name, a function or a tensor is defined by ="
         if any(s.indices is None for s in target.scripts):
-            return "claim", None
+            return "claim", None, f"the scripts of {written} are not indices"
         items = [item for s in target.scripts for item in s.indices.items]  # type: ignore[union-attr]
         if not all(_plain_label(item) for item in items):
-            return "claim", None
+            return "claim", None, f"the indices of {written} are not all labels"
         labels = [str(item.label) for item in items]
         if len(set(labels)) != len(labels) or any(map(self._names_component, labels)):
-            return "claim", None  # a component, or a trace: an equation about what is there
+            # a component, or a trace: an equation about what is there
+            return "claim", None, f"{written} is a component, or a trace"
         name = target.base.id
         if name == self.session.names["metric"] and len(items) == 2:
             space = self._labels.get(labels[0]) or self.session.labels.get(labels[0])
@@ -135,55 +137,61 @@ class Reader(Typer):
             else:
                 in_force = self.session.metric is not None
             if not in_force:
-                return "define", None
-            return "claim", _built_in(written, "the metric in force", f"{written} := ...")
+                return "define", None, "there is no metric yet"
+            metric = _built_in(written, "the metric in force", f"{written} := ...")
+            return "claim", metric, "a metric is in force"
         binding = scope.lookup(name)
         if binding is not None:  # u^\mu = [2, 0] after u^\mu = [1, 0]
             tensor = isinstance(binding, TensorBinding) or (
                 isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType)
             )
-            return "claim", _has_a_value(written) if tensor else None
+            note = _has_a_value(written) if tensor else None
+            return "claim", note, f"{name} already has a value"
         if self._builtin_tensor(name, len(items)) is not None:
-            return "claim", None
+            return "claim", None, f"{written} is a built-in tensor"
         if _writes_tensor(value, name):  # T_{\mu\nu} = T_{\nu\mu}: a symmetry, not a definition
-            return "claim", None
-        return "define", None
+            return "claim", None, f"{name} is in its own value: a symmetry"
+        return "define", None, f"{name} is a new tensor"
 
     def _name_reading(
         self, target: ast.Name, written: str, value: ast.Expr, scope: Scope, ctx: Context
-    ) -> tuple[Literal["define", "claim", "notation"], str | None]:
+    ) -> tuple[Literal["define", "claim", "notation"], str | None, str]:
         """How ``x = ...`` is read: see :meth:`_reading`."""
         name = target.id
         if name in _DECLARATIONS:  # Coordinates = [t, r] declares, as := does
-            return "define", None
+            return "define", None, f"{written} declares, as := does"
         if name in _CLAIMED:  # \pi = 3.14159: a claim about the constant
-            return "claim", _built_in(written, "a constant", f"{written} := ...")
+            constant = _built_in(written, "a constant", f"{written} := ...")
+            return "claim", constant, f"{written} is a constant"
         if scope.lookup(name) is not None:  # x = 3 after x := 2
-            return "claim", _has_a_value(written)
+            return "claim", _has_a_value(written), f"{written} already has a value"
         if _indexed_name(target, scope) is not None:  # y_t of a tensor y: a component
-            return "claim", None
+            return "claim", None, f"{written} is a component of a tensor"
         quantity = self._builtin_scalar(name)
         if quantity is not None:  # R = 0 with a metric in force
-            return "claim", _built_in(written, _BUILT_IN_SCALARS[quantity], f"{written} := ...")
+            what = _BUILT_IN_SCALARS[quantity]
+            return "claim", _built_in(written, what, f"{written} := ..."), f"{written} is {what}"
         ricci = name in ("R", self.session.names["ricci"])
         if ricci and self.session.metric is None:  # R = -\kappa T, as notation
-            return "notation", _built_in(written, "the Ricci scalar", f"{written} := ...")
+            scalar = _built_in(written, "the Ricci scalar", f"{written} := ...")
+            return "notation", scalar, f"{written} is the Ricci scalar, and there is no metric"
         if self._in_own_value(name, value, scope, ctx):
-            return "claim", (
+            both = (
                 f"{written} appears on both sides, so this is an equation, not a "
                 f"definition of {written}"
             )
-        return "define", None
+            return "claim", both, f"{written} appears on both sides"
+        return "define", None, f"{written} has no meaning yet"
 
     def _function_reading(
         self, target: ast.Call, value: ast.Expr, scope: Scope, ctx: Context
-    ) -> tuple[Literal["function", "claim"], str | None]:
+    ) -> tuple[Literal["function", "claim"], str | None, str]:
         """How ``f(x) = ...`` is read: a definition of a function with the arguments as
         its parameters, where they are plain names and ``f`` has no meaning yet; a claim
         otherwise, as ``f(2) = 4`` and ``r(\\tau) = ...`` of a coordinate are."""
         func = target.func
         if not isinstance(func, ast.Name):
-            return "claim", None
+            return "claim", None, "only a name is defined as a function"
         name = func.id
         binding = scope.lookup(name)
         if binding is not None:
@@ -193,17 +201,21 @@ class Reader(Typer):
                 f"{func.span.text} already has a value, so = compares it; to give "
                 f"{func.span.text} a new value, write {again}"
             )
-            return "claim", note
+            return "claim", note, f"{func.span.text} already has a value"
         names = [arg.id for arg in target.args if isinstance(arg, ast.Name)]
         if not names or len(names) != len(target.args) or len(set(names)) != len(names):
-            return "claim", None  # f(2) = 4: a claim about the value at 2
+            # f(2) = 4: a claim about the value at 2
+            return "claim", None, "its arguments are not distinct names"
         if ctx.latex and _splittable(func) and name not in BUILTINS:
-            return "claim", None  # 2Gm(r) = ...: a product of letters
+            # 2Gm(r) = ...: a product of letters
+            return "claim", None, f"in LaTeX, {name} is a product of letters"
         coordinates = {c.name for c in self.session.coordinates or ()}
-        if name in coordinates or self._never_a_function(func, ctx):
-            return "claim", None  # r(\tau) = ...: a coordinate along a path
+        if name in coordinates:  # r(\tau) = ...: a coordinate along a path
+            return "claim", None, f"{name} is a coordinate, along a path"
+        if self._never_a_function(func, ctx):
+            return "claim", None, f"{name} is a builtin or a constant"
         if name in self._factors:  # G(p^2 + q^2) beside 2GM: a product
-            return "claim", None
+            return "claim", None, f"{name} is written as a factor in this statement"
         if any(
             isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
             for node in _walk(value)
@@ -211,8 +223,9 @@ class Reader(Typer):
             note = (
                 f"{func.span.text} appears on both sides, so this is an equation, not a definition"
             )
-            return "claim", note
-        return "function", None
+            return "claim", note, f"{func.span.text} appears on both sides"
+        of = ", ".join(names)
+        return "function", None, f"{name} has no meaning yet: a function of {of}"
 
     def _never_a_function(self, func: ast.Name, ctx: Context) -> bool:
         """Whether a name, bound to nothing in the program, is never a function of what is
@@ -381,6 +394,8 @@ class Reader(Typer):
                 )
                 # With a metric, notation is computed where it meets components.
                 if notation and (operation or self.session.metric is None):
+                    why = f"{current.id} is kept as index notation"
+                    self._decide("notation or components", node.span, "index notation", why)
                     return True
             elif isinstance(current, ast.Scripted) and (pattern := _tensor_pattern(current)):
                 written = self._letter_run(current, scope, ctx)
@@ -402,6 +417,8 @@ class Reader(Typer):
                     elif any(self._builtin_tensor(name, rank) for rank in range(5)):
                         pass  # a built-in with the wrong number of indices: an error
                     elif len(entries) >= 2:
+                        why = f"{name} has no components"
+                        self._decide("notation or components", node.span, "index notation", why)
                         return True
                     else:
                         single = True
@@ -414,6 +431,12 @@ class Reader(Typer):
             _, summed = self._index_structure(node, scope)
         except IndexNotationError:
             return False
+        if builtin:
+            why = "built-in tensors have no components without a metric"
+        else:
+            why = "a summed index shows that index notation is in use"
+        if builtin or summed:
+            self._decide("notation or components", node.span, "index notation", why)
         return builtin or summed
 
     def _letter_run(self, node: ast.Scripted, scope: Scope, ctx: Context) -> ast.Expr:
@@ -439,13 +462,18 @@ class Reader(Typer):
         name = node.id
         binding = scope.lookup(name)
         if isinstance(binding, VariableBinding | TensorBinding):
+            self._resolve_binding(node.span, binding)
             kept = self._kept(binding.node)
             if kept is not None and kept is not binding.node:  # kept in another algebra
                 return kept
             return binding.node
         if binding is None and (indexed := _indexed_name(node, scope)) is not None:
+            tensor = name.partition("_")[0]
+            why = f"{tensor} is a tensor, and {node.span.text} names nothing"
+            self._decide("index or power", node.span, f"{tensor} with its indices", why)
             return self.term(indexed, scope, ctx)  # y_t, where y is a tensor: y_{t}
         if isinstance(binding, FunctionBinding):
+            self._resolve(node.span, f"a function, defined on line {binding.definition.span.line}")
             return FunctionReference(node.span, name)
         if ctx.line_element and name == "d":
             return DifferentialMarker(node.span)
@@ -456,15 +484,26 @@ class Reader(Typer):
             )
         session = self.session
         if name == "Coordinates" and session.coordinates is not None:
+            self._resolve(node.span, "the coordinates", list(session.coordinates))
             return self.graph.const(list(session.coordinates), VALUE, node.span)
         if (quantity := self._builtin_scalar(name)) is not None:
+            self._resolve(node.span, f"{describe(quantity)} of the metric in force")
             return self._geometry(quantity, node.span)
         self._note_symbol(node)
         if name in session.assumptions:
+            symbol = session.assumptions[name]
+            declared = ", ".join(sorted(k for k, v in symbol.assumptions0.items() if v))
+            self._resolve(node.span, f"a symbol declared {declared}")
             return self.graph.const(session.assumptions[name], SCALAR, node.span)
         if name in CONSTANTS:
+            why = f"nothing defines {node.span.text}"
+            self._decide("constant or symbol", node.span, "a constant", why)
+            self._resolve(node.span, "a constant", CONSTANTS[name])
             return self.graph.const(CONSTANTS[name], SCALAR, node.span)
         if (arguments := session.functions.get(name)) is not None:  # \alpha is \alpha(t, r)
+            shown = ", ".join(map(str, arguments))
+            why = f"it was written {name}({shown}) before"
+            self._decide("constant or symbol", node.span, f"the function {name}({shown})", why)
             args = [self.graph.const(argument, SCALAR) for argument in arguments]
             return self._call("core.function", args, SCALAR, node.span, (("name", name),))
         # In LaTeX a run of letters is a product, as typeset maths reads it: re^{x} is
@@ -474,7 +513,17 @@ class Reader(Typer):
         # A builtin applies to what follows it, as sin does in sin x; in LaTeX only if it
         # is written as a command, \operatorname{sign} x, so that N dt^2 is a product.
         if _names_builtin(node, latex=ctx.latex) and (node.verbatim or not ctx.latex):
+            self._resolve(node.span, f"the builtin function {name}")
             return FunctionReference(node.span, name)
+        # A name made of what is written, as y_s of y_{s} or r^* of r^*, is shown so.
+        made = node.verbatim and node.span.text != name and not node.span.text.startswith("\\")
+        written_as = name if made else None
+        if any(c.name == name for c in session.coordinates or ()):
+            self._resolve(node.span, "a coordinate", written=written_as)
+        elif session.metric is not None and name in session.metric.names:
+            self._resolve(node.span, "a symbol the metric is written with", written=written_as)
+        else:
+            self._resolve(node.span, "a symbol", written=written_as)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
 
     def _note_symbol(self, node: ast.Name) -> None:
@@ -516,6 +565,9 @@ class Reader(Typer):
 
     def _latex_letters(self, node: ast.Name, scope: Scope, ctx: Context) -> Node:
         r"""In LaTeX, ``GM`` is :math:`G \cdot M`: one factor per letter (or Greek name)."""
+        letters = " ".join(split_index_labels(node.id))
+        why = "in LaTeX a run of letters that names nothing is a product"
+        self._decide("letters", node.span, letters, why)
         factors = []
         offset = node.span.start if node.span.text == node.id else None
         for position, label in enumerate(split_index_labels(node.id)):
@@ -525,6 +577,14 @@ class Reader(Typer):
                 offset += len(label)
             factors.append(self.value(_letter(label, span, first=position == 0), scope, ctx))
         return self._multiply(factors, node.span)
+
+    def _tensor_meaning(self, name: str, binding: object, rank: int | None) -> str:
+        """What a name with ``rank`` indices is, as a tensor: one the program defined, or a
+        built-in one."""
+        if isinstance(binding, TensorBinding | VariableBinding):
+            return "a tensor the program defined"
+        quantity = self._builtin_tensor(name, rank)
+        return describe(quantity) if quantity is not None else "a tensor"
 
     def _builtin_tensor(self, name: str, rank: int | None) -> str | None:
         """The geometric quantity a built-in tensor name denotes with ``rank`` indices."""
@@ -830,6 +890,9 @@ class Reader(Typer):
             ):
                 # re^{x} is r e^{x}: in LaTeX a script binds to the last letter only, which
                 # may be a tensor, as in Rg_{\mu\nu}, or GML^2 where L is one
+                why = "in LaTeX a script binds to the last letter of a run that names nothing"
+                read = f"{' '.join(labels[:-1])} and {labels[-1]} with its script"
+                self._decide("letters", node.span, read, why)
                 last = _letter(labels[-1], base.span, first=False)
                 rest = self.value(replace(node, base=last), scope, ctx)
                 return self._multiply([*whole.args[:-1], rest], node.span)
@@ -860,9 +923,14 @@ class Reader(Typer):
                     f"component; to use a tensor, define it first: {shown} := [...]"
                 )
             symbol_name = _subscripted_name(ast.Scripted(base, tuple(subscripts), span=node.span))
+            why = f"{written_base} is not a tensor, so its subscript names a symbol"
+            self._decide("index or power", node.span, f"the symbol {symbol_name}", why)
             value = self.value(ast.Name(symbol_name, verbatim=True, span=node.span), scope, ctx)
         else:
             value = self.value(base, scope, ctx)
+        if powers:
+            why = f"{written_base} is not a tensor"
+            self._decide("index or power", node.span, "a power", why)
         exponents = []
         for script in powers:
             if script.body is None or isinstance(script.body, ast.Equation):
@@ -908,49 +976,94 @@ class Reader(Typer):
 
     def _a_product(
         self, func: ast.Name, args: tuple[ast.Expr, ...], binding: object, ctx: Context
-    ) -> bool:
-        """Whether ``name(...)`` multiplies what is in the brackets rather than calls a
-        function. A constant never is a function, ``e`` and ``i`` as much as a name declared
-        with ``Constants := [G]``; nor is a name the statement writes as a factor too, as G
+    ) -> str | None:
+        """Why ``name(...)`` multiplies what is in the brackets rather than calls a
+        function; ``None`` where it calls one. A constant never is a function, ``e`` and
+        ``i`` as much as a name declared with ``Constants := [G]``; nor is a name the
+        statement writes as a factor too, as G
         is in ``2GM + G(p^2 + q^2)``, unless it is called with the coordinates, as
         \\alpha(t, r) is; nor, with more than names in the brackets, one written as a factor
         before, as \\rho in \\rho(1 + 3w) after p = w\\rho. In LaTeX a name with a value is
         a factor too, as are the cases of :meth:`_a_factor`."""
         name = func.id
-        if binding is not None:
-            return ctx.latex and isinstance(binding, VariableBinding)  # y(3), y defined
+        if binding is not None:  # y(3), y defined
+            valued = ctx.latex and isinstance(binding, VariableBinding)
+            return f"in LaTeX, {name} has a value, and multiplies" if valued else None
         if _names_builtin(func, latex=ctx.latex):
-            return False  # sin(x)
+            return None  # sin(x)
         if self._never_a_function(func, ctx):
-            return True  # e(x + 1)
+            return f"{name} is a constant, never a function"  # e(x + 1)
         coordinates = {c.name for c in self.session.coordinates or ()}
         names = [arg.id for arg in args if isinstance(arg, ast.Name)]
         if name in coordinates:
-            return False  # r(\tau): a coordinate along a path, as the caller reads it
+            return None  # r(\tau): a coordinate along a path, as the caller reads it
         if names and len(names) == len(args) and set(names) <= coordinates:
-            return False  # \alpha(t, r): a function of the coordinates
+            return None  # \alpha(t, r): a function of the coordinates
         if name in self._factors:
-            return True
+            return f"{name} is written as a factor in this statement"
         written = name in self.session.factors and name not in self.session.functions
         if written and len(names) != len(args):
-            return True
+            return f"{name} was written as a factor before"
         one_name = len(args) == 1 and isinstance(args[0], ast.Name)
-        return ctx.latex and self._a_factor(name, args, one_name)
+        return self._a_factor(name, args, one_name) if ctx.latex else None
 
-    def _a_factor(self, name: str, args: tuple[ast.Expr, ...], one_name: bool) -> bool:
-        """Whether, in LaTeX, ``name(...)`` is a product: where the name is written inside
-        its own brackets, as M is in M(r - 2M), since nothing is its own argument; or
-        where it is a parameter of the metric, as M is in Schwarzschild's, and the
+    def _a_factor(self, name: str, args: tuple[ast.Expr, ...], one_name: bool) -> str | None:
+        """Why, in LaTeX, ``name(...)`` is a product, if it is: where the name is written
+        inside its own brackets, as M is in M(r - 2M), since nothing is its own argument;
+        or where it is a parameter of the metric, as M is in Schwarzschild's, and the
         brackets hold more than a name: M(1 - 2M/r) is M times 1 - 2M/r."""
         if any(_names_inside(name, arg) for arg in args):
-            return True
+            return f"{name} is written inside its own brackets"
         metric = self.session.metric
-        return (
+        if (
             metric is not None
             and name in metric.names
             and name not in self.session.functions
             and not one_name
-        )
+        ):
+            return f"{name} is a parameter of the metric, and the brackets hold more than a name"
+        return None
+
+    def _decide(
+        self,
+        kind: str,
+        span: Span | None,
+        reading: str,
+        why: str,
+        note: str | None = None,
+        *,
+        written: str | None = None,
+    ) -> None:
+        """Record a decision of the statement being read: of which ``kind`` of ambiguity,
+        what was ``written`` (the text of ``span``, unless given), how it was read, and
+        ``why`` (see :class:`~relativisticpy.reading.readings.Decision`)."""
+        if written is None:
+            written = span.text if span is not None else ""
+        decision = Decision(kind, " ".join(written.split()), reading, why, span, note)
+        self._decided.setdefault(decision, None)
+
+    def _resolve(
+        self, span: Span | None, meaning: str, value: Any = None, *, written: str | None = None
+    ) -> None:
+        """Record how a name written at ``span`` was resolved, and its value where it is
+        known without computing anything."""
+        if written is None:
+            written = span.text if span is not None else ""
+        self._resolved.setdefault(Resolution(written, meaning, span, value), None)
+
+    def _resolve_binding(self, span: Span, binding: VariableBinding | TensorBinding) -> None:
+        """Record a name resolved to what the program, or Python, bound it to."""
+        defined = binding.node.span
+        where = f"defined on line {defined.line}" if defined is not None else "bound from Python"
+        if isinstance(binding, TensorBinding) or isinstance(binding.node.type, TensorType):
+            self._resolve(span, f"a tensor, {where}")
+        elif rules.notation_of(binding.node) is not None:
+            self._resolve(span, f"index notation, {where}")
+        else:
+            op = binding.node.op
+            self._resolve(
+                span, f"a value, {where}", op.value if isinstance(op, ops.Const) else None
+            )
 
     def _note(self, note: str) -> None:
         """Say how the statement being compiled was read: once, however often it is."""
@@ -1156,6 +1269,8 @@ class Reader(Typer):
         """A builtin's name with nothing to act on, as N is in N^2 (the lapse) or
         \\frac{N}{2}: a symbol, and said so where the name is a word."""
         name = reference.name
+        why = f"{name} is a function, named without its argument"
+        self._decide("function named alone", reference.span, "a symbol", why)
         if len(name) > 1 and name not in GREEK:  # simplify + 1, where N/2 is the lapse
             self._note(
                 f"{reference.describe()} is a function, so alone it is read as a symbol; to "

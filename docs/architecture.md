@@ -93,7 +93,9 @@ or nothing yet. It reads a statement in three passes, each a package with one jo
 They are one walk of the syntax tree, as reading a form may need what was made of the
 forms before it: the lowerer walks, and asks the reader and the typer. The `Compiler`
 in `relativisticpy.compiler` is the three together, and orchestrates statements, with
-the session and the scope.
+the session and the scope. The reader records each decision it takes, with why, as the
+statement's *reading*: `Workbook.explain` shows the readings of a program, computing
+nothing.
 
 The reader decides
 
