@@ -235,6 +235,8 @@ class Arithmetic(PythonObjects):
             given = arithmetic.index_set(node.variable)
             if given is not None:
                 return self._over(node, given, scope, ctx)
+        if (every := arithmetic.every_integer(node)) is not None:  # \sum_k \binom{r}{k} ...
+            return self._over(node, every, scope, ctx)
         if not isinstance(node.variable, ast.Name):
             return super()._BigOperator(node, scope, ctx)
         self._indices_summed.append(self.session.symbol(node.variable.id))

@@ -128,6 +128,8 @@ def over(
     condition that follows holds."""
     left_out, conditions = rest[:excluded], rest[excluded:]
     low, high = _whole(lower, upper, strict)
+    if not (divisors or primes):
+        low, high = _support(body, index, low, high)
     values = _divisors(of, primes, low, high) if divisors else _range(low, high, primes)
     if values is not None:
         kept = [v for v in values if not any(sympy.Eq(v, out) is sympy.true for out in left_out)]
@@ -155,6 +157,30 @@ def _whole(lower: Any, upper: Any, strict: tuple[bool, bool]) -> tuple[Any, Any]
         low = sympy.floor(low) + 1 if strict[0] else sympy.ceiling(low)
     if high.is_finite:
         high = sympy.ceiling(high) - 1 if strict[1] else sympy.floor(high)
+    return low, high
+
+
+def _support(body: Any, index: Any, low: Any, high: Any) -> tuple[Any, Any]:
+    """The bounds of a sum without end narrowed to where its binomial coefficients can be
+    other than 0, as Concrete Mathematics leaves a sum's range to them: binomial(a, k + c)
+    is 0 where k < -c, and binomial(a, c - k) where k > c, of an integer c, as their lower
+    index is then a negative integer; and of a whole number a, where the lower index is
+    above a."""
+    for factor in sympy.Mul.make_args(sympy.sympify(body)):
+        if not isinstance(factor, sympy.binomial):
+            continue
+        top, bottom = factor.args[0], sympy.expand(factor.args[1])
+        slope = bottom.coeff(index)
+        rest = bottom - slope * index
+        if rest.has(index) or rest.is_integer is not True or slope not in (1, -1):
+            continue
+        whole = top.is_integer is True and top.is_nonnegative is True
+        if slope == 1:  # k + c, from 0 to a
+            low = -rest if not low.is_finite else low
+            high = top - rest if whole and not high.is_finite else high
+        else:  # c - k, from 0 to a
+            high = rest if not high.is_finite else high
+            low = rest - top if whole and not low.is_finite else low
     return low, high
 
 

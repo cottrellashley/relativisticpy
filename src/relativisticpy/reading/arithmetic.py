@@ -213,6 +213,40 @@ def index_set(condition: ast.Expr) -> IndexSet | None:
     return _completed(found)
 
 
+def every_integer(node: ast.BigOperator) -> IndexSet | None:
+    """``\\sum_k \\binom{r}{k} \\binom{s}{n - k}``: a sum over an index alone, with no limits,
+    whose range Concrete Mathematics leaves to its binomial coefficients, which vanish where
+    their lower index is negative: over every integer, of which they leave finitely many.
+    ``None`` for any other sum written so, as over an index of a tensor or of data, ``\\sum_a
+    w^a``, which no binomial coefficient bounds, or one written with the index as a
+    subscript."""
+    index = node.variable
+    if not isinstance(index, ast.Name) or node.lower is not None or node.upper is not None:
+        return None
+    nodes = list(_walk(node.body))
+    if any(
+        isinstance(each, ast.Scripted)
+        and any(script.kind == "_" and _mentions(script, index.id) for script in each.scripts)
+        for each in nodes
+    ):
+        return None
+    bounded = any(
+        isinstance(each, ast.Call)
+        and isinstance(each.func, ast.Name)
+        and each.func.id == "binomial"
+        and len(each.args) == 2
+        and _mentions(each.args[1], index.id)
+        for each in nodes
+    )
+    if not bounded:
+        return None
+    note = (
+        f"{index.span.text} runs over every integer, as Concrete Mathematics sums over it: "
+        "its binomial coefficients leave the terms where they are not 0"
+    )
+    return IndexSet(index, notes=(note,))
+
+
 def _conjuncts(condition: ast.Expr) -> list[ast.Expr]:
     if isinstance(condition, ast.Binary) and condition.op == "and":
         return [*_conjuncts(condition.left), *_conjuncts(condition.right)]

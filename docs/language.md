@@ -520,7 +520,9 @@ numbers by their names (see the [reference](reference.md#functions)):
 A condition under a sum or a product gives its index its values: `d \mid n` the divisors of
 n, `p \le x` the primes up to x, as number theorists let p range over the primes, and
 `p \text{ prime}` every prime, whose product of Euler's factors is a value of ζ. The rows of
-`\substack` are conditions that each value meets:
+`\substack` are conditions that each value meets. A sum over an index alone, `\sum_k`, of
+binomial coefficients is over every integer, as Concrete Mathematics writes it, and the
+coefficients leave the terms that are not 0:
 
 ```python
 >>> nt.exe(r"""
@@ -528,8 +530,9 @@ n, `p \le x` the primes up to x, as number theorists let p range over the primes
 ...     36 \prod_{p \mid 36} \left(1 - \frac{1}{p}\right)
 ...     \sum_{\substack{1 \le k \le 10 \\ \gcd(k, 10) = 1}} k
 ...     \prod_{p \text{ prime}} \frac{1}{1 - p^{-2}}
+...     \sum_k \binom{n}{k} x^k y^{n-k}
 ... """)
-[56, 12, 20, pi**2/6]
+[56, 12, 20, pi**2/6, (x + y)**n]
 
 ```
 

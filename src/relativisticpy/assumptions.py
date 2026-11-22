@@ -363,11 +363,34 @@ def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:
     one, with the index an integer: as :func:`integrated` gives an integral, under the
     bounds the program assumes, and else the assumption books make where it converges only
     under conditions on its parameters (design/notation.md, decisions 1 and 4). A sum in
-    an exponential of the index, as of e^{-a n}, is summed as a geometric series."""
+    an exponential of the index, as of e^{-a n}, is summed as a geometric series. A sum of
+    finitely many terms, from an integer to an integer, as the binomial theorem's is, has
+    the value SymPy finds without the conditions an infinite series would converge under."""
     ((index, lower, upper),) = limits
     whole = Symbol(index.name, **{**dict(getattr(index, "_assumptions_orig", {})), "integer": True})
     body = sympy.sympify(body).xreplace({index: whole})
+    if _finitely_many(lower, upper):
+        found = _converged(_sum(body, (whole, lower, upper)))
+        if not _undone(found):
+            return found
     return _computed(_sum, body, [(whole, lower, upper)], bounds)
+
+
+def _finitely_many(lower: Any, upper: Any) -> bool:
+    """Whether a sum from ``lower`` to ``upper`` has finitely many terms: both integers."""
+    ends = [sympy.sympify(end) for end in (lower, upper)]
+    return all(end.is_integer and end.is_finite for end in ends)
+
+
+def _converged(value: Any) -> Any:
+    """A sum of finitely many terms without the conditions SymPy finds it under, which say
+    where the infinite series it sums converge, and nothing of it: each piecewise value
+    under them its first case."""
+
+    def first(piecewise: Any) -> Any:
+        return piecewise.args[0][0] if _on_conditions(piecewise) else piecewise
+
+    return value.replace(lambda e: isinstance(e, sympy.Piecewise), first)
 
 
 def _sum(body: Any, *limits: Any) -> Any:

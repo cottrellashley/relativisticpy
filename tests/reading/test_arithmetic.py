@@ -186,6 +186,20 @@ class TestIndexSets:
         assert wb.expr(r"\frac{1}{6} \sum_{k=0}^{5} 2^{\gcd(k, 6)}") == 14
         assert wb.expr("gcd(x^2 - 1, x - 1)") == x - 1
 
+    def test_a_sum_over_every_integer_is_left_to_its_binomial_coefficients(self, wb):
+        """Decision 38."""
+        wb.exe(r"n \in \mathbb{Z}")
+        assert wb.expr(r"\sum_k \binom{r}{k} \binom{s}{n-k} = \binom{r+s}{n}")
+        assert wb.expr(r"\sum_k \binom{5}{k}") == 32
+        with pytest.raises(CompileError, match="needs limits"):
+            wb.expr(r"\sum_k k^2")
+
+    def test_a_sum_of_finitely_many_terms_holds_no_conditions_of_convergence(self, wb):
+        wb.exe(r"n \in \mathbb{N}")
+        value = wb.expr(r"\sum_{k=0}^{n} \binom{n}{k} x^k y^{n-k}")
+        y = sympy.Symbol("y")
+        assert sympy.simplify(value - (x + y) ** n) == 0
+
     def test_the_stirling_numbers_sum_to_the_bell_number_and_to_n_factorial(self, wb):
         assert wb.expr(r"\sum_{k=0}^{5} {5 \brace k}") == 52
         assert wb.expr(r"\sum_{k=0}^{5} {5 \brack k}") == 120

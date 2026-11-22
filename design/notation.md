@@ -381,3 +381,13 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 **Why it is open.** Concrete Mathematics writes `[x^n] F(x)` for the coefficient of x^n in the power series of F. Read as written, the bracket is a list of one item, x^n, times F.
 
 **Recommendation.** A bracket holding one power of a name, first in a product, is the coefficient of that power in the power series of the rest, about 0, with a note: `[x^{10}] \frac{1 - \sqrt{1 - 4x}}{2x}` is the Catalan number 16796. The power must be a whole number once it is computed; for a symbol, as in `p(n) := [x^n] \prod \ldots`, the coefficient is refused, saying so. A bracket of anything else stays a list.
+
+## 38. A sum over an index, without limits, of binomial coefficients
+
+**Added** on 22 November 2026, from combinatorics.
+
+**Waiting on it:** `binomial-coefficients` (2).
+
+**Why it is open.** Concrete Mathematics writes `\sum_k \binom{r}{k} \binom{s}{n-k}`, a sum over every integer k, its range left to the binomial coefficients, which vanish where their lower index is negative. Index notation writes `\sum_a w^a`, a sum over the values of an index of a tensor, and a sum without limits of anything else says nothing of its range.
+
+**Recommendation.** A sum over a name with no limits, which no subscript in its body writes and which is the lower index of a binomial coefficient in it, is over every integer, with a note; its terms are summed where its binomial coefficients can be other than 0: `binomial(a, k + c)` from k = -c, `binomial(a, c - k)` up to k = c, and, of a whole number a, up to a. A sum over an index of a tensor or of data is read as before, and any other sum without limits is refused, as before. A sum of finitely many terms, from an integer to an integer, has the closed form SymPy finds for it without the conditions under which the infinite series SymPy sums it by would converge, which say nothing of it: the binomial theorem is `(x + y)^n` for every natural n.

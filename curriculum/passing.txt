@@ -272,6 +272,8 @@ nt.arithmetic.mobius-inversion
 nt.arithmetic.perfect-number
 nt.arithmetic.totient
 nt.arithmetic.totient-product
+nt.binomial.theorem
+nt.binomial.vandermonde
 nt.congruences.chinese-remainder
 nt.congruences.fermat
 nt.congruences.gcd

@@ -243,7 +243,10 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   the remainders, or assumptions of a name, which the Chinese remainder theorem may leave
   one value; `a^{-1} \bmod m`, the inverse; `solve` of congruences; and `[x^n] F(x)`, the
   coefficient of a generating function (30 and 37). The greatest common divisor of a
-  whole number and the index of a sum waits for the index's values.
+  whole number and the index of a sum waits for the index's values. `\sum_k` of binomial
+  coefficients is over every integer, as Concrete Mathematics writes it, and a sum of
+  finitely many terms holds no conditions of convergence, so that the binomial theorem
+  and Vandermonde's convolution hold (38).
 
 ### Changed
 
