@@ -84,6 +84,14 @@ class TestRobustly:
             == []
         )
 
+    def test_an_equation_that_holds_for_every_value(self, wb):
+        with pytest.raises(EvaluationError) as raised:
+            wb.exe("solve(x - x = 0, x)")
+        assert raised.value.message == (
+            "the equation holds whatever x is, so there is nothing to solve for"
+        )
+        assert wb.expr("solve(x - x = 1, x)") == []
+
     def test_an_unknown_the_equation_does_not_contain(self, wb):
         with pytest.raises(EvaluationError) as raised:
             wb.exe(r"solve(\beta = -t, q)")
@@ -191,8 +199,9 @@ class TestBoundsDecideInequalities:
 
     def test_only_what_they_decide_is_given_the_bounds(self, wb):
         wb.exe("0 < x < 1")
-        listing = wb.ir("solve(x^2 = 1/4, x)\nx + 1")
-        assert "assuming=" in listing.splitlines()[-3] or "assuming=" in listing
+        lines = wb.ir("solve(x^2 = 1/4, x)\nx + 1").splitlines()
+        given = [line.split("=", 1)[1].split()[:3] for line in lines if "assuming" in line]
+        assert given == [["call", "solve", "assuming=(x"]]
         assert "assuming" not in Workbook().ir("solve(x^2 = 1/4, x)")
 
 

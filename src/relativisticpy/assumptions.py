@@ -339,6 +339,8 @@ _COMPLEX_PLANE = (
     sympy.sign,
     sympy.polar_lift,
 )
+#: The names books give a complex variable, which they never take to be real.
+_COMPLEX_VARIABLES = frozenset({"z"})
 #: The most parameters whose combinations are tried, to find the fewest to assume.
 _MOST_TRIED = 8
 
@@ -507,8 +509,11 @@ def _as_books_take(compute: Callable[..., Any], f: Any, limits: Sequence[Any], f
 
 
 def _general(symbol: Symbol) -> bool:
-    """Whether nothing is assumed of a symbol: a program that said what it is decides."""
-    return not getattr(symbol, "_assumptions_orig", None) and not isinstance(symbol, sympy.Dummy)
+    """Whether books would assume something of a symbol the program says nothing of: not
+    of one it said what it is, which decides, nor of z, which complex analysis keeps
+    complex."""
+    said = getattr(symbol, "_assumptions_orig", None) or isinstance(symbol, sympy.Dummy)
+    return not said and symbol.name not in _COMPLEX_VARIABLES
 
 
 def _over_real_limits(limit: Any, positive: Mapping[Any, Any]) -> bool:
@@ -566,17 +571,28 @@ def _first_holding(piecewise: Any) -> Any:
     return None
 
 
-def _assumed(value: Any, positive: Mapping[Any, Any], real: Mapping[Any, Any] | None = None) -> Any:
-    """A value computed with ``positive`` parameters and ``real`` variables, as SymPy's own
-    symbols again, and the remark that it holds assuming them."""
-    back = {d: s for s, d in [*positive.items(), *(real or {}).items()]}
-    said = [f"{display.unicode(s)} > 0" for s in positive]
-    if said:
-        one = len(said) == 1
-        names = listed([display.unicode(s) for s in positive])
+def _assumed(
+    value: Any,
+    positive: Mapping[Any, Any],
+    real: Mapping[Any, Any] | None = None,
+    away: Mapping[Any, Any] | None = None,
+) -> Any:
+    """A value computed with ``positive`` parameters, ``real`` variables and parameters
+    real and ``away`` from 0, as SymPy's own symbols again, and the remark that it holds
+    assuming them."""
+    back = {d: s for s, d in [*positive.items(), *(real or {}).items(), *(away or {}).items()]}
+    for assumed, form, books in (
+        (positive, "{} > 0", (", as books take a scale to be", ", as books take scales to be")),
+        (away or {}, "{} ≠ 0, real", ("", "")),
+    ):
+        if not assumed:
+            continue
+        one = len(assumed) == 1
+        shown = [display.unicode(s) for s in assumed]
+        said = [form.format(s) for s in shown]
         remark(
-            f"assuming {listed(said)}, as books take {'a scale' if one else 'scales'} to be; "
-            f"the program does not say what {names} {'is' if one else 'are'}",
+            f"assuming {listed(said)}{books[0] if one else books[1]}; the program does not "
+            f"say what {listed(shown)} {'is' if one else 'are'}",
             assuming=said,
         )
     return value.xreplace(back)
@@ -587,8 +603,9 @@ def limited(
 ) -> Any:
     """A limit ``take`` cannot take for not knowing the sign of a parameter, under the
     assumption books make, with a remark that says so: the variable going to infinity
-    positive, and the fewest parameters positive, tried in turn; ``None`` where none of
-    them settles it."""
+    positive, and the parameters real and away from 0, as the heat kernel goes to 0 where
+    x is not 0, or else the fewest of them positive, tried in turn; ``None`` where none of
+    these settles it."""
     if not isinstance(body, sympy.Basic) or not isinstance(variable, Symbol):
         return None
     parameters = sorted(
@@ -598,14 +615,19 @@ def limited(
     real: dict[Any, Any] = {}
     if _general(variable) and point in (sympy.oo, -sympy.oo):
         real = {variable: sympy.Dummy(variable.name, positive=point == sympy.oo, real=True)}
+    away = {s: sympy.Dummy(s.name, real=True, nonzero=True) for s in parameters}
     tried = [list(c) for size in (1, 2) for c in itertools.combinations(parameters, size)]
-    for chosen in [*tried, parameters] if len(parameters) > 2 else tried:
-        positive = {s: sympy.Dummy(s.name, positive=True) for s in chosen}
-        across = real.get(variable, variable)
+    choices = [{s: sympy.Dummy(s.name, positive=True) for s in chosen} for chosen in tried]
+    if len(parameters) > 2:
+        choices.append({s: sympy.Dummy(s.name, positive=True) for s in parameters})
+    across = real.get(variable, variable)
+    for assumed in [away, *choices] if parameters else []:
         try:
-            found = take(body.xreplace({**positive, **real}), across, point, direction)
+            found = take(body.xreplace({**assumed, **real}), across, point, direction)
         except (NotImplementedError, ValueError):
             continue
         if isinstance(found, sympy.Basic) and not found.has(sympy.Limit):
-            return _assumed(found, positive, real)
+            if assumed is away:
+                return _assumed(found, {}, real, away)
+            return _assumed(found, assumed, real)
     return None

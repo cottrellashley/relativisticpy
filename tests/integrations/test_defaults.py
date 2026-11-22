@@ -78,8 +78,9 @@ class TestWhatTheProgramSays:
         assert isinstance(step.values[0], sympy.Piecewise)
 
     def test_complex_analysis_keeps_z_complex(self, wb):
-        wb.exe(r"z \in \mathbb{C}")
         assert last(wb, r"\int_0^\infty e^{-z t} \, dt").assuming == []
+        wb.exe(r"w \in \mathbb{C}")
+        assert last(wb, r"\int_0^\infty e^{-w t} \, dt").assuming == []
 
     def test_a_stated_assumption_needs_no_note(self, wb):
         step = last(wb, "s > 0\n" r"\int_0^\infty e^{-s t} \, dt")
@@ -109,6 +110,17 @@ class TestLimits:
         )
         assert sympy.simplify(found - lam**k * sympy.exp(-lam) / sympy.factorial(k)) == 0
         assert step.assuming == ["k > 0"]
+
+    def test_a_variable_away_from_0_before_a_positive_one(self, wb):
+        step = last(
+            wb,
+            r"K(x, t) := \frac{1}{\sqrt{4\pi t}} e^{-\frac{x^2}{4t}}"
+            "\n"
+            r"\lim_{t \to 0^+} K(x, t)",
+        )
+        assert step.values == [0]
+        assert step.notes == ["assuming x ≠ 0, real; the program does not say what x is"]
+        assert step.assuming == ["x ≠ 0, real"]
 
 
 class TestTheData:

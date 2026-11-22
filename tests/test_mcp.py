@@ -119,6 +119,19 @@ def test_compute_gives_each_statement_as_the_command_line_does(capsys):
     assert result["statements"] == command_line
 
 
+def test_compute_says_what_a_value_is_given_under():
+    program = "a > 0\n" r"\int_0^\infty e^{-s t} \, dt"
+
+    async def test(client, pool):
+        return await call(client, "compute", source=program)
+
+    result = serve(test)
+    stated, integral = result["statements"]
+    assert stated["notes"] == ["a > 0 is an assumption: from here on, a is positive"]
+    assert (stated["assuming"], integral["assuming"]) == ([], ["s > 0"])
+    assert values(result) == [[], ["1/s"]]
+
+
 def test_an_error_comes_whole_and_the_statements_after_it_still_run():
     program = "x := 2\n\\frac{1}{2\nR_{ab}\nx + 1"
 

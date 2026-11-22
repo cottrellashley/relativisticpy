@@ -105,6 +105,13 @@ class TestMemberships:
         assert "a" in wb._session.labels
         assert "a" not in wb._session.assumptions
 
+    def test_the_values_a_label_takes_are_no_interval(self, wb):
+        (read,) = wb.explain(r"\mu = 0, 1")
+        assert not [d for d in read.decisions if d.kind == "assumption or claim"]
+        assert "mu" not in wb._session.assumptions
+        wb.exe(r"x_n := n, \quad n = 0, \ldots, 3")  # a range, as before
+        assert wb.expr("x_n").components.tolist() == [0, 1, 2, 3]
+
     def test_a_name_in_a_space_of_vectors_is_read_as_before(self, wb):
         with pytest.raises(CompileError, match=r"says what x is, which is read but not computed"):
             wb.exe(r"x \in \mathbb{R}^3")
