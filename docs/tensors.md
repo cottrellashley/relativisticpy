@@ -338,6 +338,26 @@ force, which in spacetime is the d'Alembertian. (Some texts write
 
 ```
 
+On a tensor with one index, a number written bare above it, as in `k^3`, could be
+a component or a power, so it is refused; in braces, `k^{3}` is the component,
+and `k_{a} k^{a}` is \(k\) contracted with itself. (`k^0` and `k^1` are
+components: neither is a power anyone writes.)
+
+```python
+>>> flat.exe(r"""
+...     k^\mu := [\omega, 0, 0, \omega]
+...     k^{3}
+...     k_{a} k^{a}
+... """)
+[omega, 0]
+>>> flat.exe("k^3")
+Traceback (most recent call last):
+    ...
+relativisticpy.errors.IndexNotationError: k is a tensor, so k^3 could be its component with upper index 3 or a power of it
+...
+
+```
+
 ## Symmetrisation
 
 Round brackets symmetrise and square brackets antisymmetrise, as in

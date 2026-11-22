@@ -3071,6 +3071,7 @@ class Compiler:
             if source is None and rank == 0 and differentiated:  # \phi_{;\mu}
                 source = self._scalar_source(base, binding, scope, ctx)
             if source is not None:
+                self._check_component(node, base, source)
                 return self._access(source, node, scope, ctx)
             if differentiated:  # never a symbol named phi_mu
                 raise self._underivable(node, base, binding, rank)
@@ -3079,6 +3080,31 @@ class Compiler:
         if (ones := _tensor_pattern_of_one(node)) is not None:  # 𝟙_a, or 1_a
             return self._ones(ones, node.span)
         return self._script_math(node, scope, ctx)
+
+    def _check_component(self, node: ast.Scripted, base: ast.Name, source: TensorSource) -> None:
+        """Refuse a tensor with one index written with a bare number of 2 or more as its
+        superscript, as L^2: its component with upper index 2, or L squared? Where there is
+        no such component, as with L^4 and four coordinates, it is a power, refused as one.
+        In braces, L^{2}, the number is an index, and L^0 and L^1 are never powers."""
+        if len(source.indices) != 1 or len(node.scripts) != 1:
+            return
+        script = node.scripts[0]
+        if script.kind != "^" or not re.fullmatch(r"\^\s*[2-9]", script.span.text):
+            return
+        name, number = base.span.text, script.span.text.lstrip("^ ")
+        if len(split_index_labels(name.lstrip("\\"))) > 1:  # L of GML^2, a run of letters
+            name = self._written_label(base.id)
+        kind = source.node.type
+        dim = kind.spaces[0].dim if isinstance(kind, TensorType) and kind.spaces else None
+        if isinstance(dim, int) and int(number) >= dim:
+            raise self._tensor_power(None, source.indices, None, node.span)
+        raise IndexNotationError(
+            f"{name} is a tensor, so {name}^{number} could be its component with upper index "
+            f"{number} or a power of it",
+            span=node.span,
+            hint=f"for the component, write {name}^{{{number}}}; to multiply {name} by itself, "
+            f"contract it, as in {name}_{{a}} {name}^{{a}}",
+        )
 
     def _check_tensor_power(self, node: ast.Scripted, base: ast.Name, binding: object) -> None:
         """Refuse a tensor written with its indices and then raised to a power, as
@@ -4085,11 +4111,11 @@ class Compiler:
             labels = split_index_labels(base.id)
             if (
                 isinstance(whole, Node)
-                and isinstance(whole.op, ops.Mul)
+                and isinstance(whole.op, ops.Mul | ops.Scale)  # Scale: a letter is a tensor
                 and len(whole.args) == len(labels)
             ):
                 # re^{x} is r e^{x}: in LaTeX a script binds to the last letter only, which
-                # may be a tensor, as in Rg_{\mu\nu}
+                # may be a tensor, as in Rg_{\mu\nu}, or GML^2 where L is one
                 last = _letter(labels[-1], base.span, first=False)
                 rest = self.value(replace(node, base=last), scope, ctx)
                 return self._multiply([*whole.args[:-1], rest], node.span)

@@ -318,6 +318,32 @@ class TestPowersOfTensors:
             assert found.hint == r"the inverse metric is g^{\mu\nu}"
         assert wb.expr(r"g^{\mu\nu} g_{\nu\rho}")  # the hint works
 
+    def test_a_vector_with_a_bare_number_above_is_a_component_or_a_power(self, wb):
+        wb.exe(SCHWARZSCHILD)
+        wb.exe(r"L_\mu := [0, 0, 0, r^2 \sin^2\theta]")
+        found = error(wb, "L^3", IndexNotationError)
+        assert found.message == (
+            "L is a tensor, so L^3 could be its component with upper index 3 or a power of it"
+        )
+        assert found.hint == (
+            "for the component, write L^{3}; to multiply L by itself, contract it, as in "
+            "L_{a} L^{a}"
+        )
+        assert wb.expr("L^{3}") == 1  # the hint works, both ways
+        r, theta = __import__("sympy").symbols("r theta")
+        assert wb.expr("L_{a} L^{a}") == r**2 * __import__("sympy").sin(theta) ** 2
+        assert wb.expr("L^0") == 0  # never a power
+        assert error(wb, "L^4", IndexNotationError).message == "cannot raise a tensor to a power"
+
+    def test_a_script_on_a_run_of_letters_binds_to_its_last_letter_a_tensor_too(self, wb):
+        wb.exe(SCHWARZSCHILD)
+        wb.exe(r"L_\mu := [0, 0, 0, r^2 \sin^2\theta]")
+        assert wb.expr(r"3GML^{3}\gamma") == wb.expr(r"3 G M \gamma")
+        assert (
+            error(wb, r"3GML^3\gamma", IndexNotationError).message
+            == error(wb, r"3 G M L^3 \gamma", IndexNotationError).message
+        )
+
     def test_the_determinant_to_a_power_says_so(self, wb):
         wb.exe(SCHWARZSCHILD)
         assert notes(wb, "g^{-1}") == [
