@@ -108,6 +108,10 @@ class Match:
 # -- taking what is written apart ------------------------------------------------------
 
 
+#: The commands that set a word as a label: ``\\text{eff}``, ``\\mathrm{in}``, ``{\\rm max}``.
+_LABEL = re.compile(r"\\(?:text[a-z]*|mathrm|rm|mbox|operatorname)(?![A-Za-z])")
+
+
 def call_shape(node: ast.Call) -> Shape | None:
     """``\\Gamma(x)``, ``J_0(1)`` or ``\\operatorname{erfc}(x)``: a call of a name, which
     may carry scripts, as the lexer joins ``J_0`` into one name."""
@@ -377,16 +381,29 @@ def _binds(pattern: Pattern, shape: Shape) -> dict[str, ast.Node] | None:
     if isinstance(pattern.owner, Reservation):
         return {}
     bindings: dict[str, ast.Node] = {}
-    for slot, written in zip(
-        (*form.scripts, *form.arguments), (*shape.scripts, *shape.arguments), strict=True
+    scripts = len(form.scripts)
+    for place, (slot, written) in enumerate(
+        zip((*form.scripts, *form.arguments), (*shape.scripts, *shape.arguments), strict=True)
     ):
         if isinstance(slot, ast.Name):
+            if place < scripts and _a_label(written):
+                return None
             bound = bindings.setdefault(slot.id, written)
             if bound is not written and bound != written:
                 return None
         elif slot != written:
             return None
     return bindings
+
+
+def _a_label(script: ast.Node) -> bool:
+    """Whether a script names what a quantity is, as eff does in ``U_{\\text{eff}}``, the
+    effective potential, rather than holding a parameter, as the n of ``U_n`` does: text, a
+    word in roman type, or a word of letters written out."""
+    written = script.span.text.strip().lstrip("^_").strip("{} ")
+    if _LABEL.match(written):
+        return True
+    return re.fullmatch(r"[A-Za-z]{2,}", written) is not None
 
 
 def _set_alike(form: Shape, shape: Shape) -> bool:

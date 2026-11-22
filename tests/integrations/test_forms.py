@@ -96,6 +96,17 @@ class TestReading:
         assert reading.decisions[0].reading == "a function of the coordinates"
         assert "elsewhere" in reading.notes[0]
 
+    @pytest.mark.parametrize(
+        "written", [r"U_{\text{eff}}(r)", r"T_{\rm eff}(x)", r"U_{eff}(r)", r"L_{\mathrm{in}}(x)"]
+    )
+    def test_a_label_in_a_script_is_not_a_parameter(self, wb, written):
+        # the effective potential is not the Chebyshev polynomial of degree "eff"
+        assert decisions(wb, written) == []
+
+    def test_a_parameter_in_a_script_still_is(self, wb):
+        assert [d[1].split(",")[0] for d in decisions(wb, r"P_\ell(x)")] == ["legendre"]
+        assert [d[1].split(",")[0] for d in decisions(wb, r"H_{n+1}(x)")] == ["hermite"]
+
     def test_n_in_plain_text_stays_numerical_evaluation(self, wb):
         assert round(float(wb.expr("N(pi, 3)")), 2) == 3.14
 
