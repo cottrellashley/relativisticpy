@@ -206,13 +206,14 @@ def _head(node: ast.Expr, *, loose: bool = False) -> _Head | None:
     if parts is None:
         return None
     name, before, below = parts
+    written = name if before or below else node.span.text  # J of J_0, as it was joined
     above: list[ast.Node] = []
     for script in scripts:
         slot: ast.Node | None = script if loose else _slot(script)
         if slot is None:
             return None
         (below if script.kind == "_" else above).append(slot)
-    return name, _style(node), node.span.text, tuple(before), tuple(below), tuple(above)
+    return name, _style(node), written, tuple(before), tuple(below), tuple(above)
 
 
 _PRESCRIPT = re.compile(r"_\{(?P<label>[^{}]*)\}(?P<rest>.+)")
@@ -282,7 +283,7 @@ class _Patterns:
 
     by_head: dict[str, list[Pattern]]
     by_owner: dict[int, list[Pattern]]
-    printing: dict[type, tuple[Capability, tuple[str, ...] | None]] | None = None
+    printing: dict[type, tuple[Capability, _Places]] | None = None
 
 
 _found: _Patterns | None = None
@@ -402,22 +403,36 @@ def _set_alike(form: Shape, shape: Shape) -> bool:
 # -- printing --------------------------------------------------------------------------
 
 
-def _printers() -> dict[type, tuple[Capability, tuple[str, ...] | None]]:
+def _printers() -> dict[type, tuple[Capability, _Places]]:
+    """The capabilities with written forms whose calls are printed in them, by the SymPy
+    function that makes the calls; not one whose function another capability makes too,
+    as the principal logarithm makes log, which ln and log make."""
     found = _patterns()
     if found.printing is None:
-        found.printing = {}
+        makers: dict[type, list[tuple[Capability, _Places]]] = {}
         for capability in catalogue().capabilities:
-            if isinstance(capability, Function) and (capability.latex or capability.unicode):
+            if isinstance(capability, Function):
                 made = _made_by(capability)
                 if made is not None:
-                    found.printing.setdefault(made[0], (capability, made[1]))
+                    makers.setdefault(made[0], []).append((capability, made[1]))
+        found.printing = {
+            kind: owners[0]
+            for kind, owners in makers.items()
+            if len(owners) == 1 and (owners[0][0].latex or owners[0][0].unicode)
+        }
     return found.printing
 
 
-def _made_by(capability: Capability) -> tuple[type, tuple[str, ...] | None] | None:
-    """The SymPy function a call of a capability makes, and which parameter each of its
-    arguments is, found by calling ``exact`` with a symbol for each parameter it needs;
-    ``None`` where it gives no call, as a closed form."""
+#: Which parameter each argument of a call of a capability is, by its name, or the value
+#: the argument always has, as the 1/2 of Heaviside(t, 1/2), Heaviside(t)'s value at 0;
+#: ``None`` where the capability says how a call prints (an ``arguments`` method).
+_Places = tuple[str | sympy.Basic, ...] | None
+
+
+def _made_by(capability: Capability) -> tuple[type, _Places] | None:
+    """The SymPy function a call of a capability makes, and what each of its arguments
+    is, found by calling ``exact`` with a symbol for each parameter it needs; ``None``
+    where it gives no call, as a closed form."""
     low, _ = capability.arity
     names = capability.parameters[:low]
     symbols = [sympy.Dummy(name) for name in names]
@@ -429,9 +444,10 @@ def _made_by(capability: Capability) -> tuple[type, tuple[str, ...] | None] | No
         return None
     if hasattr(capability.implementation, "arguments"):
         return type(made), None
-    if len(made.args) != len(symbols) or set(made.args) != set(symbols):
-        return None
-    return type(made), tuple(names[symbols.index(arg)] for arg in made.args)
+    if sorted(map(str, symbols)) != sorted(str(a) for a in made.args if a in symbols):
+        return None  # each parameter an argument, once
+    places = tuple(names[symbols.index(arg)] if arg in symbols else arg for arg in made.args)
+    return type(made), places
 
 
 def printed(
@@ -457,13 +473,20 @@ def printed(
     return None
 
 
-def _values(
-    capability: Capability, parameters: tuple[str, ...] | None, expr: Any
-) -> dict[str, Any]:
-    if parameters is None:
+def _values(capability: Capability, places: _Places, expr: Any) -> dict[str, Any]:
+    """The value of each parameter of a call, with the default of each the call does not
+    give; none where the call is not one ``exact`` makes, as W_{-1}(x) with its branch."""
+    if places is None:
         found: dict[str, Any] = capability.implementation.arguments(expr)
         return found
-    values = dict(zip(parameters, expr.args, strict=True))
+    if len(places) != len(expr.args):
+        return {}
+    values: dict[str, Any] = {}
+    for place, value in zip(places, expr.args, strict=True):
+        if isinstance(place, str):
+            values[place] = value
+        elif place != value:
+            return {}
     for parameter in capability.signature.parameters.values():
         if parameter.name not in values and parameter.default is not parameter.empty:
             values[parameter.name] = parameter.default

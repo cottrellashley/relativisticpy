@@ -105,6 +105,16 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   capability needs is imported only when it is used. A conformance suite holds every
   capability to the pattern in seven checks, saying in words what to fix, and
   `integrations.check` runs it on one ([Integrations](docs/integrations.md)).
+- Functions read as books write them, each capability declaring its forms in LaTeX and
+  Unicode: `\Gamma(x)`, `\mathrm{B}(a, b)`, `\zeta(s)`, the Bessel functions `J_{\nu}(x)`,
+  `Y_{\nu}`, `I_{\nu}`, `K_{\nu}`, `j_n` and `y_n`, the Airy functions, `P_n(x)`,
+  `P_\ell^m(x)`, `H_n(x)`, `L_n(x)`, `L_n^{(\alpha)}(x)`, `T_n(x)`, `U_n(x)`,
+  `Y_\ell^m(\theta, \phi)`, `erfc`, `erfi`, `Ei`, `Si`, `Ci`, Lambert's `W_k(x)`, the
+  complete elliptic integrals, `{}_pF_q(a; b; z)`, the Pochhammer symbol `(a)_n`, the normal
+  distribution function `\Phi(x)`, the principal logarithm, the unit step `u_c(t)` and the
+  Dirac delta, exact with SymPy and numeric with SciPy, printed in the same forms. A book
+  name no integration provides yet is refused, saying what it is, never read as an
+  unknown function.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

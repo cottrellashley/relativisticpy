@@ -72,6 +72,9 @@ _SIGNS: dict[TokenKind, Literal["-", "+", "±", "∓"]] = {
     K.MINUS_PLUS: "∓",
 }
 _SEPARATORS = frozenset({K.NEWLINE, K.SEMICOLON, K.ROW_SEP})
+
+#: The counts of parameters of {}_pF_q: numbers, or a letter in its general form.
+_COUNT = re.compile(r"[0-9]+|[A-Za-z]")
 # What may follow a statement: a comma or full stop just before one of these is prose.
 _STATEMENT_ENDS = frozenset({K.EOF, K.NEWLINE, K.ROW_SEP, K.END, K.SEMICOLON, K.RBRACE})
 # Equality and the relations RelativisticPy reads but does not compute; they chain.
@@ -907,22 +910,17 @@ class Parser:
                 hint=f"write it after what it is on, as in {example}",
             )
         self.advance()
-        if marker.kind is K.UNDERSCORE and label.isdigit():
+        if marker.kind is K.UNDERSCORE and _COUNT.fullmatch(label):
             order = self._hypergeometric_order(token)
             if order is not None:  # {}_2F_1(a, b; c; z)
-                written = f"{{}}_{label}F_{order}"
-                raise ParseError(
-                    f"{written}, the hypergeometric function, is not supported yet",
-                    span=self._span(marker),
-                    notes=(f"its parameters are separated by semicolons: {written}(a; b; z)",),
-                )
+                return self._postfix(self._hypergeometric(marker, label, order))
         name = ast.Name(f"{marker.value}{{{label}}}{token.value}", True, span=self._span(marker))
         return self._postfix(name)
 
     def _hypergeometric_order(self, name: Token) -> str | None:
         """The ``q`` of ``{}_pF_q`` after its ``F``, which the lexer may have joined to it, as
         it joins ``F_1``; ``None``, having read nothing, if ``name`` is no such ``F``."""
-        if (joined := re.fullmatch(r"F_([0-9]+)", name.value)) is not None:
+        if (joined := re.fullmatch(r"F_([0-9]+|[A-Za-z])", name.value)) is not None:
             return joined.group(1)
         if name.value != "F" or not self.check(K.UNDERSCORE):
             return None
@@ -932,8 +930,46 @@ class Parser:
         order = script.body if script is not None else None
         if isinstance(order, ast.Number) and order.text.isdigit():
             return order.text
+        if isinstance(order, ast.Name) and len(order.id) == 1:
+            return order.id
         self.pos, self.previous = before
         return None
+
+    def _hypergeometric(self, marker: Token, count: str, order: str) -> ast.Call:
+        """``{}_pF_q(a_1, ..., a_p; b_1, ..., b_q; z)``, the generalised hypergeometric
+        function, its parameter lists separated by semicolons: a call of ``_{p}F_q`` with an
+        argument for each list, the list itself where it holds several or none."""
+        written = f"{{}}_{count}F_{order}"
+        if not self.check(K.LPAREN) or self.peek().space_before:
+            raise ParseError(
+                f"{written}, the hypergeometric function, needs its parameters in brackets",
+                span=self._span(marker),
+                hint=f"write them, separated by semicolons, as in {written}(a, b; c; z)",
+            )
+        name = ast.Name(f"_{{{count}}}F_{order}", True, span=self._span(marker))
+        opener = self.advance()
+        groups: list[ast.Expr] = []
+        with self._nested():
+            while True:
+                start = self.peek()
+                items: list[ast.Expr] = []
+                if not self.check(K.SEMICOLON) and not self.check(K.RPAREN):
+                    items.append(self.expression())
+                    while self.accept(K.COMMA):
+                        items.append(self.expression())
+                if len(items) == 1:
+                    groups.append(items[0])
+                else:
+                    span = (
+                        self._span(start)
+                        if items
+                        else Span(start.span.source, start.span.start, start.span.start)
+                    )
+                    groups.append(ast.List(tuple(items), span=span))
+                if not self.accept(K.SEMICOLON):
+                    break
+            self.expect(K.RPAREN, opener=opener)
+        return ast.Call(name, tuple(groups), span=self._span(marker))
 
     def _atom(self) -> ast.Expr:
         token = self.peek()

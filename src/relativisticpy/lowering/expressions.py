@@ -549,10 +549,12 @@ class Expressions(LinearAlgebra):
     ) -> Node:
         if message := builtin.check_arity(len(args)):
             raise CompileError(message, span=span)
-        first = args[0] if args else None
-        if builtin.componentwise and first is not None and isinstance(first.type, TensorType):
-            op = ops.Map(builtin.name, attributes)
-            return self.graph.add(op, args, first.type, span)
+        if builtin.componentwise:  # each component of the first tensor among the arguments
+            lifted = next((k for k, a in enumerate(args) if isinstance(a.type, TensorType)), None)
+            if lifted is not None:
+                tensor, rest = args[lifted], args[:lifted] + args[lifted + 1 :]
+                op = ops.Map(builtin.name, attributes, lifted)
+                return self.graph.add(op, [tensor, *rest], tensor.type, span)
         args = [self._as_object(arg) for arg in args]
         kind = SCALAR if builtin.scalar and all(a.type == SCALAR for a in args) else VALUE
         return self._call(builtin.name, args, kind, span, attributes)

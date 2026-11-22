@@ -333,8 +333,8 @@ def agreement(capability: Capability) -> list[str]:
                 f"{_number(numeric)}, exact {_number(exact)}; fix numeric, or, if the point is "
                 "outside where it is defined, declare points=[...] inside"
             )
-    if failures or not points:
-        return failures
+    if failures or not points or not all(_scalar(value) for point in points for value in point):
+        return failures  # lists, as the parameters of {}_pF_q, are checked a point at once
     columns = [np.asarray([point[k] for point in points]) for k in range(len(points[0]))]
     together = np.asarray(_numerically(capability, tuple(columns)))
     if together.shape != (len(points),) or not all(
@@ -371,43 +371,59 @@ def _jax(capability: Capability, columns: list[Any], expected: Any) -> list[str]
 
 
 def lifting(capability: Capability) -> list[str]:
-    """Applied to a tensor, and to data, it gives its results component by component,
+    """Applied to a tensor, and to data, in the place of any of its arguments that is a
+    number or an expression at its points, it gives its results component by component,
     over the space of the tensor."""
+    points = _points(capability)
+    places = [k for k in range(len(points[0])) if all(_scalar(point[k]) for point in points)]
+    return [failure for place in places for failure in _lifted(capability, points, place)]
+
+
+def _lifted(capability: Capability, points: list[tuple[Any, ...]], place: int) -> list[str]:
+    """The failures of a capability applied to a tensor, and to data, as its argument at
+    ``place``, the others those of its first point."""
     from relativisticpy import Workbook
     from relativisticpy import display as show
     from relativisticpy.tensors import Tensor
 
     name, failures = capability.name, []
-    points = _points(capability)
-    lifted = [point[0] for point in points]
-    rest = list(points[0][1:])
-    expected = [_exactly(capability, (value, *rest)) for value in lifted]
-    after = "".join(f", {show.text(value)}" for value in rest)
+    lifted = [point[place] for point in points]
+    first = list(points[0])
+    expected = [_exactly(capability, (*first[:place], v, *first[place + 1 :])) for v in lifted]
+    written = [show.text(value) for value in first]
+    written[place] = "v^{l}"
+    call = f"{name}({', '.join(written)})"
+    what = "a tensor" if place == 0 else f"a tensor, as its argument {place + 1},"
     space = f"\\mathcal{{V}} := \\mathbb{{R}}^{{{len(lifted)}}}\nl \\in \\mathcal{{V}}\n"
     components = ", ".join(show.text(value) for value in lifted)
-    program = f"{space}v^{{l}} := [{components}]\n{name}(v^{{l}}{after})"
     with usable(capability):
         try:
             with Workbook() as wb:
-                result = wb.exe(program)[-1]
+                result = wb.exe(f"{space}v^{{l}} := [{components}]\n{call}")[-1]
         except RelativisticPyError as error:
-            return [f"{name} applied to a tensor fails: {error.kind}: {error.message}"]
-        failures += _components(capability, result, expected, "a tensor", "V")
-        if not all(_numeric_value(value) for value in lifted):
+            return [f"{name} applied to {what} fails: {error.kind}: {error.message}"]
+        failures += _components(capability, result, expected, what, "V")
+        if not all(_numeric_value(value) for value in [*lifted, *first]):  # data is numbers
             return failures
         import numpy as np
 
+        data = what.replace("a tensor", "data")
         try:
             with Workbook() as wb:
                 wb["v^l"] = np.asarray([complex(v).real for v in lifted])
-                result = wb.expr(f"{name}(v^{{l}}{after})")
+                result = wb.expr(call)
                 over = wb["v"].spaces[0].name
         except RelativisticPyError as error:
-            return [*failures, f"{name} applied to data fails: {error.kind}: {error.message}"]
+            return [*failures, f"{name} applied to {data} fails: {error.kind}: {error.message}"]
         if not isinstance(result, Tensor):
-            return [*failures, f"{name} applied to data gives no tensor: {_value(result)}"]
-        failures += _components(capability, result, expected, "data", over)
+            return [*failures, f"{name} applied to {data} gives no tensor: {_value(result)}"]
+        failures += _components(capability, result, expected, data, over)
     return failures
+
+
+def _scalar(value: Any) -> bool:
+    """Whether a value is a number or an expression, rather than a list of them."""
+    return not isinstance(value, list | tuple | sympy.Tuple | sympy.NDimArray)
 
 
 def _components(
@@ -435,7 +451,7 @@ def _components(
         wanted = ", ".join(_value(_evaluated(v)) for v in expected)
         return [
             f"{name} applied to {what} gives [{shown}], not its value at each component, "
-            f"[{wanted}]; {_FROM_DATA if what == 'data' else _FROM_TENSOR}"
+            f"[{wanted}]; {_FROM_DATA if what.startswith('data') else _FROM_TENSOR}"
         ]
     return []
 
@@ -665,6 +681,8 @@ def _close(numeric: complex, exact: complex) -> bool:
 
 
 def _numeric_value(value: Any) -> bool:
+    if not _scalar(value):
+        return False
     try:
         return bool(sympy.sympify(value).is_number)
     except (sympy.SympifyError, TypeError):

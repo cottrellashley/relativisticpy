@@ -212,6 +212,23 @@ def _symmetrize(op: ops.Symmetrize, args: list[Any], executor: Executor) -> Any:
 
 
 @dataclass(frozen=True)
+class Positioned:
+    """``func`` with the component it is given first put at ``position`` among the other
+    arguments, as the x of besselj(nu, x); for ``numeric``, which is given the array
+    module before them. Picklable, as :class:`ComponentCall` is."""
+
+    func: Callable[..., Any]
+    position: int
+    numeric: bool = False
+
+    def __call__(self, *args: Any, **attributes: Any) -> Any:
+        before = 1 if self.numeric else 0  # the array module stays first
+        lead, (component, *rest) = args[:before], args[before:]
+        at = self.position
+        return self.func(*lead, *rest[:at], component, *rest[at:], **attributes)
+
+
+@dataclass(frozen=True)
 class ComponentCall:
     """``func(component, *extra, **attributes)``: picklable, so it can run in a worker
     process."""
@@ -227,11 +244,14 @@ class ComponentCall:
 @execute.register(ops.Map)
 def _map(op: ops.Map, args: list[Any], executor: Executor) -> Any:
     entry = registry.lookup(op.name)  # what computes the operation the IR names
-    func = entry.func
+    func: Callable[..., Any] = entry.func
+    numeric = _numeric(entry, len(args))
+    if op.position:  # the component goes after the arguments before it
+        func = Positioned(func, op.position)
+        numeric = Positioned(numeric, op.position, numeric=True) if numeric else None
     target, extra = args[0], tuple(args[1:])
     if numerical.is_numerical(target):
         each = functools.partial(func, **dict(op.attributes)) if op.attributes else func
-        numeric = _numeric(entry, 1 + len(extra))
         if numeric is not None and op.attributes:
             numeric = functools.partial(numeric, **dict(op.attributes))
         return numerical.apply(target, each, extra, numeric)

@@ -158,14 +158,17 @@ class Symmetrize(Op):
 @dataclass(frozen=True)
 class Map(Op):
     """Apply the operation registered as ``name`` to every component of the first
-    argument, passing the remaining argument values after the component, then its
+    argument, passing the remaining argument values with the component, which goes at
+    ``position`` among them, as the x of besselj(nu, x) goes second, then its
     ``attributes``. Run in parallel when the executor has workers."""
 
     name: str
     attributes: Attributes = ()
+    position: int = 0
 
     def label(self) -> str:
-        return f"map {self.name}{_shown(self.attributes)}"
+        at = f" at {self.position}" if self.position else ""
+        return f"map {self.name}{at}{_shown(self.attributes)}"
 
 
 def _shown(attributes: Attributes) -> str:

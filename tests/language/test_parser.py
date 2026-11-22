@@ -584,16 +584,26 @@ class TestFractionsRootsAndFunctions:
         assert sexpr(r"\mathrm{arg}\, z") == "(* arg z)"
 
     @pytest.mark.parametrize(
-        "text",
+        ("text", "read"),
         [
-            r"{}_2F_1(1, 1; 2; z) = -\frac{\ln(1 - z)}{z}",
-            r"{}_2F_{1}\left(\tfrac{1}{2}, \tfrac{1}{2}; 2; 1\right)",
+            (r"{}_2F_1(1, 1; 2; z) = -\frac{\ln(1 - z)}{z}",
+             "(= (call _{2}F_1 (list 1 1) 2 z) (- (/ (call ln (- 1 z)) z)))"),
+            (r"{}_2F_{1}\left(\tfrac{1}{2}, \tfrac{1}{2}; 2; 1\right)",
+             "(call _{2}F_1 (list (/ 1 2) (/ 1 2)) 2 1)"),
             # after a space, an empty group starts a prescript, rather than spacing z's indices
-            r"\arcsin z = z \, {}_2F_1\left(\tfrac{1}{2}, \tfrac{1}{2}; \tfrac{3}{2}; z^2\right)",
+            (r"\arcsin z = z \, {}_2F_1\left(\tfrac{1}{2}, \tfrac{1}{2}; \tfrac{3}{2}; z^2\right)",
+             "(= (call asin z) (* z (call _{2}F_1 (list (/ 1 2) (/ 1 2)) (/ 3 2) (^ z 2))))"),
+            (r"{}_0F_1(; b; z)", "(call _{0}F_1 (list) b z)"),
+            (r"{}_pF_q(a; b; z)", "(call _{p}F_q a b z)"),
         ],
-    )
-    def test_the_hypergeometric_function_is_not_supported_yet(self, text):
-        assert error(text).message == "{}_2F_1, the hypergeometric function, is not supported yet"
+    )  # fmt: skip
+    def test_the_hypergeometric_function_separates_its_lists_with_semicolons(self, text, read):
+        assert sexpr(text) == read
+
+    def test_the_hypergeometric_function_needs_its_brackets(self):
+        assert error(r"{}_2F_1 z").message == (
+            "{}_2F_1, the hypergeometric function, needs its parameters in brackets"
+        )
 
     def test_other_prescripts_label_a_symbol(self):
         assert sexpr(r"{}^{(3)}R + {}_2F") == "(+ ^{(3)}R _{2}F)"

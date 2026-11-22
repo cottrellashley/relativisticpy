@@ -178,6 +178,15 @@ What implementing it settled:
 - **The registry names what computes a capability by the capability's name,** so a
   worker process finds it again, and a missing library is an error that names the extra
   to install, found in the package's own metadata.
+- **A function lifts over whichever argument is a tensor,** not only the first: the x of
+  `J_0(x_t)` is data, its order a number. The IR's `Map` says where the component goes.
+- **A form may write what is known when the program is read,** as the counts p and q of
+  `{}_pF_q(a; b; z)`: `exact` takes them by keyword and checks them, and a capability
+  whose calls print other than by its parameters in order says how, with an `arguments`
+  method.
+- **Exact gives the closed form where there is one:** a Bessel function of half an odd
+  integer as the elementary function it is, a hypergeometric function through
+  `hyperexpand`, a spherical harmonic of given degree written out.
 
 ## Verification
 

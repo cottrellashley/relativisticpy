@@ -70,6 +70,7 @@ from relativisticpy.reading.names import (
     _subscripted_name,
     _unprimed,
     _writes_tensor,
+    _written_as_letter,
     _written_with,
 )
 from relativisticpy.reading.readings import Decision, Resolution
@@ -424,7 +425,9 @@ class Reader(Typer):
                 if any(self._names_component(label) for label, _ in entries):
                     return False
                 labels.update(label for label, _ in entries)
-                if scope.lookup(name) is None and name not in BUILTINS and name not in CONSTANTS:
+                letter = isinstance(current.base, ast.Name) and _written_as_letter(current.base)
+                function = name in BUILTINS and not letter  # \zeta^\mu is a vector
+                if scope.lookup(name) is None and not function and name not in CONSTANTS:
                     quantity = self._builtin_tensor(name, len(entries))
                     first = entries[0][0]
                     over = self._labels.get(first) or self.session.labels.get(first)
@@ -529,8 +532,11 @@ class Reader(Typer):
         if ctx.latex and _splittable(node):
             return self._latex_letters(node, scope, ctx)
         # A builtin applies to what follows it, as sin does in sin x; in LaTeX only if it
-        # is written as a command, \operatorname{sign} x, so that N dt^2 is a product.
-        if _names_builtin(node, latex=ctx.latex) and (node.verbatim or not ctx.latex):
+        # is written as a command, \operatorname{sign} x, so that N dt^2 is a product; and
+        # one named by a Greek letter, as zeta, only with brackets, as zeta(2), so that
+        # gamma m c^2 is the letter times m c^2.
+        greek = name in GREEK and not node.verbatim
+        if _names_builtin(node, latex=ctx.latex) and (node.verbatim or not ctx.latex) and not greek:
             self._resolve(node.span, f"the builtin function {name}")
             return FunctionReference(node.span, name)
         # A name made of what is written, as y_s of y_{s} or r^* of r^*, is shown so.
@@ -1245,10 +1251,13 @@ class Reader(Typer):
         owner = match.pattern.owner
         if any(self._an_index_label(slot) for slot in shape.scripts):
             return None
-        if not shape.head and any(self._names_tensor(arg, scope) for arg in shape.arguments):
-            return None  # (A + B)_{\mu}: a tensor's index
+        if not shape.head and not self._a_pochhammer(shape, scope):
+            return None  # (\delta S)_1, the first part of \delta S: a label
         meant = owner.what if isinstance(owner, Reservation) else owner.brief
-        alone = not shape.scripts and (len(shape.head) == 1 or shape.head in GREEK)
+        # a letter, as \Gamma(x), or a small letter with scripts, as y_n(x) or u_c(t), which
+        # a program as often names a function of its own
+        letter = len(shape.head) == 1 or shape.head in GREEK
+        alone = letter and (not shape.scripts or shape.head.islower())
         if alone and self._called_with_coordinates(shape):
             said = (
                 f"{node.span.text} is read as a function of the coordinates; elsewhere, "
@@ -1286,6 +1295,30 @@ class Reader(Typer):
         why = f"{match.pattern.written} is how books write it, and nothing defines {written}"
         self._decide(BOOK, node.span, f"{owner.name}, {owner.brief}", why, note)
         return BookCall(owner, arguments, keywords)
+
+    def _a_pochhammer(self, shape: forms.Shape, scope: Scope) -> bool:
+        """Whether a bracket with a subscript is the Pochhammer symbol, as books write it in
+        a hypergeometric series, ``(a)_n``, where nothing else can be meant: its length a
+        whole number above 1, or a Latin letter written nowhere else as an index; and in the
+        bracket no tensor, derivative, prime or differential. Otherwise the subscript labels
+        what is in the bracket, as in ``(\\delta S)_1``, ``(g')_p`` or ``(d\\phi)_\\mu``."""
+        (length,) = shape.below
+        if isinstance(length, ast.Number):
+            if not (length.text.isdigit() and int(length.text) >= 2):
+                return False
+        elif isinstance(length, ast.Name) and len(length.id) == 1 and length.id.isascii():
+            if self._scripts["_"][length.id] + self._scripts["^"][length.id] > 1:
+                return False
+        else:
+            return False
+        labelled = (ast.Prime, ast.Derivative, ast.Differential, ast.Operator, ast.Integral)
+        for argument in shape.arguments:
+            for current in _walk(argument):
+                if isinstance(current, labelled):
+                    return False
+                if isinstance(current, ast.Name) and current.id == "d" and current.verbatim:
+                    return False  # {\rm d}\phi
+        return not any(self._names_tensor(argument, scope) for argument in shape.arguments)
 
     def _own_book_name(self, shape: forms.Shape, node: ast.Expr, scope: Scope) -> bool:
         """Whether the program gives a book name a meaning of its own: a value or a

@@ -130,6 +130,19 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `N(value, digits)` `numerical` `evalf` | 1 to 2 | `N(x)`, `N(x, digits)`: a decimal number |
 | `doit(value)` | 1 | sums, products and integrals, kept as written, carried out |
 
+### Bessel and Airy functions
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `besselj(nu, x)` `J_{\nu}(x)` | 2 | the Bessel function of the first kind, of order `\nu` |
+| `bessely(nu, x)` `Y_{\nu}(x)` | 2 | the Bessel function of the second kind, of order `\nu` |
+| `besseli(nu, x)` `I_{\nu}(x)` | 2 | the modified Bessel function of the first kind, of order `\nu` |
+| `besselk(nu, x)` `K_{\nu}(x)` | 2 | the modified Bessel function of the second kind, of order `\nu` |
+| `jn(n, x)` `j_n(x)` | 2 | the spherical Bessel function of the first kind, of order n |
+| `yn(n, x)` `y_n(x)` | 2 | the spherical Bessel function of the second kind, of order n |
+| `airyai(x)` `\operatorname{Ai}(x)` | 1 | the Airy function Ai |
+| `airybi(x)` `\operatorname{Bi}(x)` | 1 | the Airy function Bi |
+
 ### Elementary functions
 
 | Function | Arguments | Meaning |
@@ -209,9 +222,43 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `gcd(a, b, ...)` | 2 or more | the greatest common divisor |
 | `lcm(a, b, ...)` | 2 or more | the least common multiple |
 
+### Orthogonal polynomials and spherical harmonics
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `legendre(n, x)` `P_n(x)` | 2 | the Legendre polynomial of degree n |
+| `assoc_legendre(ell, m, x)` `P_{\ell}^m(x)` | 3 | the associated Legendre function of degree `\ell` and order m, with the phase (-1)^m |
+| `hermite(n, x)` `H_n(x)` | 2 | the Hermite polynomial of degree n, the physicists' (probabilists write He_n) |
+| `laguerre(n, x)` `L_n(x)` | 2 | the Laguerre polynomial of degree n |
+| `assoc_laguerre(n, alpha, x)` `L_n^{(\alpha)}(x)` | 3 | the generalised Laguerre polynomial of degree n and parameter `\alpha` |
+| `chebyshevt(n, x)` `T_n(x)` | 2 | the Chebyshev polynomial of the first kind, of degree n |
+| `chebyshevu(n, x)` `U_n(x)` | 2 | the Chebyshev polynomial of the second kind, of degree n |
+| `Ynm(ell, m, theta, phi)` `Y_{\ell}^m(\theta, \phi)` | 4 | the spherical harmonic of degree `\ell` and order m, at polar angle `\theta` and azimuth `\phi` |
+
+### Special functions
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `beta(a, b)` `\mathrm{B}(a, b)` | 2 | Euler's Beta function |
+| `zeta(s)` `\zeta(s)` | 1 | Riemann's zeta function |
+| `Log(z)` | 1 | the principal branch of the logarithm, `\operatorname{Log}` |
+| `erfc(x)` | 1 | the complementary error function, 1 - erf |
+| `erfi(x)` | 1 | the imaginary error function, -i erf(ix) |
+| `Ei(x)` | 1 | the exponential integral |
+| `Si(x)` | 1 | the sine integral |
+| `Ci(x)` | 1 | the cosine integral |
+| `LambertW(x, k)` `W_k(x)` | 1 to 2 | Lambert's W, the inverse of w e^w, on branch k: 0, the principal, or -1 |
+| `elliptic_k(m)` `\operatorname{K}(m)` | 1 | the complete elliptic integral of the first kind, of parameter m = k^2 |
+| `elliptic_e(m)` `\operatorname{E}(m)` | 1 | the complete elliptic integral of the second kind, of parameter m = k^2 |
+| `hyper(a, b, z)` `{}_pF_q(a; b; z)` | 3 | the generalised hypergeometric function; `hyper([a_1, ...], [b_1, ...], z)` |
+| `rf(a, n)` `RisingFactorial` `(a)_n` | 2 | the Pochhammer symbol, the rising factorial a(a + 1)...(a + n - 1) |
+| `normcdf(x)` `\Phi(x)` `N(x)` | 1 | the standard normal distribution function, (1 + erf(x/√2))/2 |
+| `Heaviside(t, c)` `u_c(t)` | 1 to 2 | the unit step, 0 before c and 1 after it, and 1/2 at c |
+| `DiracDelta(x)` `\operatorname{DiracDelta}(x)` | 1 | the Dirac delta, a distribution; `\delta(x)` is not read as it, as `\delta` is a variation in physics |
+
 ### Book names not supported yet
 
-A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\mathrm{B}(a, b)`, the Beta function; `\zeta(s)`, Riemann's zeta function; `J_{\nu}(x)`, the Bessel function of the first kind; `P_n(x)`, the Legendre polynomial; `H_n(x)`, the Hermite polynomial; `Y_l^m(\theta, \phi)`, the spherical harmonic; `\operatorname{erfc}(x)`, the complementary error function; `\operatorname{Log}(z)`, the principal branch of the logarithm; `\Phi(x)`, the standard normal distribution function; `Heaviside(x)`, the unit step; `DiracDelta(x)`, the Dirac delta; `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{tr} A`, the trace of a matrix written as an operator; `\operatorname{rank} A`, the rank of a matrix; `\operatorname{Var}(X)`, the variance of a random variable; `\mathcal{L}\{f\}`, the Laplace transform; `\mathcal{F}\{f\}`, the Fourier transform; `\epsilon_{ijk}`, the Levi-Civita symbol.
+A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{tr} A`, the trace of a matrix written as an operator; `\operatorname{rank} A`, the rank of a matrix; `\operatorname{Var}(X)`, the variance of a random variable; `\mathcal{L}\{f\}`, the Laplace transform; `\mathcal{F}\{f\}`, the Fourier transform; `\epsilon_{ijk}`, the Levi-Civita symbol.
 
 ## Data, statistics and linear algebra
 

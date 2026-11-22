@@ -80,8 +80,9 @@ retires the reservation.
 1. **Find the gap.** `uv run python benchmarks/curriculum.py --failures` names what the
    language cannot do yet: an unknown function, a notation it does not read.
 2. **Write the capability,** in the integration of its library, following a capability of
-   the same kind. Here is a complete one, the logistic function, exact with SymPy and
-   numeric with SciPy:
+   the same kind: `bessel.py`, `polynomials.py` and `special_functions.py` are functions
+   written as books write them, exact with SymPy and numeric with SciPy. Here is a complete
+   one, the logistic function:
 
     ```python
     >>> import sympy
@@ -150,13 +151,22 @@ names the capability and says what to do:
 A capability that breaks the pattern is told, for instance:
 
 ```text
-brokenj's example brokenj(0) gives 1, not 2: fix exact, or the example's answer
+brokenj's example brokenj(0) gives 0, not 2: fix exact, or the example's answer
 brokenj: numeric and exact differ at (x=0.3): numeric gives 0.955336489126, exact
-  0.977626246538; fix numeric, or, if the point is outside where it is defined, declare
+  0.0141169980066; fix numeric, or, if the point is outside where it is defined, declare
   points=[...] inside
 brokenj: its module imports scipy when it is imported; import it inside exact or
   numeric, and declare requires="scipy", so that the language runs without it
+brokenj: fresnels(x) prints in latex as S\left(x\right), which reads back as S(x), in
+  which S is a function the language does not know; declare a latex form the language
+  reads as brokenj, as latex="J_{\nu}(x)"
 ```
+
+A form may write a parameter that is known when the program is read, as the counts p and
+q of `{}_pF_q(a; b; z)`: `exact` takes it by keyword, `def exact(self, a, b, z, *, p=None,
+q=None)`, and checks it. A capability whose calls print other than by its parameters in
+order says how, with a method `arguments(self, call)` that gives the value of each, as
+the hypergeometric function does in `special_functions.py`.
 
 ## Integrations outside RelativisticPy
 

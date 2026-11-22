@@ -8,8 +8,8 @@ import pytest
 import sympy
 
 from relativisticpy import Workbook, display, integrations
-from relativisticpy.errors import CompileError
-from relativisticpy.integrations import Example, _forms, function
+from relativisticpy.errors import CompileError, EvaluationError
+from relativisticpy.integrations import Example, _forms, map_function
 from relativisticpy.language import parse
 
 x, z = sympy.symbols("x z")
@@ -100,23 +100,88 @@ class TestReading:
         assert round(float(wb.expr("N(pi, 3)")), 2) == 3.14
 
 
+class TestSpecialFunctions:
+    @pytest.mark.parametrize(
+        ("source", "value"),
+        [
+            ("J_0(1)", sympy.besselj(0, 1)),
+            (r"J_{\nu}(x)", sympy.besselj(sympy.Symbol("nu"), x)),
+            (r"J_{1/2}(x)", sympy.sqrt(2) * sympy.sin(x) / (sympy.sqrt(sympy.pi) * sympy.sqrt(x))),
+            (r"K_{\nu}(x)", sympy.besselk(sympy.Symbol("nu"), x)),
+            ("j_1(x)", sympy.sin(x) / x**2 - sympy.cos(x) / x),
+            (r"\operatorname{Ai}(0)", sympy.airyai(0)),
+            ("P_3(x)", (5 * x**3 - 3 * x) / 2),
+            ("P_2^1(x)", sympy.assoc_legendre(2, 1, x)),
+            ("H_3(x)", 8 * x**3 - 12 * x),
+            (r"L_1^{(\alpha)}(x)", -x + sympy.Symbol("alpha") + 1),
+            ("T_2(x)", 2 * x**2 - 1),
+            (r"Y_1^0(\theta, \phi)",
+             sympy.sqrt(3) * sympy.cos(sympy.Symbol("theta")) / (2 * sympy.sqrt(sympy.pi))),
+            (r"\mathrm{B}(2, 3)", sympy.Rational(1, 12)),
+            (r"\zeta(2)", sympy.pi**2 / 6),
+            ("ζ(4)", sympy.pi**4 / 90),
+            (r"\operatorname{erfc} x", sympy.erfc(x)),
+            (r"\operatorname{Log}(i)", sympy.pi * sympy.I / 2),
+            ("{}_2F_1(1, 1; 2; z)", -sympy.log(1 - z) / z),
+            (r"\left(\tfrac{1}{2}\right)_3", sympy.Rational(15, 8)),
+            ("W_0(e)", 1),
+            (r"\Phi(0)", sympy.Rational(1, 2)),
+            (r"\left(N(0)\right)", sympy.Rational(1, 2)),  # in LaTeX
+            (r"u_{\pi/4}(\pi)", 1),
+            (r"\operatorname{K}(0)", sympy.pi / 2),
+        ],
+    )  # fmt: skip
+    def test_a_book_name_is_read_as_its_capability(self, wb, source, value):
+        assert sympy.simplify(wb.expr(source) - value) == 0
+
+    def test_the_counts_of_the_hypergeometric_function_are_checked(self, wb):
+        with pytest.raises(EvaluationError, match="takes 3 parameters before its first"):
+            wb.expr("{}_3F_1(1, 1; 2; z)")
+
+    def test_a_small_letter_with_scripts_is_noted(self, wb):
+        (reading,) = wb.explain("y_0(x)")
+        assert reading.notes == [
+            "y_0 is read as the spherical Bessel function of the second kind, of order n, yn; "
+            "for a function of your own, define y_0 first"
+        ]
+        (reading,) = wb.explain("J_0(x)")
+        assert reading.notes == []
+
+    def test_a_small_letter_called_with_the_coordinates_is_a_function_of_them(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        assert wb.expr("u_c(t)") == sympy.Function("u_c")(sympy.Symbol("t"))
+
+    def test_a_definition_wins(self, wb):
+        wb.exe("y_1(x) := x^2")
+        assert wb.expr("y_1(3)") == 9
+        wb.exe(r"\zeta(s) := s + 1")
+        assert wb.expr(r"\zeta(2)") == 3
+
+    def test_a_greek_name_in_plain_text_is_called_only_with_brackets(self, wb):
+        gamma, m, c = sympy.symbols("gamma m c")
+        assert wb.expr("gamma m c^2") == gamma * m * c**2
+        assert wb.expr("beta x") == sympy.Symbol("beta") * x
+        assert wb.expr("zeta(2)") == sympy.pi**2 / 6
+
+    def test_a_function_lifts_over_the_argument_that_is_a_tensor(self, wb):
+        import numpy as np
+        from scipy.special import jv
+
+        wb["x_t"] = np.array([0.5, 1.5, 2.5])
+        assert np.allclose(wb.expr("J_0(x_t)").to_numpy(), jv(0, [0.5, 1.5, 2.5]))
+        assert "map besselj at 1" in wb.ir("J_0(x_t)")
+
+
 class TestReservations:
     @pytest.mark.parametrize(
         ("source", "said"),
         [
-            (r"\zeta(2)", r"\zeta, Riemann's zeta function, is not supported yet"),
-            ("zeta(2)", "zeta, Riemann's zeta function, is not supported yet"),
-            (r"\mathrm{B}(1, 2)", r"\mathrm{B}, the Beta function, is not supported yet"),
-            ("J_0(1)", "J_0, the Bessel function of the first kind, is not supported yet"),
-            (r"P_3(x)", "P_3, the Legendre polynomial, is not supported yet"),
-            (r"Y_1^0(\theta, \phi)", "Y_1^0, the spherical harmonic, is not supported yet"),
-            (r"\operatorname{erfc} x", "the complementary error function, is not supported yet"),
-            (r"\Phi(1)", "the standard normal distribution function, is not supported yet"),
             (r"\operatorname{Res}_{z=0} f(z)", "the residue of a function at a point"),
             (r"\operatorname{tr} A", "the trace of a matrix written as an operator"),
             (r"\operatorname{rank}(A)", "the rank of a matrix, is not supported yet"),
             (r"\operatorname{Var}(X)", "the variance of a random variable"),
             (r"\mathcal{L}\{t^2\}", r"\mathcal{L}, the Laplace transform, is not supported yet"),
+            (r"\mathcal{F}\{f\}(\omega)", "the Fourier transform, is not supported yet"),
             (r"\epsilon_{ijk}", r"\epsilon_{ijk}, the Levi-Civita symbol, is not supported yet"),
         ],
     )
@@ -141,24 +206,24 @@ class TestReservations:
         wb.expr(source)  # an unknown function, or a product
 
     def test_a_definition_of_the_name_wins_over_its_reservation(self, wb):
-        wb.exe(r"\zeta(s) := s + 1")
-        assert wb.expr(r"\zeta(2)") == 3
+        wb.exe(r"\operatorname{rank}(A) := 2")
+        assert wb.expr(r"\operatorname{rank}(B)") == 2
 
     def test_providing_a_capability_retires_its_reservation(self):
-        @function(
-            "zeta",
-            latex=r"\zeta(s)",
-            summary="Riemann's zeta function",
-            examples=[Example(r"\zeta(2)", sympy.pi**2 / 6, "DLMF 25.6.1")] * 2,
+        @map_function(
+            "rank",
+            latex=r"\operatorname{rank}(A)",
+            summary="the rank of a matrix",
+            examples=[Example(r"\operatorname{rank}([[1, 2], [2, 4]])", 1, "standard")] * 2,
         )
-        class Zeta:
-            def exact(self, s):
-                return sympy.zeta(s)
+        class Rank:
+            def exact(self, matrix):
+                return sympy.Matrix(matrix).rank()
 
-        with integrations.installed(Zeta):
-            assert "zeta" not in {r.name for r in integrations.reservations()}
-            assert Workbook().expr(r"\zeta(2)") == sympy.pi**2 / 6
-        assert "zeta" in {r.name for r in integrations.reservations()}
+        with integrations.installed(Rank):
+            assert "rank" not in {r.name for r in integrations.reservations()}
+            assert Workbook().expr(r"\operatorname{rank}([[1, 2], [2, 4]])") == 1
+        assert "rank" in {r.name for r in integrations.reservations()}
 
 
 class TestPrinting:
