@@ -242,9 +242,11 @@ rather than tens of minutes.
   coordinates its metric is in, which the compiler reads without computing it, and list
   it with the spacetimes in `relativisticpy/runtime/functions.py`.
 - **An operation**: register what computes it in `relativisticpy/runtime/registry.py`
-  and have the compiler emit a `Call` of its name; one that is not a function of values,
-  as a contraction is, is an op in `relativisticpy/ir/ops.py` with a kernel in
-  `relativisticpy/runtime/kernels.py`.
+  and have the lowerer, in `relativisticpy/lowering/`, emit a `Call` of its name; one
+  that is not a function of values, as a contraction is, is an op in
+  `relativisticpy/ir/ops.py` with a kernel in `relativisticpy/runtime/kernels.py`. A
+  rule of index notation it keeps goes in the typer, `relativisticpy/typing/`, and a new
+  reading of what is written in the reader, `relativisticpy/reading/`.
 
 [The language reference](reference.md) is written from these tables by
 `relativisticpy/reference.py`, which says what each name means. A new function,

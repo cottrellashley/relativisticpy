@@ -3,5 +3,7 @@
 Names are resolved against the scope, the session and the coordinates, and each ambiguous
 reading is decided, with a note where the less likely one is taken
 (:mod:`relativisticpy.reading.reader`); :mod:`relativisticpy.reading.names` holds what
-names and forms are written, read from the syntax alone.
+names and forms are written, read from the syntax alone; and
+:mod:`relativisticpy.reading.readings` the readings that record each decision, with why,
+which :meth:`~relativisticpy.Workbook.explain` shows.
 """
