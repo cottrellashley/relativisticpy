@@ -45,7 +45,7 @@ from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.reading.labels import Labels, label_name
+from relativisticpy.reading.labels import _WORD, Labels, label_name
 from relativisticpy.reading.names import (
     _a_member,
     _mentions_symbol,
@@ -101,6 +101,8 @@ def _family_target(target: ast.Expr) -> tuple[str, str, int] | None:
     named = _subscripted(target)
     if named is None:
         return None
+    if isinstance(target, ast.Scripted) and _WORD.search(target.scripts[0].span.text):
+        return None  # C_\mathrm{A}: a word, never a label that takes values
     base, subscript = named
     match = _LABEL.fullmatch(subscript)
     if match is None or not re.fullmatch(r"[A-Za-z]+", base):

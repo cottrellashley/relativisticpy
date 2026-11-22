@@ -88,7 +88,10 @@ def _solved(equations: Any, unknowns: tuple[Any, ...], bounds: tuple[Any, ...]) 
         general = {u: sympy.Dummy(u.name, **(_domain(u) if keep else {})) for u in assumed}
         back = {dummy: u for u, dummy in general.items()}
         plain = [general.get(u, u) for u in named]
-        prepared = [_cancelled(_put(side, general), plain) for side in sides]
+        prepared = [
+            _cancelled(_without_vanishing_terms(_put(side, general), plain), plain)
+            for side in sides
+        ]
         given = [_put(each, general) for each in unknowns]
         found = _robustly(prepared if isinstance(equations, list) else prepared[0], given, plain)
         found = _put(found, back)
@@ -143,6 +146,24 @@ def _assumed(symbol: sympy.Symbol) -> bool:
 
 def _put(value: Any, symbols: dict[Any, Any]) -> Any:
     return assumptions.mapped(value, lambda expr: expr.xreplace(symbols))
+
+
+def _without_vanishing_terms(expr: Any, unknowns: list[Any]) -> Any:
+    """A polynomial in the unknowns without the terms whose coefficients vanish only by an
+    identity SymPy does not apply, as (\\cos^2\\theta + \\sin^2\\theta - 1) E'^2 of Compton's
+    equation: SymPy would divide by it, and find no solution. Anything else as it is."""
+    if not isinstance(expr, sympy.Expr) or not all(isinstance(u, sympy.Symbol) for u in unknowns):
+        return expr
+    try:
+        polynomial = sympy.Poly(sympy.expand(expr), *unknowns)
+    except sympy.PolynomialError:
+        return expr
+    terms = polynomial.terms()
+    kept = [(powers, c) for powers, c in terms if c.is_number or sympy.trigsimp(c) != 0]
+    if len(kept) == len(terms):
+        return expr
+    monomials = [sympy.Mul(*(u**k for u, k in zip(unknowns, p, strict=True))) for p, _ in kept]
+    return sympy.Add(*(c * monomial for (_, c), monomial in zip(kept, monomials, strict=True)))
 
 
 def _cancelled(expr: Any, unknowns: list[Any]) -> Any:

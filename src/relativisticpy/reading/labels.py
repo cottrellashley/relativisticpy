@@ -221,8 +221,8 @@ class Labels(Matrices):
         """In LaTeX, ``iE_1``, a run of letters that names nothing, with a subscript: as TeX
         sets it, the subscript binds to the last letter, i times E_1 (decision 5.7 of
         design/notation.md). ``None`` for any other name."""
-        if scope.lookup(node.id) is not None:
-            return None
+        if node.verbatim or scope.lookup(node.id) is not None:
+            return None  # \mathrm{iE_1}, or a name read as one, as hbar_00 of \bar h_{00}
         run, underscore, subscript = node.id.partition("_")
         if not (underscore and subscript and len(run) > 1 and run.isalpha() and run.isascii()):
             return None

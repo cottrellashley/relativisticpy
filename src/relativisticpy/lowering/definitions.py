@@ -74,6 +74,8 @@ class Definitions(Expressions):
     def _define_now(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
         if self._define_family(target, value, scope, ctx):  # c_n := ..., \psi_n(x) := ...
             return
+        if self._define_scripted_function(target, value, scope, ctx):  # R_{nl}(r) := ...
+            return
         target = _named(target)
         if isinstance(target, ast.Prime):  # t' = ..., a name of its own
             primed = target.func.id + "'" * target.order
@@ -108,7 +110,7 @@ class Definitions(Expressions):
         if _is_line_element(target):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
             return
-        target = _unprimed(target)
+        target = _unprimed(target, every=True)  # k'^\mu := ...: the tensor k'
         if _bold_one(target):  # \mathbf{1} := ..., the program's own, which wins (decision 23)
             ones = self._value_or_notation(value, scope, ctx, definition=True)
             scope.bind(BOLD_ONE, VariableBinding(ones))

@@ -84,6 +84,15 @@ class TestRobustly:
             == []
         )
 
+    def test_a_coefficient_that_vanishes_by_an_identity_is_dropped(self, wb):
+        # Compton's equation is linear in E' only through cos^2 + sin^2 = 1: SymPy, keeping
+        # the vanishing square, divides by it and finds no solution
+        found = wb.expr(r"solve((\cos^2\theta + \sin^2\theta - 1) x^2 + 2 x - 4 = 0, x)")
+        assert found == [2]
+        theta, x = sympy.symbols("theta x")
+        vanishing = (sympy.cos(theta) ** 2 + sympy.sin(theta) ** 2 - 1) * x**2 + 2 * x - 4
+        assert sympy.solve(vanishing, x) != [2]
+
     def test_an_equation_that_holds_for_every_value(self, wb):
         with pytest.raises(EvaluationError) as raised:
             wb.exe("solve(x - x = 0, x)")

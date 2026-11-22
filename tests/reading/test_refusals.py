@@ -27,14 +27,11 @@ class TestColonEqualsDefinesOrRefuses:
     """Guard 1: ``:=`` defines, or is refused saying how its left side was read; it never
     makes an equation, as ``\\psi_n(x) := ...`` made Eq(psi_n x, ...) and defined nothing."""
 
-    def test_a_function_with_a_superscript(self, wb):
-        found = error(wb, r"Y_2^1(\theta, \phi) := \sin\theta")
-        assert found.message == (
-            r"cannot define Y_2^1(\theta, \phi), which is read as Y_2^1 times (\theta, \phi)"
-        )
-        hint = r"give the function a plain name, as in Y(\theta, \phi) := ..."
-        assert found.hint == hint
-        assert wb.expr(r"Y(\theta, \phi) := \sin\theta" "\n" r"Y(\theta, 0)") == sympy.sin(theta)
+    def test_a_function_with_scripts_is_defined(self, wb):
+        # decisions 5 and 6: the scripts are part of the function's name, which wins over
+        # the spherical harmonic books write so
+        wb.exe(r"Y_2^1(\theta, \phi) := \sin\theta")
+        assert wb.expr(r"Y_2^1(\theta, 0)") == sympy.sin(theta)
 
     def test_a_product_of_names(self, wb):
         found = error(wb, r"\Delta\phi := 2")
@@ -120,14 +117,10 @@ class TestColonEqualsDefinesOrRefuses:
         found = error(wb, r"\mathbf{2} := \begin{pmatrix} 2 \\ 2 \end{pmatrix}")
         assert found.message == r"cannot define \mathbf{2}, which is read as the number 2"
 
-    def test_a_primed_function_name(self, wb):
-        found = error(wb, r"\rho'(x, t) := R e^{i(k x - \omega t)}")
-        assert found.message == (
-            r"cannot define \rho'(x, t): a function is named with a plain name, and \rho' is "
-            "not one"
-        )
-        assert found.notes == [r"a prime on a name, as on \rho', is a derivative"]
-        assert found.hint == "give the function a plain name, as in f(x, t) := ..."
+    def test_a_primed_function_name_is_defined(self, wb):
+        # decision 7: on the left of :=, a prime is part of the name
+        wb.exe(r"\rho'(x, t) := R e^{i(k x - \omega t)}")
+        assert wb.expr(r"\rho'(0, 0)") == sympy.Symbol("R")
 
 
 class TestEqualsDefinesAFunctionOrRefuses:
@@ -136,15 +129,10 @@ class TestEqualsDefinesAFunctionOrRefuses:
     and the minimum of U_{eff} was [], from dU_{eff}/dr = 0."""
 
     def test_a_subscripted_name_with_arguments(self, wb):
-        found = error(wb, r"U_{\text{eff}}(r) = -\frac{k}{r} + \frac{\ell^2}{2 \mu r^2}")
-        assert found.message == (
-            r"U_{\text{eff}}(r) is read as U_{\text{eff}} times r, so = neither defines nor "
-            "compares it"
-        )
-        assert found.hint == "give the function a plain name, as in U(r) := ..."
-        wb.exe(r"U(r) := -\frac{k}{r} + \frac{\ell^2}{2 \mu r^2}")
+        wb.exe(r"U_{\text{eff}}(r) = -\frac{k}{r} + \frac{\ell^2}{2 \mu r^2}")
         k, ell, mu = sympy.symbols("k ell mu")
-        assert wb.expr(r"solve\left(\frac{d U(r)}{d r} = 0, r\right)") == [ell**2 / (k * mu)]
+        found = wb.expr(r"solve\left(\frac{d U_{\text{eff}}(r)}{d r} = 0, r\right)")
+        assert found == [ell**2 / (k * mu)]
 
     def test_a_function_that_is_defined_is_compared(self, wb):
         wb.exe("f(x) := x^2")
@@ -305,14 +293,13 @@ class TestScriptedNamesWhoseBaseIsDefined:
         )
         assert wb.expr("p_k := p_{k-1} - 1\np_{5}") == -4  # the hint works
 
-    def test_an_order_on_a_function(self, wb):
-        wb.exe(r"f(x) := \sec x")
-        found = error(wb, r"\frac{f^{(4)}(0)}{4!}")
+    def test_an_order_on_a_function_of_several_variables(self, wb):
+        # of a function of one variable it is the derivative (tests/reading/test_functions.py)
+        wb.exe("g(x, y) := x^2 y^2")
+        found = error(wb, r"g^{(2)}(0)")
         assert found.message == (
-            "f^{(4)} is read as a name of its own, not as a derivative of the function f"
+            "g^{(2)} is read as a name of its own, not as a derivative of the function g"
         )
-        assert found.hint == "for its derivative of order 4, write f''''(x)"
-        assert wb.expr(r"\frac{f''''(0)}{4!}") == sympy.Rational(5, 24)  # the hint works
         assert wb.expr("E^{(2)} := 3\nE^{(2)} + 1") == 4  # an order on a value is a label
 
     def test_an_index_on_a_numbered_tensor(self, wb):

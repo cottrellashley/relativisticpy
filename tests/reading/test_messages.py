@@ -5,6 +5,7 @@ tensors and names never defined."""
 import re
 
 import pytest
+import sympy
 
 from relativisticpy.errors import CompileError, IndexNotationError, ParseError
 
@@ -117,10 +118,11 @@ class TestWhatIsNotATensor:
 
 
 class TestOperatorsAndFunctions:
-    def test_a_function_named_alone(self, wb):
+    def test_a_function_named_alone_is_its_value_at_its_parameters(self, wb):
         wb.exe("f(x) := x^2")
-        assert error(wb, "f + 1").message == "f is a function, so it needs an argument, as in f(x)"
-        assert error(wb, "2 f").message == "f is a function, so it needs an argument, as in f(x)"
+        x = sympy.Symbol("x")
+        assert wb.expr("f + 1") == x**2 + 1
+        assert wb.expr("2 f") == 2 * x**2
 
     def test_a_derivative_operator_alone(self, wb):
         wb.exe(SCHWARZSCHILD)

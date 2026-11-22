@@ -992,6 +992,15 @@ class TestStatements:
         assert program("f() := 42") == ["(def f () 42)"]
         assert program(r"R_{21}(r) := r e^{-r}") == ["(def R_21 (r) (* r (^ e (- r))))"]
 
+    def test_primes_on_the_left_are_part_of_the_names(self):
+        # decision 7 of design/notation.md: f' is a function of its own, t' a parameter
+        assert program("f'(x) := 1") == ["(def f' (x) 1)"]
+        assert program("r(t') := 2 t'") == ["(def r (t') (* 2 t'))"]
+
+    def test_a_name_with_scripts_and_arguments_is_defined(self):
+        # without a command too: the compiler reads R_{nl}(r) as a function's name
+        assert program("R_{nl}(r) := r") == ["(:= (* (R _[n l]) r) r)"]
+
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
@@ -1607,7 +1616,6 @@ class TestMoreErrors:
     @pytest.mark.parametrize(
         ("text", "message"),
         [
-            ("f'(x) := 1", "cannot define this"),
             ("f : (x) x", "expected '->' after the parameters, found name 'x'"),
             ("f : (x) -> { x", "unclosed '{'"),
             ("f : (x) -> {\n", "unclosed '{'"),

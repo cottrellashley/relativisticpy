@@ -298,14 +298,15 @@ def _names_inside(name: str, node: ast.Expr) -> bool:
     )
 
 
-def _unprimed(node: ast.Expr) -> ast.Expr:
+def _unprimed(node: ast.Expr, *, every: bool = False) -> ast.Expr:
     """A primed name with subscripts, as ``R'_{\\mu\\nu}``, read as the name ``R'`` with
     them: a tensor or symbol of its own. A power of a primed name, ``A'^2``, is left as
-    it is, to be the power of what ``A'`` means."""
+    it is, to be the power of what ``A'`` means; with ``every``, as on the left of := or of
+    a tensor k', a superscript too is the primed name's, as in ``k'^\\mu``."""
     if (
         isinstance(node, ast.Scripted)
         and isinstance(node.base, ast.Prime)
-        and any(script.kind == "_" for script in node.scripts)
+        and (every or any(script.kind == "_" for script in node.scripts))
     ):
         prime = node.base
         name = ast.Name(prime.func.id + "'" * prime.order, verbatim=True, span=prime.span)

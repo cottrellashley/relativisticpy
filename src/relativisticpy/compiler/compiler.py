@@ -237,7 +237,11 @@ class Compiler(PythonObjects):
             applied is not None
             and self._names_nothing(applied[0], scope)
             and self._read_as_product(lhs, scope, ctx)
-        ):  # U_{\text{eff}}(r) = ...: a function, which a name with scripts cannot be yet
+        ):  # U_{\text{eff}}(r) = ...: a function, named with scripts
+            if self._define_family(lhs, rhs, scope, ctx):
+                return []
+            if self._define_scripted_function(lhs, rhs, scope, ctx):
+                return []
             raise self._cannot_define(lhs, rhs, equals=True)
         reading, note, why = self._reading(equation, scope, ctx)
         if reading == "function":

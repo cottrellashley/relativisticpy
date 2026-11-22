@@ -185,8 +185,7 @@ def test_primes(wb):
         wb.expr("f'(x, y)")
     with pytest.raises(CompileError, match="y is not a function"):
         wb.expr("y := 2\ny'(x)")
-    with pytest.raises(CompileError, match="needs an argument"):
-        wb.expr("f(x) := x^3\nf''")  # a defined function: at what point?
+    assert wb.expr("f(x) := x^3\nf''") == 6 * Symbol("x")  # at its parameter
     assert wb.expr("g''") == Symbol("g''")  # undefined, a name of its own, as t' is
 
 

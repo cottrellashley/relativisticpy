@@ -94,6 +94,7 @@ _INTEGRALS = {"int": 1, "oint": 1, "iint": 2, "iiint": 3}
 # Commands that end the argument of a function written without parentheses.
 _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
     "partial", "nabla", "int", "iint", "iiint", "oint", "sum", "prod", "lim",
+    "frac", "dfrac", "tfrac",  # \sin\theta \frac{a}{b} is sin θ times a/b (decision 11)
 }  # fmt: skip
 _CASE_WORDS = frozenset({"if", "for", "when", "where"})
 _OTHERWISE = frozenset({"otherwise", "else"})
@@ -588,17 +589,20 @@ class Parser:
             if equiv:  # A \equiv B, where A cannot be defined, states an identity
                 identity_node = _identity(targets[0], value, span, define.span.text)
                 return ast.Evaluate(identity_node, span=span)
-            if "\\" in targets[0].span.text:  # := defines; the compiler says why it cannot
+            if "\\" in targets[0].span.text or _scripted_call(targets[0]):
+                # := defines, as R_{nl}(r) := ...; the compiler says how, or why it cannot
                 return ast.Define(tuple(targets), value, span=span)
         if len(targets) == 1 and isinstance(call := targets[0], ast.Call):
-            if not isinstance(call.func, ast.Name):
+            called = _parameter(call.func)  # H'(x) := ...: a prime is part of the name
+            if called is None:
                 raise ParseError("cannot define this", span=call.func.span)
             params = []
             for arg in call.args:
-                if not isinstance(arg, ast.Name):
+                parameter = _parameter(arg)  # r(t') := ...: so is a parameter's
+                if parameter is None:
                     raise ParseError("function parameters must be names", span=arg.span)
-                params.append(arg.id)
-            return ast.FunctionDefinition(call.func.id, tuple(params), value, span=span)
+                params.append(parameter)
+            return ast.FunctionDefinition(called, tuple(params), value, span=span)
         for target in targets:
             if not (isinstance(target, ast.Name | ast.Scripted) or _decorated(target)):
                 raise ParseError(
@@ -2419,8 +2423,8 @@ class Parser:
     def _function_arguments(self) -> tuple[ast.Expr, ...]:
         """Arguments in parentheses or square brackets (``\\exp[-x^2]``), or (as typeset
         maths reads it) the factors that follow, up to explicit spacing, an operator,
-        another function or a differential: ``\\sin\\omega t`` is sin(ωt) but
-        ``\\sin\\theta\\, d\\phi`` is not."""
+        another function, a fraction or a differential: ``\\sin\\omega t`` is sin(ωt)
+        but ``\\sin\\theta\\, d\\phi`` and ``\\sin\\theta \\frac{a}{b}`` are not."""
         token = self.peek()
         if token.kind in (K.LPAREN, K.LBRACKET):
             opener = self.advance()
@@ -3513,12 +3517,38 @@ def _fraction(tokens: list[Token], overs: list[tuple[int, Token]]) -> list[Token
 
 def _definable(target: ast.Expr) -> bool:
     """Whether ``target :=`` can define it: a name, maybe decorated, a tensor, or a
-    function of names."""
+    function of names, maybe primed (decision 7 of design/notation.md)."""
     if isinstance(target, ast.Call):
-        return isinstance(target.func, ast.Name) and all(
-            isinstance(arg, ast.Name) for arg in target.args
+        return _parameter(target.func) is not None and all(
+            _parameter(arg) is not None for arg in target.args
         )
     return isinstance(target, ast.Name | ast.Scripted) or _decorated(target)
+
+
+def _parameter(node: ast.Expr) -> str | None:
+    """The name a function or a parameter is defined with: ``x``, or ``t'``, as a prime on
+    the left of := is part of the name; ``None`` for anything else."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Prime):
+        return node.func.id + "'" * node.order
+    return None
+
+
+def _scripted_call(target: ast.Expr) -> bool:
+    """``R_{nl}(r)``: a name with scripts and, right after it, names in brackets, which
+    the parser reads as a product and the compiler as a function's name and parameters."""
+    if not (isinstance(target, ast.Binary) and target.op == "*"):
+        return False
+    func, group = target.left, target.right
+    items = group.items if isinstance(group, ast.Tuple) else (group,)
+    return (
+        isinstance(func, ast.Scripted)
+        and isinstance(func.base, ast.Name)
+        and group.span.text.startswith("(")
+        and group.span.start == func.span.end
+        and all(isinstance(item, ast.Name) for item in items)
+    )
 
 
 def _operator_applied(target: ast.Expr) -> tuple[str, str] | None:

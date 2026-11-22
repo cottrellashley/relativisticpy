@@ -94,6 +94,10 @@ class Expressions(LinearAlgebra):
         result = self.term(node, scope, ctx)
         if isinstance(result, FunctionReference) and scope.lookup(result.name) is None:
             return self._named_alone(result)
+        if isinstance(result, FunctionReference) and (
+            alone := self._at_parameters(result, scope, ctx)
+        ):
+            return alone  # f + 1, of f(x) := ...: f at its parameters
         if isinstance(result, Operator):
             raise self._nothing_to_act_on(result, scope)
         return result
@@ -350,6 +354,13 @@ class Expressions(LinearAlgebra):
         selected: list[list[Node]] = []
         for term, selections in zip(reversed(terms), reversed(chosen), strict=True):
             if isinstance(term, Operator):
+                alone = None
+                if not stack and isinstance(term, FunctionReference):
+                    alone = self._at_parameters(term, scope, ctx)  # 2 f, of f(x) := ...
+                if alone is not None:
+                    stack.append(alone)
+                    selected.append([])
+                    continue
                 if not stack:
                     raise self._nothing_to_act_on(term, scope)
                 if isinstance(term, LeibnizDerivative):
@@ -461,8 +472,8 @@ class Expressions(LinearAlgebra):
         func = node.func
         if isinstance(func, ast.Prime):
             return self._prime(func, node.args, node.span, scope, ctx)
-        if (member := self._member_call(node, scope, ctx)) is not None:  # \psi_3(x)
-            return member
+        if (called := self._call_of_a_name(node, scope, ctx)) is not None:  # \psi_3(x)
+            return called
         if not isinstance(func, ast.Name):  # J_{\nu}(x), made one call by the reader
             book = self._book_call(node, scope)
             assert book is not None
@@ -686,8 +697,12 @@ class Expressions(LinearAlgebra):
     def _prime(
         self, prime: ast.Prime, args: tuple[ast.Expr, ...], span: Span, scope: Scope, ctx: Context
     ) -> Node:
-        """``f'(x)``: differentiate ``f`` with respect to its argument, then apply it."""
+        """``f'(x)``: differentiate ``f`` with respect to its argument, then apply it; but a
+        function the program defines under the primed name, as ``H'(x) := ...``, is that."""
         name = prime.func.id
+        primed = scope.lookup(name + "'" * prime.order)
+        if isinstance(primed, FunctionBinding):  # H'(x) := ..., a function of its own
+            return self._inline(primed, [self.value(a, scope, ctx) for a in args], span, ctx)
         if len(args) != 1:
             raise CompileError(f"{name}{chr(39) * prime.order}(x) takes one argument", span=span)
         point = self.value(args[0], scope, ctx)
@@ -1061,7 +1076,11 @@ class Expressions(LinearAlgebra):
         primed = name + "'" * node.order
         if isinstance(binding := scope.lookup(primed), VariableBinding):
             return binding.node
+        if isinstance(binding, FunctionBinding):  # \rho' of \rho'(x, t) := ...
+            return self._function_alone(primed, node, binding, scope, ctx)
         binding = scope.lookup(name)
+        if isinstance(binding, FunctionBinding) and len(binding.definition.params) == 1:
+            return self._derivative_alone(node, binding, scope, ctx)  # y'' of y(x) := ...
         arguments = self.session.functions.get(name, ())
         if binding is None and len(arguments) == 1:
             at = ast.Name(str(arguments[0]), verbatim=True, span=node.span)
@@ -1079,8 +1098,11 @@ class Expressions(LinearAlgebra):
             return labelled
         if (conjugate := self._starred_conjugate(node, scope, ctx)) is not None:  # f(x)^*, z^*
             return conjugate
-        if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
-            node = named  # R'_{\mu\nu}: the tensor R'
+        every = isinstance(node.base, ast.Prime) and self._a_primed_tensor(node.base, scope)
+        if isinstance(node.base, ast.Prime) and isinstance(
+            named := _unprimed(node, every=every), ast.Scripted
+        ):
+            node = named  # R'_{\mu\nu}, or k'^\mu of k'^\mu := ...: the tensor R'
         decorated = _named(node)
         if isinstance(decorated, ast.Name):  # f^{(4)} of a function f: no name of its own
             self._check_order(node, scope)
