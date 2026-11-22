@@ -94,9 +94,10 @@ class Unary(Expr):
 
 @dataclass(frozen=True)
 class Binary(Expr):
-    """A binary operation. ``implicit`` marks multiplication by juxtaposition (``2x``)."""
+    """A binary operation. ``implicit`` marks multiplication by juxtaposition (``2x``), and
+    ``mod`` a remainder or the modulus of a congruence (``a \\bmod m``, ``b \\pmod{m}``)."""
 
-    op: Literal["+", "-", "*", "/", "**", "and", "or", "∧", "±", "∓", "∘", "⊙", "⊕"]
+    op: Literal["+", "-", "*", "/", "**", "and", "or", "∧", "±", "∓", "∘", "⊙", "⊕", "mod"]
     left: Expr
     right: Expr
     implicit: bool = False

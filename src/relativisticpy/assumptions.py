@@ -365,7 +365,7 @@ def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:
     under conditions on its parameters (design/notation.md, decisions 1 and 4). A sum in
     an exponential of the index, as of e^{-a n}, is summed as a geometric series."""
     ((index, lower, upper),) = limits
-    whole = Symbol(index.name, integer=True, **dict(getattr(index, "_assumptions_orig", {})))
+    whole = Symbol(index.name, **{**dict(getattr(index, "_assumptions_orig", {})), "integer": True})
     body = sympy.sympify(body).xreplace({index: whole})
     return _computed(_sum, body, [(whole, lower, upper)], bounds)
 

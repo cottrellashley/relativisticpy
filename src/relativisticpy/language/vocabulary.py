@@ -400,13 +400,15 @@ COMBINING_ACCENTS: Mapping[str, str] = MappingProxyType(
 # --------------------------------------------------------------------------
 
 #: Commands the parser reads itself: fractions, roots, big operators, derivatives,
-#: binomials, floors and ceilings, and TeX's generalised fractions.
+#: binomials, floors and ceilings, and TeX's generalised fractions, the brackets of the
+#: Stirling numbers among them.
 PARSER_COMMANDS: frozenset[str] = frozenset(
     {
         "frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "int", "oint", "iint",
         "iiint", "lim", "partial", "nabla", "Box", "square", "pounds", "pdv", "dv",
         "binom", "dbinom", "tbinom", "lfloor", "rfloor", "lceil", "rceil", "over", "choose",
         "sup", "inf", "underset",
+        "brace", "brack", "bmod", "mod", "pmod",
     }
 )  # fmt: skip
 
@@ -437,7 +439,6 @@ COMMANDS: frozenset[str] = frozenset().union(
 )
 
 _MACRO = "write what it stands for; relativisticpy check reads the macros of a document"
-_REMAINDER = r"write x - n \lfloor x/n \rfloor"
 _DIRAC = "write a state as a list of its components"
 
 #: Commands of LaTeX and its packages, such as physics, that RelativisticPy does not
@@ -450,9 +451,6 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
         "providecommand": (r"\providecommand defines a macro, which a program cannot", _MACRO),
         "def": (r"\def defines a macro, which a program cannot", _MACRO),
         "let": (r"\let defines a macro, which a program cannot", _MACRO),
-        "mod": (r"the remainder, \mod, is not supported yet", _REMAINDER),
-        "bmod": (r"the remainder, \bmod, is not supported yet", _REMAINDER),
-        "pmod": (r"the remainder, \pmod, is not supported yet", _REMAINDER),
         "bra": (r"Dirac's notation, \bra, is not supported", _DIRAC),
         "ket": (r"Dirac's notation, \ket, is not supported", _DIRAC),
         "braket": (r"Dirac's notation, \braket, is not supported", _DIRAC),

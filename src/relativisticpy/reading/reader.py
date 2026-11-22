@@ -40,6 +40,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.reading import arithmetic
 from relativisticpy.reading.assumptions import numbers
 from relativisticpy.reading.names import (
     _BUILT_IN_SCALARS,
@@ -1133,37 +1134,6 @@ class Reader(Typer):
                 "\\right)",
             )
 
-    def _check_coefficient(self, factors: Sequence[ast.Expr]) -> None:
-        """Refuse ``[x^{10}] f``, the coefficient of x^{10} in f, as combinatorics writes
-        it: read as brackets that group, it is x^{10} times f."""
-        first = factors[0] if len(factors) > 1 else None
-        if not (isinstance(first, ast.List) and len(first.items) == 1):
-            return
-        power = first.items[0]
-        if not (
-            isinstance(power, ast.Scripted)
-            and isinstance(power.base, ast.Name)
-            and len(power.scripts) == 1
-            and power.scripts[0].kind == "^"
-            and isinstance(power.scripts[0].body, ast.Number)
-            and power.scripts[0].body.text.isdigit()
-        ):
-            return
-        variable, order = power.base.span.text, int(power.scripts[0].body.text)
-        self._decide(
-            "product or call",
-            first.span,
-            f"the factor {power.span.text}",
-            "brackets around one item group it",
-        )
-        raise CompileError(
-            f"{first.span.text} is read as the factor {power.span.text}, not as the coefficient "
-            f"of {power.span.text} in what follows",
-            span=first.span,
-            notes=["extracting a coefficient, as [x^n] f, is not supported yet"],
-            hint=f"read it from the series, series(f, {variable}, 0, {order + 1})",
-        )
-
     def _check_free_indices(self, target: ast.Name, value: Node, span: Span) -> None:
         """Refuse ``L_i = I_{ij} \\omega_i``: a name written with index labels, defined as a
         tensor whose free indices are others, which it would carry under the name L_i,
@@ -1992,9 +1962,11 @@ class Reader(Typer):
         the statement, written both up and down or ranging over a space, is an index, and
         ``\\Gamma`` with indices stays the Christoffel symbol, as no form of a function has
         them. A name of one letter called with the coordinates, as N(t) in a metric, is a
-        function of them. A name no integration provides yet, but reserved, is refused,
-        saying what it is. ``None`` for anything else, and the reading is recorded, with a
-        note where the name is one letter that a program could mean otherwise."""
+        function of them, and a letter of a function of integers, as ``\\varphi``, is that
+        function only where its arguments are integers (decisions 32 to 35). A name no
+        integration provides yet, but reserved, is refused, saying what it is. ``None`` for
+        anything else, and the reading is recorded, with a note where the name is one letter
+        that a program could mean otherwise."""
         match = forms.matching(shape)
         if match is None or self._own_book_name(shape, node, scope):
             return None
@@ -2014,6 +1986,11 @@ class Reader(Typer):
             and not _writes_a_matrix(shape.arguments, scope)
         ):  # \rho(A), but \rho(1 + 3w) is a density's
             return None
+        integral = None  # \varphi(36), but not \varphi(x) of a real x (decisions 32 to 35)
+        if letter and isinstance(owner, Capability) and owner.integers:
+            integral = arithmetic.of_integers(self, owner, match, node, written, scope)
+            if integral is None:
+                return None
         if alone and self._called_with_coordinates(shape):
             said = (
                 f"{node.span.text} is read as a function of the coordinates; elsewhere, "
@@ -2035,13 +2012,13 @@ class Reader(Typer):
         if bound is None:
             return None
         arguments, keywords = bound
-        note: str | None = None
-        if not shape.head:  # (a)_n
+        note: str | None = integral
+        if note is None and not shape.head:  # (a)_n
             note = (
                 f"{node.span.text} is read as {owner.brief}, {owner.name}; for a symbol with "
                 "a subscript, write it without brackets"
             )
-        elif alone:  # \Gamma(x), \Phi(x)
+        elif note is None and alone:  # \Gamma(x), \Phi(x)
             note = (
                 f"{written} is read as {owner.brief}, {owner.name}; for a function of your "
                 f"own, define {written} first"
@@ -2225,10 +2202,16 @@ class Reader(Typer):
 def _in_books(func: ast.Name, args: tuple[ast.Expr, ...]) -> bool:
     """Whether a call is written as books write a function, as \\Gamma(5) is, which the
     name's use as a factor before does not make a product: \\Gamma^{t}_{tr} before it is
-    the Christoffel symbol, and \\Gamma(5) Euler's gamma function."""
+    the Christoffel symbol, and \\Gamma(5) Euler's gamma function. A letter of a function
+    of integers is so only of whole numbers, as \\varphi(36) is, so that \\omega(\\phi^* V)
+    after \\omega as a factor stays a product."""
     shape = forms.call_shape(ast.Call(func, args, span=func.span))
     match = forms.matching(shape) if shape is not None else None
-    return match is not None and not isinstance(match.pattern.owner, MapFunction)
+    if match is None or isinstance(match.pattern.owner, MapFunction):
+        return False
+    if getattr(match.pattern.owner, "integers", ()):
+        return all(isinstance(arg, ast.Number) and arg.text.isdigit() for arg in args)
+    return True
 
 
 def _argument_run(factors: Sequence[ast.Expr]) -> int:

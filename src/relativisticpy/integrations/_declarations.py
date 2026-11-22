@@ -86,6 +86,9 @@ class Capability:
     lifts: bool = False
     #: Whether it reads text in quotes as names, as ``symbols('x y')`` does, never as Python.
     takes_names: bool = False
+    #: The parameters a form written with a letter reads as it only where they are
+    #: integers, as φ(n) is Euler's totient only where n is one (design/notation.md, 32).
+    integers: tuple[str, ...] = ()
 
     @property
     def module(self) -> str:
@@ -194,10 +197,13 @@ def function(
     points: Sequence[Sequence[Any]] = (),
     lifts: bool = True,
     scalar: bool = True,
+    integers: Sequence[str] = (),
 ) -> Callable[[type], Function]:
     """Declare a function: scalar in, scalar out. It ``lifts`` to tensors and data, applied
     to each component, unless it takes its arguments whole, as ``min`` and ``max`` do, and
-    gives a ``scalar``, unless it gives another value, as ``latex`` gives text."""
+    gives a ``scalar``, unless it gives another value, as ``latex`` gives text. A form
+    written with a letter, as ``\\varphi(n)``, reads as it only where the parameters it
+    names as ``integers`` are integers, and prints so only there."""
     return _declare(
         Function,
         name,
@@ -210,6 +216,7 @@ def function(
         points=points,
         lifts=lifts,
         scalar=scalar,
+        integers=integers,
     )
 
 
@@ -284,7 +291,7 @@ def constructor(
 
 def _declare(kind: type[_Kind], name: str, **declared: Any) -> Callable[[type], _Kind]:
     """The decorator that makes a class the implementation of a capability of ``kind``."""
-    for written in ("aliases", "latex", "unicode"):
+    for written in ("aliases", "latex", "unicode", "integers"):
         if written in declared:
             value = declared[written]
             declared[written] = (value,) if isinstance(value, str) else tuple(value)

@@ -40,8 +40,9 @@ from relativisticpy.language.vocabulary import FUNCTION_COMMANDS, GREEK
 Style = Literal["upright", "calligraphic", "letter", "plain"]
 
 #: What a shape is: a call, in brackets; an operator, applied to what follows it, as
-#: ``\operatorname{tr} A``; or a name with indices, as ``\epsilon_{ijk}``.
-Kind = Literal["call", "operator", "indexed"]
+#: ``\operatorname{tr} A``; a name with indices, as ``\epsilon_{ijk}``; or a name with
+#: one subscript and no arguments, as the Bernoulli number ``B_n``.
+Kind = Literal["call", "operator", "indexed", "subscripted"]
 
 _UPRIGHT = ("\\operatorname", "\\mathrm", "\\text", "\\rm", "{\\rm", "\\mathup")
 _CALLIGRAPHIC = ("\\mathcal", "\\mathscr")
@@ -153,10 +154,24 @@ def scripted_shape(node: ast.Scripted) -> Shape | None:
         for script in node.scripts
         for item in (script.indices.items if script.indices is not None else ())
     ]
-    if len(labels) < 2 or any(item.label is None for item in labels):
+    name, written = node.base.id, node.base.span.text
+    if len(labels) >= 2 and all(item.label is not None for item in labels):
+        return Shape("indexed", name, _style(node.base), written)
+    (script, *others) = node.scripts
+    if others or script.kind != "_" or script.body is None or "_" in name:
         return None
-    name = node.base.id
-    return Shape("indexed", name, _style(node.base), node.base.span.text)
+    return Shape("subscripted", name, _style(node.base), written, below=(script.body,))
+
+
+def subscripted_shape(node: ast.Name) -> Shape | None:
+    """``B_n``: a name the lexer joined with its subscript, with no arguments."""
+    parts = _parts(node)
+    if parts is None:
+        return None
+    name, before, below = parts
+    if before or not below:
+        return None
+    return Shape("subscripted", name, _style(node), name, below=tuple(below))
 
 
 def operator_shape(head: ast.Expr, operand: ast.Expr) -> Shape | None:
@@ -177,6 +192,8 @@ def form_shape(expr: ast.Expr) -> Shape | None:
         return pair_shape(expr.left, expr.right) or operator_shape(expr.left, expr.right)
     if isinstance(expr, ast.Scripted):
         return scripted_shape(expr)
+    if isinstance(expr, ast.Name):
+        return subscripted_shape(expr)
     return None
 
 
@@ -433,9 +450,10 @@ def _set_alike(form: Shape, shape: Shape) -> bool:
 
 
 def _printers() -> dict[type, tuple[Capability, _Places]]:
-    """The capabilities with written forms whose calls are printed in them, by the SymPy
-    function that makes the calls; not one whose function another capability makes too,
-    as the principal logarithm makes log, which ln and log make."""
+    """The capabilities with written forms whose calls are printed in them, or by their
+    names, as those of integers are, by the SymPy function that makes the calls; not one
+    whose function another capability makes too, as the principal logarithm makes log,
+    which ln and log make."""
     found = _patterns()
     if found.printing is None:
         makers: dict[type, list[tuple[Capability, _Places]]] = {}
@@ -447,7 +465,8 @@ def _printers() -> dict[type, tuple[Capability, _Places]]:
         found.printing = {
             kind: owners[0]
             for kind, owners in makers.items()
-            if len(owners) == 1 and (owners[0][0].latex or owners[0][0].unicode)
+            if len(owners) == 1
+            and (owners[0][0].latex or owners[0][0].unicode or owners[0][0].integers)
         }
     return found.printing
 
@@ -484,8 +503,10 @@ def printed(
 ) -> tuple[str, bool] | None:
     """A call of a capability, as the first of its forms in ``form`` that its arguments
     fill writes it, each shown by ``show``; with whether it is written with scripts, so
-    that a power puts it in brackets. ``None`` for anything else, or a capability with no
-    form there."""
+    that a power puts it in brackets. A function of integers whose forms its arguments do
+    not fill, as ``\\varphi(x)`` of a real x, is written by its name, which reads back as
+    it, where SymPy would print the letter. ``None`` for anything else, or a capability
+    with no form there."""
     if not isinstance(expr, sympy.Function):
         return None
     found = _printers().get(type(expr))
@@ -494,12 +515,42 @@ def printed(
     capability, parameters = found
     values = _values(capability, parameters, expr)
     for pattern in forms_of(capability):
-        if pattern.form != form:
+        if pattern.form != form or not _of_integers(pattern, values):
             continue
         shown = _render(pattern, values, show, latex=form == "latex")
         if shown is not None:
             return shown, bool(pattern.shape.scripts) or not pattern.shape.head
+    if capability.integers and form == "latex":  # \operatorname{totient}(x)
+        arguments = ", ".join(show(value) for value in expr.args)
+        return f"\\operatorname{{{capability.name}}}\\left({arguments}\\right)", False
     return None
+
+
+def _lettered(shape: Shape) -> bool:
+    """Whether a form is written with a letter, as ``\\Gamma(x)``, ``\\varphi(n)`` and
+    ``B_n`` are, which a program as often means otherwise."""
+    return len(shape.head) == 1 or shape.head in GREEK
+
+
+def _of_integers(pattern: Pattern, values: Mapping[str, Any]) -> bool:
+    """Whether a form may print a call: a form written with a letter only where the
+    arguments its capability reads as integers are, so that it reads back as the call;
+    the letter of a constant, as the π of π(x), and a subscript, as the n of ``B_n``, only
+    where each is a symbol, or an expression of symbols, assumed an integer."""
+    from relativisticpy.compiler.builtins import CONSTANTS
+
+    integers = getattr(pattern.owner, "integers", ())
+    if not integers or not _lettered(pattern.shape):
+        return True
+    constant = pattern.shape.head in CONSTANTS
+    subscripted = pattern.shape.kind == "subscripted"
+    for name in integers:
+        value = sympy.sympify(values.get(name, 0))
+        if value.is_integer is not True:
+            return False
+        if (constant and not value.is_Symbol) or (subscripted and value.is_number):
+            return False
+    return True
 
 
 def _values(capability: Capability, places: _Places, expr: Any) -> dict[str, Any]:
@@ -553,4 +604,6 @@ def _render(
     opened, closed = ("\\left(", "\\right)") if latex else ("(", ")")
     if not shape.head:  # (a)_n
         return f"{opened}{arguments}{closed}{scripts}"
+    if shape.kind == "subscripted":  # B_n
+        return f"{before}{shape.written}{scripts}"
     return f"{before}{shape.written}{scripts}{opened}{arguments}{closed}"

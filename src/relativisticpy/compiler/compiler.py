@@ -28,7 +28,7 @@ from relativisticpy.compiler.session import Saved
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
-from relativisticpy.lowering.objects import PythonObjects
+from relativisticpy.lowering.arithmetic import Arithmetic
 from relativisticpy.reading import assumptions
 
 # The tables of the language, which its reference reads from here.
@@ -59,7 +59,7 @@ _READ_AS = {
 }
 
 
-class Compiler(PythonObjects):
+class Compiler(Arithmetic):
     """Compiles programs against a :class:`Session`, which it updates as it goes."""
 
     # ======================================================================
@@ -187,6 +187,8 @@ class Compiler(PythonObjects):
         if isinstance(expr, ast.Relation) and self._declares(expr):
             return []
         if assumptions.assume(self, expr, scope, ctx):  # a > 0, x \in \mathbb{R}
+            return []
+        if self._assumed_congruence(expr, scope):  # x \equiv 2 \pmod{3}
             return []
         if isinstance(expr, ast.Chain):  # a = b = c: each link is a claim of its own
             return [

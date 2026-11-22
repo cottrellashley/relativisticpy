@@ -250,6 +250,12 @@ def _written(capability: Capability) -> list[str]:
             "letters or words, as def exact(self, nu, x)"
         )
     parameters = {*capability.parameters, *capability.keywords}
+    unknown = [each for each in capability.integers if each not in parameters]
+    if unknown:
+        failures.append(
+            f"{name}: it reads {', '.join(unknown)} as integers, which exact takes no parameter "
+            "of; name the parameters of exact that are integers, as integers=['n']"
+        )
     low, _ = capability.arity
     with usable(capability):
         for form, written in (("latex", capability.latex), ("unicode", capability.unicode)):

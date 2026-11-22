@@ -227,6 +227,23 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   and `H'(x) :=` do, `f^{(4)}(0)` is a derivative, and a function named without
   its argument is the function at its parameters. Each reading is recorded for
   `Workbook.explain`, with a note where another was possible.
+- Number theory and combinatorics, in two integrations: Euler's totient `\varphi(n)`, the
+  Möbius function `\mu(n)`, the prime-counting function `\pi(x)`, the divisor functions
+  `\sigma_k(n)` and `d(n)`, `\omega(n)`, `\Omega(n)`, von Mangoldt's `\Lambda(n)`, the
+  remainder `a \bmod m`, the Stirling numbers `{n \brace k}` and `{n \brack k}`, the
+  Catalan, Fibonacci, Bell, Bernoulli and harmonic numbers, the partitions `p(n)` and the
+  multinomial coefficient, each exact with SymPy. A letter is the function only where its
+  argument is an integer, so that `\varphi(x)` and `\mu(t)` stay a program's own; `\pi(x)`
+  stays π times x, and counts primes only of a name assumed an integer; and `H_n` and `B_n`
+  are numbers only of such a name, so that `H_0` stays Hubble's constant
+  (`design/notation.md`, 32 to 35).
+  Sums and products over a condition: `\sum_{d \mid n}`, `\prod_{p \le x}` and
+  `\prod_{p \text{ prime}}`, with p ranging over the primes, Euler's products for ζ, and
+  the rows of `\substack` (19 and 36). Congruences, `a \equiv b \pmod{m}`, claims decided by
+  the remainders, or assumptions of a name, which the Chinese remainder theorem may leave
+  one value; `a^{-1} \bmod m`, the inverse; `solve` of congruences; and `[x^n] F(x)`, the
+  coefficient of a generating function (30 and 37). The greatest common divisor of a
+  whole number and the index of a sum waits for the index's values.
 
 ### Changed
 

@@ -303,7 +303,6 @@ class Expressions(LinearAlgebra):
             factors.insert(0, left.right)
             left = left.left
         factors.insert(0, left)
-        self._check_coefficient(factors)  # [x^{10}] f
         if ctx.latex:
             factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]

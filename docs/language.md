@@ -488,6 +488,76 @@ an unknown function such as \(A(r)\) in a metric.
 
 ```
 
+## Number theory and combinatorics
+
+The arithmetic functions are written by the letters number theory gives them: Euler's
+totient `\varphi(n)`, the Möbius function `\mu(n)`, the divisor functions `\sigma_k(n)` and
+`d(n)`, `\omega(n)` and `\Omega(n)`, von Mangoldt's `\Lambda(n)` and the partitions `p(n)`.
+Physics writes the same letters for an angle, a mean, a frequency or a momentum, so a letter
+is the arithmetic function only where its argument is an integer: a whole number above 0, a
+name the program assumes an integer, as `n \in \mathbb{N}` does, or the index of a sum.
+Anywhere else it is what it was, and a note says which reading was taken. π is a constant,
+so `\pi(10)` is 10π; `\pi(n)` counts primes only of a name assumed an integer. `H_n` and
+`B_n` are the harmonic and the Bernoulli numbers only where n is such a name, so that `H_0`
+stays Hubble's constant; `H_n(x)` is Hermite's polynomial. The Stirling numbers are written
+in Karamata's brackets, `{n \brace k}` and `{n \brack k}`, and the Catalan, Fibonacci and Bell
+numbers by their names (see the [reference](reference.md#functions)):
+
+```python
+>>> nt = Workbook()
+>>> nt.exe(r"""
+...     \varphi(36) + \mu(30) + d(28)
+...     \varphi(x)
+...     \pi(10)
+...     n \in \mathbb{N}
+...     H_{n+1} - H_n
+...     \sum_{k=0}^{5} {5 \brace k}
+... """)
+[17, phi(x), 10*pi, 1/(n + 1), 52]
+
+```
+
+A condition under a sum or a product gives its index its values: `d \mid n` the divisors of
+n, `p \le x` the primes up to x, as number theorists let p range over the primes, and
+`p \text{ prime}` every prime, whose product of Euler's factors is a value of ζ. The rows of
+`\substack` are conditions that each value meets:
+
+```python
+>>> nt.exe(r"""
+...     \sum_{d \mid 28} d
+...     36 \prod_{p \mid 36} \left(1 - \frac{1}{p}\right)
+...     \sum_{\substack{1 \le k \le 10 \\ \gcd(k, 10) = 1}} k
+...     \prod_{p \text{ prime}} \frac{1}{1 - p^{-2}}
+... """)
+[56, 12, 20, pi**2/6]
+
+```
+
+`a \bmod m` is the remainder, and `a^{-1} \bmod m` the inverse of a modulo m. `\equiv` with
+a modulus on its right is a congruence, a claim decided by the remainders; standing alone,
+of a name nothing defines, it is an assumption, as `x > 0` is, and congruences and bounds
+that leave the name one value give it that value, by the Chinese remainder theorem.
+`\equiv` without a modulus still defines. `solve` gives the remainders that the solutions
+of congruences leave, and `[x^n] F(x)` is the coefficient of x^n in the power series of F:
+
+```python
+>>> crt = Workbook()
+>>> crt.exe(r"""
+...     12! \bmod 13
+...     17^{-1} \bmod 43
+...     3^{100} \equiv 1 \pmod{101}
+...     x \equiv 2 \pmod{3}
+...     x \equiv 3 \pmod{5}
+...     x \equiv 2 \pmod{7}
+...     0 \leq x < 105
+...     x
+...     solve(y^2 \equiv 1 \pmod{8}, y)
+...     [z^{10}] \frac{1 - \sqrt{1 - 4z}}{2z}
+... """)
+[12, 38, True, 23, [1, 3, 5, 7], 16796]
+
+```
+
 ## Matrices
 
 Matrices are written as LaTeX environments, or as lists of rows, and `vmatrix` is a

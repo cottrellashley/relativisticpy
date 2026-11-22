@@ -5,10 +5,11 @@ in :class:`Power`, from loosest to tightest::
 
     expr |_{x=a}         substitution
     a = b                equation
+    b \pmod{m}           the modulus of a congruence, of all of b
     a or b, a and b      logic
     a < b <= c           comparison (chainable)
     a + b, a - b         sum
-    a * b, a / b, a b    product (juxtaposition is multiplication)
+    a * b, a / b, a b    product (juxtaposition is multiplication), a \bmod m
     -a, +a               sign
     a ** b               power (right-associative)
     a^b a_b f(x) f' n!   scripts, calls, primes, factorial
@@ -47,6 +48,7 @@ class Power(IntEnum):
     NONE = 0
     SUBSTITUTION = 10
     EQUATION = 20
+    MODULUS = 25
     OR = 30
     AND = 40
     NOT = 45
@@ -98,6 +100,8 @@ _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
 }  # fmt: skip
 _CASE_WORDS = frozenset({"if", "for", "when", "where"})
 _OTHERWISE = frozenset({"otherwise", "else"})
+# The remainder, a \bmod m, and the modulus of a congruence, a \equiv b \pmod{m} or \mod m.
+_MODULI = frozenset({"bmod", "mod", "pmod"})
 # The extremes taken over a variable, \max_v, the operator names of where they are,
 # \operatorname*{arg\,max}_k, the bounds, \sup_x and \inf_x, and the names of all of them
 # in plain text, as min_{x}.
@@ -579,7 +583,10 @@ class Parser:
 
     def _definition(self, targets: list[ast.Expr], value: ast.Expr, define: Token) -> ast.Statement:
         span = targets[0].span.to(value.span)
-        equiv = define.span.text in ("\\equiv", "≡")
+        equiv = _equivalence(define)
+        if equiv and len(targets) == 1 and _modular(value):  # x \equiv 2 \pmod{3}: a congruence
+            congruence = ast.Relation(targets[0], "≡", value, define.span.text, span=span)
+            return ast.Evaluate(congruence, span=span)
         if len(targets) == 1 and (applied := _operator_applied(targets[0])) is not None:
             # \operatorname{sinc} x := ..., the argument written after the name as books
             # write it, defines sinc as sinc(x) := ... does
@@ -742,6 +749,10 @@ class Parser:
 
     def _infix_power(self, token: Token) -> int:
         kind = token.kind
+        if kind is K.COMMAND and token.value in _MODULI:  # a \bmod m, a \equiv b \pmod{m}
+            return Power.PRODUCT if token.value == "bmod" else Power.MODULUS
+        if kind is K.DEFINE and self._nesting > self._statement_nesting and _equivalence(token):
+            return Power.EQUATION  # solve(x \equiv 2 \pmod{3}, x): in brackets, a relation
         if kind is K.BAR:
             if self._abs_depth:
                 return Power.NONE  # it closes the absolute value
@@ -772,6 +783,8 @@ class Parser:
 
     def _infix(self, left: ast.Expr, token: Token, power: int) -> ast.Expr:
         kind = token.kind
+        if kind is K.COMMAND and token.value in _MODULI:
+            return self._modulus(left)
         if kind is K.BAR and power == Power.SUBSTITUTION:
             return self._substitution(left)
         if self._hadamard(token):
@@ -787,7 +800,7 @@ class Parser:
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
         self._continue_after(self.advance())
-        if kind in _RELATIONS:
+        if kind in _RELATIONS or kind is K.DEFINE:
             return self._relations(left, token)
         if kind in _COMPARISONS:
             operands, ops = [left], [_COMPARISONS[kind]]
@@ -807,6 +820,18 @@ class Parser:
         if op == "/":
             return _quotient(left, right, left.span.to(right.span), leibniz=False)
         return ast.Binary(op, left, right, span=left.span.to(right.span))
+
+    def _modulus(self, left: ast.Expr) -> ast.Binary:
+        r"""``a \bmod m``, the remainder, which binds as a product does; or ``b \pmod{m}`` and
+        ``b \mod m``, the modulus of a congruence, of all of b. Either is ``(mod b m)``."""
+        command = self.advance()
+        if command.value == "bmod":
+            modulus = self.expression(Power.PRODUCT)
+        elif self.check(K.LBRACE):
+            modulus = self._brace_argument(command)
+        else:
+            modulus = self.expression(Power.SIGN)
+        return ast.Binary("mod", left, modulus, span=left.span.to(self._span(command)))
 
     def _hadamard(self, token: Token) -> bool:
         """``A \\odot B`` or ``A ⊙ B``: the elementwise product, where ``\\odot`` stands
@@ -1698,14 +1723,20 @@ class Parser:
             return ast.Operator("lie", span=token.span)
         if name in ("pdv", "dv"):
             return self._physics_derivative()
-        if name in ("binom", "dbinom", "tbinom"):
+        if name in _BINOMIALS:  # \binom{n}{k}, and Karamata's {n \brace k} and {n \brack k}
             self.advance()
             n = self._brace_argument(token)
             k = self._brace_argument(token)
-            func = ast.Name("binomial", span=token.span)
+            func = ast.Name(_BINOMIALS[name], span=token.span)
             return ast.Call(func, (n, k), span=self._span(token))
         if name in ("lfloor", "lceil"):
             return self._floor_or_ceiling()
+        if name in _MODULI:  # with nothing before it to take the remainder of
+            raise ParseError(
+                f"\\{name} needs what it divides before it",
+                span=token.span,
+                hint=r"for example 12! \bmod 13, or a \equiv b \pmod{m}",
+            )
         if name in vocab.FUNCTION_COMMANDS:
             return self._function()
         if name in vocab.ACCENT_COMMANDS:
@@ -1881,6 +1912,9 @@ class Parser:
         command = self.advance()
         op: Literal["sum", "prod"] = "sum" if command.value == "sum" else "prod"
         lower, upper = self._limits(command)
+        if lower is not None and upper is None and (given := self._index_set(lower, command)):
+            body = self.expression(Power.SUM)  # \sum_{d \mid n}, over the values a condition gives
+            return ast.BigOperator(op, given, None, None, body, span=self._span(command))
         if lower is not None and upper is None and not any(t.kind is K.EQUAL for t in lower):
             variable = self._subparse(lower, "index", command)  # \sum_b: over an index
             body = self.expression(Power.SUM)
@@ -1901,6 +1935,31 @@ class Parser:
         body = self.expression(Power.SUM)
         span = self._span(command)
         return ast.BigOperator(op, start.lhs, start.rhs, end, body, span=span)
+
+    def _index_set(self, tokens: list[Token], command: Token) -> ast.Expr | None:
+        r"""The condition under a big operator that gives its index its values, where it is
+        written with a bar or in rows (design/notation.md, 19): ``d \mid n``, the divisors
+        of n, or ``\substack{1 \le k \le n \\ \gcd(k, n) = 1}``, a condition in each row,
+        all of which hold. ``None`` for a script read otherwise, as an index or a limit."""
+        rows = _rows(tokens)
+        bars = [_divides_at(row) for row in rows]
+        if len(rows) < 2 and bars[0] is None:
+            return None
+        conditions: list[ast.Expr] = []
+        for row, bar in zip(rows, bars, strict=True):
+            if bar is None:
+                conditions.append(self._subparse(row, "condition", command))
+                continue
+            left = self._subparse(row[:bar], "condition", command)
+            right = self._subparse(row[bar + 1 :], "condition", command)
+            written = row[bar].span.text
+            conditions.append(
+                ast.Relation(left, "∣", right, written, span=left.span.to(right.span))
+            )
+        condition = conditions[0]
+        for other in conditions[1:]:
+            condition = ast.Binary("and", condition, other, span=condition.span.to(other.span))
+        return condition
 
     def _integral(self) -> ast.Integral:
         command = self.advance()
@@ -2608,6 +2667,38 @@ _CLOSES = {
 }  # fmt: skip
 # Tokens that cannot be inside brackets: a bracket still open at one of them was never closed.
 _OUTSIDE = frozenset({K.EOF, K.DEFINE, K.END, K.ROW_SEP, K.SEMICOLON})
+
+
+def _rows(tokens: list[Token]) -> list[list[Token]]:
+    r"""The rows of a script, as ``\substack`` writes them: its tokens split at each row
+    break outside brackets."""
+    rows: list[list[Token]] = [[]]
+    depth = 0
+    for token in tokens:
+        if token.kind in _OPENERS:
+            depth += 1
+        elif token.kind in _CLOSERS:
+            depth -= 1
+        if token.kind is K.ROW_SEP and depth == 0:
+            rows.append([])
+        elif token.kind is not K.NEWLINE:
+            rows[-1].append(token)
+    return [row for row in rows if row] or [[]]
+
+
+def _divides_at(row: list[Token]) -> int | None:
+    r"""Where a row says that its index divides a number, as ``d \mid n`` and ``d | n`` do:
+    the place of its one bar outside brackets, between two operands; ``None`` where it has
+    none, or two, as the absolute value of ``|k| \le n`` has."""
+    depth, bars = 0, []
+    for place, token in enumerate(row):
+        if token.kind in _OPENERS:
+            depth += 1
+        elif token.kind in _CLOSERS:
+            depth -= 1
+        elif token.kind is K.BAR and depth == 0:
+            bars.append(place)
+    return bars[0] if len(bars) == 1 and 0 < bars[0] < len(row) - 1 else None
 
 
 def _unclosed(opener: Token, found: Token) -> ParseError:
@@ -3407,9 +3498,11 @@ def _is_numeral(node: ast.Expr) -> bool:
 
 
 def _relation(token: Token) -> str:
-    """The symbol of a relation token: ``=``, ``→``, or the relation's own symbol."""
+    """The symbol of a relation token: ``=``, ``→``, ``≡``, or the relation's own symbol."""
     if token.kind is K.EQUAL:
         return "="
+    if token.kind is K.DEFINE:
+        return "≡"
     if token.kind is K.ARROW:
         return "→"
     if token.kind is K.COLON:
@@ -3429,14 +3522,24 @@ _ARGUMENT_EXAMPLES = {
 }
 
 # TeX's generalised fractions, and the LaTeX commands they become.
-_FRACTION_COMMANDS = {"over": "frac", "choose": "binom"}
+_FRACTION_COMMANDS = {"over": "frac", "choose": "binom", "brace": "brace", "brack": "brack"}
+# The commands written as a binomial coefficient is, and the functions they call: the
+# Stirling numbers in Karamata's brackets, {n \brace k} and {n \brack k}, as Knuth writes them.
+_BINOMIALS = {
+    "binom": "binomial",
+    "dbinom": "binomial",
+    "tbinom": "binomial",
+    "brace": "stirling2",
+    "brack": "stirling1",
+}
 _OPENERS = frozenset({K.LBRACE, K.LPAREN, K.LBRACKET})
 _CLOSERS = frozenset({K.RBRACE, K.RPAREN, K.RBRACKET})
 _GROUP_LIMITS = frozenset({K.ROW_SEP, K.SEMICOLON, K.BEGIN, K.END, K.EOF})
 
 
 def _generalised_fractions(tokens: list[Token]) -> list[Token]:
-    r"""Rewrite TeX's ``{a \over b}`` as ``\frac{a}{b}``, and ``\choose`` as ``\binom``.
+    r"""Rewrite TeX's ``{a \over b}`` as ``\frac{a}{b}``, ``\choose`` as ``\binom``, and
+    ``\brace`` and ``\brack`` as the brackets of the Stirling numbers.
 
     As in TeX, ``\over`` divides everything in the group it is in: the braces or
     brackets around it, or else its alignment cell or line. One pass over the
@@ -3513,6 +3616,19 @@ def _fraction(tokens: list[Token], overs: list[tuple[int, Token]]) -> list[Token
         *denominator,
         Token(K.RBRACE, "}", Span(last.source, last.end, last.end)),
     ]
+
+
+def _equivalence(token: Token) -> bool:
+    r"""Whether a token is ``\equiv`` or ``≡``, which defines at a statement's top level."""
+    return token.span.text in ("\\equiv", "≡")
+
+
+def _modular(value: ast.Expr) -> bool:
+    r"""Whether the side of ``\equiv`` ends in a modulus, as ``2 \pmod{3}`` and
+    ``b + c \bmod m`` do, which makes it a congruence (design/notation.md, 30)."""
+    if isinstance(value, ast.Binary) and value.op == "mod":
+        return True
+    return isinstance(value, ast.Binary) and value.op in ("+", "-") and _modular(value.right)
 
 
 def _definable(target: ast.Expr) -> bool:

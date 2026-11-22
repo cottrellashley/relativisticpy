@@ -321,3 +321,63 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 **Why it is open.** Oppenheim and Schafer write discrete signals as `x[n]`, `\delta[n]` and `u[n]`. In the language, square brackets after a name index a list or a tensor.
 
 **Recommendation.** `x[n] := \ldots` defines a sequence: a function of an integer. `x[n - 1]` evaluates it, and `y[n] = \sum_k x[k] h[n - k]` is an equation of sequences. An undefined `\delta[n]` is the unit impulse and `u[n]` the unit step, with a note. Brackets after a list or a tensor still index it.
+
+## 32. The letters of arithmetic functions: φ, μ, Λ, σ_k, ω, Ω, d and p
+
+**Added** on 22 November 2026, from number theory.
+
+**Waiting on it:** `arithmetic-functions` (3).
+
+**Why it is open.** Number theory writes Euler's totient φ(n), the Möbius function μ(n), von Mangoldt's Λ(n), the divisor functions σ_k(n) and d(n), the numbers of prime factors ω(n) and Ω(n), and the partitions p(n). Physics writes the same letters for an angle or a field φ(x), a mean or a reduced mass μ, the cosmological constant Λ, a frequency ω(k), a momentum p(t), and d for a differential. Today `\varphi(36)` is an unknown function at 36.
+
+**Recommendation.** Decide by the argument. A user's definition always wins. Otherwise the letter is the arithmetic function only where its argument is an integer: a whole number above 0, as in `\varphi(36)`, a name the program assumes an integer (`n \in \mathbb{N}`, `n \in \mathbb{Z}`), the index of a sum or a product, as d is in `\sum_{d \mid n} \mu(d)`, or a sum, difference, product or power of these, as `p(5k + 4)`. A real or unknown argument keeps the letter what it was: `\varphi(x)`, `\mu(t)` and `p(t)` stay functions of the program's. Each reading says so in a note. A number that is no positive integer, as `\phi(0)`, is no argument of these functions, and is read as before. σ without a subscript is not a book name (decision 26). A call of one of them whose argument is not an integer prints by its name, `\operatorname{totient}(x)`, which reads back as it.
+
+## 33. π(x): the prime-counting function or π times x
+
+**Added** on 22 November 2026, from number theory.
+
+**Waiting on it:** `prime-number-theorem` (1, at level 5).
+
+**Why it is open.** Number theory writes π(x) for the number of primes up to x. Physics writes `\pi(r_+^2 + a^2)` and `2\pi(1 + z)`, π times a bracket, and π(x) must never stop meaning π times x there.
+
+**Recommendation.** Decide conservatively. π is a constant, so `\pi(\ldots)` is π times what is in the brackets, as before, unless the brackets hold one name that the program assumes an integer, as n after `n \in \mathbb{N}`, which is the prime-counting function, with a note. A number is not enough: `\pi(10)` is 10π, with a note that `primepi(10)` counts the primes up to 10. Neither is the index of a sum, so `\sum_{n=1}^{N} \pi(n)` stays π times n.
+
+## 34. H_n: the harmonic number or Hermite's polynomial
+
+**Added** on 22 November 2026, from number theory.
+
+**Waiting on it:** no case yet; books of analysis and combinatorics write `H_n` throughout.
+
+**Why it is open.** Concrete Mathematics writes H_n for the harmonic number 1 + 1/2 + ... + 1/n, and H_n(x) is Hermite's polynomial (decision 15). H_0 is Hubble's constant in cosmology and the unperturbed Hamiltonian in quantum mechanics, and H_1 a perturbation.
+
+**Recommendation.** Decide by the argument. `H_n(x)`, called, is Hermite's polynomial, as decision 15 says. `H_n` alone is the harmonic number only where its subscript is written with names the program assumes integers, as `H_n` and `H_{n+1}` after `n \in \mathbb{N}`. A number in the subscript keeps it part of the name (decision 5), so that `H_0` stays Hubble's constant; so does the index of a sum, and a name the program gives the letter with a subscript itself, as `H_1 := \ldots`. `harmonic(n)` is always the harmonic number.
+
+## 35. B_n: the Bernoulli number or the Bell number
+
+**Added** on 22 November 2026, from number theory.
+
+**Waiting on it:** `special-numbers` (`nt.special.dobinski` writes the Bell number B_5 in prose).
+
+**Why it is open.** Analysis and number theory write B_n for the Bernoulli numbers (DLMF 24.2), and combinatorics often for the Bell numbers, which Concrete Mathematics writes ϖ_n. Physics writes B_0 for a magnetic field and B_n for the coefficients of a Fourier series.
+
+**Recommendation.** `B_n` is the Bernoulli number, as DLMF writes it, with the conditions of decision 34: its subscript written with names the program assumes integers, never a number, never the index of a sum, so that B_0 and the coefficients `\sum_n B_n \sin nx` stay names. The Bell number is called by its name, `bell(n)`. SymPy takes B_1 = 1/2, where DLMF takes -1/2, and so does the language: the reference says so.
+
+## 36. An index p, and an index bounded only above
+
+**Added** on 22 November 2026, from number theory.
+
+**Waiting on it:** `arithmetic-functions` (1), `zeta-euler-product` (1).
+
+**Why it is open.** Number theorists let p range over the primes: `\prod_{p \mid n}` has a factor for each prime that divides n, and `\sum_{p \le x}` a term for each prime up to x. Elsewhere p is an integer like any other. And `\sum_{n \le x}` sums over the positive integers up to x, without saying where they start.
+
+**Recommendation.** Under a sum or a product given by a condition (decision 19), an index named p ranges over the primes wherever no least value is written, as in `\prod_{p \mid n}`, `\sum_{p \le x}` and `\prod_{p \text{ prime}}`; with one, as in `\sum_{0 \le p \le n}`, it is an integer. Another index bounded only above starts at 1. Each is said in a note. The product over every prime of one of Euler's factors for ζ, as `\prod_{p \text{ prime}} \frac{1}{1 - p^{-s}}`, is its value, ζ(s), for a real part of s above 1.
+
+## 37. A bracket of one power before a function
+
+**Added** on 22 November 2026, from combinatorics.
+
+**Waiting on it:** `generating-functions` (2).
+
+**Why it is open.** Concrete Mathematics writes `[x^n] F(x)` for the coefficient of x^n in the power series of F. Read as written, the bracket is a list of one item, x^n, times F.
+
+**Recommendation.** A bracket holding one power of a name, first in a product, is the coefficient of that power in the power series of the rest, about 0, with a note: `[x^{10}] \frac{1 - \sqrt{1 - 4x}}{2x}` is the Catalan number 16796. The power must be a whole number once it is computed; for a symbol, as in `p(n) := [x^n] \prod \ldots`, the coefficient is refused, saying so. A bracket of anything else stays a list.

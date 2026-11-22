@@ -2,11 +2,14 @@ r"""Numbers.
 
 Logarithms to a base and roots, binomial coefficients, the angle of a point, the least and
 the greatest of several values, and the greatest common divisor and least common multiple,
-with SymPy. Each takes its arguments whole.
+with SymPy. Each takes its arguments whole. The greatest common divisor of a whole number
+and a symbol is of integers, and kept as it is until the symbol has a value, as the index
+of a sum gets one; of polynomials alone, it is theirs.
 """
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 import sympy
@@ -105,18 +108,58 @@ class Greatest:
         return sympy.Max(first, *rest)
 
 
+class gcd(sympy.Function):  # type: ignore[misc]  # named as its calls print
+    """The greatest common divisor of integers, kept as it is where one is no number yet,
+    as the index of a sum is before the sum gives it its values."""
+
+    @classmethod
+    def eval(cls, *args: Any) -> Any:
+        if all(arg.is_Integer for arg in args):
+            return sympy.Integer(math.gcd(*(int(arg) for arg in args)))
+        return None
+
+    def _eval_is_integer(self) -> bool | None:
+        return True if all(arg.is_integer for arg in self.args) else None
+
+
+class lcm(sympy.Function):  # type: ignore[misc]  # named as its calls print
+    """The least common multiple of integers, kept as it is where one is no number yet."""
+
+    @classmethod
+    def eval(cls, *args: Any) -> Any:
+        if all(arg.is_Integer for arg in args):
+            return sympy.Integer(math.lcm(*(int(arg) for arg in args)))
+        return None
+
+    def _eval_is_integer(self) -> bool | None:
+        return True if all(arg.is_integer for arg in self.args) else None
+
+
+def _of_integers(values: tuple[Any, ...]) -> bool:
+    """Whether a greatest common divisor or a least common multiple is of integers, not of
+    polynomials: given a whole number, as gcd(k, 6) is, or integers alone, as the indices of
+    sums are, but not numbers alone, which it computes."""
+    given = [sympy.sympify(value) for value in values]
+    if all(value.is_Integer for value in given):
+        return False
+    return any(value.is_Integer for value in given) or all(value.is_integer for value in given)
+
+
 @function(
     "gcd",
     summary="the greatest common divisor",
     examples=[
         Example("gcd(12, 18)", 6, "standard"),
         Example("gcd(x^2 - 1, x - 1)", x - 1, "standard"),
+        Example(r"\frac{1}{6} \sum_{k=0}^{5} 2^{\gcd(k, 6)}", 14,
+                "OEIS A000029: the necklaces of six beads in two colours"),
     ],
     lifts=False,
-)
+)  # fmt: skip
 class GreatestCommonDivisor:
     def exact(self, a: Any, b: Any, *rest: Any) -> Any:
-        return sympy.gcd(a, b, *rest)
+        values = (a, b, *rest)
+        return gcd(*values) if _of_integers(values) else sympy.gcd(*values)
 
 
 @function(
@@ -130,4 +173,5 @@ class GreatestCommonDivisor:
 )
 class LeastCommonMultiple:
     def exact(self, a: Any, b: Any, *rest: Any) -> Any:
-        return sympy.lcm(a, b, *rest)
+        values = (a, b, *rest)
+        return lcm(*values) if _of_integers(values) else sympy.lcm(*values)

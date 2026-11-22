@@ -145,6 +145,20 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `airyai(x)` `\operatorname{Ai}(x)` | 1 | the Airy function Ai |
 | `airybi(x)` `\operatorname{Bi}(x)` | 1 | the Airy function Bi |
 
+### Combinatorics
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `stirling2(n, k)` | 2 | the Stirling number of the second kind, `{n \brace k}` |
+| `stirling1(n, k)` | 2 | the Stirling number of the first kind, `{n \brack k}`, unsigned |
+| `catalan(n)` | 1 | the Catalan number |
+| `fibonacci(n)` | 1 | the Fibonacci number, from F_0 = 0 and F_1 = 1 |
+| `bell(n)` | 1 | the Bell number |
+| `bernoulli(n)` `B_n` | 1 | the Bernoulli number; B_1 = 1/2, where DLMF takes -1/2 |
+| `harmonic(n)` `H_n` | 1 | the harmonic number; 1 + 1/2 + ... + 1/n |
+| `partition(n)` `p(n)` | 1 | the number of partitions of n |
+| `multinomial(k, ...)` | 1 or more | the multinomial coefficient; (k_1 + ... + k_m)!/(k_1! ... k_m!) |
+
 ### Elementary functions
 
 | Function | Arguments | Meaning |
@@ -237,6 +251,20 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `matrix_power(A, p)` | 2 | a matrix to a power, `A^k`, for a power that is no whole number: a symbol, or a fraction |
 | `kron(A, B)` | 2 | the Kronecker product of two matrices, `A \otimes B` |
 | `direct_sum(A, ...)` | 1 or more | the direct sum of matrices, `A \oplus B`, the block diagonal matrix of them |
+
+### Number theory
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `mod(a, m)` `Mod` | 2 | the remainder of a on division by m, `a \bmod m` |
+| `totient(n)` `\varphi(n)` `\phi(n)` | 1 | Euler's totient function |
+| `mobius(n)` `\mu(n)` | 1 | the Möbius function |
+| `primepi(x)` `\pi(x)` | 1 | the prime-counting function |
+| `divisor_sigma(n, k)` `\sigma_k(n)` | 2 | the sum of the kth powers of the divisors of n |
+| `divisor_count(n)` `d(n)` | 1 | the number of divisors of n |
+| `primenu(n)` `\omega(n)` | 1 | the number of distinct primes that divide n |
+| `primeomega(n)` `\Omega(n)` | 1 | the number of prime factors of n, with multiplicity |
+| `mangoldt(n)` `\Lambda(n)` | 1 | von Mangoldt's function |
 
 ### Numbers
 
@@ -406,6 +434,8 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\cfrac \dfrac \frac \over \tfrac` | fractions, `\frac{a}{b}` and plain TeX's `{a \over b}`; `\frac{d}{dx}` and `\frac{\partial f}{\partial x}` are derivatives |
 | `\sqrt` | roots, `\sqrt{x}` and `\sqrt[n]{x}` |
 | `\binom \choose \dbinom \tbinom` | binomial coefficients, `\binom{n}{k}` and `{n \choose k}` |
+| `\brace \brack` | the Stirling numbers in Karamata's brackets, `{n \brace k}` and `{n \brack k}` |
+| `\bmod \mod \pmod` | the remainder, `a \bmod m`, and a congruence, `a \equiv b \pmod{m}` |
 | `\prod \sum` | a sum, `\sum_{n=1}^{N}`, and a product, in closed form where SymPy finds one |
 | `\iiint \iint \int \oint` | integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx` |
 | `\lim` | a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}` |
@@ -438,7 +468,6 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 These commands are LaTeX's, or a package's, but not the language's. Each is an error that says what to write instead:
 
 - `\abs`: the physics package's absolute value, is not supported; write `|x|`, or `\left| x \right|`.
-- `\bmod \mod \pmod`: the remainder is not supported yet; write `x - n \lfloor x/n \rfloor`.
 - `\bra \braket \ket`: dirac's notation is not supported; write a state as a list of its components.
 - `\dd`: the physics package's differential, is not supported; write `d x`, or `\mathrm{d} x`.
 - `\def \let \newcommand \providecommand \renewcommand`: defines a macro, which a program cannot; write what it stands for; relativisticpy check reads the macros of a document.

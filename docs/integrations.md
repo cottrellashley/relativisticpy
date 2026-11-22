@@ -39,7 +39,9 @@ The decorator takes, by name:
 - `aliases`: other names it is called by, as `arcsin` for `asin`;
 - for a function, `points`: arguments it is checked at, where it has a value. Without
   them, each argument takes 0.3, 0.7 and 1.6. And `lifts=False` for a function that takes
-  its arguments whole, as `min` does;
+  its arguments whole, as `min` does; and `integers`, the parameters of a function of
+  integers, as `n` of Euler's totient: a form written with a letter, `\varphi(n)`, reads
+  as it only where they are integers, and a call prints by its name where they are not;
 - for a function of a matrix, `points` too, each matrix a list of its rows, as
   `points=[([[2, 1], [1, 3]],)]`, and `scalar=True` where its value is a number, as a
   trace's. It acts on a map written with its indices, `A^{a}{}_{b}`, unless `lifts=False`,

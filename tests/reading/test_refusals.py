@@ -497,14 +497,9 @@ class TestDependencesAreKept:
         E, M, r_e = sympy.symbols("E M r_e")
         assert sympy.simplify(wb.expr(r"\omega(r_e)") - E / sympy.sqrt(1 - 2 * M / r_e)) == 0
 
-    def test_a_coefficient_read_as_a_factor(self, wb):
+    def test_a_coefficient_of_a_series_is_read_as_one(self, wb):
         catalan = r"\frac{1 - \sqrt{1 - 4x}}{2x}"
-        found = error(wb, rf"[x^{{10}}] {catalan}")
-        assert found.message == (
-            "[x^{10}] is read as the factor x^{10}, not as the coefficient of x^{10} in what "
-            "follows"
-        )
-        assert found.hint == "read it from the series, series(f, x, 0, 11)"
+        assert wb.expr(rf"[x^{{10}}] {catalan}") == 16796  # design/notation.md, 37
         x = sympy.Symbol("x")
-        assert wb.expr(f"series({catalan}, x, 0, 11)").coeff(x, 10) == 16796  # the hint works
+        assert wb.expr(f"series({catalan}, x, 0, 11)").coeff(x, 10) == 16796
         assert wb.expr("[x + 1] y") == (x + 1) * sympy.Symbol("y")  # brackets that group

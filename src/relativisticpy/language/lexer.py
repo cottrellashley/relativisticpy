@@ -501,9 +501,9 @@ class Lexer:
             f"'%' starts a comment, so {dividend} % {divisor} is read as {dividend}",
             self.pos,
             label="the rest of the line is a comment",
-            notes=("as in LaTeX, '%' starts a comment: there is no remainder operator",),
+            notes=("as in LaTeX, '%' starts a comment: the remainder is written \\bmod",),
             hint=f"for the remainder of {dividend} divided by {divisor}, write "
-            f"{dividend} - {divisor} \\lfloor {dividend}/{divisor} \\rfloor; for a comment, "
+            f"{dividend} \\bmod {divisor}, or mod({dividend}, {divisor}); for a comment, "
             "write #",
         )
 

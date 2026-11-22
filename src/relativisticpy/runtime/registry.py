@@ -32,7 +32,7 @@ from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.integrations import _optimizers as optima
-from relativisticpy.runtime import core, notation, recurrences
+from relativisticpy.runtime import arithmetic, core, notation, recurrences
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
@@ -245,6 +245,12 @@ def _core() -> Iterator[Implementation]:
     yield entry("optimum.label", optima.extreme, "value", 1, 1)
     yield entry("optimum.along", optima.extreme, "tensor", 1, 1)
     yield entry("optimum.order", optima.order, "scalar", 2, 2)
+    # number theory: over the values a condition gives an index, and remainders
+    yield entry("arith.over", arithmetic.over, "argument", 5, componentwise=True)
+    yield entry("arith.divides", arithmetic.divides, "scalar", 2, 2)
+    yield entry("arith.power_mod", arithmetic.power_mod, "scalar", 3, 3)
+    yield entry("arith.coefficient", arithmetic.coefficient, "scalar", 3, 3)
+    yield entry("arith.solve", arithmetic.solve_congruences, "value", 3)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

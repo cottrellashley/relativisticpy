@@ -16,5 +16,7 @@ lowering one kind of thing and using those below it:
   data;
 - :mod:`~relativisticpy.lowering.optima`: optima, over an index of data or over variables;
 - :mod:`~relativisticpy.lowering.objects`: the Python objects a program names, as
-  ``\\texttt{prices}``, read first of all.
+  ``\\texttt{prices}``, read first of all;
+- :mod:`~relativisticpy.lowering.arithmetic`: number theory, the letters of arithmetic
+  functions, sums over a condition, congruences and the coefficients of a series.
 """
