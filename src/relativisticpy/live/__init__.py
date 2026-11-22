@@ -30,6 +30,7 @@ from relativisticpy import display
 from relativisticpy.errors import RelativisticPyError, UsageError
 from relativisticpy.language import Source, Span
 from relativisticpy.language import syntax as ast
+from relativisticpy.steps import defined_between, in_words, snapshot
 from relativisticpy.workbook import Step, Workbook
 
 if TYPE_CHECKING:
@@ -91,18 +92,16 @@ def show(
         raise UsageError(f"workbook is a Workbook, not {type(workbook).__name__}")
     workbook = workbook if workbook is not None else Workbook()
     text = source if isinstance(source, Source) else Source(source, name)
-    from relativisticpy.cli import _defined, _defines_text, _snapshot
-
     steps: list[Step] = []
     defines: list[str | None] = []
     try:
         with workbook._given(objects) if objects else contextlib.nullcontext():
-            before = _snapshot(workbook)
+            before = snapshot(workbook)
             for step in workbook.each(text, recover=True):
-                after = _snapshot(workbook)
-                defined = _defined(before, after) if step.error is None else []
+                after = snapshot(workbook)
+                defined = defined_between(before, after) if step.error is None else []
                 steps.append(step)
-                defines.append(_defines_text(defined, "unicode") if defined else None)
+                defines.append(in_words(defined, "unicode") if defined else None)
                 before = after
     except RelativisticPyError as error:  # a program that cannot be run at all
         span = Span(text, 0, len(text.text))

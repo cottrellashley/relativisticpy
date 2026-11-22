@@ -43,12 +43,12 @@ import sys
 import threading
 import time
 from collections.abc import AsyncIterator, Callable, Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import IO, TYPE_CHECKING, Annotated, Any, Literal, cast
 from unittest import mock
 
-from relativisticpy import __version__, checking, display, documents
+from relativisticpy import __version__, checking, documents
 from relativisticpy import help as documentation
 from relativisticpy.checking import Report, Verdict
 from relativisticpy.documents import Document, Equation
@@ -61,6 +61,7 @@ from relativisticpy.errors import (
     place,
 )
 from relativisticpy.language import Source, Span, parse
+from relativisticpy.steps import Snapshot, as_data, defined_between, snapshot, statements_of
 from relativisticpy.workbook import Step, Workbook, notebook_blocks
 
 if sys.version_info >= (3, 12):
@@ -478,7 +479,7 @@ class _Engine:
         done = 0  # where the last statement that ran ends
         try:
             steps = workbook.each(source, name=name, recover=True)
-            before = _snapshot(workbook)
+            before = snapshot(workbook)
             while True:
                 if time.monotonic() >= deadline:  # the time ran out between two statements
                     complete = False
@@ -490,8 +491,8 @@ class _Engine:
                         step = next(steps, None)
                         if step is None:
                             break
-                        after = _snapshot(workbook)
-                        statements.append(_entry(step, _defined(before, after)))
+                        after = snapshot(workbook)
+                        statements.append(_entry(step, before, after))
                         before, done, finished = after, step.span.end, True
                 except _Expired:
                     complete = False
@@ -643,36 +644,6 @@ class _Engine:
 _QUIET = frozenset({Verdict.DEFINES, Verdict.COMPUTES, Verdict.HOLDS})
 
 
-def _snapshot(
-    workbook: Workbook,
-) -> tuple[tuple[tuple[str, str], ...], dict[str, tuple[str, str, Any]]]:
-    """The coordinates and the other names a workbook defines now, to tell what a
-    statement defined; nothing, if that cannot be told, which only says less."""
-    try:
-        names = workbook.names()
-    except Exception:  # what a statement defined is said, never a reason to stop
-        return (), {}
-    coordinates = tuple((n, d.written) for n, d in names.items() if d.kind == "coordinate")
-    others = {n: (d.kind, d.written, d.span) for n, d in names.items() if d.kind != "coordinate"}
-    return coordinates, others
-
-
-def _defined(
-    before: tuple[tuple[tuple[str, str], ...], dict[str, tuple[str, str, Any]]],
-    after: tuple[tuple[tuple[str, str], ...], dict[str, tuple[str, str, Any]]],
-) -> list[dict[str, str]]:
-    """What changed from one snapshot to the next, as ``relativisticpy --format json``
-    says it: the coordinates, if they changed, then each name defined or defined anew."""
-    found = []
-    if after[0] and after[0] != before[0]:
-        found += [{"name": n, "kind": "coordinate", "written": w} for n, w in after[0]]
-    for name, (kind, written, span) in after[1].items():
-        old = before[1].get(name)
-        if old is None or old[:2] != (kind, written) or old[2] != span:
-            found.append({"name": name, "kind": kind, "written": written})
-    return found
-
-
 def _definitions(workbook: Workbook) -> list[dict[str, Any]]:
     """Everything a session defines, as data."""
     try:
@@ -681,28 +652,15 @@ def _definitions(workbook: Workbook) -> list[dict[str, Any]]:
         return []
 
 
-def _entry(step: Step, defined: list[dict[str, str]]) -> dict[str, Any]:
-    """A statement and what came of it, as a line of ``relativisticpy --format json``."""
-    where = place(step.span)
-    entry: dict[str, Any] = {
-        "file": where["file"],
-        "line": where["line"],
-        "column": where["column"],
-        "end_line": where["end_line"],
-        "end_column": where["end_column"],
-        "statement": where["text"],
-        "values": [],
-        "defines": defined,
-        "notes": list(step.notes),
-        "assuming": list(step.assuming),
-        "error": step.error.to_dict() if step.error is not None else None,
-    }
+def _entry(step: Step, before: Snapshot, after: Snapshot) -> dict[str, Any]:
+    """A statement and what came of it, as a line of ``relativisticpy --format json``,
+    with what it defined, told by what the workbook defined ``before`` it and ``after``."""
+    defined = defined_between(before, after)
     try:
-        entry["values"] = [display.data(value) for value in step.values or []]
+        return as_data(step, defined)
     except Exception as error:  # a failure of our own, while describing it: reported
         failure = internal_error(error, span=step.span, during="describing this result")
-        entry["error"] = failure.to_dict()
-    return entry
+        return as_data(replace(step, values=None, error=failure), defined)
 
 
 def _failed(error: RelativisticPyError) -> dict[str, Any]:
@@ -736,12 +694,14 @@ def _over_time(limit: float, span: Span | None, *, session: bool = False) -> Not
 
 
 def _statements(source: str, name: str) -> list[Span]:
-    """Where each statement of a program is, and each that cannot be read, in order."""
+    """Where each statement of a program is, in order, and where reading each that cannot
+    be read failed."""
     try:
         program = parse(Source(source, name), recover=True)
     except RelativisticPyError:
         return []
-    return [item.span for item in program.in_order() if item.span is not None]
+    found = (planned.statement.span for planned in statements_of(program))
+    return [span for span in found if span is not None]
 
 
 def _running(source: str, name: str, done: int) -> Span | None:

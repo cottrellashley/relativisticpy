@@ -77,7 +77,10 @@ What the work on live mathematics needed from the core, which it did without, fo
 - **One way to list a program's statements and steps without running it.** The command
   line, the MCP server and the editor each do it with private helpers of the workbook
   and the command line (`_in_order`, `_pieces`, `_record`, `_snapshot`, `_defined`). It
-  belongs with step 6, in a module of its own that all three use.
+  belongs with step 6, in a module of its own that all three use. *Paid:*
+  `relativisticpy.steps` lists the statements and steps (`statements_of`, `steps_of`)
+  and says what each step defined (`snapshot`, `defined_between`, `in_words`) and what
+  it is as data (`as_data`); the three use it, and nothing else.
 - **`Session.fork()` should give a copy its own functions.** `Workbook.copy()` rebinds
   the closures of user functions to the copy's names itself.
 - **Keys that do not depend on the process.** The IR numbers its constants and

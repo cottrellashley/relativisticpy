@@ -1080,6 +1080,12 @@ _COMMAND = re.compile(r"\\([A-Za-z]+)")
 _UPRIGHT = re.compile(r"\\(?:operatorname|mathrm|text|textrm|mathit)\{([^{}]*)\}")
 
 
+def written_form(written: str, form: Form) -> str:
+    r"""What is written in LaTeX, a name with its indices or an expression, in a form:
+    ``g_{\mu\nu}`` is ``g_{μν}`` in Unicode, and as it is in LaTeX."""
+    return _source(written, (), form)
+
+
 def _source(
     source: str, free: Sequence[str], form: Form, labels: Sequence[str] | None = None
 ) -> str:

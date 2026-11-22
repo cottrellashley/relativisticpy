@@ -217,6 +217,12 @@ computation key. Nothing is computed that no output or check needs, and nothing 
 computed twice: asking for the Ricci tensor and then the Einstein tensor computes the
 Ricci tensor once.
 
+A statement runs as one step, a chain of relations, `a = b = c`, as one for each link,
+and a statement that cannot be read as one, its error. `relativisticpy.steps` lists the
+statements and the steps of a program before any runs, and says what came of each step:
+what it defined, in words, and the step as data. The command line, the MCP server and
+the editor list and describe steps with it alone.
+
 Component-wise work, such as simplifying every component of a tensor or the
 curvature kernels' simplification passes, goes through the executor's `map`.
 With `Workbook(workers=N)`, large batches are spread over a pool of `N`

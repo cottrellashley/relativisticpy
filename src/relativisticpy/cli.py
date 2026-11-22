@@ -65,14 +65,17 @@ from relativisticpy.errors import (
 )
 from relativisticpy.language import Source, Span, parse
 from relativisticpy.language import syntax as ast
-from relativisticpy.workbook import (
-    Step,
-    Workbook,
-    _steps_of,
-    notebook_blocks,
-    read_program,
-    render_notebook,
+from relativisticpy.steps import (
+    Defined,
+    Snapshot,
+    as_data,
+    defined_between,
+    in_words,
+    snapshot,
+    steps_of,
+    written_in,
 )
+from relativisticpy.workbook import Step, Workbook, notebook_blocks, read_program, render_notebook
 
 # The exit statuses, as the shell sees them.
 OK, FAILED, USAGE, INTERRUPTED, TERMINATED = 0, 1, 2, 130, 143
@@ -424,7 +427,7 @@ class _Runner:
                     source, running = block, self.workbook.each(block, recover=True)
                 assert running is not None
                 current, started = span, time.monotonic()
-                before = _snapshot(self.workbook)
+                before = snapshot(self.workbook)
                 progress.begin(f"{_where(span, short=True)} {_shortened(span.text, 50)}")
                 try:
                     step = next(running, None)
@@ -451,11 +454,11 @@ class _Runner:
             return FAILED
         return OK
 
-    def _show(self, step: Step, before: _Snapshot) -> Step:
+    def _show(self, step: Step, before: Snapshot) -> Step:
         """Print one step: its values and what it defines, or its error; the step, with
         the internal error that printing it raised, if it did."""
         try:
-            defined = _defined(before, _snapshot(self.workbook)) if step.error is None else []
+            defined = defined_between(before, snapshot(self.workbook)) if step.error is None else []
             self.printer.step(step, defined)
         except (KeyboardInterrupt, _Terminated, BrokenPipeError):
             raise
@@ -509,99 +512,13 @@ class _Stopped(Exception):
 def _planned(source: Source) -> list[tuple[ast.Statement | ParseError, Span]]:
     """The steps ``each(source, recover=True)`` gives, in order, before any runs: each
     statement, each link of a chain, and each statement that cannot be read."""
-    return _steps_of(parse(source, recover=True))
+    return steps_of(parse(source, recover=True))
 
 
 def _failures_summary(failures: list[Span], total: int) -> str:
     places = ", ".join(_where(span) for span in failures[:5])
     more = f" and {len(failures) - 5} more" if len(failures) > 5 else ""
     return f"{len(failures)} of {_plural(total, 'statement')} failed: {places}{more}"
-
-
-# -- what a statement defined --------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class _Snapshot:
-    """What a workbook defines, to tell what a statement defined."""
-
-    coordinates: tuple[str, ...] | None
-    names: dict[str, tuple[str, str, Span | None]]
-
-
-@dataclass(frozen=True)
-class _Defined:
-    """Something a statement defined: its name, its kind and how it is written."""
-
-    name: str
-    kind: str
-    written: str
-    again: bool  # defined before, and defined anew
-
-
-def _snapshot(workbook: Workbook) -> _Snapshot:
-    """What a workbook defines now; nothing, if that cannot be told, which only says less
-    of what a statement defined."""
-    try:
-        coordinates = workbook.coordinates
-        names = {
-            name: (definition.kind, definition.written, definition.span)
-            for name, definition in workbook.names().items()
-            if definition.kind != "coordinate"
-        }
-    except Exception:  # what a statement defined is said, never a reason to stop
-        return _Snapshot(None, {})
-    return _Snapshot(tuple(str(c) for c in coordinates) if coordinates else None, names)
-
-
-def _defined(before: _Snapshot, after: _Snapshot) -> list[_Defined]:
-    """What changed from one snapshot to the next: the coordinates, if they did, and each
-    name defined or defined anew, in the order the workbook lists them."""
-    found: list[_Defined] = []
-    if after.coordinates and after.coordinates != before.coordinates:
-        found.extend(
-            _Defined(name, "coordinate", _coordinate(name), bool(before.coordinates))
-            for name in after.coordinates
-        )
-    for name, (kind, written, span) in after.names.items():
-        old = before.names.get(name)
-        if old is None or old[:2] != (kind, written) or old[2] != span:
-            found.append(_Defined(name, kind, written, old is not None))
-    return found
-
-
-def _coordinate(name: str) -> str:
-    from relativisticpy.tensors.indices import latex_label
-
-    return str(latex_label(name))
-
-
-def _defines_text(defined: list[_Defined], form: str) -> str:
-    """``defines x``, ``defines the metric g_{μν} and the coordinates t, r, θ, φ``."""
-    coordinates = [_written(d.written, form) for d in defined if d.kind == "coordinate"]
-    phrases = []
-    for definition in defined:
-        written = _written(definition.written, form)
-        if definition.kind == "metric":
-            phrases.append(f"the metric {written}")
-        elif definition.kind == "space":
-            phrases.append(f"the space {written}")
-        elif definition.kind != "coordinate":
-            phrases.append(written)
-    if coordinates:
-        phrases.append("the coordinates " + ", ".join(coordinates))
-    verb = "redefines" if all(d.again for d in defined) else "defines"
-    return f"{verb} {_listed(phrases)}"
-
-
-def _written(written: str, form: str) -> str:
-    """A name as written, ``g_{\\mu\\nu}``, in a form: ``g_{μν}`` in Unicode."""
-    if form != "unicode":
-        return written
-    try:
-        return str(shown._source(written, [], "unicode"))
-    except Exception:  # how a name is shown never stops a run
-        return written
 
 
 # -- printing results ------------------------------------------------------------------
@@ -617,11 +534,11 @@ class _Printer:
         self.width = width
         self.labelled = True
 
-    def step(self, step: Step, defined: list[_Defined]) -> None:
+    def step(self, step: Step, defined: list[Defined]) -> None:
         """Print what came of a statement: a line of JSON, or its label, its values, what
         it defined and its notes on standard output, or its error on standard error."""
         if self.form == "json":
-            self.console.out(_json(_record(step, defined), self.console.stdout))
+            self.console.out(_json(as_data(step, defined), self.console.stdout))
             return
         if step.error is not None:
             self.error(step.error)
@@ -634,7 +551,7 @@ class _Printer:
             text = _shown(value, self.form)
             lines.extend(indent + line for line in text.split("\n"))
         if defined:
-            lines.append(self._comment(indent + _defines_text(defined, self.form)))
+            lines.append(self._comment(indent + in_words(defined, self.form)))
         for note in step.notes:
             lines.append(self._comment(f"{indent}note: {note}"))
         if lines:
@@ -671,25 +588,6 @@ def display(value: Any, *, latex_output: bool = False) -> str:
     """How a result prints, as :mod:`relativisticpy.display` shows it: mathematics for a
     terminal, or LaTeX on request."""
     return shown.latex(value) if latex_output else shown.unicode(value)
-
-
-def _record(step: Step, defined: list[_Defined]) -> dict[str, Any]:
-    """A step as data: where its statement is, what it is, and what came of it, with
-    each value as :func:`relativisticpy.display.data` describes it."""
-    where = place(step.span)
-    return {
-        "file": where["file"],
-        "line": where["line"],
-        "column": where["column"],
-        "end_line": where["end_line"],
-        "end_column": where["end_column"],
-        "statement": where["text"],
-        "values": [shown.data(value) for value in step.values or []],
-        "defines": [{"name": d.name, "kind": d.kind, "written": d.written} for d in defined],
-        "notes": list(step.notes),
-        "assuming": list(step.assuming),
-        "error": step.error.to_dict() if step.error is not None else None,
-    }
 
 
 def _json(record: dict[str, Any], stream: TextIO) -> str:
@@ -1333,7 +1231,7 @@ class _Prompt:
 
     def _reset(self) -> None:
         """Forget every definition, once the person says so."""
-        names = [_written(d.written, self.form) for d in self.workbook.names().values()]
+        names = [written_in(d.written, self.form) for d in self.workbook.names().values()]
         if not names:
             self.console.out("nothing is defined")
             return
@@ -1361,7 +1259,7 @@ class _Prompt:
             steps = self.workbook.each(source, recover=True)
             for _, span in planned:
                 current, started = span, time.monotonic()
-                before = _snapshot(self.workbook)
+                before = snapshot(self.workbook)
                 progress.begin(_shortened(span.text, 60))
                 try:
                     step = next(steps, None)
@@ -1371,7 +1269,7 @@ class _Prompt:
                     continue
                 try:
                     failed = step.error is not None
-                    defined = [] if failed else _defined(before, _snapshot(self.workbook))
+                    defined = [] if failed else defined_between(before, snapshot(self.workbook))
                     printer.step(step, defined)
                 except (KeyboardInterrupt, _Terminated):
                     raise
@@ -1403,7 +1301,7 @@ def _who(workbook: Workbook, form: str) -> str:
     }
     grouped: dict[str, list[str]] = {}
     for definition in workbook.names().values():
-        grouped.setdefault(definition.kind, []).append(_written(definition.written, form))
+        grouped.setdefault(definition.kind, []).append(written_in(definition.written, form))
     if not grouped:
         return "nothing is defined yet"
     size = max(len(kinds.get(kind, kind)) for kind in grouped) + 2
@@ -2208,10 +2106,3 @@ def _duration(seconds: float) -> str:
 
 def _plural(count: int, noun: str) -> str:
     return f"{count} {noun}{'' if count == 1 else 's'}"
-
-
-def _listed(names: Sequence[str]) -> str:
-    """``a``, ``a and b``, ``a, b and c``."""
-    if len(names) <= 1:
-        return "".join(names)
-    return ", ".join(names[:-1]) + " and " + names[-1]

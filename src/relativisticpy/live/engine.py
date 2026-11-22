@@ -22,10 +22,8 @@ from dataclasses import dataclass
 from typing import Any
 
 from relativisticpy.checking import _time_limit
-from relativisticpy.cli import _defined, _defines_text, _record, _snapshot
 from relativisticpy.errors import (
     NotComputedError,
-    ParseError,
     RelativisticPyError,
     UsageError,
     internal_error,
@@ -33,8 +31,16 @@ from relativisticpy.errors import (
 from relativisticpy.language import Source, Span, parse
 from relativisticpy.language import syntax as ast
 from relativisticpy.live import _written
+from relativisticpy.steps import (
+    Snapshot,
+    as_data,
+    defined_between,
+    in_words,
+    snapshot,
+    statements_of,
+)
 from relativisticpy.tensors.equation import holds
-from relativisticpy.workbook import Step, Workbook, _in_order, _pieces
+from relativisticpy.workbook import Step, Workbook
 
 #: What a part of a statement may be asked for, and the program that computes it.
 ACTIONS: dict[str, str] = {
@@ -157,12 +163,12 @@ class Engine:
             try:
                 with _time_limit(None if math.isinf(remaining) else remaining):
                     for _ in planned.steps:
-                        before = _snapshot(workbook)
+                        before = snapshot(workbook)
                         step = next(steps, None)
                         if step is None:  # read otherwise than planned, which it never is
                             return entries
                         ran.append(step)
-                        entries.append(_entry(step, _snapshot(workbook), before))
+                        entries.append(_entry(step, snapshot(workbook), before))
             except TimeoutError:
                 span = Span(source, planned.start, planned.end)
                 entries.append(_failed(_over_time(limit, span), span))
@@ -242,14 +248,14 @@ def _plan(source: Source) -> list[_Planned] | None:
         program = parse(source, recover=True)
     except RelativisticPyError:
         return None
-    plan = []
-    for item, span in _in_order(program):
-        if isinstance(item, ParseError):
-            steps: tuple[tuple[int, int], ...] = ((span.start, span.end),)
-        else:
-            steps = tuple((piece.span.start, piece.span.end) for piece in _pieces(item))
-        plan.append(_Planned(span.start, span.end, steps))
-    return plan
+    return [
+        _Planned(
+            statement.span.start,
+            statement.span.end,
+            tuple((span.start, span.end) for _, span in statement.steps),
+        )
+        for statement in statements_of(program)
+    ]
 
 
 def _common_prefix(one: str, other: str) -> int:
@@ -277,21 +283,21 @@ def _unreadable(source: Source) -> list[dict[str, Any]]:
 # -- what came of a statement, as data -----------------------------------------------
 
 
-def _entry(step: Step, after: Any, before: Any) -> dict[str, Any]:
+def _entry(step: Step, after: Snapshot, before: Snapshot) -> dict[str, Any]:
     """A step as data: the entry of ``relativisticpy --format json``, with where its
     statement and its error are in the source, the LaTeX it is typeset from, what it
     defines in words, and its error as the command line prints it."""
-    defined = _defined(before, after) if step.error is None else []
+    defined = defined_between(before, after) if step.error is None else []
     try:
-        entry = _record(step, defined)
+        entry = as_data(step, defined)
     except Exception as error:  # a failure of our own, while describing it: reported
         failure = internal_error(error, span=step.span, during="describing this result")
-        entry = _record(Step(step.span, step.statement, error=failure), [])
+        entry = as_data(Step(step.span, step.statement, error=failure))
         step = Step(step.span, step.statement, error=failure)
     entry["start"], entry["end"] = step.span.start, step.span.end
     entry["read"] = type(step.statement) is not ast.Statement
     entry["typeset"] = _written(step)
-    entry["definition"] = _defines_text(defined, "unicode") if defined else None
+    entry["definition"] = in_words(defined, "unicode") if defined else None
     if step.error is not None:
         entry["error"] = _error(step.error, step.span)
     return entry
@@ -310,7 +316,7 @@ def _error(error: RelativisticPyError, span: Span) -> dict[str, Any]:
 def _failed(error: RelativisticPyError, span: Span) -> dict[str, Any]:
     """The entry of a statement that failed before it could be a step."""
     step = Step(span, ast.Statement(span=span), error=error)
-    entry = _record(step, [])
+    entry = as_data(step)
     entry["start"], entry["end"] = span.start, span.end
     entry["read"] = False
     entry["typeset"] = span.text
@@ -414,7 +420,7 @@ def _answered(action: str, part: Span, written: str, steps: list[Step]) -> dict[
         if step.error is not None:
             answer["error"] = _error(step.error, step.span)
             return answer
-        entry = _record(step, [])
+        entry = as_data(step)
         answer["values"].extend(entry["values"])
         answer["notes"].extend(entry["notes"])
     values = [value for step in steps for value in step.values or []]
