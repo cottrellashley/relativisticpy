@@ -17,10 +17,12 @@ from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, Type, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.statistics import Statistics
+from relativisticpy.reading.matrices import MATRIX
+from relativisticpy.reading.names import _shown, _symbols_written
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space
 from relativisticpy.typing.syntax import _mentions_tensor
-from relativisticpy.typing.typer import _KNOWN_FIRST, _indices, _shares
+from relativisticpy.typing.typer import _KNOWN_FIRST, _indices, _listed, _shares
 
 
 class LinearAlgebra(Statistics):
@@ -170,6 +172,8 @@ class LinearAlgebra(Statistics):
         if not isinstance(capability, integrations.MapFunction):
             return None
         if all(arg.type in (SCALAR, VALUE) for arg in args):
+            if (unknown := self._of_names_nothing_defines(capability, args, span)) is not None:
+                return unknown  # \operatorname{tr}(\ln M) and \det M, where nothing defines M
             symbols = [arg for arg in args if arg.type == SCALAR and not _a_number(arg)]
             if capability.name == "trace" and symbols:  # \operatorname{tr} M, M no matrix
                 self._note(
@@ -195,6 +199,35 @@ class LinearAlgebra(Statistics):
         attributes = (("name", capability.name), ("position", position), ("rows", rows))
         named = "linalg.number_of_a_map" if capability.scalar else "linalg.of_a_map"
         return self.graph.add(ops.Call(named, attributes), [operator, *rest], kind, span)
+
+    def _of_names_nothing_defines(
+        self, capability: integrations.MapFunction, args: Sequence[Node], span: Span
+    ) -> Node | None:
+        """A function of a matrix of a value written with names nothing defines, as
+        ``\\det M`` and ``\\operatorname{tr}(\\ln M)`` are where nothing defines M: an unknown
+        value, said in a note, since M may be a matrix of any size, so that a claim about it
+        relates what nothing defines rather than holding by its 1 × 1 case. ``None`` for a
+        matrix, a number, or a scalar the program gives a meaning, a coordinate, a symbol it
+        says something of or a parameter of its metric, which is its 1 × 1 case, as before."""
+        if capability.name == "diag" or len(args) != 1 or args[0].type != SCALAR:
+            return None
+        session = self.session
+        known = {coordinate.name for coordinate in session.coordinates or ()}
+        known |= set(session.assumptions) | (session.metric.names if session.metric else set())
+        names = [name for name in _symbols_written(args[0]) if name not in known]
+        if not names:
+            return None
+        shown = _listed([_shown(name, "\\" in span.text) for name in names])
+        what = "matrices of any size, not numbers" if len(names) > 1 else "a matrix of any size"
+        note = (
+            f"{span.text} is left as an unknown value: nothing defines {shown}, which may be "
+            f"{what}; to compute it, define {shown} first"
+        )
+        self._note(note)
+        why = f"nothing defines {shown}, which may be {what}"
+        self._decide(MATRIX, span, "an unknown value", why, note)
+        written = "tr" if capability.name == "trace" else capability.name
+        return self._call("core.function", list(args), SCALAR, span, (("name", written),))
 
     def _as_map(
         self, tensor: Node, span: Span, *, form: bool = True

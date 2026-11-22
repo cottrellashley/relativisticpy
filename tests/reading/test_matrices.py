@@ -286,9 +286,38 @@ class TestBookNamesOfAMatrix:
         assert wb.expr(r"\operatorname{tr} A B") == 5  # tr(AB), as books read it
         assert wb.expr(r"\operatorname{tr} A \, B").tolist() == [[0, 5], [5, 0]]
 
-    def test_the_trace_of_what_is_no_matrix_is_itself_said_in_a_note(self, wb):
+    def test_a_function_of_a_matrix_nothing_defines_is_an_unknown_value(self, wb):
+        # M may be a matrix of any size: its 1 × 1 case would prove what is claimed of it
+        M = sympy.Symbol("M")
+        tr, det = sympy.Function("tr"), sympy.Function("det")
         (step,) = list(wb.each(r"\operatorname{tr}(\ln M) = \ln(\det M)"))
-        assert step.values == [sympy.true]
+        assert step.values == [sympy.Eq(tr(sympy.log(M)), sympy.log(det(M)))]
+        assert step.notes == [
+            r"\operatorname{tr}(\ln M) is left as an unknown value: nothing defines M, which "
+            r"may be a matrix of any size; to compute it, define M first"
+            "\n"
+            r"\det M is left as an unknown value: nothing defines M, which may be a matrix of "
+            "any size; to compute it, define M first"
+        ]
+        assert wb.expr(r"\operatorname{rank} M") == sympy.Function("rank")(M)
+        assert readings(wb, r"\det M") == [
+            r"matrix or number: \det M is an unknown value, since nothing defines M, which may "
+            "be a matrix of any size"
+        ]
+
+    def test_a_claim_about_a_matrix_nothing_defines_relates(self, wb):
+        report = wb.check(r"\[ \operatorname{tr}(\ln M) = \ln(\det M) \]")
+        assert [finding.verdict for finding in report] == ["relates"]
+
+    def test_of_a_scalar_the_program_defines_it_is_its_1_by_1_case(self, wb):
+        wb.exe("a := 3\nCoordinates := [t, x]\nb > 0")
+        assert [wb.expr(r"\det a"), wb.expr(r"\det(2)"), wb.expr(r"\det b")] == [
+            3,
+            2,
+            sympy.Symbol("b", positive=True),
+        ]
+        (step,) = list(wb.each(r"\operatorname{tr} x"))
+        assert step.values == [x]
         assert any("the trace of what is no matrix" in note for note in step.notes)
 
     def test_the_trace_of_a_tensor_of_spacetime_contracts_it_with_the_metric(self, wb):

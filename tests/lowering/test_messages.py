@@ -42,8 +42,10 @@ class TestArity:
         assert "takes a tensor written with its indices" in error(wb, source).message
 
     def test_the_spectrum_takes_a_matrix_or_a_tensor(self, wb):
-        found = error(wb, "spec(x)", EvaluationError)
-        assert found.message == "a spectrum takes a matrix, as [[1, 2], [3, 4]], not x"
+        found = error(wb, "spec(2)", EvaluationError)
+        assert found.message == "a spectrum takes a matrix, as [[1, 2], [3, 4]], not 2"
+        # of a name nothing defines, which may be a matrix, an unknown value
+        assert str(wb.expr("spec(x)")) == "spec(x)"
 
     def test_an_argument_by_name(self, wb):
         found = error(wb, "series(sin(x), x, 0, n=5)", ParseError)  # refused as it is read

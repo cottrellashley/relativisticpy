@@ -642,6 +642,20 @@ def _written_with(root: Node) -> frozenset[str]:
     return found[root.id]
 
 
+def _symbols_written(value: Node) -> list[str]:
+    """The names of the symbols a value is written with, read from its IR as
+    :func:`_written_with` reads them, without computing it, but not the functions it applies
+    that nothing defines, as f of f(x)."""
+    functions: set[str] = set()
+    for node in dependencies([value]):
+        op = node.op
+        if isinstance(op, ops.Call) and op.name == "core.function":
+            functions.add(str(dict(op.attributes)["name"]))
+        elif isinstance(op, ops.Const) and isinstance(op.value, sympy.Basic):
+            functions.update(each.func.__name__ for each in op.value.atoms(AppliedUndef))
+    return sorted(_written_with(value) - functions)
+
+
 def _names_written(node: Node, found: Mapping[int, frozenset[str]]) -> frozenset[str]:
     """The names ``node`` is written with (see :func:`_written_with`), from those of its
     arguments, in ``found``."""

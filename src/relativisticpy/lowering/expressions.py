@@ -13,7 +13,6 @@ from typing import Any
 
 import sympy
 from sympy import Symbol
-from sympy.core.function import AppliedUndef
 
 from relativisticpy import integrations
 from relativisticpy.compiler.builtins import BUILTINS, Builtin
@@ -68,8 +67,8 @@ from relativisticpy.reading.names import (
     _shown,
     _slashed,
     _splittable,
+    _symbols_written,
     _unprimed,
-    _written_with,
 )
 from relativisticpy.reading.reader import BookCall
 from relativisticpy.reading.unknowns import read_as_functions
@@ -1383,20 +1382,6 @@ def _unsigned(factor: ast.Expr) -> list[ast.Expr]:
     if isinstance(factor, ast.Unary) and factor.op == "-":
         return [ast.Number("-1", span=factor.span), *_unsigned(factor.operand)]
     return [factor]
-
-
-def _symbols_written(value: Node) -> list[str]:
-    """The names of the symbols a value is written with, read from its IR as
-    :func:`~relativisticpy.reading.names._written_with` reads them, without computing it,
-    but not the functions it applies that nothing defines, as f of f(x)."""
-    functions: set[str] = set()
-    for node in dependencies([value]):
-        op = node.op
-        if isinstance(op, ops.Call) and op.name == "core.function":
-            functions.add(str(dict(op.attributes)["name"]))
-        elif isinstance(op, ops.Const) and isinstance(op.value, sympy.Basic):
-            functions.update(each.func.__name__ for each in op.value.atoms(AppliedUndef))
-    return sorted(_written_with(value) - functions)
 
 
 def _with_variable(node: ast.Evaluation, variable: str) -> str:

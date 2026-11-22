@@ -834,7 +834,10 @@ are in the [reference](reference.md#matrices).
 | `I`, `\mathbb{1}`, `𝟙`, `\mathbf{1}` | added to a matrix, the identity of its size; `\mathbf{1}` in a product, the vector of ones of the size it meets |
 
 A number added to a square matrix is that multiple of the identity, and a row times a
-matrix times a column, a 1 × 1 matrix, is the number it holds. Each says so in a note.
+matrix times a column, a 1 × 1 matrix, is the number it holds. A function of a matrix of
+a name nothing defines, as `\det M` or `\operatorname{tr}(\ln M)`, is an unknown value,
+det(M) or tr(log M), since M may be a matrix of any size: a claim about it relates, and is
+not proven by its 1 × 1 case. Each says so in a note.
 
 ```python
 >>> wb.exe(r"""

@@ -398,6 +398,13 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   that `F(2)` of `F(s) := \mathcal{L}\{t^2\}` is 1/4. In plain text, brackets right
   after a name are refused as Python's indexing by the reader, which knows whether the name
   is a sequence, rather than by the parser.
+- The trace, the determinant and the other functions of a matrix, of a name nothing
+  defines, as `\operatorname{tr}(\ln M)` and `\det M`, are unknown values, tr(log M) and
+  det(M), said in a note, rather than the number M would be as a 1 × 1 matrix: a claim
+  about a matrix nothing defines, as `\operatorname{tr}(\ln M) = \ln(\det M)`, relates,
+  rather than holding by its 1 × 1 case. Of a matrix, a number, or a scalar the program
+  defines, a coordinate, a symbol it says something of or a parameter of its metric, they
+  are as before.
 - Angle brackets no longer group as brackets do: `\langle x \rangle` is what a program
   defines, an expectation value or an inner product, and refused where it is none of
   them, rather than `x`.
