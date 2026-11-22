@@ -5,6 +5,9 @@ and computes it.** Type a line element and get its curvature; write index notati
 over NumPy or pandas data; run `relativisticpy check paper.tex` to see which of a
 paper's equations hold.
 
+> **For:** everyone. **You will learn:** what RelativisticPy is, and where to start for
+> what you want to do.
+
 ```python
 >>> from relativisticpy import Workbook
 >>> wb = Workbook()
