@@ -48,11 +48,12 @@ assert abs(slope - 1.23) < 1e-12 and abs(intercept - float(expected)) < 1e-12  #
 **Level 4** · `econ.portfolio.frontier` · Merton (1972)
 
 Merton's closed form for the least variance of a portfolio with expected return \(\mu\),
-\(\sigma^2(\mu) = \frac{C\mu^2 - 2A\mu + B}{D}\), with \(A = \mathbf{1}^T\Sigma^{-1}\bar{\mathbf{e}}\),
-\(B = \bar{\mathbf{e}}^T\Sigma^{-1}\bar{\mathbf{e}}\), \(C = \mathbf{1}^T\Sigma^{-1}\mathbf{1}\) and
-\(D = BC - A^2\). For three uncorrelated assets with returns of 10, 15 and 20 percent and
-volatilities of 20, 30 and 40 percent, the frontier at \(\mu = 0.15\) has variance
-\(\frac{9}{280}\).
+\(\sigma^2(\mu) = \frac{C\mu^2 - 2A\mu + B}{D}\), with
+\(A = \mathbf{1}^T\Sigma^{-1}\bar{\mathbf{e}}\),
+\(B = \bar{\mathbf{e}}^T\Sigma^{-1}\bar{\mathbf{e}}\), \(C = \mathbf{1}^T\Sigma^{-1}\mathbf{1}\)
+and \(D = BC - A^2\), where \(\mathbf{1}\) is the vector of ones. For three uncorrelated
+assets with returns of 10, 15 and 20 percent and volatilities of 20, 30 and 40 percent,
+the frontier at \(\mu = 0.15\) has variance \(\frac{9}{280}\).
 
 ```latex
 \Sigma := \operatorname{diag}(0.04, 0.09, 0.16)

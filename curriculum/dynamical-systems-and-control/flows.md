@@ -53,8 +53,8 @@ assert expected == -1
 **Level 2** · `dyn.flows.lyapunov-function` · Strogatz (2015), section 7.2
 
 For \(\dot x = -x + 4y\), \(\dot y = -x - y^3\), the function \(V = x^2 + 4y^2\) decreases along
-every trajectory: \(\dot V = \frac{\partial V}{\partial x}\dot x + \frac{\partial V}{\partial y}\dot y
-= -2x^2 - 8y^4\), which rules out closed orbits.
+every trajectory: \(\dot V = \frac{\partial V}{\partial x}\dot x +
+\frac{\partial V}{\partial y}\dot y = -2x^2 - 8y^4\), which rules out closed orbits.
 
 ```latex
 f(x, y) := -x + 4y
