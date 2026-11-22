@@ -21,6 +21,30 @@ is about how RelativisticPy talks back.
 6. **Everything can be learnt from the tool itself,** offline: `relativisticpy help`.
 7. **Everything a person can read, a program can read:** JSON output, stable error
    types, documented exit codes.
+8. **The same program gives the same answer every time.** A verdict or a value never
+   depends on the run.
+
+## The same answer every time
+
+SymPy's algorithms walk sets of symbols, whose order follows Python's hash of their
+names, which changes from one run to the next unless `PYTHONHASHSEED` fixes it. So a
+few solves take another path in another run: the critical point of the Dieterici gas
+(22 November 2026) is found under most seeds, and under seeds 0 and 6 SymPy fails in its
+own check of the solution. Checking Carroll's notes gives the same verdicts under every
+seed tried, so the effect is rare, but a checker whose verdict can change between runs
+cannot be trusted.
+
+- **The command line and the MCP server** fix the seed: a process RelativisticPy starts
+  for its work, a worker of `-j` or of the server, is started with `PYTHONHASHSEED=0`,
+  and the command line starts itself again with it when it is not set.
+- **The solver integration** does not stop at a failure inside SymPy that another path
+  avoids: it solves again with the unknowns in another order, and checks the solutions
+  itself.
+- **The curriculum and the tests** run under a fixed seed, so that a gate never flakes;
+  a separate job runs the curriculum under several seeds and lists the cases whose
+  answer changes, as findings to fix.
+- **From Python**, a workbook cannot fix the seed of the interpreter it runs in; the
+  documentation says to set `PYTHONHASHSEED` where a run must be reproduced exactly.
 
 ## How results look
 
