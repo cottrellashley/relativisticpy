@@ -227,6 +227,11 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   as it is in a space declared as \(\mathbb{R}^n\), and there `\epsilon_{ijk}`, which
   nothing defines, is the Levi-Civita symbol. In spacetime, where its sign is a
   convention, it is not read yet.
+- Integrals along a curve the program defines, `C(t) := (\cos t, \sin t, 0)` with
+  `0 \le t \le 2\pi`: `\oint_C \mathbf{F} \cdot d\mathbf{r}` and `\int_C`, in which
+  `d\mathbf{r}` is the curve's tangent, its name its point and x, y and z its components;
+  where SymPy finds no closed form in time and only the curves' parameters are left, as
+  in Gauss's linking integral, the value is computed numerically, said in a note.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

@@ -333,6 +333,38 @@ class TestRegions:
         assert "integrals over regions" in found.message
 
 
+class TestCurves:
+    CIRCLE = r"C(t) := (\cos t, \sin t, 0), \quad 0 \le t \le 2\pi"
+
+    def test_a_field_around_a_closed_curve(self, wb):
+        wb.exe(self.CIRCLE + "\n" r"\mathbf{F} := -y\,\hat{\mathbf{x}} + x\,\hat{\mathbf{y}}")
+        assert wb.expr(r"\oint_C \mathbf{F} \cdot d\mathbf{r}") == 2 * sympy.pi
+
+    def test_along_a_curve_named_by_its_point(self, wb):
+        wb.exe(r"\mathbf{r}(t) := (t, t^2, 0), \quad 0 \le t \le 1")
+        line = r"\int_{\mathbf{r}} (x\,\hat{\mathbf{x}} + y\,\hat{\mathbf{y}}) \cdot d\mathbf{r}"
+        assert wb.expr(line) == 1
+
+    def test_numerically_where_there_is_no_closed_form(self, wb):
+        wb.exe(r"C(t) := (t, 0, 0), \quad 0 \le t \le 1")
+        line = r"\int_C e^{\cos^3 x} \hat{\mathbf{x}} \cdot d\mathbf{r}"
+        assert abs(wb.expr(line) - 1.9727712499952477) < 1e-12
+        assert notes(wb, line)[-1] == (
+            "the integral along the curve is computed numerically, as SymPy found no closed "
+            "form of it in 5 s"
+        )
+
+    def test_a_curve_without_a_range_is_refused(self, wb):
+        wb.exe(r"C(t) := (\cos t, \sin t, 0)")
+        found = error(wb, r"\oint_C \mathbf{F} \cdot d\mathbf{r}")
+        assert found.hint == r"state it, as 0 \le t \le 2\pi"
+
+    def test_an_integrand_without_its_differential_is_refused(self, wb):
+        wb.exe(self.CIRCLE)
+        found = error(wb, r"\oint_C x^2 + y^2")
+        assert "has no differential along it" in found.message
+
+
 class TestRefusals:
     def test_the_three_dimensional_delta(self, wb):
         wb.exe(SPHERICAL)

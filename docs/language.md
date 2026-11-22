@@ -1000,7 +1000,14 @@ Of a function the program defines, written at a point rather than at its variabl
 Hessian, as optimisation books write them, said in a note; `\Delta f` is always the
 Laplacian. Integrals over a disk or a ball about the origin, written
 `\iint_{x^2 + y^2 \le 1}`, and over a box, `\iiint_{[0, 1]^3}`, are taken in turn; any
-other region is refused.
+other region is refused. An integral along a curve the program defines as a function of
+one parameter whose value is a vector, with the parameter's range stated, as
+`C(t) := (\cos t, \sin t, 0), \quad 0 \le t \le 2\pi`, is written `\oint_C` or `\int_C`:
+in it, `d\mathbf{r}` is the curve's tangent times the differential of its parameter, the
+curve's name is its point, and x, y and z are its components, so that
+`\oint_C \mathbf{F} \cdot d\mathbf{r}` is the circulation of a field. Where SymPy finds
+no closed form in five seconds, and nothing but the parameters is left, it is computed
+numerically, as a note says.
 
 ```python
 >>> newton = Workbook()
@@ -1010,8 +1017,10 @@ other region is refused.
 ...     \begin{pmatrix} 0 \\ 0 \end{pmatrix} - \left[\nabla^2 f(0, 0)\right]^{-1} \nabla f(0, 0)
 ...     \Delta f
 ...     \iint_{x^2 + y^2 \le 1} e^{-(x^2 + y^2)} \, dA
+...     C(t) := (\cos t, \sin t, 0), \quad 0 \le t \le 2\pi
+...     \oint_C (-y\,\hat{\mathbf{x}} + x\,\hat{\mathbf{y}}) \cdot d\mathbf{r}
 ... """)
-[[[2, 1], [1, 2]], [[2], [-1]], 4, -pi*exp(-1) + pi]
+[[[2, 1], [1, 2]], [[2], [-1]], 4, -pi*exp(-1) + pi, 2*pi]
 
 ```
 

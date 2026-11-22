@@ -301,6 +301,7 @@ def _core() -> Iterator[Implementation]:
     yield entry("vectors.hessian", vectors.hessian, "value", 1, 1)
     yield entry("vectors.component", vectors.component, "scalar", 2, 2)
     yield entry("vectors.levi_civita", vectors.levi_civita, "tensor", 1, 1)
+    yield entry("vectors.along", vectors.along, "scalar", 4, 4)
     yield entry("vectors.norm", vectors.norm, "scalar", 1, 1)
     yield entry("vectors.induced_metric", vectors.induced_metric, "value", 1, 1)
 

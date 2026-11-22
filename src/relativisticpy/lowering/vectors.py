@@ -45,6 +45,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.probability import Probability
 from relativisticpy.reading.families import Family
+from relativisticpy.reading.labels import label_name
 from relativisticpy.reading.names import _a_pair, _named, _written_as_letter, _written_with
 from relativisticpy.reading.quantum import OperatorBinding
 from relativisticpy.reading.vectors import (
@@ -71,6 +72,7 @@ _EACH_COMPONENT = frozenset(
         "core.limit",
         "core.sum",
         "integrate",
+        "vectors.along",
     }
 )
 
@@ -103,6 +105,20 @@ class _Along:
 _Item = ast.Expr | Node | Operator | _Along
 
 
+@dataclass(frozen=True)
+class _Curve:
+    """A curve an integral is along: the ``name`` its function is bound to, as written,
+    the symbol of its parameter, its point and its tangent there, and the limits of its
+    parameter."""
+
+    name: str
+    written: str
+    parameter: Node
+    point: Node
+    tangent: Node
+    limits: tuple[Node, Node]
+
+
 class VectorCalculus(Vectors, Probability):
     """The lowering of vectors, their algebra and their calculus."""
 
@@ -111,6 +127,10 @@ class VectorCalculus(Vectors, Probability):
         # The hats written under scripts, as {\hat\theta}^{(\mu)} is: names, as before,
         # and no unit vectors, by the identity of their syntax.
         self._hats_named: set[int] = set()
+        # The tangents of the curves an integral is along, while its integrand is read, by
+        # the names of the curves, and the innermost under "": d\mathbf{r} is r'(t) dt.
+        self._differentials: dict[str, Node] = {}
+        self._differentials_read = 0
 
     # -- products: \cdot, \times and \nabla ------------------------------------------------
 
@@ -136,11 +156,13 @@ class VectorCalculus(Vectors, Probability):
             self._acting(written, position, scope, ctx) or _an_operator_in_brackets(factor)
             for position, (_, factor) in enumerate(written)
         )
+        along = self._with_differentials(written, scope)
+        operators = operators or len(along) != len(written)
         signs = any(joint for joint, _ in written)
         if not operators and not signs:
             return None
         try:
-            items = self._nablas_applied(written, scope, ctx)
+            items = self._nablas_applied(along, scope, ctx)
             runs = self._runs(items, scope, ctx)
         except RelativisticPyError:
             if operators:
@@ -201,14 +223,63 @@ class VectorCalculus(Vectors, Probability):
         metric = session.metric is not None and "Delta" in session.metric.names
         return not metric and "Delta" not in session.functions
 
+    def _with_differentials(
+        self, written: list[tuple[str, ast.Expr]], scope: Scope
+    ) -> list[tuple[str, _Item]]:
+        """The factors of a product with ``d`` before a curve the integral is along, as in
+        ``d\\mathbf{r}_1``, or before a name that names nothing, as ``d\\mathbf{r}`` in
+        ``\\oint_C \\mathbf{F} \\cdot d\\mathbf{r}``, read as the curve's tangent, its
+        differential by its parameter, whose own differential the integral takes."""
+        found: list[tuple[str, _Item]] = []
+        position = 0
+        while position < len(written):
+            joint, factor = written[position]
+            following = written[position + 1] if position + 1 < len(written) else None
+            tangent = None
+            if (
+                self._differentials
+                and following is not None
+                and not following[0]
+                and isinstance(factor, ast.Name)
+                and factor.id == "d"
+                and scope.lookup("d") is None
+            ):
+                tangent = self._tangent_written(following[1], scope)
+            if tangent is not None:
+                found.append((joint, tangent))
+                self._differentials_read += 1
+                position += 2
+                continue
+            found.append((joint, factor))
+            position += 1
+        return found
+
+    def _tangent_written(self, written: ast.Expr, scope: Scope) -> Node | None:
+        """The tangent of the curve a name after ``d`` is, by its name, or of the innermost
+        curve, where the name names nothing else."""
+        if isinstance(written, ast.Scripted):
+            name = label_name(written)
+        elif isinstance(written, ast.Name):
+            name = written.id
+        else:
+            return None
+        if name is not None and name in self._differentials:
+            return self._differentials[name]
+        if name is not None and scope.lookup(name) is None:
+            return self._differentials.get("")
+        return None
+
     def _nablas_applied(
-        self, written: list[tuple[str, ast.Expr]], scope: Scope, ctx: Context
+        self, written: Sequence[tuple[str, _Item]], scope: Scope, ctx: Context
     ) -> list[tuple[str, _Item]]:
         """The factors of a product with each ∇ applied to the factor after it, from the
         right, so that ``\\nabla \\times \\nabla f`` is the curl of the gradient; a ∇ with
         nothing after it stays an operator, as in ``(\\mathbf{u} \\cdot \\nabla)``."""
         done: list[tuple[str, _Item]] = []
         for joint, factor in reversed(written):
+            if not isinstance(factor, ast.Expr):  # a curve's tangent, as d\mathbf{r} is
+                done.append((joint, factor))
+                continue
             kind = self._nabla_kind(factor, scope, ctx)
             if kind == "Δ" and not (done and _a_function_written(done[-1][1], scope)):
                 kind = None  # \Delta x, the change in x
@@ -1129,9 +1200,84 @@ class VectorCalculus(Vectors, Probability):
     # -- integrals over a region -----------------------------------------------------------
 
     def _Integral(self, node: ast.Integral, scope: Scope, ctx: Context) -> Node:
+        if node.domain is not None and not node.bounds:
+            curve = self._curve_named(node.domain, scope, ctx)
+            if curve is not None:  # \oint_C \mathbf{F} \cdot d\mathbf{r}
+                return self._along_a_curve(node, curve, scope, ctx)
         if node.domain is not None and (over := self._over_a_region(node, scope, ctx)):
             return over
         return super()._Integral(node, scope, ctx)
+
+    def _curve_named(self, domain: ast.Expr, scope: Scope, ctx: Context) -> _Curve | None:
+        """The curve an integral is along, written below it: a function of one parameter
+        the program defines, whose value is a vector, as ``\\mathbf{r}_1(s) := (\\cos s,
+        \\sin s, 0)``, with the range the program states for its parameter, as
+        ``0 \\le s \\le 2\\pi``. ``None`` where the name is of no such function."""
+        if isinstance(domain, ast.Scripted):
+            name = label_name(domain)
+        elif isinstance(domain, ast.Name):
+            name = domain.id
+        else:
+            return None
+        binding = scope.lookup(name) if name is not None else None
+        if name is None or not isinstance(binding, FunctionBinding):
+            return None
+        if isinstance(binding.definition, Family) or len(binding.definition.params) != 1:
+            return None
+        (param,) = binding.definition.params
+        parameter = self.graph.const(sympy.Dummy(param, real=True), SCALAR, domain.span)
+        point = self._inline(binding, [parameter], domain.span, ctx)
+        if self._vector_components(point) is None:
+            return None
+        lower, upper = self._domain(param)
+        if not (sympy.sympify(lower).is_finite and sympy.sympify(upper).is_finite):
+            shown = self._written_label(param)
+            raise CompileError(
+                f"{domain.span.text} is a curve of {shown}, and the program states no range of "
+                f"{shown} for an integral along it",
+                span=domain.span,
+                hint=f"state it, as 0 \\le {shown} \\le 2\\pi",
+            )
+        tangent = self._differentiate(point, [(parameter, 1)], domain.span)
+        limits = (self.graph.const(lower, SCALAR), self.graph.const(upper, SCALAR))
+        return _Curve(name, domain.span.text, parameter, point, tangent, limits)
+
+    def _along_a_curve(self, node: ast.Integral, curve: _Curve, scope: Scope, ctx: Context) -> Node:
+        """``\\oint_C \\mathbf{F} \\cdot d\\mathbf{r}``: the integral over the parameter of
+        the curve C, with the curve's name its point, ``d`` before it, or before a name
+        that names nothing, its tangent, and x, y and z its components, so that a field is
+        taken along it."""
+        inner = scope.child()
+        inner.bind(curve.name, VariableBinding(curve.point))
+        saved, read = self._differentials, self._differentials_read
+        self._differentials = {**saved, curve.name: curve.tangent, "": curve.tangent}
+        try:
+            integrand = self.value(node.integrand, inner, ctx)
+            used = self._differentials_read > read
+        finally:
+            self._differentials = saved
+        if not used:
+            raise CompileError(
+                f"{node.span.text} is along the curve {curve.written}, and its integrand has no "
+                "differential along it",
+                span=node.span,
+                hint=f"write it, as \\mathbf{{F}} \\cdot d\\mathbf{{r}}, or d{curve.written}",
+            )
+        components = self._vector_components(curve.point)
+        assert components is not None
+        frame = self._vector_frame(node.span, CARTESIAN[: len(components)])
+        if frame is not None and frame.cartesian and len(frame.coordinates) == len(components):
+            pairs = [
+                each
+                for coordinate, component in zip(frame.coordinates, components, strict=True)
+                for each in (self.graph.const(coordinate, SCALAR), component)
+            ]
+            integrand = self._substituted(integrand, pairs, node.span)
+        why = f"{curve.written} is a function of one variable whose value is a vector"
+        self._decide(VECTOR, node.span, f"an integral along {curve.written}", why)
+        lower, upper = curve.limits
+        args = [integrand, curve.parameter, lower, upper]
+        return self._call("vectors.along", args, SCALAR, node.span)
 
     def _over_a_region(self, node: ast.Integral, scope: Scope, ctx: Context) -> Node | None:
         """``\\iint_{x^2 + y^2 \\le 1} f\\,dA`` or ``\\iiint_{[0, 1]^3} f\\,dV``: an integral

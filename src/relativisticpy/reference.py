@@ -473,8 +473,9 @@ def _vectors() -> list[str]:
         "what follows it. Of a function at a point, `\\nabla f(\\mathbf{a})` is its gradient "
         "there and `\\nabla^2 f(\\mathbf{a})` its Hessian.",
         "- An equation between vectors holds component by component; `\\mathbf{0}` is the "
-        "zero vector. `\\iint_{x^2 + y^2 \\le 1} f\\,dA` is over the disk, and "
-        "`\\iiint_{[0, 1]^3} f\\,dV` over the cube.",
+        "zero vector. `\\iint_{x^2 + y^2 \\le 1} f\\,dA` is over the disk, "
+        "`\\iiint_{[0, 1]^3} f\\,dV` over the cube, and `\\oint_C \\mathbf{F} \\cdot "
+        "d\\mathbf{r}` along a curve `C(t) := ...` whose parameter's range is stated.",
         "- Where the metric is written as the identity, `ds^2 = dx^2 + dy^2 + dz^2`, or a "
         "space is `\\mathbb{R}^n`, an index repeated in any position is summed, and "
         "`\\epsilon_{ijk}` is the Levi-Civita symbol.",

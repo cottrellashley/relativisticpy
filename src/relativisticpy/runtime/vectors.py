@@ -25,12 +25,14 @@ from collections.abc import Sequence
 from itertools import product
 from typing import Any
 
+import mpmath
 import sympy
 from sympy import ImmutableDenseNDimArray, ImmutableMatrix, Symbol
 
-from relativisticpy import display
+from relativisticpy import assumptions, display
 from relativisticpy.diffgeom import curvature
 from relativisticpy.errors import EvaluationError
+from relativisticpy.runtime import core
 from relativisticpy.tensors import arrays
 from relativisticpy.tensors.simplification import is_zero, simplify_component, tidy
 
@@ -166,6 +168,54 @@ def hessian(f: Any, *, coordinates: tuple[Symbol, ...]) -> ImmutableDenseNDimArr
     return ImmutableDenseNDimArray(
         [[sympy.diff(f, row, column) for column in coordinates] for row in coordinates]
     )
+
+
+def along(f: Any, parameter: Symbol, lower: Any, upper: Any) -> Any:
+    """The integral of ``f`` over the parameter of a curve, from ``lower`` to ``upper``: in
+    closed form, where SymPy finds one in the time a sum is given; otherwise, where nothing
+    but the parameters of curves is left in it, numerically, said in a note; otherwise as it
+    is written."""
+    written = sympy.Integral(f, (parameter, lower, upper))
+    try:
+        with core._budget(core._CLOSED_FORM_BUDGET):
+            found = written.doit()
+    except (Exception, core._OverBudget):  # judged as written
+        found = written
+    if not (isinstance(found, sympy.Basic) and found.has(sympy.Integral)):
+        return found
+    if found.free_symbols:
+        return found
+    value = _numerically(written)
+    if value is None:
+        return found
+    seconds = f"{core._CLOSED_FORM_BUDGET:g}"
+    assumptions.remark(
+        f"the integral along the curve is computed numerically, as SymPy found no closed "
+        f"form of it in {seconds} s"
+    )
+    return value
+
+
+def _numerically(written: sympy.Integral) -> sympy.Float | None:
+    """The value of an integral of numbers over limits that are numbers, nested or not,
+    by mpmath; ``None`` where it holds anything else."""
+    variables: list[Symbol] = []
+    ranges: list[list[Any]] = []
+    integrand: Any = written
+    while isinstance(integrand, sympy.Integral):
+        for limit in reversed(integrand.limits):
+            if len(limit) != 3:
+                return None
+            variable, lower, upper = limit
+            if not (sympy.sympify(lower).is_number and sympy.sympify(upper).is_number):
+                return None
+            variables.append(variable)
+            ranges.append([mpmath.mpf(sympy.N(lower, 30)), mpmath.mpf(sympy.N(upper, 30))])
+        integrand = integrand.function
+    if integrand.has(sympy.Integral) or integrand.free_symbols - set(variables):
+        return None
+    function = sympy.lambdify(variables, integrand, "mpmath")
+    return sympy.Float(mpmath.quad(function, *ranges), 15)
 
 
 def levi_civita(size: int) -> ImmutableDenseNDimArray:
