@@ -86,6 +86,18 @@ spacing, an operator, another function or a differential: in
 `\sin^2\theta\, d\phi^2` the argument is \(\theta\). Only `\log` takes a
 subscript, its base, as in `\log_2 x`; `\max_x` and `\det_g` are errors.
 
+**What RelativisticPy prints reads back.** Results are typeset as SymPy
+typesets them, with a function's arguments in braces, `a{\left(t \right)}`,
+and a derivative of the function after it alone, `\frac{d}{d t} a{\left(t
+\right)}`. Both read back as they were meant, so a result written into a paper
+holds when the paper is [checked](checking.md):
+
+```python
+>>> wb.expr(r"\frac{d}{d t} a{\left(t \right)} \frac{d}{d t} b{\left(t \right)} + a^{2}{\left(t \right)}")
+a(t)**2 + Derivative(a(t), t)*Derivative(b(t), t)
+
+```
+
 **Brackets group.** `\left[ ... \right]` and `\{ ... \}` group like parentheses.
 `\left| ... \right|` is an absolute value and `\left. ... \right|_{x=a}` an
 evaluation bar.

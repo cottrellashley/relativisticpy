@@ -884,6 +884,8 @@ class Parser:
                 and (not self._function_argument or _plain_call(node, token))
             ):
                 node = self._call(node)
+            elif kind is K.LBRACE and _applicable(node) and self._at_typeset_arguments():
+                node = self._typeset_call(node)
             elif kind is K.PRIME and isinstance(node, ast.Name):
                 order = 0
                 while self.accept(K.PRIME):
@@ -941,6 +943,40 @@ class Parser:
             name = ast.Name(f"{base.id}_{digits}", base.verbatim, span=node.span)
             return ast.Prime(name, order, span=span)
         return ast.Scripted(ast.Prime(base, order, span=span), node.scripts, span=span)
+
+    def _at_typeset_arguments(self) -> bool:
+        """Whether a braced group of arguments in ``\\left( ... \\right)`` follows, as
+        SymPy typesets a function's: ``a{\\left(t \\right)}``."""
+        index = self._significant(self.pos) + 1
+        opener = self.tokens[index]
+        if opener.kind is not K.LPAREN or not opener.span.text.startswith("\\left"):
+            return False
+        depth = 0
+        for position in range(index, len(self.tokens)):
+            kind = self.tokens[position].kind
+            if kind is K.LPAREN:
+                depth += 1
+            elif kind is K.RPAREN:
+                depth -= 1
+                if depth == 0:
+                    closer, after = self.tokens[position], self.tokens[position + 1]
+                    return closer.span.text.startswith("\\right") and after.kind is K.RBRACE
+            elif kind is K.EOF:
+                return False
+        return False
+
+    def _typeset_call(self, func: ast.Expr) -> ast.Expr:
+        """``a{\\left(t \\right)}``, a function applied as SymPy typesets it, so that what
+        RelativisticPy prints reads back as it was: ``a^{2}{\\left(t \\right)}`` is
+        ``a(t)^2``."""
+        self.advance()  # the brace
+        base = func.base if isinstance(func, ast.Scripted) else func
+        call = self._call(base)
+        self.expect(K.RBRACE, after="the arguments")
+        call = replace(call, span=self._span(func.span))
+        if isinstance(func, ast.Scripted):
+            return ast.Scripted(call, func.scripts, span=call.span)
+        return call
 
     def _call(self, func: ast.Expr) -> ast.Call:
         opener = self.advance()
@@ -1067,7 +1103,7 @@ class Parser:
                 if not isinstance(binding, ast.Equation):
                     raise ParseError("expected a substitution such as x = 2", span=binding.span)
                 bindings.append((binding.lhs, binding.rhs))
-                if not self.accept(K.COMMA):
+                if not (self.accept(K.COMMA) or self.accept(K.ROW_SEP)):  # \substack rows
                     break
             self.expect(K.RBRACE, opener=opener)
         return ast.Substitution(expr, tuple(bindings), span=self._span(expr.span))
@@ -1446,7 +1482,27 @@ class Parser:
         denominator = self._subparse(
             self._argument_tokens(command, "denominator"), "denominator", command
         )
-        return _quotient(numerator, denominator, self._span(command), leibniz=True)
+        quotient = _quotient(numerator, denominator, self._span(command), leibniz=True)
+        if isinstance(quotient, ast.Derivative) and quotient.expr is None:
+            # As SymPy prints a derivative, \frac{d}{d r} A{\left(r \right)}, it is of the
+            # function after it alone, not of the rest of the term.
+            operand = self._typeset_operand()
+            if operand is not None:
+                return replace(quotient, expr=operand, span=self._span(command))
+        return quotient
+
+    def _typeset_operand(self) -> ast.Expr | None:
+        """A function applied as SymPy typesets it, maybe raised to a power, if one is
+        next: ``A{\\left(r \\right)}`` or ``A^{2}{\\left(r \\right)}``."""
+        if self.peek().kind is not K.IDENT:
+            return None
+        before = (self.pos, self.previous)
+        node, _ = self._attempt(lambda: self._postfix(self._atom()))
+        call = node.base if isinstance(node, ast.Scripted) else node
+        if isinstance(call, ast.Call) and _TYPESET_ARGUMENTS.search(call.span.text):
+            return node
+        self.pos, self.previous = before  # something else, read as it always was
+        return None
 
     def _accent(self) -> ast.Accent:
         command = self.advance()
@@ -2163,6 +2219,16 @@ def _plain_call(node: ast.Name | ast.Prime, parenthesis: Token) -> bool:
     )
 
 
+def _applicable(node: ast.Expr) -> bool:
+    """Whether arguments typeset after ``node`` apply it, as a function: a name, or a
+    name raised to a power, as SymPy prints the square of a(t), ``a^{2}{\\left(t\\right)}``."""
+    if isinstance(node, ast.Scripted):
+        return isinstance(node.base, ast.Name) and all(
+            script.kind == "^" and isinstance(script.body, ast.Number) for script in node.scripts
+        )
+    return isinstance(node, ast.Name)
+
+
 def _without_script(node: ast.Expr, kind: Literal["^", "_"]) -> bool:
     """Whether ``node`` is a name with scripts, none of them of this kind."""
     return (
@@ -2516,6 +2582,9 @@ def _relation(token: Token) -> str:
         return ":"
     return token.value
 
+
+# Arguments as SymPy typesets them, in braces and \left( \right): a{\left(t \right)}.
+_TYPESET_ARGUMENTS = re.compile(r"\{\s*\\left\s*\(")
 
 # How each command that takes arguments is written, for the hint of a missing one.
 _ARGUMENT_EXAMPLES = {

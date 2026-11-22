@@ -586,6 +586,14 @@ class TestDerivatives:
             (r"\frac{\partial^2 f}{\partial x \partial y}", "(∂^2/∂x∂y f)"),
             (r"\frac{\partial^2{x^2}}{\partial{\tau}^2}", "(∂^2/∂tau^2 (^ x 2))"),
             (r"\frac{\partial}{\partial r}", "(∂/∂r _)"),
+            # as SymPy typesets them: a function's arguments in braces, and a derivative
+            # of the function after it alone
+            (r"a{\left(t \right)}", "(call a t)"),
+            (r"a^{2}{\left(t \right)}", "(^ (call a t) 2)"),
+            (r"f{\left(t,r \right)}", "(call f t r)"),
+            (r"\frac{d}{d t} a{\left(t \right)} b", "(* (d/dt (call a t)) b)"),
+            (r"\frac{d^{2}}{d t^{2}} a^{2}{\left(t \right)}", "(d^2/dt^2 (^ (call a t) 2))"),
+            (r"\frac{d}{dx} x (x + 1)", "(* (* (d/dx _) x) (+ x 1))"),  # only SymPy's form
             # the physics package
             (r"\pdv{f}{x}", "(∂/∂x f)"),
             (r"\pdv[3]{f}{x}", "(∂^3/∂x^3 f)"),

@@ -169,7 +169,7 @@ STYLE_COMMANDS: frozenset[str] = frozenset(
         "mathrm", "mathit", "mathbf", "mathsf", "mathtt", "mathcal", "mathbb",
         "mathfrak", "mathscr", "mathnormal", "boldsymbol", "bm", "pmb",
         "mathop", "mathord", "mathrel", "mathbin", "mathpunct", "mathinner", "lefteqn",
-        "mathopen", "mathclose",
+        "mathopen", "mathclose", "substack",
     }
 )  # fmt: skip
 
