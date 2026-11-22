@@ -35,7 +35,7 @@ of the conformance suite.
 | solver | equations in, solutions out | `solve`, `dsolve`, ODE integration, roots, optimisation |
 | constructor | builds an object the language works with | spacetimes, distributions, spaces |
 | backend | an array library | NumPy, JAX, CuPy, PyTorch, Dask, through the Python array API standard |
-| source | where large sets of numbers come from | CSV, Parquet, Excel, JSON, NumPy files, HDF5 and netCDF, SQL, the tables of a Markdown notebook, pandas and xarray objects |
+| object | what a Python object, read by name, becomes | NumPy, JAX, CuPy and PyTorch arrays; pandas, polars and Arrow tables; xarray with its named dimensions; SciPy sparse matrices; SymPy expressions; Python functions |
 | rewrite | a faster way to compute what is written | the Fourier transform written as its sum, computed as an FFT; an inverse times a vector, computed as a solve |
 
 ### Written forms
@@ -50,32 +50,66 @@ same declaration does two jobs:
 - **Printing.** The printer writes a call the way it was declared, so every result
   reads back.
 
-## Large sets of numbers
+## Large sets of numbers: Python objects
 
-Data is written in the notation, not only bound from Python:
+The language does not read files. Python does, in its own cells, with any library there
+is, and the language reads the objects:
 
-- **Tables.** A file named in `\texttt{...}` is a table, as LaTeX typesets a path.
-  - `P_{ta} := \texttt{prices.csv}` is the whole table. Its row labels are the basis of
-    `t`, and its column names that of `a`, as a pandas DataFrame bound from Python gives
-    them.
-  - `x_t := \texttt{signal.csv}[x]` is one column.
-  - Data from two tables meets by label, never by position.
-  - Each kind of file is a source integration. It is read lazily, and in chunks when
-    large, and it is only ever read: nothing in a file runs.
-  - Paths are relative to the document.
-- **Grids.** `x_n := n\,\Delta x, \quad n = 0, \ldots, N-1` defines a vector, as
-  mathematics does: the range of an index declares its space.
-- **Samples.** `f_n := \sin(2\pi \cdot 5\, t_n)` samples a function on a grid, and
-  `\epsilon_t \sim \mathcal{N}(0, 1)` draws from a distribution, with a seed so that a
+```latex
+P_{ta} := \texttt{prices}                 % a pandas DataFrame: rows label t, columns a
+x_t := \texttt{prices["NVDA"]}            % keys and attributes reach inside an object
+w_n := \texttt{hann}(n, N), \quad n = 0, \ldots, N-1   % a Python function, called
+```
+
+### Scope
+
+`\texttt{name}` is the object called `name` in the Python scope a workbook is given:
+`Workbook(scope=globals())`, or a notebook's own namespace. In Marimo, the plugin passes
+the cell's namespace and declares what the cell reads, so that it reruns when an object
+changes.
+
+### Reading only
+
+A reference is a name followed by attributes and keys, never Python to evaluate. A
+document checked with `relativisticpy check` has no scope unless one is given, so a paper
+cannot reach into Python.
+
+### Conversion by type
+
+What an object becomes is decided by object integrations, one for each family of types,
+following the same verified pattern as every other integration:
+
+- a number is a scalar;
+- an array or a table is data;
+- a DataFrame's index and columns, and xarray's named dimensions, are the bases of
+  spaces;
+- a SymPy expression is an expression;
+- a function is callable.
+
+Standard protocols cover new libraries without code of their own: the array API, the
+DataFrame interchange protocol, `__array__` and `_sympy_`. Data from two objects meets
+by label, never by position.
+
+### Grids and samples
+
+Grids and samples are written in the notation:
+
+- `x_n := n\,\Delta x, \quad n = 0, \ldots, N-1` defines a vector: the range of an
+  index declares its space.
+- `\epsilon_t \sim \mathcal{N}(0, 1)` draws from a distribution, with a seed, so that a
   result can be reproduced.
-- **Transforms.** `\operatorname{fft}(x_t)` names the FFT. The same transform written as
-  its sum, `\sum_{t=0}^{N-1} x_t\, e^{-2\pi i k t/N}`, is computed as an FFT too, by a
-  rewrite that the FFT's integration declares. Write the mathematics; the engine finds
-  the fast algorithm.
 
-Grids, samples and ranges are forms of the language, lowered to operations of the IR
-that the engines compute lazily. Tables and transforms are integrations. The cases in
-`curriculum/data-sources/` fix this notation, and fail until it is built.
+They are forms of the language, lowered to operations of the IR that the engines compute
+lazily.
+
+### Transforms
+
+`\operatorname{fft}(x_t)` names the FFT. The same transform written as its sum,
+`\sum_{t=0}^{N-1} x_t\, e^{-2\pi i k t/N}`, is computed as an FFT too, through a rewrite
+that the FFT's integration declares. Write the mathematics; the engine finds the fast
+algorithm.
+
+The cases in `curriculum/data-sources/` fix this notation, and fail until it is built.
 
 ## An example
 

@@ -72,6 +72,7 @@ class Case:
     oracle: str
     path: Path
     line: int
+    scope: str = ""  # Python run first, whose names the program may read: \texttt{prices}
 
     @property
     def where(self) -> str:
@@ -127,6 +128,7 @@ def read(path: Path) -> list[Case]:
         fences = list(_FENCE.finditer(section))
         programs = [f["body"] for f in fences if f["info"] in _PROGRAMS]
         oracles = [f["body"] for f in fences if f["info"] == "python"]
+        scopes = [f["body"] for f in fences if f["info"] == "python-scope"]
         cases.append(
             Case(
                 id=metadata["id"],
@@ -139,6 +141,7 @@ def read(path: Path) -> list[Case]:
                 oracle=oracles[0] if oracles else "",
                 path=path,
                 line=text.count("\n", 0, heading.start()) + 1,
+                scope=scopes[0] if scopes else "",
             )
         )
     return cases
@@ -218,7 +221,14 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
     tolerance = float(expectation.get("tolerance", 1e-9))
     start = time.perf_counter()
     try:
-        with _beside(case), Workbook() as workbook, _time_limit(time_limit):
+        with _beside(case):
+            workbook = _workbook(case)
+    except TypeError as error:  # the workbook takes no Python scope yet
+        return Result(case, "refused", f"the workbook cannot be given a Python scope: {error}")
+    except Exception as error:
+        return Result(case, "broken", f"the scope fails: {type(error).__name__}: {error}")
+    try:
+        with _beside(case), workbook, _time_limit(time_limit):
             values = workbook.exe(case.program)
     except TimeoutError:
         seconds = time.perf_counter() - start
@@ -258,6 +268,17 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
             detail = f"{label}expected {_shown(wanted)}\n{label}got      {_shown(actual)}"
             return Result(case, "wrong", why or "not the answer", detail, seconds)
     return Result(case, "passed", seconds=seconds)
+
+
+def _workbook(case: Case) -> Workbook:
+    """A fresh workbook for a case, given the Python scope its ``python-scope`` block
+    defines, if it has one: objects defined outside the language for it to read."""
+    if not case.scope.strip():
+        return Workbook()
+    namespace: dict[str, Any] = {}
+    exec(compile(case.scope, case.where, "exec"), namespace)
+    namespace.pop("__builtins__", None)
+    return Workbook(scope=namespace)  # type: ignore[call-arg]
 
 
 def _is_error(error: RelativisticPyError, wanted: str, message: str | None) -> bool:
