@@ -103,7 +103,7 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   and, where it has one, with arrays. The package is scanned, outside packages
   contribute through the `relativisticpy.integrations` entry points, and a library a
   capability needs is imported only when it is used. A conformance suite holds every
-  capability to the pattern in seven checks, saying in words what to fix, and
+  capability to the pattern in nine checks, saying in words what to fix, and
   `integrations.check` runs it on one ([Integrations](docs/integrations.md)).
 - Functions read as books write them, each capability declaring its forms in LaTeX and
   Unicode: `\Gamma(x)`, `\mathrm{B}(a, b)`, `\zeta(s)`, the Bessel functions `J_{\nu}(x)`,
@@ -115,6 +115,20 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   Dirac delta, exact with SymPy and numeric with SciPy, printed in the same forms. A book
   name no integration provides yet is refused, saying what it is, never read as an
   unknown function.
+- Transforms and rewrites, two kinds of capability. The Laplace, Fourier and z-transforms
+  and their inverses, by their book names, `\mathcal{L}\{f(t)\}(s)`,
+  `\mathcal{F}\{f\}(\omega)` and `\mathcal{Z}\{x\}(z)`, exact with SymPy, the z-transform
+  by summation and its inverse by partial fractions; their variables named by convention,
+  and the Fourier transform in the convention a program declares by its integral, shows
+  by the 2π of an integral it writes, or its letters choose, said in a note. The discrete
+  Fourier transform of data, `\operatorname{fft}(x_t)`, with NumPy or JAX, over a space of
+  the frequencies of its index, and `\operatorname{ifft}` back. The transform written as
+  its sum, on data, is computed as an FFT, by a rewrite the conformance suite checks gives
+  the same numbers.
+- Grids written in the notation: a range beside a definition,
+  `x_n := n\,h, \quad n = 0, \ldots, N-1`, declares the space of its index, and the
+  definition is made for each of its values. A sum whose body writes its index on data,
+  or on a list, runs over the whole of it, from its lower limit, as a contraction.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

@@ -506,6 +506,7 @@ def _slashed(factors: list[ast.Expr]) -> list[ast.Expr]:
             and Span(factor.span.source, factor.left.span.end, factor.right.span.start).text.strip()
             == "/"
             and simple(factor.right)
+            and factor.span.start == factor.left.span.start  # not \{1/s^2\}(t), in brackets
         )
         run: list[ast.Expr] = []
         end = factor.span.end

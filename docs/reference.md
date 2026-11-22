@@ -22,6 +22,7 @@ A program is a sequence of statements, one to a line; a semicolon, `\\` and `\li
 | `f(x) := x^2` | a function; `f : (x) -> { ... }` is one with a block of statements |
 | `\mathcal{H} := \mathbb{C}^{2}` | a space, complex, of 2 dimensions; `\mathbb{R}^{n}` is real |
 | `i, j \in \mathcal{H}` | index labels that range over a space |
+| `x_n := n h, \quad n = 0, \ldots, N-1` | a grid: n ranges over its N values, and x is made for each |
 | `Coordinates := [t, r, \theta, \phi]` | the coordinates, in order |
 | `Constants` `Reals` `Integers` `Complex` `Positive` `:= [a, b]` | declare a and b constants, real, integers, complex or positive, before they are used |
 
@@ -199,6 +200,13 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `symbols(names)` | 1 | `symbols('x y')`, the symbols named in quotes |
 | `latex(value)` | 1 | the LaTeX of a value, as text |
 
+### The discrete Fourier transform
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `fft(x)` `\operatorname{fft}(x)` | 1 | the discrete Fourier transform; `X_k = \sum_n x_n e^{-2\pi i k n/N}`, by the fast algorithm: of data over an index, data over its frequencies |
+| `ifft(X)` `\operatorname{ifft}(X)` | 1 | the inverse discrete Fourier transform; `x_n = \frac{1}{N} \sum_k X_k e^{2\pi i k n/N}`: of data over frequencies, data over the samples they are of |
+
 ### Matrices
 
 | Function | Arguments | Meaning |
@@ -256,9 +264,28 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `Heaviside(t, c)` `u_c(t)` | 1 to 2 | the unit step, 0 before c and 1 after it, and 1/2 at c |
 | `DiracDelta(x)` `\operatorname{DiracDelta}(x)` | 1 | the Dirac delta, a distribution; `\delta(x)` is not read as it, as `\delta` is a variation in physics |
 
+### Integral transforms
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `LaplaceTransform(f, t, s)` `laplace_transform` `\mathcal{L}\{f\}(s)` `\mathcal{L}\{f\}` | 1 to 3 | the Laplace transform; of f(t), `\int_0^\infty e^{-st} f(t)\, dt`, a function of s |
+| `InverseLaplaceTransform(F, s, t)` `inverse_laplace_transform` `\mathcal{L}^{-1}\{F\}(t)` `\mathcal{L}^{-1}\{F\}` | 1 to 3 | the inverse Laplace transform; of F(s), the function of t it is the transform of, for t > 0 |
+| `FourierTransform(f, x, s)` `fourier_transform` `\mathcal{F}\{f\}(s)` `\mathcal{F}\{f\}` | 1 to 3 | the Fourier transform; of f(x), `\int f(x) e^{-2\pi i x s}\, dx`, Bracewell's, of f(t), `\int f(t) e^{-i\omega t}\, dt`, or as a program defines it by its integral |
+| `InverseFourierTransform(F, s, x)` `inverse_fourier_transform` `\mathcal{F}^{-1}\{F\}(x)` `\mathcal{F}^{-1}\{F\}` | 1 to 3 | the inverse Fourier transform; of s to x or of ω to t, in the convention of the Fourier transform |
+| `ZTransform(x, n, z)` `z_transform` `\mathcal{Z}\{x\}(z)` `\mathcal{Z}\{x\}` | 1 to 3 | the z-transform; of a sequence from n = 0, `\sum_{n=0}^{\infty} x_n z^{-n}`, where it converges |
+| `InverseZTransform(X, z, n)` `inverse_z_transform` `\mathcal{Z}^{-1}\{X\}(n)` `\mathcal{Z}^{-1}\{X\}` | 1 to 3 | the inverse z-transform; of a rational function of z, by partial fractions, the sequence from n = 0 |
+
+### Rewrites
+
+What a program writes, computed faster by another capability, to the same numbers:
+
+| Written | Computed by | Meaning |
+|---|---|---|
+| `\sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}` | `fft` | the discrete Fourier transform written as its sum; on data or a list, computed as an FFT |
+
 ### Book names not supported yet
 
-A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{tr} A`, the trace of a matrix written as an operator; `\operatorname{rank} A`, the rank of a matrix; `\operatorname{Var}(X)`, the variance of a random variable; `\mathcal{L}\{f\}`, the Laplace transform; `\mathcal{F}\{f\}`, the Fourier transform; `\epsilon_{ijk}`, the Levi-Civita symbol.
+A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{tr} A`, the trace of a matrix written as an operator; `\operatorname{rank} A`, the rank of a matrix; `\operatorname{Var}(X)`, the variance of a random variable; `\epsilon_{ijk}`, the Levi-Civita symbol.
 
 ## Data, statistics and linear algebra
 

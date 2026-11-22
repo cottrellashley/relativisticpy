@@ -310,9 +310,16 @@ class TestScriptedNamesWhoseBaseIsDefined:
 
     def test_an_element_of_a_list(self, wb):
         wb.exe("x := [2, 4, 4, 4, 5, 5, 7, 9]\nn := 8")
-        found = error(wb, r"\frac{1}{n} \sum_{i=1}^{n} x_i")
+        # a sum over the whole list counts its elements from its lower limit (decision 17)
+        assert wb.expr(r"\frac{1}{n} \sum_{i=1}^{n} x_i") == 5
+        found = error(wb, r"\sum_{i=1}^{3} x_i")
         assert found.message == (
-            "x_i names nothing, and x is a list, whose elements are not written with a "
+            "x has 8 elements, but \\sum runs over 3: a sum over a part of a list is not "
+            "supported yet"
+        )
+        found = error(wb, r"x_3 + 1")
+        assert found.message == (
+            "x_3 names nothing, and x is a list, whose elements are not written with a "
             "subscript yet"
         )
         assert found.hint == (

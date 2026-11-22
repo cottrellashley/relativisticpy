@@ -433,6 +433,20 @@ def uniform(dim: int) -> Any:
     return numerical.numpy().full(dim, 1.0 / dim)
 
 
+def positions(first: int, dim: int) -> Any:
+    """The values an index takes over a space of ``dim`` elements, counted from ``first``,
+    as n takes 0, 1, ..., N - 1 in ``x_n := n h``: SymPy's for a few, NumPy's for many."""
+    if dim <= _SMALL:
+        return sympy.ImmutableDenseNDimArray(list(range(first, first + dim)))
+    return numerical.numpy().arange(first, first + dim)
+
+
+def power(base: Any, exponent: Any) -> Any:
+    """A power, taken for each component of a grid, as n^2 is for each n, or
+    e^{-2πikn/N} for each k and n."""
+    return base**exponent
+
+
 def space_metric(components: Any, complex_space: bool) -> Any:
     """The components of a space's metric, once found to be one: symmetric (Hermitian, over
     a complex space) and, where they are numbers, positive definite."""

@@ -204,8 +204,9 @@ def _consistent(node: Node, entry: registry.Implementation) -> bool:
     """Whether the type of a node agrees with what the registry says its operation gives.
     What an operation gives of notation, other than notation's own, is a value."""
     args = [arg.type for arg in node.args]
-    if isinstance(node.op, ops.Map):
-        return isinstance(node.type, TensorType) and node.type == args[0]
+    if isinstance(node.op, ops.Map):  # its indices renamed are the same computation
+        over = args[0].spaces if isinstance(args[0], TensorType) else None
+        return isinstance(node.type, TensorType) and node.type.spaces == over
     if entry.result == "scalar":
         return node.type == SCALAR or (node.type == VALUE and any(a != SCALAR for a in args))
     if entry.result == "value":

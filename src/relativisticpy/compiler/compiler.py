@@ -28,7 +28,7 @@ from relativisticpy.compiler.session import Saved
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
-from relativisticpy.lowering.definitions import Definitions
+from relativisticpy.lowering.transforms import Transforms
 
 # The tables of the language, which its reference reads from here.
 from relativisticpy.reading.names import _BUILTIN_TENSORS as _BUILTIN_TENSORS
@@ -58,7 +58,7 @@ _READ_AS = {
 }
 
 
-class Compiler(Definitions):
+class Compiler(Transforms):
     """Compiles programs against a :class:`Session`, which it updates as it goes."""
 
     # ======================================================================
@@ -161,6 +161,8 @@ class Compiler(Definitions):
                 self._decide("product or call", statement.span, call, why, written=head)
             self._define_function(statement, scope, ctx)
             return []
+        if isinstance(statement, ast.Define) and self._defines_transform(statement, scope, ctx):
+            return []  # \mathcal{F}\{f\}(\omega) := \int ...: the convention of a transform
         if isinstance(statement, ast.Define) and self._states_identity(statement, scope):
             target = statement.targets[0]
             why = "it says, with \\equiv, what a built-in already is"
@@ -176,7 +178,8 @@ class Compiler(Definitions):
                 self._destructure(statement.targets, statement.value, scope, ctx)
             else:
                 self._check_recurrence(statement.targets[0], statement.value, statement.span)
-                self._define(statement.targets[0], statement.value, scope, ctx)
+                with self._over_ranges(statement):  # x_n := n h, \quad n = 0, \ldots, N-1
+                    self._define(statement.targets[0], statement.value, scope, ctx)
             return []
         assert isinstance(statement, ast.Evaluate)
         expr = statement.expr

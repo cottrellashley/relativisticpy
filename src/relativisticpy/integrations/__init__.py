@@ -12,7 +12,11 @@ The kinds are:
   data, as ``sin`` and the Bessel functions are;
 - :func:`map_function`: a function of a matrix, as ``det`` and ``inverse``;
 - :func:`solver`: equations in, solutions out, as ``solve``;
-- :func:`constructor`: what builds an object the language works with, as a spacetime.
+- :func:`constructor`: what builds an object the language works with, as a spacetime;
+- :func:`transform`: a function of a variable in, a function of another out, as the Laplace
+  transform; or data over an index in, data over a new space out, as the FFT;
+- :func:`rewrite`: a faster computation of what a program writes, as the discrete Fourier
+  transform written as its sum, computed as an FFT.
 
 Each capability gives :class:`Example`\ s, programs whose answers are known from outside
 the integration, and the conformance suite, ``tests/integrations``, holds every capability
@@ -51,6 +55,7 @@ from relativisticpy.integrations._discovery import (
     on_change,
     reservations,
 )
+from relativisticpy.integrations._transforms import Rewrite, Transform, rewrite, transform
 
 __all__ = [
     "CHECKS",
@@ -64,7 +69,9 @@ __all__ = [
     "MapFunction",
     "Numerically",
     "Reservation",
+    "Rewrite",
     "Solver",
+    "Transform",
     "applies",
     "capabilities",
     "check",
@@ -76,6 +83,8 @@ __all__ = [
     "on_change",
     "reservations",
     "reserved",
+    "rewrite",
     "solver",
+    "transform",
     "usable",
 ]

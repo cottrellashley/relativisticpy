@@ -1,7 +1,7 @@
 r"""The conformance suite: what every capability must do, checked, and said in words that
 say what to fix.
 
-There are seven checks, each a function that takes a capability and gives its failures,
+There are nine checks, each a function that takes a capability and gives its failures,
 none where it passes:
 
 1. **declaration**: names that are the capability's alone, a summary, two examples with
@@ -14,7 +14,11 @@ none where it passes:
 5. **errors**: the wrong number of arguments, the wrong kind of argument and a library
    that is missing are each refused, saying what to do;
 6. **display**: a call prints in every form, and each form reads back;
-7. **reference**: the language reference describes it, from its declaration.
+7. **reference**: the language reference describes it, from its declaration;
+8. **transform**: a transform agrees with the integral or the sum it stands for, its inverse
+   undoes it, and, of data, it keeps Parseval's relation and gives data over a space of the
+   size and the labels it declares;
+9. **rewrite**: a rewrite gives the numbers of what it rewrites, computed as written.
 
 ``tests/integrations`` runs them for every capability the integrations declare;
 :func:`check` runs them for one, as an agent checks a capability it writes before it
@@ -37,6 +41,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.errors import InternalError, RelativisticPyError
+from relativisticpy.integrations import _transforms
 from relativisticpy.integrations._declarations import Capability, Example, Function
 from relativisticpy.integrations._discovery import (
     Exactly,
@@ -217,6 +222,9 @@ def _written(capability: Capability) -> list[str]:
     from relativisticpy.language import syntax as ast
 
     name, failures = capability.name, []
+    if isinstance(capability, _transforms.Rewrite):
+        with usable(capability):
+            return _transforms.sum_failures(capability)
     text = capability.text().replace(", ...)", ")")
     try:
         expr = _expression(parse(text).statements)
@@ -232,6 +240,9 @@ def _written(capability: Capability) -> list[str]:
     with usable(capability):
         for form, written in (("latex", capability.latex), ("unicode", capability.unicode)):
             for each in written:
+                if isinstance(capability, _transforms.Transform) and _transforms.form_head(each):
+                    failures += _transforms.form_failures(capability, each)  # \mathcal{L}\{f\}
+                    continue
                 pattern = _forms.parse_form(capability, each, form)  # type: ignore[arg-type]
                 if pattern is None:
                     failures.append(
@@ -302,7 +313,11 @@ def examples(capability: Capability) -> list[str]:
 
 
 def _uses(ir: str, capability: Capability) -> bool:
-    return any(f"call {name}" in ir or f"map {name}" in ir for name in capability.names)
+    """Whether a program's IR calls the capability, or, of a rewrite, what computes it."""
+    names = capability.names
+    if isinstance(capability, _transforms.Rewrite):
+        names = (capability.computes,)
+    return any(f"call {name}" in ir or f"map {name}" in ir for name in names)
 
 
 # -- 3. agreement ------------------------------------------------------------------------
@@ -618,6 +633,8 @@ def reference(capability: Capability) -> list[str]:
             "summary without a bar, |, which a table of the reference cannot hold"
         ]
     named = (capability.text(), *capability.aliases, *capability.latex)
+    if isinstance(capability, _transforms.Rewrite):  # never called: written, and computed
+        named = (*capability.latex, capability.computes)
     wanted = [*(f"`{name}`" for name in named), capability.summary]
     missing = [item for item in wanted if item not in page]
     if not missing:
@@ -642,10 +659,16 @@ CHECKS: tuple[Check, ...] = (
     Check("lifting", "applied to a tensor or data, component by component",
           lambda capability: _function(capability) and capability.lifts, lifting),
     Check("errors", "wrong arguments and a missing library are refused, saying what to do",
-          lambda capability: True, errors),
+          lambda capability: not isinstance(capability, _transforms.Rewrite), errors),
     Check("display", "a call prints in every form, and each reads back",
           lambda capability: _function(capability) and capability.scalar, display),
     Check("reference", "the reference describes it", lambda capability: True, reference),
+    Check("transform", "against its integral or sum, its inverse, Parseval and its space",
+          lambda capability: isinstance(capability, _transforms.Transform),
+          _transforms.transform_checks),
+    Check("rewrite", "the numbers of what it rewrites, as written",
+          lambda capability: isinstance(capability, _transforms.Rewrite),
+          _transforms.rewrite_checks),
 )  # fmt: skip
 
 

@@ -122,6 +122,9 @@ class Session:
     # The tensors of one's own that notation in each algebra is written with, by name and
     # number of indices: what its components may need.
     notation_tensors: dict[NotationAlgebra, set[tuple[str, int]]] = field(default_factory=dict)
+    # The conventions a program states, by what they are of: a Fourier transform defined
+    # by its integral, \mathcal{F}\{f\}(\omega) := \int ... e^{-i\omega t} dt.
+    conventions: dict[str, Any] = field(default_factory=dict)
     _algebra: NotationAlgebra | None = field(default=None, repr=False)
     _algebras: int = field(default=0, repr=False)
 
@@ -155,6 +158,7 @@ class Session:
             space_metrics=dict(self.space_metrics),
             measures=dict(self.measures),
             notation_tensors={key: set(value) for key, value in self.notation_tensors.items()},
+            conventions=dict(self.conventions),
             _algebra=None,
         )
 

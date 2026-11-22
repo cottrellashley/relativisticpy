@@ -72,9 +72,20 @@ def test_reference(capability):
     passes(capability, "reference")
 
 
+@pytest.mark.parametrize("capability", applicable("transform"))
+def test_transform(capability):
+    passes(capability, "transform")
+
+
+@pytest.mark.parametrize("capability", applicable("rewrite"))
+def test_rewrite(capability):
+    passes(capability, "rewrite")
+
+
 def test_every_check_is_run_for_some_capability():
     assert {check.name for check in integrations.CHECKS} == {
         "declaration", "examples", "agreement", "lifting", "errors", "display", "reference",
+        "transform", "rewrite",
     }  # fmt: skip
     for check in integrations.CHECKS:
         assert applicable(check.name), f"no capability is checked for {check.name}"

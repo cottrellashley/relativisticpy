@@ -483,7 +483,7 @@ class Parser:
             clause.append(self.expression())
             joined.append(separator == ",")
         self._skip_punctuation()
-        return statements
+        return _ranged(statements)
 
     def _separator(self) -> Literal[",", " "] | None:
         """Read what separates two expressions of a statement: a comma alone (``,``), or
@@ -2930,6 +2930,55 @@ def _ranges(clause: list[ast.Expr], joined: list[bool]) -> tuple[list[ast.Expr],
         items.append((ast.Relation(lhs, "∈", rhs, span=lhs.span.to(rhs.span)), link))
         index = end
     return [item for item, _ in items], [link for _, link in items]
+
+
+def _ranged(statements: list[ast.Statement]) -> list[ast.Statement]:
+    """A definition followed on its line by the range of its index, ``x_n := n h, \\quad
+    n = 0, \\ldots, N-1``, as one statement: the range belongs to the definition, which
+    is made for each value of n."""
+    joined: list[ast.Statement] = []
+    for statement in statements:
+        last = joined[-1] if joined else None
+        if (
+            isinstance(last, ast.Define)
+            and len(last.targets) == 1
+            and isinstance(statement, ast.Evaluate)
+            and isinstance(statement.expr, ast.Relation)
+            and statement.expr.op == "∈"
+            and not statement.expr.written
+            and (members := _members(statement.expr.lhs)) is not None
+            and members <= _labels_written(last.targets[0])
+        ):
+            span = last.span.to(statement.span)
+            joined[-1] = replace(last, ranges=(*last.ranges, statement.expr), span=span)
+            continue
+        joined.append(statement)
+    return joined
+
+
+def _members(node: ast.Expr) -> set[str] | None:
+    """The names a range is given for, ``n`` or ``(i, j)``; ``None`` for anything else."""
+    items = node.items if isinstance(node, ast.Tuple) else (node,)
+    if not all(isinstance(item, ast.Name) for item in items):
+        return None
+    return {item.id for item in items if isinstance(item, ast.Name)}
+
+
+def _labels_written(target: ast.Expr) -> set[str]:
+    """The index labels a definition's target is written with: n of ``x_n``, and a and b of
+    ``T^{a}{}_{b}``."""
+    if isinstance(target, ast.Name):
+        base, underscore, tail = target.id.partition("_")
+        return set(split_index_labels(tail)) if base and underscore and tail.isalpha() else set()
+    if isinstance(target, ast.Scripted):
+        return {
+            str(item.label)
+            for script in target.scripts
+            if script.indices is not None
+            for item in script.indices.items
+            if item.label is not None
+        }
+    return set()
 
 
 def _memberships(targets: list[ast.Expr], joined: list[bool]) -> list[ast.Expr]:

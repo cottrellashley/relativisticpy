@@ -191,8 +191,6 @@ class TestReservations:
             (r"\operatorname{tr} A", "the trace of a matrix written as an operator"),
             (r"\operatorname{rank}(A)", "the rank of a matrix, is not supported yet"),
             (r"\operatorname{Var}(X)", "the variance of a random variable"),
-            (r"\mathcal{L}\{t^2\}", r"\mathcal{L}, the Laplace transform, is not supported yet"),
-            (r"\mathcal{F}\{f\}(\omega)", "the Fourier transform, is not supported yet"),
             (r"\epsilon_{ijk}", r"\epsilon_{ijk}, the Levi-Civita symbol, is not supported yet"),
         ],
     )

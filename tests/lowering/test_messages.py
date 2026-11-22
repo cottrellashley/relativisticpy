@@ -135,15 +135,10 @@ class TestDerivativesOfFunctions:
 
 
 class TestHintsThatWork:
-    def test_a_sum_over_an_index_without_limits_is_a_contraction(self, wb):
+    def test_a_sum_over_an_index_of_data_is_a_contraction(self, wb):
         numpy = pytest.importorskip("numpy")
         wb["w^a"] = numpy.array([1.0, 2.0])
-        found = error(wb, r"\sum_a w^a")
-        assert found.message == r"\sum needs limits"
-        assert found.hint == (
-            "to sum the components of w^a, contract it with the covector of ones: w^a 1_a"
-        )
-        assert wb.expr("w^a 1_a") == 3.0  # the hint works
+        assert wb.expr(r"\sum_a w^a") == wb.expr("w^a 1_a") == 3.0
 
     def test_solving_a_trace_for_the_ricci_scalar(self, wb):
         wb.exe(r"EFE := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}")

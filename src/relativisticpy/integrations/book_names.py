@@ -82,10 +82,6 @@ variance = reserved(
     instead=r"for the variance of data over an index, write \operatorname{Var}_t(x_t)",
 )
 
-laplace = reserved("LaplaceTransform", what="the Laplace transform", written=[r"\mathcal{L}\{f\}"])
-
-fourier = reserved("FourierTransform", what="the Fourier transform", written=[r"\mathcal{F}\{f\}"])
-
 levi_civita = reserved(
     "LeviCivita",
     what="the Levi-Civita symbol",

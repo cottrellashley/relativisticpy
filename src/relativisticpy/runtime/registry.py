@@ -120,10 +120,15 @@ def lookup(name: str) -> Implementation:
 
 def _builtins() -> Iterator[Implementation]:
     """The functions a program calls by name: every capability the integrations declare,
-    under its name and each alias. A spacetime names its parameters in messages."""
+    under its name and each alias. A spacetime names its parameters in messages. A rewrite
+    is no function: what it rewrites is computed by the capability it names."""
     for capability in integrations.capabilities():
+        if isinstance(capability, integrations.Rewrite):
+            continue
         low, high = capability.arity
         result: Result = "scalar" if capability.scalar else "value"
+        if isinstance(capability, integrations.Transform) and capability.on_data:
+            result = "tensor"  # data over the space the transform names
         spacetime = isinstance(capability, integrations.Constructor) and spacetimes.declares(
             capability.exact
         )
@@ -201,6 +206,8 @@ def _core() -> Iterator[Implementation]:
     yield entry("core.identity", core.identity, "tensor", 1, 1)
     yield entry("core.ones", core.ones, "tensor", 1, 1)
     yield entry("core.uniform", core.uniform, "tensor", 1, 1)
+    yield entry("core.positions", core.positions, "tensor", 2, 2)
+    yield entry("core.power", core.power, "argument", 2, 2)
     yield entry("core.space_metric", core.space_metric, "tensor", 2, 2)
     yield entry("core.hadamard", core.elementwise_product, "value", 2, 2)
     yield entry("core.conjugate", core.conjugated, "argument", 2, 2)

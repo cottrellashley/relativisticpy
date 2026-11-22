@@ -232,6 +232,57 @@ spec(H^i{}_j) over eigenvectors of H^i{}_j: 2 components non-zero
 
 ```
 
+## Grids and the Fourier transform
+
+A range written beside a definition declares the space of its index, of one element for
+each value, labelled by it, and the definition is made for each value: `n`, used as a
+number, is the value. A sum whose body writes its index on data runs over the whole of
+the data's space, from its lower limit, and binds the index, as a statistic does:
+
+```python
+>>> grid = Workbook()
+>>> grid.exe(r"""
+...     N := 8
+...     h := \frac{1}{N}
+...     x_n := n\,h, \quad n = 0, \ldots, N-1
+... """)
+[]
+>>> grid["x"].spaces[0].basis
+('0', '1', '2', '3', '4', '5', '6', '7')
+>>> grid.expr(r"\sum_n x_n")
+7/2
+
+```
+
+`\operatorname{fft}` is the discrete Fourier transform, \(X_k = \sum_n x_n e^{-2\pi i k
+n/N}\), by the fast algorithm, with NumPy, or JAX. Of data over an index, it gives data
+over a new space, the frequencies of the index, in cycles per step, labelled in the order
+of NumPy's `fftfreq`; `\operatorname{ifft}` gives back data over the samples' own space:
+
+```python
+>>> signal = Workbook()
+>>> signal["y_t"] = np.array([1.0, 2.0, 0.0, -1.0])
+>>> spectrum = signal.expr(r"\operatorname{fft}(y_t)")
+>>> spectrum.spaces[0].basis
+('0', '1/4', '-1/2', '-1/4')
+>>> spectrum.to_numpy().round(10).tolist()
+[(2+0j), (1-3j), 0j, (1+3j)]
+>>> signal.expr(r"\operatorname{ifft}(\operatorname{fft}(y_t))").spaces == signal["y"].spaces
+True
+
+```
+
+The transform written as its sum is computed as an FFT too: a rewrite, which gives the
+numbers the sum gives, in \(N \log N\) steps rather than \(N^2\):
+
+```python
+>>> grid.exe(r"X_k := \sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}, \quad k = 0, \ldots, N-1")
+[]
+>>> "call fft" in grid.ir("X_k")
+True
+
+```
+
 ## Domains
 
 **Portfolios**: expected returns, covariances, the tangency portfolio, risk as a metric,

@@ -314,6 +314,8 @@ def _statements() -> list[str]:
         (r"`\mathcal{H} := \mathbb{C}^{2}`",
          r"a space, complex, of 2 dimensions; `\mathbb{R}^{n}` is real"),
         (r"`i, j \in \mathcal{H}`", "index labels that range over a space"),
+        (r"`x_n := n h, \quad n = 0, \ldots, N-1`",
+         "a grid: n ranges over its N values, and x is made for each"),
         (r"`Coordinates := [t, r, \theta, \phi]`", "the coordinates, in order"),
         (f"{declarations} `:= [a, b]`", f"declare a and b {assumptions}, before they are used"),
     ]  # fmt: skip
@@ -488,7 +490,11 @@ def _functions() -> list[str]:
         "declaration this list is written.",
     ]
     modules: dict[str, list[integrations.Capability]] = {}
+    rewrites: list[integrations.Rewrite] = []
     for capability in _declared(spacetime=False):
+        if isinstance(capability, integrations.Rewrite):
+            rewrites.append(capability)
+            continue
         modules.setdefault(capability.module, []).append(capability)
     for module, declared in modules.items():
         rows = [
@@ -496,6 +502,18 @@ def _functions() -> list[str]:
         ]
         lines += ["", f"### {_title(module)}", ""]
         lines += _table(("Function", "Arguments", "Meaning"), rows)
+    lines += [
+        "",
+        "### Rewrites",
+        "",
+        "What a program writes, computed faster by another capability, to the same numbers:",
+        "",
+    ]
+    rows = [
+        (" ".join(_code(form) for form in rewrite.latex), _code(rewrite.computes), rewrite.summary)
+        for rewrite in rewrites
+    ]
+    lines += _table(("Written", "Computed by", "Meaning"), rows)
     reserved = [
         f"{_code(reservation.written[0])}, {reservation.what}"
         for reservation in integrations.reservations()

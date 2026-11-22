@@ -401,10 +401,13 @@ class Evaluate(Statement):
 
 @dataclass(frozen=True)
 class Define(Statement):
-    """``target := value``; several targets destructure: ``x, y := symbols('x y')``."""
+    """``target := value``; several targets destructure: ``x, y := symbols('x y')``. The
+    ``ranges`` written after it on the line give the values of its index labels:
+    ``x_n := n h, \\quad n = 0, \\ldots, N-1``."""
 
     targets: tuple[Expr, ...]
     value: Expr
+    ranges: tuple[Relation, ...] = field(default=(), kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -631,7 +634,8 @@ class _Printer:
         return self.render(node.expr)
 
     def _Define(self, node: Define) -> str:
-        return f"(:= {self._many(node.targets)} {self.render(node.value)})"
+        ranges = "".join(f" {self.render(relation)}" for relation in node.ranges)
+        return f"(:= {self._many(node.targets)} {self.render(node.value)}{ranges})"
 
     def _Block(self, node: Block) -> str:
         return f"(block {self._many(node.statements)})"

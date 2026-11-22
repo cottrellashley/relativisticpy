@@ -23,6 +23,8 @@ how the language treats it:
 | `map_function` | a function of a matrix | `det`, `inverse`, `trace` |
 | `solver` | equations in, solutions out | `solve`, `dsolve` |
 | `constructor` | builds an object the language works with | `Schwarzschild`, `Eq`, `symbols` |
+| `transform` | a function of a variable in, a function of another out; or data over an index in, data over a new space out | `LaplaceTransform`, `FourierTransform`, `fft` |
+| `rewrite` | a faster computation of what a program writes, to the same numbers | the DFT written as its sum, computed by `fft` |
 
 The decorator takes, by name:
 
@@ -43,6 +45,23 @@ JAX's. The parameters of `exact` are the declaration of the arguments: how many 
 takes, and their names in the reference. A library is imported inside the methods, never
 at the top of the module, so that the language runs without it; when it is missing, the
 user is told what to install.
+
+A `transform` of functions declares the `variables` it maps by convention, a pair for each
+convention the letters choose, as ℱ takes `("x", "s")` or `("t", "omega")`; the transform
+that undoes it, its `inverse`; and, as `points`, functions it is checked on. Its class has
+an `exact(self, f, t=None, s=None)` method, and an `integral` method, which writes it as
+the integral or the sum it stands for, unevaluated: the language names the variables and
+reads the transform as books write it, `\mathcal{L}\{f\}(s)`, from its forms. A
+transform of data has instead a `space(self, over)` method, which gives the space
+its result is over, of the samples' frequencies for `fft`, and `numeric(self, xp, x)`,
+which computes it along the first axis. The transforms of functions are declared in
+`integrations/transforms.py`, and the FFT, with its rewrite, in `integrations/fft.py`.
+
+A `rewrite` declares, in its `latex` form, the sum it stands for, and the capability that
+`computes` it faster; its class has a `matches(self, kernel, n, k, size)` method, which,
+given the kernel of a sum over data in the positions of its two indices, gives the factor
+by which the sum is that computation, or `None`. The DFT written as its sum,
+\(\sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}\), is so computed by `fft`.
 
 ## Written forms
 
@@ -130,8 +149,8 @@ declarations.
 
 ## The conformance suite
 
-`tests/integrations` runs seven checks for every capability the scan finds. A failure
-names the capability and says what to do:
+`tests/integrations` runs nine checks for every capability the scan finds, each where it
+applies to its kind. A failure names the capability and says what to do:
 
 1. **Declaration.** Its names are its own, and the language reads each as one name; it
    has a summary, at least two examples, each with its source, and declares the library
@@ -147,6 +166,12 @@ names the capability and says what to do:
 6. **Display.** A call prints in text, Unicode, LaTeX and data, and each reads back as the
    same value.
 7. **Reference.** The language reference describes it, from its declaration.
+8. **Transform.** A transform of functions agrees with the integral or the sum it stands
+   for at points, and its inverse gives back what it transformed; a transform of data
+   agrees with its sum, its inverse undoes it, it keeps Parseval's relation, and its
+   result is over a space of the size and the labels it declares.
+9. **Rewrite.** Each example of a rewrite is computed by what it names, and gives the
+   numbers it gives computed as written.
 
 A capability that breaks the pattern is told, for instance:
 

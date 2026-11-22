@@ -260,6 +260,27 @@ until you ask for their value with `doit`:
 
 ```
 
+The Laplace, Fourier and z-transforms and their inverses are written as books write them,
+a calligraphic letter with braces, `\mathcal{L}\{f(t)\}(s)`, which is the transform
+whatever the plain letter means. Their variables are named by convention, by the letters
+used: ℒ takes t to s, 𝒵 takes n to z, from n = 0, and ℱ takes x to s, with
+\(e^{-2\pi i x s}\) as Bracewell writes it, or t to ω, with \(e^{-i\omega t}\). A program
+chooses another convention by defining ℱ by its integral,
+`\mathcal{F}\{f\}(\omega) := \frac{1}{\sqrt{2\pi}} \int_{-\infty}^{\infty} f(t)\, e^{-i\omega t}\, dt`,
+and a note says which convention is used:
+
+```python
+>>> transforms = Workbook()
+>>> transforms.exe(r"""
+...     \mathcal{L}\{t^2\}
+...     \mathcal{L}^{-1}\left\{\frac{1}{s^2 + 1}\right\}
+...     \mathcal{F}\{e^{-\pi x^2}\}
+...     \mathcal{Z}\{(1/2)^n\}(z)
+... """)
+[2/s**3, sin(t), exp(-pi*s**2), 2*z/(2*z - 1)]
+
+```
+
 ## Functions you can call
 
 Elementary functions (`sin`, `cos`, `tan`, `exp`, `ln`, `log`, `sqrt`, the
