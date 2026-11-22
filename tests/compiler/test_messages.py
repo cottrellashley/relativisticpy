@@ -104,6 +104,40 @@ class TestWhichIndexIsWrong:
 
 
 class TestBuiltInNames:
+    SPACETIMES = (
+        "the spacetimes are Minkowski, Schwarzschild, ReissnerNordstrom, Kerr, KerrNewman, "
+        "FLRW, DeSitter and AntiDeSitter"
+    )
+
+    @pytest.mark.parametrize(
+        ("written", "hint", "meant"),
+        [
+            ("Schwarzchild(M)", "did you mean Schwarzschild(M)?", "Schwarzschild(M)"),
+            (
+                "schwarzschild(M)",
+                "in the language, spacetimes are capitalised: Schwarzschild(M)",
+                "Schwarzschild(M)",
+            ),
+            ("kerr(M, a)", "in the language, spacetimes are capitalised: Kerr(M, a)", "Kerr(M, a)"),
+        ],
+    )
+    def test_a_misspelt_spacetime_is_refused_with_the_closest(self, wb, written, hint, meant):
+        found = error(wb, rf"g_{{\mu\nu}} := {written}")
+        assert found.message == f"unknown spacetime {written.split('(')[0]}"
+        assert found.notes == [self.SPACETIMES]
+        assert found.hint == hint
+        assert meant in hint
+        wb.exe(rf"g_{{\mu\nu}} := {meant}")  # the hint works
+        assert wb.expr("g_{tt}") != 0
+
+    def test_a_spacetime_named_without_being_called(self, wb):
+        found = error(wb, r"g_{\mu\nu} := Schwarzschild")
+        assert found.message == "Schwarzschild is a spacetime: call it, as in Schwarzschild()"
+        wb.exe(r"g_{\mu\nu} := Schwarzschild()")  # the example works
+        assert wb.expr("Kretschmann") == 48 * __import__("sympy").Symbol("M") ** 2 / (
+            __import__("sympy").Symbol("r") ** 6
+        )
+
     def test_a_name_shared_with_ones_own_says_what_it_is(self, wb):
         wb.exe(SCHWARZSCHILD)
         found = error(wb, r"A_{\mu} + B_{\nu} = C_{\mu}", IndexNotationError)
