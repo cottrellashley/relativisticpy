@@ -154,5 +154,5 @@ warn_unreachable = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-module = ["sympy.*", "scipy.*", "pandas", "pandas.*", "sklearn.*", "jax", "jax.*"]
+module = ["sympy.*", "scipy.*", "pandas", "pandas.*", "sklearn.*", "jax", "jax.*", "marimo", "marimo.*"]
 ignore_missing_imports = true

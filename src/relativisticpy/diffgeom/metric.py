@@ -240,7 +240,15 @@ class GeodesicEquations(list[Eq]):
         return self._display_unicode()
 
     def _repr_latex_(self) -> str:
-        return f"$$ {self._display_latex()} $$"
+        from relativisticpy import display
+
+        return display.jupyter_latex(self)
+
+    def _display_(self) -> Any:
+        """What marimo shows: the equations typeset, by :mod:`~relativisticpy.display`."""
+        from relativisticpy import display
+
+        return display.marimo(self)
 
     def __reduce__(self) -> Any:
         return (GeodesicEquations, (list(self), self.coordinates))

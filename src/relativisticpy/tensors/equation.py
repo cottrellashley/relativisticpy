@@ -281,7 +281,15 @@ class TensorEquation:
         return self.latex()
 
     def _repr_latex_(self) -> str:
-        return f"$$ {self.latex()} $$"
+        from relativisticpy import display
+
+        return display.jupyter_latex(self)
+
+    def _display_(self) -> Any:
+        """What marimo shows: the equation typeset, by :mod:`~relativisticpy.display`."""
+        from relativisticpy import display
+
+        return display.marimo(self)
 
 
 def _zero_shaped(side: Any, other: Any) -> Any:

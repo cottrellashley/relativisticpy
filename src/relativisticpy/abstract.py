@@ -869,7 +869,15 @@ class IndexExpression:
         return f"IndexExpression({self.display('unicode')})"
 
     def _repr_latex_(self) -> str:
-        return f"$\\displaystyle {self.latex()}$"
+        from relativisticpy import display
+
+        return display.jupyter_latex(self)
+
+    def _display_(self) -> Any:
+        """What marimo shows: the expression typeset, by :mod:`~relativisticpy.display`."""
+        from relativisticpy import display
+
+        return display.marimo(self)
 
     def _latex(self, printer: Any = None) -> str:
         return self.latex()
@@ -950,7 +958,15 @@ class IndexEquation:
         return f"IndexEquation({self.display('unicode')})"
 
     def _repr_latex_(self) -> str:
-        return f"$\\displaystyle {self.latex()}$"
+        from relativisticpy import display
+
+        return display.jupyter_latex(self)
+
+    def _display_(self) -> Any:
+        """What marimo shows: the equation typeset, by :mod:`~relativisticpy.display`."""
+        from relativisticpy import display
+
+        return display.marimo(self)
 
     def _latex(self, printer: Any = None) -> str:
         return self.latex()

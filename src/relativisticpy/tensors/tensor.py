@@ -377,15 +377,21 @@ class Tensor:
         printer.text(str(self) if not cycle else "Tensor(...)")
 
     def _repr_latex_(self) -> str:
-        return f"$\\displaystyle {self.latex()}$"
+        from relativisticpy import display
+
+        return display.jupyter_latex(self)
 
     def _repr_html_(self) -> str | None:
         """An HTML table for numerical data, in notebooks; symbolic tensors are typeset."""
-        if not self.numerical:
-            return None
         from relativisticpy import display
 
-        return display.html(self)
+        return display.jupyter_html(self)
+
+    def _display_(self) -> Any:
+        """What marimo shows: the table or the typeset tensor of :mod:`~relativisticpy.display`."""
+        from relativisticpy import display
+
+        return display.marimo(self)
 
     def _latex(self, printer: Any = None) -> str:
         """The LaTeX SymPy's printer uses, as in ``sympy.latex(T)``."""

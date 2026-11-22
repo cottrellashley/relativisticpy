@@ -31,6 +31,10 @@ with its number of digits:
 Tensors are shown by their name and indices, then a line for each non-zero
 component, labelled by coordinate; equations say whether they hold and, if not,
 where; numerical data is summarised, never dumped.
+
+Notebooks show RelativisticPy's values through this module too: Jupyter's
+``_repr_latex_`` and ``_repr_html_`` give :func:`jupyter_latex` and
+:func:`jupyter_html`, and marimo's ``_display_`` gives :func:`marimo`.
 """
 
 from __future__ import annotations
@@ -48,7 +52,7 @@ from sympy.printing.str import StrPrinter
 
 from relativisticpy.language.vocabulary import GREEK
 
-__all__ = ["data", "html", "latex", "text", "unicode"]
+__all__ = ["data", "html", "jupyter_html", "jupyter_latex", "latex", "marimo", "text", "unicode"]
 
 #: The forms a value is shown in.
 Form = Literal["unicode", "text", "latex"]
@@ -2083,6 +2087,47 @@ def html(value: Any) -> str:
     import html as escape
 
     return f"<div>\\[{escape.escape(latex(value))}\\]</div>"
+
+
+def _tabulated(value: Any) -> bool:
+    """Whether :func:`html` shows ``value`` as a table of numbers."""
+    if _is_tensor(value):
+        return bool(value.numerical and value.rank > 0)
+    return _is_data(value) and getattr(value, "shape", ()) != ()
+
+
+# -- notebooks: the hooks Jupyter and marimo call ------------------------------------
+
+
+def jupyter_latex(value: Any) -> str:
+    r"""``value`` typeset for Jupyter, as its ``_repr_latex_`` gives it: the LaTeX of
+    :func:`latex` between dollar signs, in display style, and in display mode where a tag
+    needs it.
+
+    >>> jupyter_latex(sympy.Symbol("x") ** 2)
+    '$\\displaystyle x^{2}$'
+    """
+    shown = latex(value)
+    if "\\tag" in shown:
+        return f"$$ {shown} $$"
+    return f"$\\displaystyle {shown}$"
+
+
+def jupyter_html(value: Any) -> str | None:
+    """Numerical data as an HTML table for Jupyter, as its ``_repr_html_`` gives it, from
+    :func:`html`; ``None`` for anything else, which Jupyter typesets from its LaTeX."""
+    return html(value) if _tabulated(value) else None
+
+
+def marimo(value: Any) -> Any:
+    """``value`` as marimo shows it, as its ``_display_`` gives it: numerical data as the
+    table of :func:`html`, and anything else typeset from :func:`latex`, by marimo's own
+    KaTeX. Only marimo calls it, so marimo is there to import."""
+    import marimo as mo
+
+    if _tabulated(value):
+        return mo.Html(html(value))
+    return mo.md("\\[" + latex(value) + "\\]")
 
 
 def data(value: Any) -> dict[str, Any]:

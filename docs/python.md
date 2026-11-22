@@ -561,7 +561,10 @@ components given after their indices.
 ## LaTeX output
 
 `relativisticpy.latex(value)` is `display.latex`: it typesets any result, and
-tensors, metrics and equations also display themselves in Jupyter.
+tensors, metrics, equations and geodesics also display themselves, typeset, in Jupyter
+and marimo. Their hooks give `display.jupyter_latex(value)` and, for numerical data,
+the table of `display.jupyter_html(value)` to Jupyter, and `display.marimo(value)` to
+marimo.
 
 ```python
 >>> from relativisticpy import latex

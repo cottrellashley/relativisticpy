@@ -279,6 +279,17 @@ class Geodesic:
     def __repr__(self) -> str:
         return self._display("unicode")
 
+    def _repr_latex_(self) -> str:
+        from relativisticpy import display
+
+        return display.jupyter_latex(self)
+
+    def _display_(self) -> Any:
+        """What marimo shows: the geodesic typeset, by :mod:`~relativisticpy.display`."""
+        from relativisticpy import display
+
+        return display.marimo(self)
+
 
 def numpy_close(one: Any, other: Any) -> bool:
     """Whether two values of a coordinate agree to a part in a billion."""
