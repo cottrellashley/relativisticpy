@@ -3,6 +3,7 @@ passing still passes. ``benchmarks/curriculum.py`` runs the rest and keeps the r
 
 from __future__ import annotations
 
+import argparse
 import importlib.util
 import sys
 from pathlib import Path
@@ -103,3 +104,24 @@ def test_a_column_is_the_vector_a_list_writes():
     assert curriculum.equal(column, [sympy.Rational(4, 5), 0, sympy.Rational(1, 5)])
     assert curriculum.equal(column.T, [sympy.Rational(4, 5), 0, sympy.Rational(1, 5)])
     assert not curriculum.equal(sympy.ones(2, 3), sympy.ones(3, 2).tolist())
+
+
+# -- under several hash seeds ----------------------------------------------------------------
+
+
+def test_the_cases_whose_outcome_depends_on_the_hash_seed_are_found():
+    outcomes = {
+        "0": {"a": ("passed", ""), "b": ("passed", ""), "c": ("refused", "why")},
+        "1": {"a": ("passed", ""), "b": ("refused", "why"), "c": ("refused", "why")},
+        "2": {"a": ("passed", ""), "b": ("unfinished", "stopped")},  # stopped before c
+    }
+    assert curriculum.differing(outcomes) == {
+        "b": {"passed": ["0"], "refused": ["1"], "unfinished": ["2"]}
+    }
+
+
+def test_hash_seeds_are_two_or_more_whole_numbers():
+    assert curriculum._seeds("0,1, 2") == ["0", "1", "2"]
+    for wrong in ("0", "a,b", "0,-1"):
+        with pytest.raises(argparse.ArgumentTypeError, match="two or more whole numbers"):
+            curriculum._seeds(wrong)

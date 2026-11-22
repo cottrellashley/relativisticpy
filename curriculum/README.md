@@ -7,13 +7,21 @@ curriculum documents what is easy and what is hard, and the cases that fail say 
 build next.
 
 ```bash
-uv run python benchmarks/curriculum.py              # the scoreboard
-uv run python benchmarks/curriculum.py --failures   # why each case fails
-uv run python benchmarks/curriculum.py --update     # record the cases that pass now
+uv run python benchmarks/curriculum.py                # the scoreboard
+uv run python benchmarks/curriculum.py --failures     # why each case fails
+uv run python benchmarks/curriculum.py --update       # record the cases that pass now
+uv run python benchmarks/curriculum.py --seeds 0,1,2  # the cases the hash seed changes
 ```
 
 `passing.txt` lists the cases that pass. A case may join it, never leave it:
 `tests/test_curriculum.py` runs every case listed there.
+
+A run fixes Python's hash seed, starting again with `PYTHONHASHSEED=0` as the command
+line does, so that the scoreboard is the same every time; the tests run under the same
+seed in continuous integration. `--seeds` runs the curriculum once under each seed given,
+each in a process of its own, and lists the cases whose outcome differs between them,
+with each run's reason: findings, which do not fail the run. Continuous integration runs
+it under seeds 0, 1 and 2, as warnings on the cases.
 
 ## Levels
 

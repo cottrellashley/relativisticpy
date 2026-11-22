@@ -11,6 +11,13 @@ leave it (``tests/test_curriculum.py`` holds them to it).
     uv run python benchmarks/curriculum.py --domain analysis    # one domain
     uv run python benchmarks/curriculum.py --failures           # why each case fails
     uv run python benchmarks/curriculum.py --update             # record what passes now
+    uv run python benchmarks/curriculum.py --seeds 0,1,2        # what the hash seed changes
+
+A run fixes Python's hash seed as the command line does, starting again with
+``PYTHONHASHSEED=0`` where the variable is not set, so that its scoreboard is the same
+every time (``relativisticpy.__main__``). ``--seeds`` runs the cases once under each seed
+given, each in a process of its own, and lists those whose outcome differs between them:
+findings, which do not fail the run.
 
 The format of a case is described in ``curriculum/README.md``.
 """
@@ -23,9 +30,11 @@ import contextlib
 import os
 import random
 import re
+import subprocess
 import sys
+import tempfile
 import time
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -33,6 +42,7 @@ from typing import Any
 import sympy
 
 from relativisticpy import Workbook
+from relativisticpy.__main__ import fix_hash_seed
 from relativisticpy.checking import _time_limit
 from relativisticpy.errors import RelativisticPyError
 
@@ -618,7 +628,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--failures", action="store_true", help="say why each case fails")
     parser.add_argument("--update", action="store_true", help="record the cases that pass")
     parser.add_argument("--time-limit", type=float, default=TIME_LIMIT, help="seconds per case")
+    parser.add_argument(
+        "--seeds",
+        type=_seeds,
+        help="run the cases once under each of these hash seeds, as 0,1,2, each in a process "
+        "of its own, and list those whose outcome differs: findings, which do not fail the run",
+    )
+    parser.add_argument(
+        "--outcomes",
+        type=Path,
+        metavar="FILE",
+        help="write the outcome of each case to FILE: a line each, with its reason",
+    )
+    if argv is None:
+        fix_hash_seed()
     args = parser.parse_args(argv)
+    if args.seeds:
+        return _under_seeds(args)
 
     cases = load()
     broken = problems(cases)
@@ -627,16 +653,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         for problem in broken:
             print(f"  {problem}", file=sys.stderr)
         return 1
-    chosen = [
-        case
-        for case in cases
-        if (not args.domain or case.domain in args.domain)
-        and (not args.level or case.level in args.level)
-        and (not args.case or case.id in args.case)
-    ]
+    chosen = _chosen(cases, args)
     board = Board()
-    for case in chosen:
-        board.results.append(run(case, args.time_limit))
+    with _recorded(args.outcomes) as record:
+        for case in chosen:
+            board.results.append(run(case, args.time_limit))
+            record(board.results[-1])
     passed = sum(r.passed for r in board.results)
     share = passed / len(chosen) if chosen else 0
     print(f"{len(chosen)} cases, {passed} pass ({share:.0%})\n")
@@ -666,6 +688,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def _chosen(cases: Sequence[Case], args: argparse.Namespace) -> list[Case]:
+    """The cases a command line chooses, by domain, level and identifier, in order."""
+    return [
+        case
+        for case in cases
+        if (not args.domain or case.domain in args.domain)
+        and (not args.level or case.level in args.level)
+        and (not args.case or case.id in args.case)
+    ]
+
+
+@contextlib.contextmanager
+def _recorded(path: Path | None) -> Iterator[Callable[[Result], None]]:
+    """What records the outcome of each case in ``path``, a line each, as soon as it is
+    known, so that a run stopped part of the way has said how far it got."""
+    if path is None:
+        yield lambda result: None
+        return
+    with path.open("w", encoding="utf-8") as file:
+
+        def record(result: Result) -> None:
+            file.write(f"{result.case.id}\t{result.outcome}\t{' '.join(result.reason.split())}\n")
+            file.flush()
+
+        yield record
+
+
 def _record(cases: Iterable[Case], results: Iterable[Result]) -> None:
     """Record the cases that pass, keeping those not run this time."""
     ran = {r.case.id: r.passed for r in results}
@@ -675,6 +724,128 @@ def _record(cases: Iterable[Case], results: Iterable[Result]) -> None:
     header = "# Cases that pass. Written by benchmarks/curriculum.py --update.\n"
     PASSING.write_text(header + "".join(f"{case_id}\n" for case_id in sorted(now)))
     print(f"\nrecorded {len(now)} passing cases in {PASSING.relative_to(ROOT.parent)}")
+
+
+# -- under several hash seeds -------------------------------------------------------------
+
+#: The longest a run of the whole curriculum under one seed may take, in seconds: a case
+#: that runs past its own time limit, where no signal stops it, is stopped here.
+SEEDED_RUN_LIMIT = 45 * 60.0
+
+#: The outcome of a case that a run was still computing when it was stopped.
+UNFINISHED = "unfinished"
+
+
+def _seeds(text: str) -> list[str]:
+    """Hash seeds, as ``0,1,2``: two or more whole numbers."""
+    seeds = [seed.strip() for seed in text.split(",")]
+    if len(seeds) < 2 or not all(seed.isdigit() for seed in seeds):
+        raise argparse.ArgumentTypeError(f"takes two or more whole numbers, as 0,1,2, not {text}")
+    return seeds
+
+
+def _under_seeds(args: argparse.Namespace) -> int:
+    """Run the chosen cases once under each hash seed, each in a process of its own, and
+    list those whose outcome differs between them: findings, which do not fail the run.
+    In GitHub Actions, each is an annotation too, a warning on its case."""
+    options = ["--time-limit", str(args.time_limit)]
+    for option, values in (("--domain", args.domain), ("--level", args.level)):
+        options += [part for value in values or [] for part in (option, str(value))]
+    options += [part for case in args.case or [] for part in ("--case", case)]
+    chosen = _chosen(load(), args)
+    outcomes: dict[str, dict[str, tuple[str, str]]] = {}
+    with tempfile.TemporaryDirectory() as folder:
+        for seed in args.seeds:
+            under = _under_seed(seed, options, Path(folder) / f"{seed}.tsv", chosen)
+            if under is None:
+                return 1
+            outcomes[seed] = under
+    found = differing(outcomes)
+    if not found:
+        print(f"\nEvery case has the same outcome under seeds {', '.join(args.seeds)}.")
+        return 0
+    print(f"\nThe outcome of {len(found)} cases depends on the hash seed:")
+    where = {case.id: case for case in chosen}
+    annotate = os.environ.get("GITHUB_ACTIONS") == "true"
+    for case_id, seeds_of in found.items():
+        said = "; ".join(
+            f"{outcome} under {', '.join(seeds)}" for outcome, seeds in seeds_of.items()
+        )
+        case = where[case_id]
+        print(f"{case_id}: {said}\n  {case.where}")
+        for seed in args.seeds:
+            outcome, reason = outcomes[seed][case_id]
+            if reason:
+                print(f"  under {seed}, {outcome}: {reason}")
+        if annotate:
+            path = case.path.relative_to(ROOT.parent)
+            title = "The outcome depends on the hash seed"
+            print(f"::warning file={path},line={case.line},title={title}::{case_id}: {said}")
+    return 0
+
+
+def _under_seed(
+    seed: str, options: list[str], written: Path, chosen: Sequence[Case]
+) -> dict[str, tuple[str, str]] | None:
+    """The outcome of each case, run under one hash seed in a process of its own. Where the
+    run stops before its end, at its limit or by a failure of its own, the case it was
+    computing is unfinished, and those after it are not there; ``None`` where the
+    curriculum does not run at all."""
+    command = [sys.executable, str(Path(__file__).resolve()), *options, "--outcomes", str(written)]
+    environment = {**os.environ, "PYTHONHASHSEED": seed}
+    try:
+        ran = subprocess.run(
+            command,
+            env=environment,
+            capture_output=True,
+            text=True,
+            timeout=SEEDED_RUN_LIMIT,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        stopped, said = f"stopped after {SEEDED_RUN_LIMIT:g} s", ""
+    else:
+        stopped, said = f"stopped with exit status {ran.returncode}", ran.stdout + ran.stderr
+    if not written.is_file():
+        print(f"the curriculum did not run under seed {seed}: {stopped}\n{said}", file=sys.stderr)
+        return None
+    found = _outcomes(written)
+    unfinished = next((case for case in chosen if case.id not in found), None)
+    if unfinished is None:
+        print(f"under seed {seed}: {(said.splitlines() or [stopped])[0]}")
+        return found
+    found[unfinished.id] = (UNFINISHED, stopped)
+    print(f"under seed {seed}: {stopped}, at {unfinished.id}, case {len(found)} of {len(chosen)}")
+    return found
+
+
+def _outcomes(path: Path) -> dict[str, tuple[str, str]]:
+    """The outcome of each case, and its reason, as ``--outcomes`` writes them."""
+    found = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        case_id, outcome, reason = line.split("\t", 2)
+        found[case_id] = (outcome, reason)
+    return found
+
+
+def differing(
+    outcomes: Mapping[str, Mapping[str, tuple[str, str]]],
+) -> dict[str, dict[str, list[str]]]:
+    """The cases whose outcome differs between the runs under several hash seeds, given the
+    outcome of each case under each seed: for each, the seeds under which it met each
+    outcome, in the order of the cases. A case that a run stopped before is left out."""
+    seeds = list(outcomes)
+    cases = list(dict.fromkeys(case_id for each in outcomes.values() for case_id in each))
+    found = {}
+    for case_id in cases:
+        if not all(case_id in outcomes[seed] for seed in seeds):
+            continue
+        seeds_of: dict[str, list[str]] = {}
+        for seed in seeds:
+            seeds_of.setdefault(outcomes[seed][case_id][0], []).append(seed)
+        if len(seeds_of) > 1:
+            found[case_id] = seeds_of
+    return found
 
 
 if __name__ == "__main__":

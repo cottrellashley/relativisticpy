@@ -20,6 +20,8 @@ jobs:
           version=$(uv run --no-project python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
           test "$GITHUB_REF_NAME" = "v$version"
       - run: uv run pytest
+        env:
+          PYTHONHASHSEED: "0"  # as continuous integration runs them
       - run: uv build
       - uses: actions/upload-artifact@v7
         with:

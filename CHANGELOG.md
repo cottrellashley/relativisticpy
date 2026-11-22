@@ -260,7 +260,9 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs
-  it, and the test suite keeps every case that passes passing.
+  it, and the test suite keeps every case that passes passing. Both run under one hash
+  seed, and `benchmarks/curriculum.py --seeds 0,1,2` lists the cases whose outcome
+  changes with it, as continuous integration does on every change, as findings.
 - A corpus benchmark, `benchmarks/corpus.py`, measuring how much of real
   papers RelativisticPy reads and what checking them finds.
 - Index notation in full: Einstein summation, raising and lowering with the
