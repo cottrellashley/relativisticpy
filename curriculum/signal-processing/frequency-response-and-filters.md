@@ -49,6 +49,7 @@ The frequency response of a three-point moving average,
 unit vectors cancel.
 
 ```latex
+j := \sqrt{-1}
 \omega := \frac{2\pi}{3}
 \left| \frac{1}{3} \sum_{n=0}^{2} e^{-j \omega n} \right|
 ```
@@ -96,6 +97,7 @@ it, by \(e^{j\omega}\): for \(h[n] = a^n u[n]\) with \(|a| < 1\) the series conv
 \(\frac{1}{1 - a e^{-j\omega}}\).
 
 ```latex
+j := \sqrt{-1}
 |a| < 1
 \omega \in \mathbb{R}
 h[n] := a^n u[n]
@@ -125,6 +127,7 @@ The group delay \(-\frac{d}{d\omega}\arg H(e^{j\omega})\) of the symmetric filte
 every frequency between \(-\pi\) and \(\pi\).
 
 ```latex
+j := \sqrt{-1}
 -\pi < \omega < \pi
 H(e^{j\omega}) := 1 + 2e^{-j\omega} + e^{-2j\omega}
 -\frac{d}{d\omega} \arg H(e^{j\omega})

@@ -270,7 +270,7 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 
 **Why it is open.** σ(x) is the logistic function in machine learning, but σ is a standard deviation or a cross-section elsewhere. Books disagree on whether sinc x is sin(x)/x or sin(πx)/(πx). ReLU, softmax and fl(x) are defined where they are used.
 
-**Recommendation.** These are not book names. A program defines them, as the book does where it introduces them: `\sigma(a) := \frac{1}{1 + e^{-a}}`. Calling one that is not defined leaves an unknown function, and a result that holds one carries a note saying so, so that it is never mistaken for a value.
+**Recommendation.** A name with one meaning wherever it is written, as ReLU, softplus and softmax have, is a book name, provided by an integration. σ and sinc are not book names, since books disagree on them. A program defines them, as the book does where it introduces them: `\sigma(a) := \frac{1}{1 + e^{-a}}`. Calling one that is not defined leaves an unknown function, and a result that holds one carries a note saying so, so that it is never mistaken for a value.
 
 ## 27. `*` between signals
 

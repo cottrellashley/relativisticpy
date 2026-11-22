@@ -9,10 +9,11 @@ notation.
 
 **Level 1** · `ml.functions.sigmoid` · Bishop (2006), section 4.2
 
-\(\sigma(a) = \frac{1}{1 + e^{-a}}\), the logistic sigmoid, by the name machine learning gives
-it: \(\sigma(\ln 3) = \frac{3}{4}\).
+\(\sigma(a) = \frac{1}{1 + e^{-a}}\), the logistic sigmoid, defined as Bishop defines it before
+using it: \(\sigma(\ln 3) = \frac{3}{4}\).
 
 ```latex
+\sigma(a) := \frac{1}{1 + e^{-a}}
 \sigma(\ln 3)
 ```
 

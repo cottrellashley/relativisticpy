@@ -43,6 +43,7 @@ The transform of the autocorrelation is the squared magnitude of the transform:
 same sequence and every real \(\omega\).
 
 ```latex
+j := \sqrt{-1}
 0 < a < 1
 \omega \in \mathbb{R}
 x(n) := a^n u(n)
@@ -75,6 +76,7 @@ autocorrelation \(\mathbb{E}[x[n] x[n + k]] = \frac{\sigma^2 a^{|k|}}{1 - a^2}\)
 stationarity are beyond any design of the language yet.
 
 ```latex
+j := \sqrt{-1}
 |a| < 1
 \omega \in \mathbb{R}
 x[n] = a\, x[n-1] + w[n], \quad w[n] \sim \mathcal{N}(0, \sigma^2) \text{ independent}

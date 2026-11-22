@@ -32,6 +32,7 @@ define it, with the \(\pi\) inside: \(\operatorname{sinc}\frac{1}{2} = \frac{2}{
 zeros fall on the nonzero integers.
 
 ```latex
+\operatorname{sinc} x := \frac{\sin \pi x}{\pi x}
 \operatorname{sinc}\left(\frac{1}{2}\right)
 ```
 
@@ -73,6 +74,7 @@ expected = True
 all its energy is in the bins \(k = 1\) and \(k = 7\), each \(N/2 = 4\).
 
 ```latex
+j := \sqrt{-1}
 N := 8
 x[n] := \cos\left(\frac{2\pi n}{N}\right)
 X[k] := \sum_{n=0}^{N-1} x[n] e^{-j 2\pi k n / N}
@@ -95,6 +97,7 @@ The energy of a sequence of length \(N\) is the energy of its DFT divided by \(N
 \(\sum |x[n]|^2 = \frac{1}{N}\sum |X[k]|^2\), here 6 on both sides.
 
 ```latex
+j := \sqrt{-1}
 N := 4
 x[n] := \delta[n] + 2\delta[n-1] - \delta[n-3]
 X[k] := \sum_{n=0}^{N-1} x[n] e^{-j 2\pi k n / N}
