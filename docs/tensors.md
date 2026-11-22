@@ -37,6 +37,66 @@ In a line element, `dt` or `d t` is the differential of the coordinate `t`, and
 `d\Omega^2` is the solid angle element \(d\theta^2 + \sin^2\theta\, d\phi^2\).
 A [spacetime](#spacetimes) brings its own coordinates: `g_{\mu\nu} := Kerr(M, a)`.
 
+Without declared coordinates, a line element names them, in the order their
+differentials first appear: `ds^2 = r^2 d\Omega^2 - dt^2 + dr^2` is in
+\((\theta, \phi, t, r)\), so `g_{00}` is \(g_{\theta\theta}\). Declare
+`Coordinates := [...]` first to fix the order. Written alone, `ds^2` is the line
+element of the metric in force:
+
+```python
+>>> sphere = Workbook()
+>>> sphere.exe(r"ds^2 = r^2 d\Omega^2 - dt^2 + dr^2" "\n" "Coordinates" "\n" "ds^2")
+[[theta, phi, t, r], d\phi**2*r**2*sin(theta)**2 + d\theta**2*r**2 + dr**2 - dt**2]
+
+```
+
+A metric is checked where it is defined. One with the wrong number of components,
+one that is not symmetric, or one whose determinant is zero, as when a line element
+leaves out a coordinate's differential, is refused there, with the reason; the
+metric in force, if there is one, stays:
+
+```python
+>>> flat = Workbook()
+>>> flat.exe(r"Coordinates := [t, r]" "\n" r"ds^2 = -dt^2")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.EvaluationError: the metric is degenerate: its determinant is zero
+ --> <input>:2:1
+  |
+2 | ds^2 = -dt^2
+  | ^^^^^^^^^^^^
+note: no term of it has dr
+hint: give it a term with dr
+
+```
+
+`ds^2 = 0`, which says that a path is null, is a condition, read but not computed:
+it defines no metric.
+
+### Names defined after the metric
+
+Papers often write a metric first and say what it is written with afterwards:
+"\(ds^2 = -\Delta\, dt^2 + \Delta^{-1} dr^2 + r^2 d\Omega^2\), where
+\(\Delta = 1 - 2M/r\)". A name or function the metric in force is written with, and
+defined after it, takes that value in the metric from then on, so curvature computed
+afterwards is that of the metric the paper means:
+
+```python
+>>> rn = Workbook()
+>>> rn.exe(r"""
+...     ds^2 = -\Delta dt^2 + \Delta^{-1} dr^2 + r^2 d\Omega^2
+...     R_{abcd} R^{abcd}
+...     \Delta = 1 - \frac{2M}{r}
+...     R_{abcd} R^{abcd}
+... """)
+[(4*Delta**2 - 8*Delta + 4)/r**4, 48*M**2/r**6]
+
+```
+
+The same holds for a function, as \(f\) in `ds^2 = -f(r) dt^2 + \frac{dr^2}{f(r)} + ...`
+followed by `f(r) = 1 - \frac{2M}{r}`, and for a definition written with `:=`. What
+was computed before the definition stays as it was.
+
 ## Index notation
 
 Indices go up with `^` and down with `_`. Inside braces each letter is its own
@@ -182,11 +242,43 @@ The free indices on the right must match the left, in any order:
 
 ```
 
-`:=` always (re)defines. `=` defines a tensor the first time, but once a tensor
-exists `=` states an equation about it rather than overwriting it. An equation
-about a component, such as `g_{tt} = -(1 - 2M/r)`, whose indices name
-coordinates, is always a claim: it neither replaces the metric nor defines a new
-tensor's every component.
+## What `=` means
+
+Papers use `=` both to define and to claim, so RelativisticPy decides by what the
+left side already means. `:=` (or `\equiv`, `\coloneqq`) always defines, or
+redefines. `=` defines only what has no meaning yet:
+
+| You write | When | It means |
+|---|---|---|
+| `x = 2`, `f(x) = x^2`, `T_{\mu\nu} = \ldots` | the name has no meaning yet | a definition |
+| `ds^2 = \ldots` | always | the metric, from its line element |
+| `\Delta = \ldots` | the metric in force is written with \(\Delta\) | a definition, which the metric takes ([above](#names-defined-after-the-metric)) |
+| `K = \ldots`, `u^\mu = \ldots`, `f(x) = \ldots` | it already has a value | a claim, checked |
+| `R = 0`, `R_{\mu\nu} = 0`, `g_{\mu\nu} = \ldots` | it is built in, or the metric in force | a claim, checked |
+| `g_{tt} = \ldots`, `f(2) = 4` | a component, or a value | a claim, checked |
+| `\pi = 3.14159` | a constant | a claim, checked |
+| `R = \frac{2}{R^2}` | the name is in its own value | an equation, never a definition |
+| `t = 0`, `ds^2 = 0`, `(k = 0)` | a coordinate in force, a null path, a case in brackets | a condition, read but not computed |
+
+A claim where a definition could have been meant says so, in a note on its step
+(see [Python](python.md)):
+
+```python
+>>> claims = Workbook()
+>>> claims.exe("K := 48\nK = 47")
+[False]
+>>> [step.notes for step in claims.each("K = 48")]
+[['K already has a value, so = compares it; to give K a new value, write K := ...']]
+>>> claims.exe("K := 47\nK")
+[47]
+
+```
+
+So retyping a corrected tensor, `u^\mu = [2, 0]` after `u^\mu = [1, 0]`, compares
+the two rather than overwriting the first; an equation about a component, such as
+`g_{tt} = -(1 - 2M/r)`, neither replaces the metric nor defines a new tensor's every
+component; and `R = 0` written before any metric is the equation \(R = 0\) of
+[index notation](notation.md), not a new meaning for \(R\).
 
 ## Derivatives
 
@@ -281,9 +373,26 @@ Each of these is a function returning a metric, used as
 `g_{\mu\nu} := Schwarzschild(M)`. Parameters are symbols or numbers, and a
 decimal is the exact fraction it denotes, so `Schwarzschild(1.7)` is exactly a
 vacuum. Units are geometric (\(G = c = 1\)) unless `G` and `c` follow a
-spacetime's own parameters, as in `Schwarzschild(M, G, c)`. The scale factor of
-`FLRW(k, a)` may be named, and is then a function of \(t\), or given as an
-expression of \(t\).
+spacetime's own parameters, as in `Schwarzschild(M, G, c)`. A parameter left out
+is the symbol the table names it with: `Kerr(M)` is `Kerr(M, a)`, and
+`Schwarzschild()` is `Schwarzschild(M)`. The scale factor of `FLRW(k, a)` may be
+named, and is then a function of \(t\), or given as an expression of \(t\). A name
+that is not a spacetime is refused where the metric is defined, with the closest
+spacetime's name:
+
+```python
+>>> Workbook().exe(r"g_{\mu\nu} := Schwarzchild(M)")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.CompileError: unknown spacetime Schwarzchild
+ --> <input>:1:15
+  |
+1 | g_{\mu\nu} := Schwarzchild(M)
+  |               ^^^^^^^^^^^^
+note: the spacetimes are Minkowski, Schwarzschild, ReissnerNordstrom, Kerr, KerrNewman, FLRW, DeSitter and AntiDeSitter
+hint: did you mean Schwarzschild(M)?
+
+```
 
 | Function | Spacetime |
 |---|---|

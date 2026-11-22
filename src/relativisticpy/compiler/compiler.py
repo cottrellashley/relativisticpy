@@ -7,8 +7,10 @@ ambiguous notation; the compiler, knowing what each name refers to, chooses:
   ``r_{s}`` is the symbol ``r_s`` unless ``r`` is a tensor.
 * ``R_{\mu\nu}`` is the Ricci tensor and ``R^{a}{}_{bcd}`` the Riemann tensor:
   built-in tensors are recognised by name *and* number of indices.
-* ``y = 2`` assigns ``y``; ``y(x) = 2`` is an equation; ``ds^2 = ...`` defines
-  the metric.
+* ``=`` defines what has no meaning yet, ``y = 2`` or ``y(x) = x^2``, and a line
+  element, ``ds^2 = ...``, defines the metric; once ``y`` has a value, ``y = 3`` is a
+  claim, checked, and says so in a note (``:=`` always defines). A name the metric
+  is written with, defined after it, takes its value in the metric.
 * In LaTeX, an unknown run of letters is a product: ``\frac{2GM}{r}`` means
   :math:`2GM/r`. In plain text, ``GM`` is one name.
 * ``G_{\mu\nu} = 8\pi G T_{\mu\nu}``, before ``T`` has components, is kept as
@@ -25,23 +27,25 @@ contractions with the metric or the connection.
 from __future__ import annotations
 
 import contextlib
+import difflib
 import itertools
 import math
 import operator
 import re
 from collections import Counter
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import reduce
 from typing import Any, Literal
 
 import sympy
 from sympy import Symbol
+from sympy.core.function import AppliedUndef
 from sympy.tensor import tensor as symbolic
 
-from relativisticpy import abstract
+from relativisticpy import abstract, display
 from relativisticpy.abstract import IndexEquation, IndexExpression
-from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, Builtin
+from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, SPACETIMES, Builtin
 from relativisticpy.compiler.scope import (
     Context,
     Dalembertian,
@@ -64,7 +68,12 @@ from relativisticpy.compiler.session import (
     Session,
 )
 from relativisticpy.diffgeom import Metric, differential, geodesic_equations
-from relativisticpy.errors import CompileError, IndexNotationError
+from relativisticpy.errors import (
+    CompileError,
+    EvaluationError,
+    IndexNotationError,
+    RelativisticPyError,
+)
 from relativisticpy.ir import (
     SCALAR,
     VALUE,
@@ -79,7 +88,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
-from relativisticpy.tensors import Index, Indices, Tensor, linalg
+from relativisticpy.tensors import Index, Indices, Tensor, arrays, linalg
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.spaces import Space, spacetime
@@ -135,7 +144,15 @@ class Compiler:
         self._labels: dict[str, Space] = {}
         # How often the statement being compiled writes each label as a sub- and superscript.
         self._scripts: dict[str, Counter[str]] = {"_": Counter(), "^": Counter()}
+        # The names the statement being compiled writes as factors, not as functions
+        # called: G in 2GM, which makes G(p^2 + q^2) in the same statement a product.
+        self._factors: frozenset[str] = frozenset()
         self._bound: frozenset[str] = frozenset()
+        # How the statement being compiled was read, where that could surprise, and the
+        # notes of statements that showed nothing to carry them, such as definitions.
+        self._notes: list[str] = []
+        self._unshown: list[str] = []
+        self._depth = 0
 
     # ======================================================================
     # Statements
@@ -148,23 +165,56 @@ class Compiler:
             outputs.extend(self.statement(statement, self.session.globals))
         return outputs
 
+    def take_notes(self) -> list[str]:
+        """The notes on how statements were read that no output carries, because the
+        statements showed nothing, as a definition does (``\\Delta`` taking its value in
+        the metric written with it): those of the statements compiled since this was
+        last called, which it forgets."""
+        notes, self._unshown = self._unshown, []
+        return notes
+
     def statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None = None
     ) -> list[Output]:
-        saved, scripts = self._labels, self._scripts
-        self._labels = self._infer_labels(statement, scope)
-        self._scripts = _script_labels(statement)
+        saved = self._labels, self._scripts, self._factors
+        top = self._depth == 0
+        if top:
+            self._notes = []
+        self._depth += 1
         try:
-            return self._statement(statement, scope, outer)
+            self._labels = self._infer_labels(statement, scope)
+            self._scripts = _script_labels(statement)
+            self._factors = _factor_names(statement)
+            outputs = self._statement(statement, scope, outer)
+            if top:
+                self.session.factors.update(self._factors)
+        except RelativisticPyError as error:
+            if top:  # how something was read may say why it fails
+                error.notes.extend(note for note in self._notes if note not in error.notes)
+            raise
         finally:
-            self._labels, self._scripts = saved, scripts
+            self._labels, self._scripts, self._factors = saved
+            self._depth -= 1
+        if top and self._notes:
+            if outputs:
+                first = outputs[0]
+                notes = [*([first.note] if first.note else []), *self._notes]
+                outputs[0] = replace(first, note="\n".join(dict.fromkeys(notes)))
+            else:
+                self._unshown.extend(self._notes)
+        return outputs
+
+    def _note(self, note: str) -> None:
+        """Say how the statement being compiled was read: once, however often it is."""
+        if note not in self._notes:
+            self._notes.append(note)
 
     def _statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None
     ) -> list[Output]:
         ctx = Context(latex=statement.latex, calls=outer.calls if outer else ())
         if isinstance(statement, ast.FunctionDefinition):
-            scope.bind(statement.name, FunctionBinding(statement, scope))
+            self._define_function(statement, scope, ctx)
             return []
         if isinstance(statement, ast.Define) and self._states_identity(statement, scope):
             target = statement.targets[0]
@@ -185,27 +235,236 @@ class Compiler:
                 Output(self._value_or_notation(link, scope, ctx), link.span)
                 for link in expr.links()
             ]
-        if isinstance(expr, ast.Equation) and self._names_coordinate(expr.lhs, scope):
-            # t = \pm r^* + c, or \theta = \pi/2: where something holds, not a new t
-            raise CompileError(
-                f"an equation for the coordinate {expr.lhs.span.text} is a condition, which "
-                "is read but not computed",
-                span=expr.span,
-                hint=r"to compute where it holds, substitute it, as in f |_{\theta=\pi/2}",
-            )
-        if isinstance(expr, ast.Equation) and self._defines(expr.lhs, scope):
-            if self._is_notation(expr.rhs, scope, ctx, equation=True):  # nothing to define it
-                return [Output(self._notation(expr, scope, ctx), expr.span)]
-            self._define(expr.lhs, expr.rhs, scope, ctx)
-            return []
-        if isinstance(expr, ast.Equation) and self._is_notation(expr, scope, ctx, equation=True):
-            return [Output(self._notation(expr, scope, ctx), expr.span)]
+        if isinstance(expr, ast.Equation):
+            return self._equals(expr, scope, ctx)
+        if _is_line_element(expr) and self.session.metric is not None:
+            return [Output(self._line_element_of(expr.span), expr.span)]
         name = (
             expr.base.id
             if isinstance(expr, ast.Scripted) and isinstance(expr.base, ast.Name)
             else None
         )
         return [Output(self.value(expr, scope, ctx), expr.span, name)]
+
+    def _equals(self, equation: ast.Equation, scope: Scope, ctx: Context) -> list[Output]:
+        """``lhs = rhs``: a definition of what has no meaning yet, and a claim, checked,
+        about everything else (see :meth:`_reading`)."""
+        lhs, rhs = equation.lhs, equation.rhs
+        if _is_line_element(lhs) and _zero_literal(rhs):
+            raise CompileError(
+                f"{equation.span.text} says that a path is null: a condition, which is read "
+                "but not computed",
+                span=equation.span,
+                hint="the line element defines the metric only where it is a quadratic form "
+                "in the differentials, as in ds^2 = -dt^2 + dx^2",
+            )
+        if self._names_coordinate(lhs, scope):
+            # t = \pm r^* + c, or \theta = \pi/2: where something holds, not a new t
+            raise CompileError(
+                f"an equation for the coordinate {lhs.span.text} is a condition, which "
+                "is read but not computed",
+                span=equation.span,
+                hint=r"to compute where it holds, substitute it, as in f |_{\theta=\pi/2}",
+            )
+        if _bracketed(equation):  # a = ... \quad (k = 0): the case it holds in
+            raise CompileError(
+                f"{equation.span.text}, in brackets, is a condition, which is read but not "
+                "computed",
+                span=equation.span,
+                hint=f"to compute with it, write it without the brackets: {_unbracketed(equation)}",
+            )
+        reading, note = self._reading(equation, scope, ctx)
+        if reading == "function":
+            assert isinstance(lhs, ast.Call)
+            assert isinstance(lhs.func, ast.Name)
+            params = tuple(arg.id for arg in lhs.args if isinstance(arg, ast.Name))
+            definition = ast.FunctionDefinition(
+                lhs.func.id, params, rhs, span=equation.span, latex=ctx.latex
+            )
+            failure = self._fails_as_function(definition, scope, ctx)
+            if failure is None:
+                self._define_function(definition, scope, ctx)
+                return []
+            # Not a definition: its value means nothing as a function. As an equation,
+            # what fails says why.
+            self._note(
+                f"{lhs.span.text} = ... is read as an equation, not as the definition of a "
+                f"function: as one, its value cannot be computed ({failure.message})"
+            )
+            note = None
+        if reading == "define":
+            if self._is_notation(rhs, scope, ctx, equation=True):  # nothing to define it
+                return [Output(self._notation(equation, scope, ctx), equation.span)]
+            self._define(lhs, rhs, scope, ctx)
+            return []
+        if reading == "notation" or self._is_notation(equation, scope, ctx, equation=True):
+            return [Output(self._notation(equation, scope, ctx), equation.span, note=note)]
+        return [Output(self.value(equation, scope, ctx), equation.span, note=note)]
+
+    def _reading(
+        self, equation: ast.Equation, scope: Scope, ctx: Context
+    ) -> tuple[Literal["define", "function", "claim", "notation"], str | None]:
+        """Whether ``lhs = rhs`` defines its left side, and if not, the note that says why
+        it is a claim where it could have been read as a definition.
+
+        ``=`` defines only what has no meaning yet: a new name, a new function written
+        with plain names as its arguments, ``f(x) = x^2``, a new tensor, or the metric,
+        by a line element or while there is none. A name the metric in force is written
+        with has no value, so ``\\Delta = ...`` defines it, as "where" does after a line
+        element. Everything else is a claim, to check: a name, tensor or function that
+        already has a value (``:=`` gives it a new one), a component such as ``g_{tt}``, a
+        built-in such as ``R``, and a constant such as ``\\pi``. A name in its own value, as
+        in ``R = 2/R^2``, makes an equation, never a definition."""
+        target, value = _named(_unprimed(equation.lhs)), equation.rhs
+        written = equation.lhs.span.text
+        if _is_line_element(target):
+            return "define", None
+        if isinstance(target, ast.Prime):  # t' = \gamma(t - vx), a new coordinate
+            primed = target.func.id + "'" * target.order
+            if isinstance(scope.lookup(primed), VariableBinding):
+                return "claim", _has_a_value(written)
+            if self._names_a_symbol(target, scope) and not self._in_own_value(
+                primed, value, scope, ctx
+            ):
+                return "define", None
+            return "claim", None
+        if isinstance(target, ast.Name):
+            return self._name_reading(target, written, value, scope, ctx)
+        if isinstance(target, ast.Call):
+            return self._function_reading(target, value, scope, ctx)
+        if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
+            return "claim", None
+        if any(s.indices is None for s in target.scripts):
+            return "claim", None
+        items = [item for s in target.scripts for item in s.indices.items]  # type: ignore[union-attr]
+        if not all(_plain_label(item) for item in items):
+            return "claim", None
+        labels = [str(item.label) for item in items]
+        if len(set(labels)) != len(labels) or any(map(self._names_component, labels)):
+            return "claim", None  # a component, or a trace: an equation about what is there
+        name = target.base.id
+        if name == self.session.names["metric"] and len(items) == 2:
+            space = self._labels.get(labels[0]) or self.session.labels.get(labels[0])
+            if space is not None and not space.spacetime:
+                in_force = space in self.session.space_metrics
+            else:
+                in_force = self.session.metric is not None
+            if not in_force:
+                return "define", None
+            return "claim", _built_in(written, "the metric in force", f"{written} := ...")
+        binding = scope.lookup(name)
+        if binding is not None:  # u^\mu = [2, 0] after u^\mu = [1, 0]
+            tensor = isinstance(binding, TensorBinding) or (
+                isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType)
+            )
+            return "claim", _has_a_value(written) if tensor else None
+        if self._builtin_tensor(name, len(items)) is not None:
+            return "claim", None
+        if _writes_tensor(value, name):  # T_{\mu\nu} = T_{\nu\mu}: a symmetry, not a definition
+            return "claim", None
+        return "define", None
+
+    def _name_reading(
+        self, target: ast.Name, written: str, value: ast.Expr, scope: Scope, ctx: Context
+    ) -> tuple[Literal["define", "claim", "notation"], str | None]:
+        """How ``x = ...`` is read: see :meth:`_reading`."""
+        name = target.id
+        if name in _DECLARATIONS:  # Coordinates = [t, r] declares, as := does
+            return "define", None
+        if name in _CLAIMED:  # \pi = 3.14159: a claim about the constant
+            return "claim", _built_in(written, "a constant", f"{written} := ...")
+        if scope.lookup(name) is not None:  # x = 3 after x := 2
+            return "claim", _has_a_value(written)
+        if _indexed_name(target, scope) is not None:  # y_t of a tensor y: a component
+            return "claim", None
+        quantity = self._builtin_scalar(name)
+        if quantity is not None:  # R = 0 with a metric in force
+            return "claim", _built_in(written, _BUILT_IN_SCALARS[quantity], f"{written} := ...")
+        ricci = name in ("R", self.session.names["ricci"])
+        if ricci and self.session.metric is None:  # R = -\kappa T, as notation
+            return "notation", _built_in(written, "the Ricci scalar", f"{written} := ...")
+        if self._in_own_value(name, value, scope, ctx):
+            return "claim", (
+                f"{written} appears on both sides, so this is an equation, not a "
+                f"definition of {written}"
+            )
+        return "define", None
+
+    def _function_reading(
+        self, target: ast.Call, value: ast.Expr, scope: Scope, ctx: Context
+    ) -> tuple[Literal["function", "claim"], str | None]:
+        """How ``f(x) = ...`` is read: a definition of a function with the arguments as
+        its parameters, where they are plain names and ``f`` has no meaning yet; a claim
+        otherwise, as ``f(2) = 4`` and ``r(\\tau) = ...`` of a coordinate are."""
+        func = target.func
+        if not isinstance(func, ast.Name):
+            return "claim", None
+        name = func.id
+        binding = scope.lookup(name)
+        if binding is not None:
+            params = binding.definition.params if isinstance(binding, FunctionBinding) else ()
+            again = f"{name}({', '.join(params)}) := ..." if params else f"{name} := ..."
+            note = (
+                f"{func.span.text} already has a value, so = compares it; to give "
+                f"{func.span.text} a new value, write {again}"
+            )
+            return "claim", note
+        names = [arg.id for arg in target.args if isinstance(arg, ast.Name)]
+        if not names or len(names) != len(target.args) or len(set(names)) != len(names):
+            return "claim", None  # f(2) = 4: a claim about the value at 2
+        if ctx.latex and _splittable(func) and name not in BUILTINS:
+            return "claim", None  # 2Gm(r) = ...: a product of letters
+        coordinates = {c.name for c in self.session.coordinates or ()}
+        if name in coordinates or self._never_a_function(func, ctx):
+            return "claim", None  # r(\tau) = ...: a coordinate along a path
+        if name in self._factors:  # G(p^2 + q^2) beside 2GM: a product
+            return "claim", None
+        if any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
+            for node in _walk(value)
+        ):
+            note = f"{name} appears on both sides, so this is an equation, not a definition"
+            return "claim", note
+        return "function", None
+
+    def _never_a_function(self, func: ast.Name, ctx: Context) -> bool:
+        """Whether a name, bound to nothing in the program, is never a function of what is
+        in brackets after it: a builtin is one already, and a constant, such as ``e``, ``i``
+        or one declared with ``Constants := [G]``, multiplies them."""
+        name = func.id
+        if _names_builtin(func, latex=ctx.latex) or name in CONSTANTS:
+            return True
+        declared = self.session.assumptions.get(name)
+        return declared is not None and bool(declared.assumptions0.get("constant"))
+
+    def _in_own_value(self, name: str, value: ast.Expr, scope: Scope, ctx: Context) -> bool:
+        """Whether ``name`` is written in ``value`` other than as a function called there,
+        as R is in 2/R^2 but \\beta is not in \\beta(r), or is in the value of a name
+        written there, as \\rho is in p after p := w\\rho."""
+        other = _other_names(value)  # f in f(x), x in x' and h in \bar h name other things
+        for node in _walk(value):
+            if isinstance(node, ast.Prime):  # x' is a name of its own, maybe written with x
+                written = node.func.id + "'" * node.order
+            elif isinstance(node, ast.Accent | ast.Scripted) and isinstance(
+                named := _named(node), ast.Name
+            ):
+                written = named.id  # \bar h, E^{(2)}
+            elif isinstance(node, ast.Name) and id(node) not in other:
+                written = node.id
+            else:
+                continue
+            if written == name:
+                return True
+            binding = scope.lookup(written)
+            if binding is None and isinstance(node, ast.Name) and ctx.latex and _splittable(node):
+                known = node.id in BUILTINS or node.id in CONSTANTS
+                if not known and name in split_index_labels(node.id):
+                    return True  # K in 2GK
+            if isinstance(binding, VariableBinding | TensorBinding) and _mentions_symbol(
+                binding.node, name
+            ):
+                return True
+        return False
 
     def _states_identity(self, statement: ast.Define, scope: Scope) -> bool:
         """Whether a definition written with ``\\equiv`` says what a built-in already is,
@@ -224,41 +483,6 @@ class Compiler:
         if pattern is None or scope.lookup(pattern[0]) is not None:
             return False
         return self._builtin_tensor(pattern[0], len(pattern[1])) not in (None, "metric")
-
-    def _defines(self, target: ast.Expr, scope: Scope) -> bool:
-        """Whether ``target = value`` is a definition rather than an equation. What already
-        has a meaning is compared, not overwritten: a tensor that exists, written with its
-        indices or, as data is, without braces (``w_a``), a component, as in ``g_{tt}`` or
-        ``T_{tr}``, whose indices name coordinates, and, with a metric in force, a built-in
-        scalar, as in ``R = 0``."""
-        if _is_line_element(target):
-            return True
-        target = _named(_unprimed(target))
-        if isinstance(target, ast.Prime) and self._names_a_symbol(target, scope):
-            return True  # t' = \gamma(t - vx), a new coordinate
-        if isinstance(target, ast.Name):
-            if target.id in _CLAIMED:
-                return False  # \pi = 3.14159: a claim about the constant
-            if scope.lookup(target.id) is not None:
-                return True  # a name defined again, as x = 5 and then x = 6
-            return _indexed_name(target, scope) is None and self._builtin_scalar(target.id) is None
-        if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
-            return False
-        if any(s.indices is None for s in target.scripts):
-            return False
-        items = [item for s in target.scripts for item in s.indices.items]  # type: ignore[union-attr]
-        if not all(_plain_label(item) for item in items):
-            return False
-        labels = [str(item.label) for item in items]
-        if len(set(labels)) != len(labels) or any(map(self._names_component, labels)):
-            return False  # a component, or a trace: an equation about what is there
-        name = target.base.id
-        if name == self.session.names["metric"]:
-            return True
-        # A tensor that already exists is compared, not overwritten: use := to redefine it.
-        if scope.lookup(name) is not None:
-            return False
-        return self._builtin_tensor(name, len(items)) is None
 
     def _names_component(self, label: str) -> bool:
         """Whether an index label names a component: a coordinate's name, as ``t`` in
@@ -308,6 +532,10 @@ class Compiler:
         )
 
     def _define(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
+        with self._atomically():
+            self._define_now(target, value, scope, ctx)
+
+    def _define_now(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
         target = _named(target)
         if isinstance(target, ast.Prime):  # t' = ..., a name of its own
             primed = target.func.id + "'" * target.order
@@ -323,13 +551,20 @@ class Compiler:
             elif (space := self._space_written(value, name, scope, ctx)) is not None:
                 self.session.spaces[name] = space
             else:
+                late = self._written_in_metric(name)
+                if late:  # its value's names join the metric's: R in it is no Ricci scalar
+                    self._metric_mentions(_mentioned(value, latex=ctx.latex))
                 value_node = self._value_or_notation(value, scope, ctx, definition=True)
                 if (indexed := _indexed_target(name, value_node)) is not None:
                     base, indices = indexed  # v_a := ..., a tensor with free index a: v_{a}
                     node = self._align(value_node, indices, value.span, what="a definition")
                     scope.bind(base, TensorBinding(node, indices))
-                else:
-                    scope.bind(name, VariableBinding(value_node))
+                    return
+                if late and value_node.type == SCALAR:
+                    where = ops.Call(_where, "where")
+                    self._rewrite_metric(where, (self.graph.const(name, VALUE), value_node))
+                    self._note(_late_note(target.span.text, self.session.metric))
+                scope.bind(name, VariableBinding(value_node))
             return
         if _is_line_element(target):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
@@ -342,6 +577,118 @@ class Compiler:
             self._define_metric(target, entries, value, scope, ctx)
         else:
             self._define_tensor(target, entries, value, scope, ctx)
+
+    def _define_function(
+        self, definition: ast.FunctionDefinition, scope: Scope, ctx: Context
+    ) -> None:
+        """``f(x) := x^2``. A function that calls itself is refused here, where it is
+        written, rather than when it is called. One the metric in force is written with,
+        as f is in ``ds^2 = -f(r) dt^2 + ...``, takes this definition there from now on."""
+        name = definition.name
+        if isinstance(definition.body, ast.Expr) and any(
+            isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
+            for node in _walk(definition.body)
+        ):
+            raise CompileError(
+                f"{name} calls itself, and recursive functions are not supported",
+                span=definition.span,
+            )
+        binding = FunctionBinding(definition, scope)
+        with self._atomically():
+            if self._written_in_metric(name):
+                if isinstance(definition.body, ast.Expr):
+                    self._metric_mentions(_mentioned(definition.body, latex=definition.latex))
+                symbols = tuple(self.session.symbol(param) for param in definition.params)
+                parameters = [self.graph.const(symbol, SCALAR) for symbol in symbols]
+                body = self._inline(binding, parameters, definition.span, ctx)
+                if body.type == SCALAR:
+                    where = ops.Call(_where_function, "where")
+                    name_node = self.graph.const((name, symbols), VALUE)
+                    self._rewrite_metric(where, (name_node, body))
+                    shown = (
+                        _shown(name, definition.latex)
+                        + "("
+                        + ", ".join(_shown(param, definition.latex) for param in definition.params)
+                        + ")"
+                    )
+                    self._note(_late_note(shown, self.session.metric))
+            scope.bind(name, binding)
+
+    def _fails_as_function(
+        self, definition: ast.FunctionDefinition, scope: Scope, ctx: Context
+    ) -> RelativisticPyError | None:
+        """Why ``f(x) = body`` cannot define a function, if it cannot: the body compiled
+        for its parameters as symbols, in a session of its own, fails. ``:=`` defines a
+        function whatever its body, which may take tensors; ``=`` defines one only where
+        the definition means something."""
+        checker = Compiler(self.session.fork())
+        checker._depth = 1  # its notes are not this statement's
+        parameters = [
+            checker.graph.const(self.session.symbol(param), SCALAR) for param in definition.params
+        ]
+        try:
+            checker._inline(FunctionBinding(definition, scope), parameters, definition.span, ctx)
+        except RelativisticPyError as error:
+            return error
+        return None
+
+    @contextlib.contextmanager
+    def _atomically(self) -> Iterator[None]:
+        """Make a definition whole or not at all: if it fails, the coordinates and the
+        metric are as they were before it, whatever it changed on the way."""
+        session = self.session
+        saved = (
+            session.coordinates,
+            session.coordinates_inferred,
+            session.metric,
+            dict(session.functions),
+            session.dropped,
+        )
+        try:
+            yield
+        except BaseException:
+            session.coordinates, session.coordinates_inferred, session.metric = saved[:3]
+            session.functions.clear()
+            session.functions.update(saved[3])
+            session.dropped = saved[4]
+            raise
+
+    def _written_in_metric(self, name: str) -> bool:
+        """Whether the metric in force is written with ``name`` as a symbol or a function
+        that has no value, as with \\Delta in ``ds^2 = -\\Delta dt^2 + ...``: a definition of
+        it then gives it that value there too. A coordinate never is."""
+        metric = self.session.metric
+        if metric is None or name not in metric.names:
+            return False
+        if any(c.name == name for c in self.session.coordinates or ()):
+            return False
+        components = self.session.evaluate(metric.node)
+        if any(symbol.name == name for symbol in getattr(components, "free_symbols", ())):
+            return True
+        applied = components.atoms(AppliedUndef) if hasattr(components, "atoms") else ()
+        return any(function.func.__name__ == name for function in applied)
+
+    def _metric_mentions(self, names: frozenset[str]) -> None:
+        """Count ``names`` among those the metric in force is written with."""
+        metric = self.session.metric
+        assert metric is not None
+        self.session.metric = replace(metric, names=metric.names | names)
+
+    def _rewrite_metric(self, rewrite: ops.Call, args: tuple[Node, ...]) -> None:
+        """The metric in force, with what a definition made after it says put into its
+        components, checked as any metric is where it is defined."""
+        metric = self.session.metric
+        assert metric is not None
+        assert self.session.coordinates is not None
+        components = self.graph.add(rewrite, (metric.node, *args), VALUE, metric.node.span)
+        node = self.graph.add(
+            ops.Geometry("metric", self.session.coordinates),
+            (components,),
+            metric.node.type,
+            metric.node.span,
+        )
+        self._check_metric(node, metric.node.span or args[-1].span)
+        self.session.metric = replace(metric, node=node)
 
     def _destructure(
         self, targets: Sequence[ast.Expr], value: ast.Expr, scope: Scope, ctx: Context
@@ -401,7 +748,8 @@ class Compiler:
         names = _names(value, "Coordinates")
         if len(set(names)) != len(names):
             raise CompileError("coordinates must be distinct", span=value.span)
-        self.session.set_coordinates(tuple(self.session.symbol(name) for name in names))
+        coordinates = tuple(self.session.symbol(name) for name in names)
+        self.session.set_coordinates(coordinates, span=value.span)
 
     def _declare(self, value: ast.Expr, assumptions: dict[str, bool]) -> None:
         coordinates = {c.name for c in self.session.coordinates or ()}
@@ -442,6 +790,7 @@ class Compiler:
                 "give the metric with both indices down, g_{\\mu\\nu}, or both up, g^{\\mu\\nu}",
                 span=target.span,
             )
+        self._check_spacetime_name(value, scope, ctx)
         components = self._spacetime(value, scope, ctx)
         coordinates = self.session.require_coordinates(target.span, "a metric")
         if components is None:
@@ -460,7 +809,116 @@ class Compiler:
             TensorType(indices, (spacetime(coordinates),) * 2),
             target.span.to(value.span),
         )
+        self._check_metric(metric, target.span.to(value.span))
         self.session.metric = MetricState(metric, _mentioned(value, latex=ctx.latex))
+        self.session.dropped = None
+
+    def _check_spacetime_name(self, value: ast.Expr, scope: Scope, ctx: Context) -> None:
+        """Refuse, where a metric is defined, a spacetime misspelt, as ``Schwarzchild(M)``,
+        spelt as in Python, ``schwarzschild(M)``, or named without being called."""
+        func = value.func if isinstance(value, ast.Call) else value
+        if not isinstance(func, ast.Name) or scope.lookup(func.id) is not None:
+            return
+        name, written = func.id, func.span.text
+        listed = ", ".join(list(_SPACETIME_NAMES)[:-1]) + " and " + list(_SPACETIME_NAMES)[-1]
+        known = f"the spacetimes are {listed}"
+        if not isinstance(value, ast.Call):
+            if name in _SPACETIME_NAMES:
+                raise CompileError(
+                    f"{written} is a spacetime: call it, as in {name}()", span=value.span
+                )
+            spelt = _close(name, _SPACETIME_NAMES)
+            if spelt is not None:
+                raise CompileError(
+                    f"unknown spacetime {written}",
+                    span=value.span,
+                    hint=f"did you mean {spelt}()?",
+                    notes=[known],
+                )
+            return
+        if name in BUILTINS or len(name) < 2 or name in GREEK:
+            return
+        args = ", ".join(arg.span.text for arg in value.args)
+        same = next((s for s in _SPACETIME_NAMES if s.lower() == name.lower()), None)
+        if same is not None:
+            raise CompileError(
+                f"unknown spacetime {written}",
+                span=func.span,
+                hint=f"in the language, spacetimes are capitalised: {same}({args})",
+                notes=[known],
+            )
+        spelt = _close(name, _SPACETIME_NAMES)
+        if spelt is not None or name[:1].isupper():
+            raise CompileError(
+                f"unknown spacetime {written}",
+                span=func.span,
+                hint=f"did you mean {spelt}({args})?" if spelt else None,
+                notes=[known],
+            )
+
+    def _check_metric(self, metric: Node, span: Span | None) -> None:
+        """Compute a metric where it is defined, so that one that cannot be is refused
+        there, with the reason, rather than wherever it is first used: components of the
+        wrong size, components that are not symmetric, or a determinant of zero."""
+        try:
+            self.session.evaluate(metric)
+        except RelativisticPyError as error:
+            raise self._metric_error(metric, span) or error from None
+
+    def _metric_error(self, metric: Node, span: Span | None) -> EvaluationError | None:
+        """Why the metric ``metric`` could not be computed, in the user's terms; ``None``
+        where its components themselves could not be, which their own error says."""
+        coordinates = self.session.coordinates or ()
+        given = metric.args[0]
+        if isinstance(given.op, ops.ToArray):  # diag(-1, 1, 1), checked for its shape
+            given = given.args[0]
+        try:
+            components = arrays.to_array(self.session.evaluate(given))
+        except Exception:
+            return None
+        names = [latex_label(c.name) for c in coordinates]
+        listed = _listed(names)
+        shape = tuple(components.shape)
+        count = len(coordinates)
+        if shape != (count, count):
+            found = "×".join(map(str, shape)) if shape else "no"
+            return EvaluationError(
+                f"the metric has {found} components, but there are {count} coordinates",
+                span=span,
+                notes=[f"the coordinates are {listed}"],
+                hint=f"give {count}×{count} components, a row and a column for each coordinate",
+            )
+        matrix = sympy.Matrix(components.tolist())
+        for i, j in itertools.combinations(range(count), 2):
+            if sympy.simplify(matrix[i, j] - matrix[j, i]) != 0:
+                one, other = names[i], names[j]
+                return EvaluationError(
+                    f"the metric is not symmetric: g_{{{one}{other}}} = "
+                    f"{display.text(matrix[i, j])} but g_{{{other}{one}}} = "
+                    f"{display.text(matrix[j, i])}",
+                    span=span,
+                    hint="a metric has g_{\\mu\\nu} = g_{\\nu\\mu}",
+                )
+        if sympy.simplify(matrix.det()) != 0:
+            return None
+        missing = [
+            names[i]
+            for i in range(count)
+            if all(sympy.simplify(entry) == 0 for entry in matrix.row(i))
+        ]
+        if missing:
+            differentials = _listed([f"d{name}" for name in missing], "or")
+            return EvaluationError(
+                "the metric is degenerate: its determinant is zero",
+                span=span,
+                notes=[f"no term of it has {differentials}"],
+                hint=f"give it a term with {_listed([f'd{name}' for name in missing])}",
+            )
+        return EvaluationError(
+            "the metric is degenerate: its determinant is zero",
+            span=span,
+            notes=["so it has no inverse, and no curvature can be computed from it"],
+        )
 
     def _define_space_metric(
         self,
@@ -556,13 +1014,24 @@ class Compiler:
             and value.func.id in BUILTINS
         ):
             return None
+        if value.func.id == "Minkowski" and value.args and isinstance(value.args[0], ast.Name):
+            # Minkowski(spherical): the name of the coordinates, never a product of letters
+            kind = value.args[0]
+            if kind.id not in ("cartesian", "spherical") and scope.lookup(kind.id) is None:
+                raise CompileError(
+                    f"Minkowski takes cartesian or spherical coordinates, not {kind.span.text}",
+                    span=kind.span,
+                    hint="for example Minkowski(spherical)",
+                )
+            named = ast.Name(kind.id, verbatim=True, span=kind.span)
+            value = replace(value, args=(named, *value.args[1:]))
         metric = self.session.evaluate(self.value(value, scope, ctx))
         if not isinstance(metric, Metric):  # pragma: no cover - every capitalised builtin is one
             return None
         # Its coordinates are plain symbols: one declared with assumptions, as by
         # Positive := [r], takes the place of its namesake.
         declared = {c: self.session.symbol(c.name) for c in metric.coordinates}
-        self.session.set_coordinates(tuple(declared.values()))
+        self.session.set_coordinates(tuple(declared.values()), span=value.span)
         return self.graph.const(metric.components.xreplace(declared), VALUE, value.span)
 
     def _define_line_element(self, value: ast.Expr, scope: Scope, ctx: Context, span: Span) -> None:
@@ -574,7 +1043,21 @@ class Compiler:
         replaceable = session.coordinates is None or session.coordinates_inferred
         if named and replaceable and not set(named) <= current:
             coordinates = tuple(session.symbol(name) for name in named)
-            session.set_coordinates(coordinates, inferred=True)
+            session.set_coordinates(coordinates, inferred=True, span=span)
+        # d\Omega without \theta and \phi is said where d\Omega is read
+        written = _line_element_coordinates(value, solid_angle=False)
+        strays = [name for name in written if name not in current and name != "Omega"]
+        if strays and not replaceable:
+            declared = [latex_label(c.name) for c in session.coordinates or ()]
+            shown = _listed([f"d{latex_label(name)}" for name in strays])
+            what = "is not the differential" if len(strays) == 1 else "are not differentials"
+            raise CompileError(
+                f"{shown} {what} of a coordinate",
+                span=span,
+                notes=[f"the coordinates are {_listed(declared)}, as declared"],
+                hint="write the line element in those coordinates, or declare the ones it "
+                f"uses, as in Coordinates := [{', '.join(latex_label(n) for n in named)}]",
+            )
         coordinates = self.session.require_coordinates(span, "a line element")
         differentials = tuple(differential(c) for c in coordinates)
         inner = scope.child()
@@ -591,7 +1074,31 @@ class Compiler:
             TensorType(indices, (spacetime(coordinates),) * 2),
             span,
         )
+        try:
+            self._check_metric(metric, span)
+        except EvaluationError as error:
+            if replaceable and named and set(named) < {c.name for c in coordinates}:
+                # the 2-sphere after a line element in three dimensions
+                alone = _listed([latex_label(name) for name in named])
+                in_force = _listed([latex_label(c.name) for c in coordinates])
+                error.notes.append(
+                    f"the coordinates in force are {in_force}, but this line element is "
+                    f"written in {alone} alone"
+                )
+                error.hint = (
+                    f"for a metric in {alone}, declare them first: Coordinates := "
+                    f"[{', '.join(latex_label(name) for name in named)}]"
+                )
+            raise
         self.session.metric = MetricState(metric, _mentioned(value, latex=ctx.latex))
+        self.session.dropped = None
+
+    def _line_element_of(self, span: Span) -> Node:
+        """``ds^2`` written alone, with a metric in force: its line element,
+        :math:`g_{\\mu\\nu} dx^\\mu dx^\\nu`, in the differentials of the coordinates."""
+        metric = self.session.require_metric(span, "the line element").node
+        coordinates = self.graph.const(self.session.coordinates, VALUE)
+        return self._call(_line_element, "line element", [metric, coordinates], SCALAR, span)
 
     def _define_tensor(
         self,
@@ -1186,6 +1693,8 @@ class Compiler:
             factors.insert(0, left.right)
             left = left.left
         factors.insert(0, left)
+        if ctx.latex:
+            factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]
         grouped = self._statistic_factors(factors, scope, ctx)
         if len(grouped) == 1 and isinstance(grouped[0], Node):
@@ -1608,22 +2117,12 @@ class Compiler:
                 return done
         names = {c.name for c in self.session.coordinates or ()}
         if isinstance(binding, VariableBinding) and all(
-            isinstance(a, ast.Name) and a.id in names for a in node.args
-        ):  # \alpha(r), once \alpha is defined: it says only what \alpha depends on
+            isinstance(a, ast.Name) and (a.id in names or _mentions_symbol(binding.node, a.id))
+            for a in node.args
+        ):  # \alpha(r), once \alpha is defined, or a(t) of a value in t: what it depends on
             return binding.node
         one_name = len(node.args) == 1 and isinstance(node.args[0], ast.Name)
-        product = (name in names and not one_name) or (
-            ctx.latex
-            and (
-                isinstance(binding, VariableBinding)
-                or name in CONSTANTS
-                or (
-                    binding is None
-                    and not _names_builtin(func, latex=True)
-                    and self._a_factor(name, node.args, one_name)
-                )
-            )
-        )
+        product = (name in names and not one_name) or self._a_product(func, node.args, binding, ctx)
         if product:  # r(\partial_1 \beta - 1), with r a coordinate: as typeset, a product
             group = node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
             times = ast.Binary("*", func, group, implicit=True, span=node.span)
@@ -1670,6 +2169,37 @@ class Compiler:
         lowered, raised = self._scripts["_"][label], self._scripts["^"][label]
         index = lowered or label in self._labels or (label in GREEK and raised > 1)
         return label if index else None
+
+    def _a_product(
+        self, func: ast.Name, args: tuple[ast.Expr, ...], binding: object, ctx: Context
+    ) -> bool:
+        """Whether ``name(...)`` multiplies what is in the brackets rather than calls a
+        function. A constant never is a function, ``e`` and ``i`` as much as a name declared
+        with ``Constants := [G]``; nor is a name the statement writes as a factor too, as G
+        is in ``2GM + G(p^2 + q^2)``, unless it is called with the coordinates, as
+        \\alpha(t, r) is; nor, with more than names in the brackets, one written as a factor
+        before, as \\rho in \\rho(1 + 3w) after p = w\\rho. In LaTeX a name with a value is
+        a factor too, as are the cases of :meth:`_a_factor`."""
+        name = func.id
+        if binding is not None:
+            return ctx.latex and isinstance(binding, VariableBinding)  # y(3), y defined
+        if _names_builtin(func, latex=ctx.latex):
+            return False  # sin(x)
+        if self._never_a_function(func, ctx):
+            return True  # e(x + 1)
+        coordinates = {c.name for c in self.session.coordinates or ()}
+        names = [arg.id for arg in args if isinstance(arg, ast.Name)]
+        if name in coordinates:
+            return False  # r(\tau): a coordinate along a path, as the caller reads it
+        if names and len(names) == len(args) and set(names) <= coordinates:
+            return False  # \alpha(t, r): a function of the coordinates
+        if name in self._factors:
+            return True
+        written = name in self.session.factors and name not in self.session.functions
+        if written and len(names) != len(args):
+            return True
+        one_name = len(args) == 1 and isinstance(args[0], ast.Name)
+        return ctx.latex and self._a_factor(name, args, one_name)
 
     def _a_factor(self, name: str, args: tuple[ast.Expr, ...], one_name: bool) -> bool:
         """Whether, in LaTeX, ``name(...)`` is a product: where the name is written inside
@@ -2079,6 +2609,11 @@ class Compiler:
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
             node = named  # R'_{\mu\nu}: the tensor R'
+        decorated = _named(node)
+        if isinstance(decorated, ast.Name) and all(
+            not isinstance(s.body, ast.Name) or not _bracketed_order(s.body) for s in node.scripts
+        ):  # L^{(2)} or r^*, a name of its own even where L is a tensor; V^{(a)} is an index
+            return self.term(decorated, scope, ctx)
         base = node.base
         if isinstance(base, ast.Operator) and base.kind == "lie":
             return self._lie_operator(node)
@@ -3562,6 +4097,55 @@ def _substitute(expr: Any, *pairs: Any) -> Any:
     return sympy.sympify(expr).subs(rules, simultaneous=True)
 
 
+def _where(components: Any, name: str, value: Any) -> Any:
+    """A metric's components with a name it is written with given its value, as where
+    \\Delta = r^2 - 2Mr + a^2 follows a line element: the symbol, or a function of the
+    coordinates the name stands for, as \\alpha does for \\alpha(t, r)."""
+    value = sympy.sympify(value)
+
+    def put(component: Any) -> Any:
+        component = sympy.sympify(component).replace(
+            lambda e: isinstance(e, AppliedUndef) and e.func.__name__ == name, lambda e: value
+        )
+        return component.xreplace({s: value for s in component.free_symbols if s.name == name})
+
+    return arrays.apply(arrays.to_array(components), put)
+
+
+def _where_function(components: Any, function: tuple[str, tuple[Any, ...]], body: Any) -> Any:
+    """A metric's components with a function it is written with, as f is in
+    -f(r) dt^2, given its definition: ``body`` in its ``parameters``. Where the function
+    is written with other arguments than it is defined with, the definition says what it
+    is in terms of the parameters' names, as \\alpha(r) := ... does of \\alpha(t, r)."""
+    name, parameters = function
+    body = sympy.sympify(body)
+
+    def at(applied: Any) -> Any:
+        if len(applied.args) == len(parameters):
+            return body.xreplace(dict(zip(parameters, applied.args, strict=True)))
+        return body
+
+    def put(component: Any) -> Any:
+        return sympy.sympify(component).replace(
+            lambda e: isinstance(e, AppliedUndef) and e.func.__name__ == name, at
+        )
+
+    return arrays.apply(arrays.to_array(components), put)
+
+
+def _line_element(metric: Any, coordinates: Sequence[Symbol]) -> Any:
+    """:math:`g_{\\mu\\nu} dx^\\mu dx^\\nu`, in the differentials of the coordinates."""
+    differentials = [differential(c) for c in coordinates]
+    count = len(coordinates)
+    return sympy.Add(
+        *(
+            metric[i, j] * differentials[i] * differentials[j]
+            for i in range(count)
+            for j in range(count)
+        )
+    )
+
+
 def _piecewise(*args: Any) -> Any:
     return sympy.Piecewise(*zip(args[::2], args[1::2], strict=True))
 
@@ -3670,9 +4254,16 @@ def _has_derivative(node: ast.Scripted) -> bool:
 
 
 def _is_line_element(target: ast.Expr) -> bool:
-    """``ds^2`` (also ``ds^{2}`` and ``d s^2``)."""
+    """``ds^2`` (also ``ds^{2}``, ``(ds)^2``, ``d s^2`` and, in Python's way, ``ds**2``)."""
 
     def squared(node: ast.Expr, name: str) -> bool:
+        if (
+            isinstance(node, ast.Binary)
+            and node.op == "**"
+            and isinstance(node.left, ast.Name)
+            and node.left.id == name
+        ):
+            return isinstance(node.right, ast.Number) and node.right.text == "2"
         return (
             isinstance(node, ast.Scripted)
             and isinstance(node.base, ast.Name)
@@ -4220,6 +4811,198 @@ _EXAMPLE_LABELS = ("\\mu", "\\nu", "\\rho", "\\sigma", "\\lambda", "\\kappa")
 # (e and i are often named afresh, as a charge or an index.)
 _CLAIMED = frozenset({"pi", "infty", "oo"})
 
+# Statements that declare, as := does, whether written with := or =.
+_DECLARATIONS = frozenset({"Coordinates", *ASSUMPTION_STATEMENTS, *RENAMING_STATEMENTS})
+
+# The built-in scalars, by the geometric quantity a name denotes.
+_BUILT_IN_SCALARS = {
+    "determinant": "the determinant of the metric",
+    "ricci_scalar": "the Ricci scalar",
+    "kretschmann": "the Kretschmann scalar",
+}
+
+# The spacetimes, by the names the language calls them.
+_SPACETIME_NAMES = tuple(name for name in BUILTINS if name in SPACETIMES)
+
+
+def _has_a_value(written: str) -> str:
+    """The note on ``K = ...`` once K has a value: a claim, not a new value."""
+    return (
+        f"{written} already has a value, so = compares it; to give {written} a new value, "
+        f"write {written} := ..."
+    )
+
+
+def _built_in(written: str, what: str, again: str) -> str:
+    """The note on ``R = 0``: a claim about what a built-in name already means."""
+    return (
+        f"{written} is {what}, so = compares it; to give {written} a meaning of your own, "
+        f"write {again}"
+    )
+
+
+def _late_note(written: str, metric: MetricState | None) -> str:
+    """The note on ``\\Delta = ...`` after a line element written with \\Delta."""
+    span = metric.node.span if metric is not None else None
+    where = f"on line {span.line}" if span is not None else "before"
+    return (
+        f"the metric defined {where} is written with {written}, which has this value there "
+        "from now on"
+    )
+
+
+def _shown(name: str, latex: bool) -> str:
+    """A name as the user writes it: ``\\Delta`` in LaTeX, ``Delta`` in plain text."""
+    return latex_label(name) if latex else name
+
+
+def _listed(items: Sequence[str], conjunction: str = "and") -> str:
+    """``t, r, \\theta and \\phi``."""
+    items = list(items)
+    if len(items) <= 1:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} {conjunction} {items[-1]}"
+
+
+def _close(name: str, candidates: Iterable[str]) -> str | None:
+    """The candidate a name is likely a misspelling of, as Schwarzchild is of
+    Schwarzschild or simplfy of simplify; ``None`` where none is close. Names of fewer
+    than four letters are never compared, nor matched, so that ln is no misspelt N."""
+    if len(name) < 4:
+        return None
+    known = {candidate.lower(): candidate for candidate in candidates if len(candidate) >= 4}
+    found = difflib.get_close_matches(name.lower(), list(known), n=1, cutoff=0.8)
+    return known[found[0]] if found else None
+
+
+def _factor_names(statement: ast.Node) -> frozenset[str]:
+    """The names a statement writes as factors rather than as functions it calls: G and
+    M in 2GM, where in LaTeX a run of letters is a product of them, but neither f in
+    f(x) or f'(x), nor what a substitution sets, as r in |_{r=r(\\tau)}."""
+    other = _other_names(statement)
+    for node in _walk(statement):
+        if isinstance(node, ast.Substitution):
+            other.update(id(target) for target, _ in node.bindings)
+    latex = bool(getattr(statement, "latex", False))
+    found: set[str] = set()
+    for node in _walk(statement):
+        if isinstance(node, ast.Name) and id(node) not in other:
+            found.add(node.id)
+            known = node.id in BUILTINS or node.id in CONSTANTS
+            if latex and _splittable(node) and not known:
+                found.update(split_index_labels(node.id))
+    return frozenset(found)
+
+
+def _other_names(node: ast.Node) -> set[int]:
+    """The ids of the names in an expression that are part of another name, or of a
+    function's: f in f(x), x in x', h in \\bar h, E in E^{(2)}."""
+    found: set[int] = set()
+    for current in _walk(node):
+        if isinstance(current, ast.Call | ast.Prime):
+            found.add(id(current.func))
+        elif isinstance(current, ast.Accent | ast.Scripted) and isinstance(
+            _named(current), ast.Name
+        ):  # \bar h is hbar, and E^{(2)} is E^(2); \dot h is h, differentiated
+            found.add(id(current.base))
+    return found
+
+
+def _writes_tensor(value: ast.Expr, name: str) -> bool:
+    """Whether ``value`` writes the tensor ``name`` with index labels, or ``name`` alone,
+    other than as the tensor solve is asked to solve for: T_{\\nu\\mu} in
+    T_{\\mu\\nu} = T_{\\nu\\mu}, but not k in k^3, a power or a component."""
+    bases = {id(node.base) for node in _used(value) if isinstance(node, ast.Scripted)}
+    for node in _used(value):
+        if isinstance(node, ast.Scripted) and (pattern := _tensor_pattern(node)):
+            if pattern[0] == name:
+                return True
+        elif isinstance(node, ast.Name) and node.id == name and id(node) not in bases:
+            return True
+    return False
+
+
+def _slashed(factors: list[ast.Expr]) -> list[ast.Expr]:
+    """Factors with an inline slash read as in physics: ``x/4GM`` is x/(4GM), and
+    ``e^{-r/2GM}`` is e^{-r/(2GM)}. The letters and numbers written right after the
+    denominator, with no space, belong to it; ``x/4 GM``, with a space, and
+    ``\\frac{x}{4}GM`` are (x/4) GM, and a tensor never joins a denominator."""
+
+    def simple(node: ast.Expr) -> bool:
+        if isinstance(node, ast.Number | ast.Name):
+            return True
+        return (
+            isinstance(node, ast.Scripted)
+            and isinstance(node.base, ast.Name)
+            and _tensor_pattern(node) is None
+            and all(script.kind == "^" for script in node.scripts)
+        )
+
+    result: list[ast.Expr] = []
+    position = 0
+    while position < len(factors):
+        factor = factors[position]
+        slash = (
+            isinstance(factor, ast.Binary)
+            and factor.op == "/"
+            and Span(factor.span.source, factor.left.span.end, factor.right.span.start).text.strip()
+            == "/"
+            and simple(factor.right)
+        )
+        run: list[ast.Expr] = []
+        end = factor.span.end
+        while slash and position + 1 + len(run) < len(factors):
+            following = factors[position + 1 + len(run)]
+            if following.span.start != end or not simple(following):
+                break
+            run.append(following)
+            end = following.span.end
+        if not run:
+            result.append(factor)
+            position += 1
+            continue
+        assert isinstance(factor, ast.Binary)
+        denominator = reduce(
+            lambda a, b: ast.Binary("*", a, b, implicit=True, span=a.span.to(b.span)),
+            [factor.right, *run],
+        )
+        span = factor.span.to(run[-1].span)
+        result.append(ast.Binary("/", factor.left, denominator, span=span))
+        position += 1 + len(run)
+    return result
+
+
+def _bracketed(equation: ast.Equation) -> bool:
+    """Whether an equation is written in brackets of its own, as the case ``(k = 0)``
+    beside a formula is."""
+    text = equation.span.text
+    for opener, closer in (("(", ")"), ("\\left(", "\\right)")):
+        if (
+            text.startswith(opener)
+            and text.endswith(closer)
+            and equation.lhs.span.start > equation.span.start
+            and equation.rhs.span.end < equation.span.end
+        ):
+            return True
+    return False
+
+
+def _unbracketed(equation: ast.Equation) -> str:
+    return Span(equation.span.source, equation.lhs.span.start, equation.rhs.span.end).text
+
+
+def _mentions_symbol(node: Node, name: str) -> bool:
+    """Whether a value is written with the symbol ``name``: a constant it is computed
+    from has it among its free symbols."""
+    for current in dependencies([node]):
+        if not isinstance(current.op, ops.Const):
+            continue
+        value = current.op.value
+        written = isinstance(value, sympy.Basic | sympy.NDimArray)
+        if written and any(symbol.name == name for symbol in value.free_symbols):
+            return True
+    return False
+
 
 def _bracket_groups(
     factors: Sequence[Sequence[tuple[ast.IndexItem, bool]]], span: Span, *, closed: bool
@@ -4275,10 +5058,11 @@ _DIFFERENTIAL_NAME = re.compile(
 )
 
 
-def _line_element_coordinates(value: ast.Expr) -> list[str]:
+def _line_element_coordinates(value: ast.Expr, *, solid_angle: bool = True) -> list[str]:
     r"""The coordinates a line element's differentials name, in the order they appear:
-    ``-dt^2 + dr^2 + r^2 d\Omega^2`` names t, r, θ and φ. Empty if a differential is
-    abstract, as in ``g_{\mu\nu} dx^\mu dx^\nu``, or if there are none."""
+    ``-dt^2 + dr^2 + r^2 d\Omega^2`` names t, r, θ and φ, or, without ``solid_angle``, t, r
+    and Ω. Empty if a differential is abstract, as in ``g_{\mu\nu} dx^\mu dx^\nu``, or if
+    there are none."""
     atoms: list[ast.Expr] = []
     pending: list[ast.Expr] = [value]
     while pending:  # left to right, without recursion
@@ -4305,7 +5089,7 @@ def _line_element_coordinates(value: ast.Expr) -> list[str]:
             target = target.base
         if not isinstance(target, ast.Name):
             continue
-        found = ["theta", "phi"] if target.id == "Omega" else [target.id]
+        found = ["theta", "phi"] if target.id == "Omega" and solid_angle else [target.id]
         names.extend(name for name in found if name not in names)
     return names
 

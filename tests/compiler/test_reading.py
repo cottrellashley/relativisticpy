@@ -26,7 +26,7 @@ class TestImplicitContext:
 
     def test_declared_coordinates_stay(self, wb):
         wb.exe("Coordinates := [t, x]")
-        with pytest.raises(CompileError, match="d must be followed by a coordinate"):
+        with pytest.raises(CompileError, match="dy is not the differential of a coordinate"):
             wb.exe("ds^2 = -d t^2 + d y^2")  # y is no coordinate: a mistake, not new ones
 
     def test_a_function_written_once_with_its_arguments(self, wb):

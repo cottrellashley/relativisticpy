@@ -262,6 +262,9 @@ def _table() -> dict[str, Builtin]:
 #: Every builtin function, by the name the language calls it.
 BUILTINS = MappingProxyType(_table())
 
+#: The names of the builtins that are spacetimes, such as ``Schwarzschild``.
+SPACETIMES: tuple[str, ...] = tuple(_SPACETIMES)
+
 #: Names with a fixed value: the constants of mathematics.
 CONSTANTS = MappingProxyType(
     {

@@ -5,7 +5,7 @@ import sympy
 from sympy import Array, Function, Symbol, symbols
 
 from relativisticpy import Tensor
-from relativisticpy.errors import CompileError, IndexNotationError
+from relativisticpy.errors import CompileError, IndexNotationError, RelativisticPyError
 
 x, y, r, theta, a, b, n = symbols("x y r theta a b n")
 
@@ -149,8 +149,14 @@ class TestDefinitionsAndEquations:
         assert wb.exe("y = 3") == []
         assert wb.expr("y + 1") == 4
 
-    def test_a_function_call_on_the_left_is_an_equation(self, wb):
-        assert wb.expr("f(x) = x^2") == sympy.Eq(Function("f")(x), x**2)
+    def test_a_new_function_on_the_left_is_defined(self, wb):
+        # f(x) = x^2 defines f, as x = 2 defines x; at a value, or again, it is a claim
+        assert wb.exe("f(x) = x^2") == []
+        assert wb.expr("f(2)") == 4
+        assert wb.expr("f(2) = 4") is sympy.true
+        assert wb.expr("g(2) = 4") == sympy.Eq(Function("g")(2), 4)  # g has no meaning
+        assert wb.expr("f(x) = x^3") is not sympy.true
+        assert wb.expr("f(2)") == 4  # unchanged
 
     def test_an_expression_on_the_left_is_an_equation(self, wb):
         assert wb.expr("x^2 + y^2 = 1") == sympy.Eq(x**2 + y**2, 1)
@@ -228,13 +234,46 @@ class TestDefinitionsAndEquations:
         wb.exe("g^{ab} := [[1, 0], [0, 4]]")
         assert wb.expr("g_{ab}").components == Array([[1, 0], [0, sympy.Rational(1, 4)]])
 
-    def test_a_degenerate_metric_is_reported_where_it_was_written(self, wb):
+    def test_a_degenerate_metric_is_refused_where_it_is_written(self, wb):
         from relativisticpy.errors import EvaluationError
 
-        wb.exe("Coordinates := [x, y]\ng_{ab} := [[1, 1], [1, 1]]")
-        with pytest.raises(EvaluationError, match="non-degenerate") as error:
-            wb.expr("g^{ab}")
+        wb.exe("Coordinates := [x, y]")
+        with pytest.raises(EvaluationError, match="the metric is degenerate") as error:
+            wb.exe("g_{ab} := [[1, 1], [1, 1]]")
         assert "g_{ab} := [[1, 1], [1, 1]]" in str(error.value)
+        assert "no curvature can be computed" in str(error.value)
+        with pytest.raises(CompileError, match="there is no metric yet"):
+            wb.expr("g^{ab}")  # the definition that failed defined nothing
+
+    def test_a_metric_missing_a_coordinate_says_which(self, wb):
+        from relativisticpy.errors import EvaluationError
+
+        wb.exe("Coordinates := [t, r]")
+        with pytest.raises(EvaluationError, match="the metric is degenerate") as error:
+            wb.exe("ds^2 = -dt^2")
+        assert "note: no term of it has dr" in str(error.value)
+        assert "hint: give it a term with dr" in str(error.value)
+
+    def test_a_metric_of_the_wrong_size_is_refused_where_it_is_written(self, wb):
+        from relativisticpy.errors import EvaluationError
+
+        wb.exe("Coordinates := [t, x, y, z]")
+        with pytest.raises(EvaluationError, match="has 3×3 components, but there are 4") as error:
+            wb.exe("g_{\\mu\\nu} := diag(-1, 1, 1)")
+        assert "the coordinates are t, x, y and z" in str(error.value)
+
+    def test_a_metric_that_is_not_symmetric_is_refused_by_component(self, wb):
+        from relativisticpy.errors import EvaluationError
+
+        wb.exe("Coordinates := [x, y]")
+        with pytest.raises(EvaluationError, match=r"g_\{xy\} = 2 but g_\{yx\} = 3"):
+            wb.exe("g_{ab} := [[1, 2], [3, 4]]")
+
+    def test_a_failed_metric_leaves_the_one_in_force(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        with pytest.raises(RelativisticPyError):
+            wb.exe(r"ds^2 = -dt^2 + dr^2")  # degenerate in four coordinates
+        assert wb.expr("Kretschmann") == 48 * Symbol("M") ** 2 / r**6
 
     def test_coordinates_list_names(self, wb):
         with pytest.raises(CompileError, match="expected a name"):
@@ -375,8 +414,14 @@ class TestFunctionsAndOperators:
 
     def test_a_line_element_needs_coordinates_after_d(self, wb):
         wb.exe("Coordinates := [t, x]")
-        with pytest.raises(CompileError, match="d must be followed by a coordinate"):
+        with pytest.raises(CompileError, match="dy is not the differential of a coordinate"):
             wb.expr(r"ds^2 = -d t^2 + d y^2")
+        with pytest.raises(CompileError, match="dy and dz are not differentials") as error:
+            wb.expr(r"ds^2 = -dt^2 + dy^2 + dz^2")
+        assert "the coordinates are t and x, as declared" in str(error.value)
+        assert "Coordinates := [t, y, z]" in str(error.value)  # the hint works:
+        wb.exe("Coordinates := [t, y, z]\nds^2 = -dt^2 + dy^2 + dz^2")
+        assert wb.expr("g_{zz}") == 1
 
     def test_solid_angle_needs_angles(self, wb):
         wb.exe("Coordinates := [t, x]")

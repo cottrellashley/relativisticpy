@@ -88,6 +88,11 @@ class Session:
     # Whether the coordinates were read from a line element's differentials rather than
     # declared; only then may a later line element bring new ones.
     coordinates_inferred: bool = False
+    # Where the coordinates last changed while a metric was in force, which dropped it.
+    dropped: Span | None = None
+    # The names written as factors so far, as \rho is in p = w\rho: a symbol, so that
+    # \rho(1 + 3w) later is a product, not a function.
+    factors: set[str] = field(default_factory=set)
     # Spaces other than spacetime, by name, and the index labels declared to range over
     # them, as by a, b \in \mathcal{A}. A space may be given a metric, by the node of
     # the tensor that is its metric, and a measure, by the node of its weights.
@@ -119,6 +124,7 @@ class Session:
             assumptions=dict(self.assumptions),
             names=dict(self.names),
             functions=dict(self.functions),
+            factors=set(self.factors),
             spaces=dict(self.spaces),
             labels=dict(self.labels),
             space_metrics=dict(self.space_metrics),
@@ -130,9 +136,14 @@ class Session:
         """The space of the coordinates in force."""
         return spacetime(self.require_coordinates(span, why))
 
-    def set_coordinates(self, coordinates: tuple[Symbol, ...], *, inferred: bool = False) -> None:
-        """Change coordinates, forgetting what belonged to the old ones."""
+    def set_coordinates(
+        self, coordinates: tuple[Symbol, ...], *, inferred: bool = False, span: Span | None = None
+    ) -> None:
+        """Change coordinates, forgetting what belonged to the old ones; ``span`` is where
+        they changed, to say so of the metric it drops."""
         if coordinates != self.coordinates:
+            if self.metric is not None:
+                self.dropped = span
             self.metric = None
             self.functions.clear()
         self.coordinates = coordinates
@@ -147,7 +158,7 @@ class Session:
             raise CompileError(
                 f"{why} needs coordinates",
                 span=span,
-                hint="declare them first, for example  Coordinates := [t, r, \\theta, \\phi]",
+                hint="declare them first, for example Coordinates := [t, r, \\theta, \\phi]",
             )
         return self.coordinates
 
@@ -157,9 +168,16 @@ class Session:
             raise CompileError(
                 "there is no metric yet" if why == "the metric" else f"{why} needs a metric",
                 span=span,
-                hint="define one first, for example  g_{\\mu\\nu} := diag(-1, 1, 1, 1)",
+                hint="define one first, for example g_{\\mu\\nu} := diag(-1, 1, 1, 1)",
+                notes=self.dropped_note(),
             )
         return self.metric
+
+    def dropped_note(self) -> list[str]:
+        """The note that the metric was dropped when the coordinates changed, if it was."""
+        if self.dropped is None:
+            return []
+        return [f"the metric was dropped when the coordinates changed on line {self.dropped.line}"]
 
     def geometry(self, quantity: str, span: Span) -> Node:
         """The node computing a geometric quantity of the metric in force.

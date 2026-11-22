@@ -29,7 +29,7 @@ import pytest
             "comb(factorial_func(3), 4)",
             "15",
         ),
-        ("y(x) = 10", "Eq(y(x), 10)"),
+        ("y(x) = 10\ny(3)", "10"),  # = defines a function that has no meaning yet
         ("y(x) = 10 * x |_{x = 10}", "Eq(y(10), 100)"),
     ],
 )
