@@ -95,7 +95,8 @@ def main() -> None:
 
     failures: collections.Counter[str] = collections.Counter()
     examples: dict[str, list[str]] = collections.defaultdict(list)
-    print(f"{'paper':52} {'equations':>9} {'parse':>7} {'holds':>6} {'differs':>8}")
+    header = f"{'paper':44} {'equations':>9} {'parse':>7} {'holds':>6} {'differs':>8}"
+    print(f"{header} {'relates':>8} {'ill-formed':>11}")
     for identifier in args.papers:
         path = fetch(identifier)
         document = Document.read(path)
@@ -116,7 +117,9 @@ def main() -> None:
         title = CORPUS.get(identifier, identifier)[:52]
         share = parsed / len(equations) if equations else 0
         holds, differs = report.count(Verdict.HOLDS), report.count(Verdict.DIFFERS)
-        print(f"{title:52} {len(equations):>9} {share:>7.1%} {holds:>6} {differs:>8}")
+        relates, ill_formed = report.count(Verdict.RELATES), report.count(Verdict.ILL_FORMED)
+        row = f"{title[:44]:44} {len(equations):>9} {share:>7.1%} {holds:>6} {differs:>8}"
+        print(f"{row} {relates:>8} {ill_formed:>11}")
     for kind, count in failures.most_common(args.kinds):
         print(f"\n{count:5d}  {kind}")
         for example in examples[kind]:

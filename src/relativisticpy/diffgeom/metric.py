@@ -13,6 +13,7 @@ from sympy.core.function import AppliedUndef
 
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.curvature import SimplifyMap
+from relativisticpy.errors import MetricError, UsageError
 from relativisticpy.tensors import Indices, Tensor
 from relativisticpy.tensors.indices import Index
 
@@ -50,7 +51,7 @@ class Metric(Tensor):
         coordinates = tuple(sympy.Symbol(c) if isinstance(c, str) else c for c in coordinates)
         matrix = curvature.metric_matrix(components)
         if matrix.rows != len(coordinates):
-            raise ValueError(
+            raise MetricError(
                 f"a {matrix.rows}×{matrix.rows} metric needs {matrix.rows} coordinates, "
                 f"not {len(coordinates)}"
             )
@@ -120,7 +121,7 @@ class Metric(Tensor):
         from relativisticpy import display
 
         if form not in ("unicode", "text", "latex"):
-            raise ValueError(f"the forms are unicode, text and latex, not {form!r}")
+            raise UsageError(f"the forms are unicode, text and latex, not {form!r}")
         return display.line_element(self, form)  # type: ignore[arg-type]
 
     # -- curvature ---------------------------------------------------------------
@@ -259,7 +260,7 @@ def metric_from_line_element(line_element: Expr, coordinates: Sequence[Symbol]) 
     g = sympy.zeros(n, n)
     for powers, coefficient in polynomial.terms():
         if sum(powers) != 2:
-            raise ValueError(
+            raise MetricError(
                 "a line element must be a quadratic form in the differentials, "
                 f"but it has a term of degree {sum(powers)}"
             )
@@ -282,11 +283,11 @@ def geodesic_equations(
     """
     tau = sympy.Symbol(parameter) if isinstance(parameter, str) else parameter
     if tau.name in {c.name for c in coordinates}:
-        raise ValueError(f"the parameter {tau} is a coordinate: give the parameter another name")
+        raise UsageError(f"the parameter {tau} is a coordinate: give the parameter another name")
     names = {s.name for s in christoffel_symbols.free_symbols}
     names |= {f.func.__name__ for f in christoffel_symbols.atoms(AppliedUndef)}
     if tau.name in names:
-        raise ValueError(f"{tau} already appears in the metric: give the parameter another name")
+        raise UsageError(f"{tau} already appears in the metric: give the parameter another name")
     paths = [Function(c.name)(tau) for c in coordinates]
     along = dict(zip(coordinates, paths, strict=True))
     n = len(coordinates)

@@ -42,7 +42,7 @@ from sympy.core.function import AppliedUndef
 
 from relativisticpy import display
 from relativisticpy.abstract import IndexEquation, latex_labels
-from relativisticpy.documents import Document, Equation, math_blocks
+from relativisticpy.documents import Document, Equation, math_blocks, read_text
 from relativisticpy.errors import (
     EvaluationError,
     FileError,
@@ -429,7 +429,7 @@ def check(
         document = Document(document)
     if not isinstance(document, Document):
         path = _path(document)
-        text = _read(path)
+        text = read_text(path)
         if path.suffix.lower() in (".md", ".markdown"):
             blocks = [Equation(source, "$$") for source in math_blocks(text, str(path))]
             return check_equations(workbook, blocks, str(path), lines, time_limit)
@@ -442,7 +442,13 @@ def check(
         detail = f"cannot read the document: {_why(error)}"
         report.findings.append(Finding(Verdict.NOT_PARSED, span, detail))
         return report
-    return check_equations(workbook, equations, document.name, lines, time_limit)
+    report = check_equations(workbook, equations, document.name, lines, time_limit)
+    report.warnings += [
+        f"{document.name}:{line}: the file {name} it includes was not found, so its "
+        "equations were not checked"
+        for name, line in document.missing
+    ]
+    return report
 
 
 def check_equations(
@@ -1181,33 +1187,6 @@ def _path(document: Any) -> Path:
             hint=f"export it as Markdown, as with  jupyter nbconvert --to markdown {path}",
         )
     return path
-
-
-def _read(path: Path) -> str:
-    """The text of a file, which must be UTF-8."""
-    try:
-        data = path.read_bytes()
-    except FileNotFoundError:
-        raise FileError(
-            f"no file {path}",
-            hint="to check LaTeX text rather than a file, pass the text, or a Document: "
-            "wb.check(Document(text, 'notes.tex'))",
-        ) from None
-    except IsADirectoryError:
-        raise FileError(f"{path} is a folder, not a file") from None
-    except OSError as error:
-        raise FileError(f"cannot read {path}: {error.strerror or error}") from None
-    try:
-        return data.decode("utf-8-sig")
-    except UnicodeDecodeError as error:
-        before = data[: error.start]
-        line = before.count(b"\n") + 1
-        column = error.start - (before.rfind(b"\n") + 1) + 1
-        raise FileError(
-            f"{path} is not UTF-8 text: the byte 0x{data[error.start]:02X} at line {line}, "
-            f"column {column} is not",
-            hint=f"save it as UTF-8, as with  iconv -f latin1 -t utf-8 {path}",
-        ) from None
 
 
 def _lines(lines: Any) -> tuple[int | None, int | None] | None:

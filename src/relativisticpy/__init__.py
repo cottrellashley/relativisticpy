@@ -38,10 +38,17 @@ from relativisticpy.display import latex
 from relativisticpy.documents import Document
 from relativisticpy.errors import (
     CompileError,
+    DataError,
     EvaluationError,
+    FileError,
     IndexNotationError,
+    InternalError,
+    MetricError,
+    NotComputedError,
     ParseError,
     RelativisticPyError,
+    UnknownNameError,
+    UsageError,
 )
 from relativisticpy.tensors import Index, Indices, Space, Tensor
 from relativisticpy.tensors.equation import TensorEquation, UndecidedError, holds
@@ -54,15 +61,20 @@ except _PackageNotFoundError:  # pragma: no cover - running from a source tree
 
 __all__ = [
     "CompileError",
+    "DataError",
     "Document",
     "EvaluationError",
+    "FileError",
     "Finding",
     "Index",
     "IndexEquation",
     "IndexExpression",
     "IndexNotationError",
     "Indices",
+    "InternalError",
     "Metric",
+    "MetricError",
+    "NotComputedError",
     "ParseError",
     "RelativisticPyError",
     "Report",
@@ -71,6 +83,8 @@ __all__ = [
     "Tensor",
     "TensorEquation",
     "UndecidedError",
+    "UnknownNameError",
+    "UsageError",
     "Verdict",
     "Workbook",
     "__version__",

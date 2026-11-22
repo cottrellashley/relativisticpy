@@ -828,3 +828,12 @@ class TestCommandLine:
         assert main(["check", str(paper)]) == 0
         output.flush()
         assert f"{paper}:11:3: ? holds" in output.buffer.getvalue().decode("cp1252")
+
+
+def test_a_file_a_paper_includes_that_is_missing_is_reported(tmp_path):
+    paper = tmp_path / "paper.tex"
+    paper.write_text("\\input{chapter}\n$$ x := 2 $$\n", encoding="utf-8")
+    report = Workbook().check(str(paper))
+    assert report.warnings == [
+        f"{paper}:1: the file chapter it includes was not found, so its equations were not checked"
+    ]

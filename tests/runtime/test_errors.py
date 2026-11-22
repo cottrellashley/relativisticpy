@@ -190,12 +190,13 @@ class TestTranslation:
             "Python says: AttributeError: 'list' object has no attribute 'is_Float'"
         ]
 
-    def test_relativisticpys_own_value_errors_keep_their_words(self):
-        # a ValueError RelativisticPy raises says what is wrong with the input
+    def test_relativisticpys_own_errors_keep_their_words(self):
+        # the metric's check raises its own error, a ValueError too, which stays as it is
         with pytest.raises(ValueError, match="symmetric") as error:
             curvature.check_metric(sympy.ImmutableMatrix([[1, 2], [3, 4]]))
         failure = translate(error.value)
-        assert type(failure) is EvaluationError
+        assert type(failure) is MetricError
+        assert isinstance(failure, EvaluationError)
         assert failure.message.startswith("a metric must be symmetric")
 
     def test_a_library_that_declines_is_quoted(self):
@@ -221,3 +222,17 @@ class TestTranslation:
     )
     def test_arithmetic_failures(self, error, message):
         assert translate(error).message.startswith(message)
+
+
+def test_a_metric_or_tensor_built_from_python_raises_relativisticpys_errors():
+    # still ValueErrors, as Python code expects, and RelativisticPy's own kinds
+    from relativisticpy import Metric, Tensor
+
+    with pytest.raises(MetricError, match="non-degenerate"):
+        Metric([[0, 0], [0, 0]], ["t", "x"])
+    with pytest.raises(MetricError, match="needs 2 coordinates"):
+        Metric([[-1, 0], [0, 1]], ["t", "x", "y"])
+    with pytest.raises(DataError, match="must be square"):
+        Tensor([[1, 2, 3], [4, 5, 6]], "_{ab}")
+    with pytest.raises(ValueError, match="must be square"):
+        Tensor([[1, 2, 3], [4, 5, 6]], "_{ab}")

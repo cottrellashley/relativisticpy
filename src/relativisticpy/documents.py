@@ -27,6 +27,7 @@ from collections.abc import Callable, Iterator, Mapping
 from dataclasses import InitVar, dataclass, field, replace
 from pathlib import Path
 
+from relativisticpy.errors import FileError
 from relativisticpy.language import Source
 from relativisticpy.language.source import Piece
 
@@ -186,10 +187,10 @@ class Document:
         The equations of the files it includes are its equations, where it includes
         them, each with its own file's name and positions."""
         path = Path(path)
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = read_text(path)
         packages: dict[str, Macro] = {}
         for extra in _local_files(strip_comments(text), path.parent):
-            found = find_macros(strip_comments(extra.read_text(encoding="utf-8", errors="replace")))
+            found = find_macros(strip_comments(read_text(extra)))
             for macro in found.values():
                 packages.setdefault(
                     macro.name, replace(macro, where=f"{extra.name}, {macro.where}")
@@ -216,8 +217,7 @@ class Document:
                 continue
             if path.resolve() in reading or len(reading) > _MAX_INCLUDE_DEPTH:
                 continue  # a file that includes itself, as TeX would read it, without end
-            text = path.read_text(encoding="utf-8", errors="replace")
-            included = Document(text, str(path), self.macros)
+            included = Document(read_text(path), str(path), self.macros)
             included._include(folder, reading | {path.resolve()})
             self.missing.extend(included.missing)
             self._included.append((match.start(), included))
@@ -300,6 +300,34 @@ _INCLUDE = re.compile(
     r"\s*(?:\{(?P<braced>[^{}]*)\}|(?P<bare>[^\s{}\\]+))"
 )
 _MAX_INCLUDE_DEPTH = 16
+
+
+def read_text(path: Path) -> str:
+    """The text of a file, which must be UTF-8: a document, a package of its macros,
+    or a file it includes. Anything else is a :class:`~relativisticpy.errors.FileError`."""
+    try:
+        data = path.read_bytes()
+    except FileNotFoundError:
+        raise FileError(
+            f"no file {path}",
+            hint="to check LaTeX text rather than a file, pass the text, or a Document: "
+            "wb.check(Document(text, 'notes.tex'))",
+        ) from None
+    except IsADirectoryError:
+        raise FileError(f"{path} is a folder, not a file") from None
+    except OSError as error:
+        raise FileError(f"cannot read {path}: {error.strerror or error}") from None
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError as error:
+        before = data[: error.start]
+        line = before.count(b"\n") + 1
+        column = error.start - (before.rfind(b"\n") + 1) + 1
+        raise FileError(
+            f"{path} is not UTF-8 text: the byte 0x{data[error.start]:02X} at line {line}, "
+            f"column {column} is not",
+            hint=f"save it as UTF-8, as with  iconv -f latin1 -t utf-8 {path}",
+        ) from None
 
 
 def _local_files(text: str, folder: Path) -> list[Path]:

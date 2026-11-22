@@ -10,7 +10,7 @@ from typing import Any
 import sympy
 from sympy import Expr, Symbol
 
-from relativisticpy.errors import EvaluationError, IndexNotationError
+from relativisticpy.errors import DataError, EvaluationError, IndexNotationError, UsageError
 from relativisticpy.tensors import arrays, numerical
 from relativisticpy.tensors.indices import Index, Indices
 from relativisticpy.tensors.spaces import Space
@@ -96,28 +96,26 @@ class Tensor:
             self.components = components
             shape = tuple(getattr(components, "shape", ()))
             if len(shape) != len(self.indices):
-                raise ValueError(_misfit(shape, len(self.indices)))
+                raise DataError(_misfit(shape, len(self.indices)))
             return
         self.components = arrays.to_array(components) if self.indices else sympy.sympify(components)
         if not self.indices:
             return
         shape = tuple(self.components.shape)
         if len(shape) != len(self.indices):
-            raise ValueError(_misfit(shape, len(self.indices)))
+            raise DataError(_misfit(shape, len(self.indices)))
         if self.spaces is not None:
             if shape != tuple(space.dim for space in self.spaces):
                 sizes = " × ".join(str(space.dim) for space in self.spaces)
-                raise ValueError(
-                    f"components of shape {_times(shape)} do not fit spaces of {sizes}"
-                )
+                raise DataError(f"components of shape {_times(shape)} do not fit spaces of {sizes}")
         elif len(set(shape)) != 1:
-            raise ValueError(
+            raise DataError(
                 f"symbolic components must be square, one axis for each coordinate, "
                 f"unless their spaces are given: these are {_times(shape)}; pass "
                 f"spaces=, one Space for each axis"
             )
         elif self.coordinates and shape[0] != len(self.coordinates):
-            raise ValueError(
+            raise DataError(
                 f"components have dimension {shape[0]} but there are "
                 f"{len(self.coordinates)} coordinates"
             )
@@ -140,7 +138,7 @@ class Tensor:
             return len(self.coordinates)
         sizes = set(self.shape)
         if len(sizes) != 1:
-            raise ValueError(
+            raise UsageError(
                 f"the axes of {self._written()} have different sizes, {_times(self.shape)}: "
                 "use shape"
             )
@@ -218,7 +216,7 @@ class Tensor:
             return pd.Series(data, index=names[0], name=self.name)
         if self.rank == 2:
             return pd.DataFrame(data, index=names[0], columns=names[1])
-        raise ValueError("only a tensor with one or two indices is a Series or a DataFrame")
+        raise UsageError("only a tensor with one or two indices is a Series or a DataFrame")
 
     def labels(self, axis: int) -> list[Any]:
         """The names of the components along an axis: the basis of its space, the

@@ -438,3 +438,12 @@ class TestReading:
             r"\mathrm{d} s^2 = -\mathrm{d} t^2 + \mathrm{d} x^2",
         ]
         assert findings[1].span.written == r"\dd s^2 = -\dd t^2 + \dd x^2"  # as the file has it
+
+
+def test_a_file_a_document_includes_must_be_utf8(tmp_path):
+    from relativisticpy.errors import FileError
+
+    (tmp_path / "chapter.tex").write_bytes("$$ caf\xe9 = 1 $$".encode("latin-1"))
+    (tmp_path / "paper.tex").write_text(r"\input{chapter}", encoding="utf-8")
+    with pytest.raises(FileError, match=r"chapter\.tex is not UTF-8 text"):
+        Document.read(tmp_path / "paper.tex")

@@ -31,6 +31,7 @@ from itertools import product
 import sympy
 from sympy import Expr, ImmutableDenseNDimArray, ImmutableMatrix, Rational, Symbol
 
+from relativisticpy.errors import MetricError
 from relativisticpy.tensors import arrays
 from relativisticpy.tensors.arrays import Array
 from relativisticpy.tensors.simplification import rationalise, simplify_component
@@ -58,7 +59,7 @@ def metric_matrix(components: object) -> ImmutableMatrix:
     """
     matrix = ImmutableMatrix(arrays.to_array(components).tolist())
     if not matrix.is_square:
-        raise ValueError(
+        raise MetricError(
             f"a metric must be a square matrix, not {matrix.shape[0]}×{matrix.shape[1]}"
         )
     return rationalise(matrix)
@@ -68,9 +69,9 @@ def check_metric(g: ImmutableMatrix) -> None:
     """Raise ``ValueError`` unless ``g`` is symmetric and non-degenerate."""
     for i, j in product(range(g.rows), repeat=2):
         if i < j and sympy.simplify(g[i, j] - g[j, i]) != 0:
-            raise ValueError(f"a metric must be symmetric, but g[{i}, {j}] ≠ g[{j}, {i}]")
+            raise MetricError(f"a metric must be symmetric, but g[{i}, {j}] ≠ g[{j}, {i}]")
     if sympy.simplify(g.det()) == 0:
-        raise ValueError("a metric must be non-degenerate, but its determinant is zero")
+        raise MetricError("a metric must be non-degenerate, but its determinant is zero")
 
 
 def inverse(g: ImmutableMatrix, simplify: SimplifyMap = serial) -> ImmutableMatrix:
@@ -221,7 +222,7 @@ def weyl(
     """
     n = g.rows
     if n < 3:
-        raise ValueError("the Weyl tensor is defined in three or more dimensions")
+        raise MetricError("the Weyl tensor is defined in three or more dimensions")
     keys, values = [], []
     for a, b, c, d in product(range(n), repeat=4):
         if a < b and c < d:

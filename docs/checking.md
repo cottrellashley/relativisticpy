@@ -261,15 +261,15 @@ them finds. The papers themselves are never stored in the repository.
 uv run python benchmarks/corpus.py
 ```
 
-| Paper | Equations | Parse | Hold | Differ | Relate |
-|---|---:|---:|---:|---:|---:|
-| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 116 | 20 | 175 |
-| gr-qc 2611.26560 | 31 | 77.4% | 1 | 1 | 10 |
-| gr-qc 2611.26576 | 305 | 46.6% | 0 | 1 | 58 |
-| gr-qc 2611.26585 | 270 | 63.0% | 0 | 1 | 24 |
-| gr-qc 2611.26591 | 27 | 92.6% | 0 | 0 | 8 |
-| gr-qc 2611.26594 | 63 | 87.3% | 1 | 0 | 4 |
-| gr-qc 2611.26620 | 47 | 74.5% | 0 | 0 | 10 |
+| Paper | Equations | Parse | Hold | Differ | Relate | Ill-formed |
+|---|---:|---:|---:|---:|---:|---:|
+| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 116 | 20 | 175 | 1 |
+| gr-qc 2611.26560 | 31 | 77.4% | 1 | 1 | 10 | 0 |
+| gr-qc 2611.26576 | 305 | 46.9% | 0 | 1 | 58 | 0 |
+| gr-qc 2611.26585 | 270 | 63.0% | 0 | 1 | 24 | 0 |
+| gr-qc 2611.26591 | 27 | 92.6% | 0 | 0 | 8 | 0 |
+| gr-qc 2611.26594 | 63 | 87.3% | 1 | 0 | 4 | 0 |
+| gr-qc 2611.26620 | 47 | 74.5% | 0 | 0 | 12 | 0 |
 
 Most of what the recent papers write between quantities they introduce relates
 them, as a paper's results do; few of their equations involve only what is
