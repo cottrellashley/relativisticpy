@@ -108,10 +108,11 @@ class TestBuiltInNames:
         wb.exe(SCHWARZSCHILD)
         found = error(wb, r"A_{\mu} + B_{\nu} = C_{\mu}", IndexNotationError)
         assert found.message == "C has 3 or 4 indices, but 1 is given"
-        assert found.notes == [
+        assert found.notes[0] == (
             "C is a built-in name: the Christoffel connection C^{a}_{bc} or the Weyl tensor "
             "C_{abcd}"
-        ]
+        )
+        assert r"A is not defined, so A_{\mu} is one symbol" in found.notes[1]  # read before
         assert found.hint == r"to use C for a tensor of your own, define it first: C_{\mu} := [...]"
         wb.exe(r"C_{\mu} := [1, 2, 3, 4]")  # the hint works
         assert wb.expr("C_{t}") == 1
@@ -351,3 +352,73 @@ class TestNamesNeverDefined:
         assert notes(wb, "R") == [
             "the metric is written with R, so R is that symbol; the Ricci scalar is Ric"
         ]
+
+
+class TestSilentReadingsAreSaid:
+    def test_greek_superscripts_on_a_name_that_means_nothing(self, wb):
+        assert notes(wb, r"T^{\mu\nu}") == [
+            r"T is not defined, so T^{\mu\nu} is read as T to a power; to use a tensor, define "
+            r"it first: T^{\mu\nu} := [...]"
+        ]
+        assert notes(wb, r"\frac{d x^\mu}{d\tau}")[0].startswith(
+            r"x is not defined, so x^\mu is read as x to a power"
+        )
+        assert notes(wb, "x^n y^n") == []  # a Latin exponent is a power, as written
+
+    def test_a_label_written_up_and_down_on_a_name_that_means_nothing(self, wb):
+        assert notes(wb, "u^a u_a = -1") == [
+            "u is not defined, so u^a is a power and u_a one symbol; to use a tensor, define "
+            "it first: u^{a} := [...]"
+        ]
+        assert notes(wb, r"u_\alpha u_\alpha = -1")[0].startswith(
+            r"u is not defined, so u_\alpha is one symbol, not a component"
+        )
+
+    def test_a_derivative_with_an_index_and_no_coordinates(self, wb):
+        assert notes(wb, r"\nabla_\mu \nabla^\mu \phi = 0") == [
+            r"there are no coordinates, so a derivative with the index \mu is one with respect "
+            r"to a variable named \mu; declare coordinates to make \mu an index"
+        ]
+
+    def test_an_undefined_name_added_to_a_tensor(self, wb):
+        numpy = pytest.importorskip("numpy")
+        wb["x_t"] = numpy.ones(3)
+        found = error(wb, "x_t + y_t", IndexNotationError)
+        assert found.message == "the free indices of a sum must agree: _{t} and none"
+        assert found.notes == ["y is not defined, so y_t is read as one symbol, y_t"]
+
+
+class TestDerivativesOfFunctions:
+    def test_a_function_written_alone_is_differentiated_at_its_argument(self, wb):
+        x = __import__("sympy").Symbol("x")
+        wb.exe("f(x) := x^3")
+        assert wb.expr(r"\frac{d^2 f}{dx^2}") == 6 * x
+        assert wb.expr(r"\frac{d^2 f(x)}{dx^2}") == 6 * x
+        assert wb.expr("diff(f(x), x, 2)") == 6 * x
+
+    def test_a_value_written_with_what_it_depends_on_is_that_value(self, wb):
+        x = __import__("sympy").Symbol("x")
+        wb.exe("f := x^3")
+        assert wb.expr(r"\frac{d^2 f(x)}{dx^2}") == 6 * x  # f(x) is f, not f times x
+
+    def test_a_name_that_means_nothing_is_constant_and_says_so(self, wb):
+        assert wb.expr(r"\frac{d^2 f}{dx^2}") == 0
+        assert notes(wb, r"\frac{d^2 f}{dx^2}") == [
+            "f does not depend on x, so its derivative is 0; for a function, write f(x)"
+        ]
+
+
+class TestHintsThatWork:
+    def test_a_sum_over_an_index_without_limits_is_a_contraction(self, wb):
+        numpy = pytest.importorskip("numpy")
+        wb["w^a"] = numpy.array([1.0, 2.0])
+        found = error(wb, r"\sum_a w^a")
+        assert found.message == r"\sum needs limits"
+        assert found.hint == (
+            "to sum the components of w^a, contract it with the covector of ones: w^a 1_a"
+        )
+        assert wb.expr("w^a 1_a") == 3.0  # the hint works
+
+    def test_solving_a_trace_for_the_ricci_scalar(self, wb):
+        wb.exe(r"EFE := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}")
+        assert str(wb.expr("solve(trace(EFE), R)")) == r"R = 4 \Lambda - 8 \pi G T"

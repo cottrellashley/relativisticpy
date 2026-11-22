@@ -31,6 +31,8 @@ substitutes it back. This is trace reversal:
 ```python
 >>> wb.expr("trace(EFE)")
 IndexEquation(4Λ − R = 8π G T)
+>>> wb.expr("solve(trace(EFE), R)")
+IndexEquation(R = 4 \Lambda - 8 \pi G T)
 >>> wb.expr(r"solve(EFE, R_{\mu\nu})")
 IndexEquation(R_{μν} = 8π G T_{μν} + (Λ − 4π G T) g_{μν})
 
@@ -50,7 +52,7 @@ True
 
 | | |
 |---|---|
-| `solve(E, T_{\mu\nu})` | solve an equation for a tensor, with its indices up or down. The equation must be linear in the tensor; its trace may appear too |
+| `solve(E, T_{\mu\nu})` | solve an equation for a tensor, with its indices up or down. The equation must be linear in the tensor; its trace may appear too. An equation of scalars, as a trace is, is solved for a scalar, as in `solve(trace(E), R)` |
 | `trace(E)` | contract the two free indices of an equation, or an expression, with the metric |
 | `simplify(E)` | the canonical form, under the tensors' symmetries and the identities below |
 | `subs(E, rule)` | apply a rule: a definition, a contraction, or a value for a scalar such as `\Lambda = 0` |
@@ -126,7 +128,9 @@ False
 ```
 
 The last is a field equation, not an identity. When a paper is
-[checked](checking.md), identities in index notation are verified this way.
+[checked](checking.md), identities in index notation are verified this way. Without
+a metric, `R` is the Ricci scalar of the notation, so `R = -\kappa T` is an equation
+of notation, not a new meaning for `R` (see [What `=` means](tensors.md#what-means)).
 
 Index notation has rules: an index appears once in a term, or twice to be
 summed, once up and once down; and every term has the same free indices.

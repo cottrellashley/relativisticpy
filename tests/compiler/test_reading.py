@@ -231,7 +231,7 @@ class TestRelations:
             (r"{\rm d}t = 2\,{\rm d}x", "a relation between differentials"),
             (r"*F", "the Hodge dual is not supported yet"),
             (r"\int d^4x\, f", "integrals over regions of spacetime"),
-            (r"\sum_b x^b", "needs its limits"),
+            (r"\sum_b x^b", r"\\sum needs limits"),
             (r"f \circ g", "the composition of maps is not supported"),
         ],
     )

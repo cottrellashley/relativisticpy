@@ -176,9 +176,12 @@ $$
 ```
 
 `R` is the Ricci scalar unless your metric uses `R` as a symbol (the radius of a
-sphere, say), in which case `R` stays a symbol; `Ric` is always the Ricci
-scalar. Likewise `g` is the metric determinant unless the metric uses `g`, when
-`\det(g_{\mu\nu})` still is. To rename a built-in, write `MetricSymbol := G`; likewise
+sphere, say), in which case `R` stays a symbol, and a note says so wherever it is
+read that way; `Ric` is always the Ricci scalar. Likewise `g` is the metric
+determinant unless the metric uses `g`, when `\det(g_{\mu\nu})` still is. Spelled
+out, as `RicciScalar` or `Riemann`, a built-in is no name of the language: it is a
+symbol, with a note saying what to write. To rename a built-in, write
+`MetricSymbol := G`; likewise
 `ConnectionSymbol`, `RiemannSymbol`, `RicciSymbol`, `EinsteinSymbol`,
 `WeylSymbol`, `DerivativeSymbol` and `CovariantDerivativeSymbol`.
 
@@ -222,6 +225,10 @@ Fixing some indices and not others gives the rest as a tensor:
   Γ^r_{t t} = M (r − 2M)/r³
 
 ```
+
+A sum with whole-number limits is carried out, component by component for a
+tensor, so `\sum_{n=0}^{2} R_{\mu\nu}` is zero here; one to infinity, or to a
+symbol, is kept as written, and `doit(...)` carries it out where SymPy can.
 
 ## Defining tensors
 
@@ -418,7 +425,9 @@ waiting for its right-hand side.
 
 `geodesic_equations(\tau)` gives the geodesic equations for the metric in
 force, with each coordinate a function of the affine parameter \(\tau\). To
-integrate them numerically see [Numerics](numerics.md).
+integrate them numerically, which is done from Python, with
+`relativisticpy.numeric.geodesic`, see [Numerics](numerics.md); `geodesic(...)` in
+the language says so.
 
 ```python
 >>> wb.expr(r"geodesic_equations(\tau)")[2]

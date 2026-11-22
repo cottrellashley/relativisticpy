@@ -2751,7 +2751,36 @@ class Compiler:
         variables = tuple((self.value(v, scope, ctx), order) for v, order in node.variables)
         if node.expr is None:
             return LeibnizDerivative(node.span, variables)
-        return self._differentiate(self.value(node.expr, scope, ctx), variables, node.span)
+        expr = node.expr
+        binding = scope.lookup(expr.id) if isinstance(expr, ast.Name) else None
+        if isinstance(binding, FunctionBinding) and isinstance(expr, ast.Name):
+            # \frac{d^2 f}{dx^2}, with f(x) defined: the derivative of f(x)
+            expr = self._applied(expr, binding, node)
+        elif isinstance(expr, ast.Name) and self._undefined(expr, scope):
+            by = [v for v, _ in node.variables if isinstance(v, ast.Name)]
+            written = list(dict.fromkeys(v.span.text for v in by))
+            if written and expr.id not in {v.id for v in by}:
+                shown = expr.span.text
+                self._note(
+                    f"{shown} does not depend on {_listed(written)}, so its derivative is 0; "
+                    f"for a function, write {shown}({', '.join(written)})"
+                )
+        return self._differentiate(self.value(expr, scope, ctx), variables, node.span)
+
+    @staticmethod
+    def _applied(name: ast.Name, binding: FunctionBinding, node: ast.Derivative) -> ast.Expr:
+        """A function written alone in a derivative, as f in \\frac{df}{dx}, applied to
+        what it is differentiated by: f(x), or f(x, y) by its parameters' names."""
+        params = binding.definition.params
+        variables = [v for v, _ in node.variables if isinstance(v, ast.Name)]
+        names = list(dict.fromkeys(v.id for v in variables))
+        if len(params) == 1 and len(names) == 1:
+            args: tuple[ast.Expr, ...] = (variables[0],)
+        elif names and set(names) <= set(params):
+            args = tuple(ast.Name(param, span=name.span) for param in params)
+        else:
+            return name
+        return ast.Call(name, args, span=name.span)
 
     def _differentiate(self, expr: Node, variables: Sequence[tuple[Node, int]], span: Span) -> Node:
         vectors = [v for v, _ in variables if isinstance(v.type, TensorType)]
@@ -2813,11 +2842,26 @@ class Compiler:
 
     def _BigOperator(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node:
         if node.lower is None or node.upper is None:
-            raise CompileError(
-                f"\\{node.op} needs its limits",
-                span=node.span,
-                hint=f"for example \\{node.op}_{{n=0}}^{{3}}",
-            )
+            hint = f"for example \\{node.op}_{{n=0}}^{{N}} a_n"
+            label = node.variable.id if isinstance(node.variable, ast.Name) else None
+            indexed = [  # the tensors that carry the index, as w in \sum_a w^a
+                current
+                for current in _walk(node.body)
+                if isinstance(current, ast.Scripted)
+                and (pattern := _tensor_pattern(current))
+                and any(name == label for name, _ in pattern[1])
+                and isinstance(scope.lookup(pattern[0]), TensorBinding)
+            ]
+            if node.op == "sum" and label is not None and indexed:  # \sum_a w^a
+                pattern = _tensor_pattern(indexed[0])
+                assert pattern is not None
+                written = indexed[0].span.text
+                ones = f"1_{label}" if dict(pattern[1])[label] else f"1^{label}"
+                hint = (
+                    f"to sum the components of {written}, contract it with the covector of "
+                    f"ones: {written} {ones}"
+                )
+            raise CompileError(f"\\{node.op} needs limits", span=node.span, hint=hint)
         inner = scope.child()
         variable = self._bound_variable(node.variable, inner)
         lower = self.value(node.lower, scope, ctx)
@@ -3937,6 +3981,13 @@ class Compiler:
             and item.label
             and not isinstance(operand.type, TensorType)
         ):
+            if item.label in GREEK:  # \partial_\mu \phi, nothing declared: by a variable \mu
+                label = self._written_label(item.label)
+                self._note(
+                    f"there are no coordinates, so a derivative with the index {label} is one "
+                    f"with respect to a variable named {label}; declare coordinates to make "
+                    f"{label} an index"
+                )
             variable = self.graph.const(self.session.symbol(item.label), SCALAR)
             return self._differentiate(operand, [(variable, 1)], span)
         self.session.require_coordinates(span, "a derivative with an index")
@@ -4057,6 +4108,12 @@ class Compiler:
             items = [i for s in subscripts if s.indices for i in s.indices.items]
             if len(items) > 1 and all(_plain_label(i) for i in items):
                 raise self._not_a_tensor(node, base, subscripts, items)
+            if self._undefined(base, scope) and _greek_labels(subscripts):  # u_\alpha
+                shown = node.span.text if not powers else written_base + _written(subscripts)
+                self._note(
+                    f"{written_base} is not defined, so {shown} is one symbol, not a "
+                    f"component; to use a tensor, define it first: {shown} := [...]"
+                )
             symbol_name = _subscripted_name(ast.Scripted(base, tuple(subscripts), span=node.span))
             value = self.value(ast.Name(symbol_name, verbatim=True, span=node.span), scope, ctx)
         else:
@@ -4072,6 +4129,8 @@ class Compiler:
                     span=node.span,
                     hint=f"define it first, for example {written_base}^{{{shown}}} := [...]",
                 )
+            if not subscripts and isinstance(base, ast.Name) and self._undefined(base, scope):
+                self._note_power(base, script)
             if (
                 isinstance(script.body, ast.Name)
                 and script.body.id in _TRANSPOSES
@@ -4101,6 +4160,43 @@ class Compiler:
         for previous in reversed(exponents[:-1]):  # x^a^b is x^(a^b)
             exponent = self._power(previous, exponent, node.span)
         return self._power(value, exponent, node.span)
+
+    def _undefined(self, base: ast.Expr, scope: Scope) -> bool:
+        """Whether a name means nothing yet, so that scripts on it name a symbol or raise it
+        to a power: bound to nothing, and no coordinate, constant, declared symbol, function
+        of the coordinates or built-in scalar."""
+        if not isinstance(base, ast.Name) or scope.lookup(base.id) is not None:
+            return False
+        name, session = base.id, self.session
+        return not (
+            any(c.name == name for c in session.coordinates or ())
+            or name in CONSTANTS
+            or name in session.assumptions
+            or name in session.functions
+            or self._builtin_scalar(name) is not None
+        )
+
+    def _note_power(self, base: ast.Name, script: ast.Script) -> None:
+        """Say so where a superscript on a name that means nothing looks like indices, a
+        Greek label or several, as in T^{\\mu\\nu}, but is read as a power; or where the
+        statement also writes the name with the label as a subscript, as u^a u_a."""
+        written = base.span.text
+        items = script.indices.items if script.indices is not None else ()
+        if not items or not all(_plain_label(item) for item in items):
+            return
+        labels = [str(item.label) for item in items]
+        power = f"{written}{script.span.text}"
+        tensor = f"{written}^{{{''.join(self._written_label(label) for label in labels)}}}"
+        if any(label in GREEK for label in labels) or len(labels) > 1:
+            self._note(
+                f"{written} is not defined, so {power} is read as {written} to a power; to use "
+                f"a tensor, define it first: {tensor} := [...]"
+            )
+        elif len(labels) == 1 and f"{base.id}_{labels[0]}" in self._factors:  # u^a u_a
+            self._note(
+                f"{written} is not defined, so {power} is a power and {written}_{labels[0]} one "
+                f"symbol; to use a tensor, define it first: {tensor} := [...]"
+            )
 
     def _not_a_tensor(
         self,
@@ -4395,9 +4491,19 @@ class Compiler:
                     )
                 self._index_structure(args[1], scope)
                 target = self._tensorial(args[1], scope, ctx)
+                if isinstance(target, Symbol) and not any(
+                    isinstance(side, symbolic.TensExpr) for side in (subject.lhs, subject.rhs)
+                ):  # solve(trace(EFE), R): an equation of scalars, for a scalar
+                    found = sympy.solve(subject.lhs - subject.rhs, target)
+                    if len(found) != 1:
+                        raise CompileError(
+                            f"the equation does not fix {args[1].span.text}", span=node.span
+                        )
+                    return IndexEquation(target, found[0], space)
                 if not isinstance(target, symbolic.Tensor):
                     raise CompileError(
-                        "give the tensor to solve for with its indices, as in T_{\\mu\\nu}",
+                        "give the tensor to solve for with its indices, as in T_{\\mu\\nu}, or "
+                        "a scalar the equation is of",
                         span=args[1].span,
                     )
                 return IndexEquation(
@@ -4666,11 +4772,21 @@ def _limits(variable: Any, lower: Any, upper: Any) -> tuple[Any, Any, Any]:
 
 
 def _summation(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
-    return sympy.Sum(body, (variable, lower, upper))
+    """A sum: carried out where it has a whole number of terms, as \\sum_{n=0}^{2} has;
+    an infinite one, or one to n, is kept as it is written, for doit to carry out."""
+    return _finite(sympy.Sum(body, (variable, lower, upper)), lower, upper)
 
 
 def _product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
-    return sympy.Product(body, (variable, lower, upper))
+    """A product, carried out as a sum is: see :func:`_summation`."""
+    return _finite(sympy.Product(body, (variable, lower, upper)), lower, upper)
+
+
+def _finite(written: Any, lower: Any, upper: Any) -> Any:
+    bounds = [sympy.sympify(bound) for bound in (lower, upper)]
+    if all(bound.is_Integer for bound in bounds) and bounds[1] - bounds[0] < 10_000:
+        return written.doit()
+    return written
 
 
 def _limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
@@ -5585,6 +5701,12 @@ def _slashed(factors: list[ast.Expr]) -> list[ast.Expr]:
         result.append(ast.Binary("/", factor.left, denominator, span=span))
         position += 1 + len(run)
     return result
+
+
+def _greek_labels(scripts: Sequence[ast.Script]) -> bool:
+    """Whether scripts are index labels, all Greek, as \\alpha in u_\\alpha."""
+    items = [item for s in scripts if s.indices is not None for item in s.indices.items]
+    return bool(items) and all(_plain_label(item) and item.label in GREEK for item in items)
 
 
 def _styled(span: Span) -> Span:
