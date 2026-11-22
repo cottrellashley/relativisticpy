@@ -274,11 +274,13 @@ def _core() -> Iterator[Implementation]:
     yield entry("quantum.conjugate", quantum.conjugate, "argument", 1)
     yield entry("quantum.modulus", quantum.modulus, "scalar", 1)
     yield entry("quantum.inner", quantum.inner, "scalar", 2, 2)
-    # sequences: sums over their index, difference equations at rest, and their transforms
+    # sequences: sums over their index, difference equations at rest, their transforms, and
+    # their circular convolutions
     yield entry("seq.sum", sequences.summation, "argument", 4, 4, componentwise=True)
     yield entry("seq.recurrence", sequences.member, "argument", 3, 3)
     yield entry("seq.solve", sequences.solved, "value", 2, 2)
     yield entry("seq.transform", sequences.transformed, "scalar", 2, 2)
+    yield entry("seq.circular", sequences.circular, "argument", 4, 5)
     # random variables: one of a law, or of laws given others, and what is computed of them
     yield entry("prob.variable", distributions.variable, "scalar", 2)
     yield entry("prob.sample", distributions.sample, "value", 3, 3)

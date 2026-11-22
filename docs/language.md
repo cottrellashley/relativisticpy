@@ -645,9 +645,7 @@ n, and the inverse gives a sequence back, with its step:
 The frequency response is written at \(e^{j\omega}\): `H(e^{j\omega}) := \sum_n h[n]
 e^{-j\omega n}` defines H as a function of ω, and H at \(e^{j\theta}\) is its value at θ,
 whose modulus and phase are `|H(e^{j\omega})|` and `\arg H(e^{j\omega})`. j is the imaginary
-unit where a program says so, `j := \sqrt{-1}`, as engineering books do. An asterisk
-between two sequences, which signal processing writes for their convolution and is a
-product elsewhere, is refused, as `\circledast` is: a convolution is written as its sum.
+unit where a program says so, `j := \sqrt{-1}`, as engineering books do.
 
 ```python
 >>> dtft = Workbook()
@@ -661,6 +659,29 @@ product elsewhere, is refused, as `\circledast` is: a convolution is written as 
 ...     H(e^{j\pi})
 ... """)
 [1/(-a*exp(-I*omega) + 1), 1/(a + 1)]
+
+```
+
+An asterisk, `*` or `\ast`, between two sequences at points of one index is their
+convolution, \(\sum_k x[k]\,h[n - k]\) over every integer k, and between two functions
+applied at one variable it is \(\int f(\tau)\,g(t - \tau)\,d\tau\) over every τ, with u and δ
+in them the unit step and the Dirac delta where nothing defines them; each is said in a
+note. Between anything else, as `2*x`, it multiplies, and written side by side or with
+`\cdot`, the two multiply. `\circledast` is the circular convolution, of the length its
+subscript gives, `\circledast_N`, or else of the longer sequence (`design/notation.md`, 27):
+
+```python
+>>> convolved = Workbook()
+>>> convolved.exe(r"""
+...     x[n] := \delta[n] + 2\delta[n-1] + 3\delta[n-2] + 4\delta[n-3]
+...     h[n] := \delta[n] + \delta[n-1]
+...     y[n] := x[n] * h[n]
+...     [y[0], y[1], y[2], y[3], y[4]]
+...     (x \circledast h)[0]
+...     t > 0
+...     \left(e^{-t} u(t)\right) * \left(e^{-2t} u(t)\right)
+... """)
+[[1, 3, 5, 7, 4], 5, (exp(t) - 1)*exp(-2*t)]
 
 ```
 

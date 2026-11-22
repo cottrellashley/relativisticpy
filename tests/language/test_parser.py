@@ -1676,6 +1676,23 @@ class TestMatrixNotation:
     def test_a_direct_sum_binds_as_a_sum(self, text, expected):
         assert sexpr(text) == expected
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"(x \circledast h)[0]", "(* (⊛ x h) (list 0))"),
+            (r"x[n] \circledast h[n]", "(⊛ (* x (list n)) (* h (list n)))"),
+            (r"2 x[n] \circledast h[n] + 1", "(+ (⊛ (* (* 2 x) (list n)) (* h (list n))) 1)"),
+            (r"x \circledast_N h", "(⊛_N x h)"),
+            (r"x \circledast_{4} h", "(⊛_4 x h)"),
+            ("x ⊛ h", "(⊛ x h)"),
+            # an asterisk is a product's, for the reader to decide by what is either side
+            (r"f(t) \ast g(t)", "(* (call f t) (call g t))"),
+            ("f(t) ∗ g(t)", "(* (call f t) (call g t))"),
+        ],
+    )
+    def test_a_circular_convolution_binds_looser_than_a_product(self, text, expected):
+        assert sexpr(text) == expected
+
     def test_the_kernel_and_the_dimension_are_functions(self):
         assert sexpr(r"\dim \ker A") == "(call dim (call null A))"
         assert sexpr(r"\ker(A)") == "(call null A)"

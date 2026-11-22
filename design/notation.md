@@ -276,13 +276,13 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 
 ## 27. `*` between signals
 
-**Added** on 22 November 2026, from signal processing. **Proposed, not adopted:** it changes how a common symbol reads.
+**Added** on 22 November 2026, from signal processing. **Adopted** on 22 November 2026, as recommended below.
 
 **Waiting on it:** `convolution-operator` (2).
 
 **Why it is open.** In signal processing, `x[n] * h[n]` and `f(t) * g(t)` are convolutions. Elsewhere `*` is multiplication, in plain text above all, and `z^*` is a conjugate.
 
-**Recommendation.** `\ast` and `*` between two applied functions of the same free variable, or two sequences of the same index, are convolution, with a note. Between anything else, `*` is multiplication. `\circledast` is circular convolution. The cost is that `f(t) * g(t)`, meant as a product in plain text, becomes a convolution. That is why this waits for a decision.
+**Recommendation.** `\ast` and `*` between two applied functions of the same free variable, or two sequences of the same index, are convolution, with a note. Between anything else, `*` is multiplication. `\circledast` is circular convolution, of the length N its subscript gives, `\circledast_N`, or else of the sequences' own. The cost is that `f(t) * g(t)`, meant as a product in plain text, becomes a convolution. That is why this waited for a decision.
 
 ## 28. A variable followed by brackets
 

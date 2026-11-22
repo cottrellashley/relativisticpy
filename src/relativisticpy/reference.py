@@ -81,6 +81,9 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
      r"the Stirling numbers in Karamata's brackets, `{n \brace k}` and `{n \brack k}`"),
     (("bmod", "mod", "pmod"),
      r"the remainder, `a \bmod m`, and a congruence, `a \equiv b \pmod{m}`"),
+    (("circledast",),
+     r"the circular convolution of sequences, `(x \circledast h)[n]`, of length N with "
+     r"`\circledast_N`"),
     (("sum", "prod"),
      r"a sum, `\sum_{n=1}^{N}`, and a product, in closed form where SymPy finds one"),
     (("int", "oint", "iint", "iiint"),

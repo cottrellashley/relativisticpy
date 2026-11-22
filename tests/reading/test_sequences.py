@@ -129,12 +129,10 @@ class TestWhatIsNoSequence:
         assert latex(wb, "f[3]") == [9]
         assert notes(wb, "f[k]") == ["f[k] is read as f(k), f being a function"]
 
-    def test_an_asterisk_between_sequences_waits_on_its_decision(self, wb):
+    def test_an_asterisk_between_sequences_is_their_convolution(self, wb):
+        # as tests/reading/test_convolutions.py says in full (design/notation.md, 27)
         latex(wb, "x[n] := \\delta[n]\nh[n] := u[n]")
-        with pytest.raises(CompileError, match=r"is their convolution in signal processing"):
-            latex(wb, "x[n] * h[n]")
-        with pytest.raises(ParseError, match=r"\\circledast, circular convolution"):
-            latex(wb, r"(x \circledast h)[0]")
+        assert latex(wb, "x[n] * h[n]") == [step(n)]
         assert latex(wb, r"x[n] \cdot h[n]") == [impulse(n) * step(n)]
 
     def test_a_functional_is_no_sequence(self, wb):

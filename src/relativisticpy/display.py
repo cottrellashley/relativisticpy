@@ -39,6 +39,7 @@ Notebooks show RelativisticPy's values through this module too: Jupyter's
 
 from __future__ import annotations
 
+import itertools
 import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -453,9 +454,15 @@ class _PlainPrinter(StrPrinter):  # type: ignore[misc]
 
     def _join(self, factors: Sequence[tuple[Any, str]]) -> str:
         """Factors multiplied: by juxtaposition in Unicode, where that cannot be misread
-        (``2M``, ``M r``, ``2 sin(θ)``), and with ``*`` in text."""
+        (``2M``, ``M r``, ``2 sin(θ)``), and with ``*`` in text, but for two functions that
+        nothing defines, side by side, ``A(r) B(r)``, as ``*`` between them is their
+        convolution (design/notation.md, 27)."""
         if not self.unicode:
-            return "*".join(shown for _, shown in factors)
+            joined = factors[0][1]
+            for (before, _), (after, shown) in itertools.pairwise(factors):
+                apart = isinstance(before, AppliedUndef) and isinstance(after, AppliedUndef)
+                joined += (" " if apart else "*") + shown
+            return joined
         result = ""
         previous: Any = None
         for expr, shown in factors:

@@ -474,6 +474,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\binom \choose \dbinom \tbinom` | binomial coefficients, `\binom{n}{k}` and `{n \choose k}` |
 | `\brace \brack` | the Stirling numbers in Karamata's brackets, `{n \brace k}` and `{n \brack k}` |
 | `\bmod \mod \pmod` | the remainder, `a \bmod m`, and a congruence, `a \equiv b \pmod{m}` |
+| `\circledast` | the circular convolution of sequences, `(x \circledast h)[n]`, of length N with `\circledast_N` |
 | `\prod \sum` | a sum, `\sum_{n=1}^{N}`, and a product, in closed form where SymPy finds one |
 | `\iiint \iint \int \oint` | integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx` |
 | `\lim` | a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}` |
@@ -508,7 +509,6 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 These commands are LaTeX's, or a package's, but not the language's. Each is an error that says what to write instead:
 
 - `\abs`: the physics package's absolute value, is not supported; write `|x|`, or `\left| x \right|`.
-- `\circledast`: circular convolution, is not supported; write its sum, as `\sum_{m=0}^{N-1} x[m]\,h[(n - m) \bmod{N}]`.
 - `\dd`: the physics package's differential, is not supported; write `d x`, or `\mathrm{d} x`.
 - `\def \let \newcommand \providecommand \renewcommand`: defines a macro, which a program cannot; write what it stands for; relativisticpy check reads the macros of a document.
 - `\eval`: the physics package's evaluation bar, is not supported; write `\left. f \right|_{x=0}`.
@@ -526,7 +526,7 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 
 ### Unicode
 
-Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`. The operators · ⋅ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
+Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`, ⊛ `\circledast`. The operators · ⋅ ∗ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
 
 ## Verdicts of a check
 

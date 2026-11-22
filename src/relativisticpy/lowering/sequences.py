@@ -10,7 +10,6 @@ letters, ``Y(z)``.
 
 from __future__ import annotations
 
-import itertools
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -193,7 +192,6 @@ class Sequences(Arithmetic):
         if rebuilt is None:
             return super()._product(node, scope, ctx)
         if isinstance(rebuilt, ast.Binary):
-            _check_convolution(rebuilt)
             return super()._product(rebuilt, scope, ctx)
         return self.term(rebuilt, scope, ctx)
 
@@ -659,33 +657,6 @@ class Sequences(Arithmetic):
             any(isinstance(each, ast.Name) and each.id == index.id for each in _walk(point))
             and self._a_sequence(name, point, scope)
             for name, point in sequences.samples(node.body)
-        )
-
-
-def _check_convolution(product: ast.Binary) -> None:
-    """Refuse an asterisk between two sequences, ``x[n] * h[n]``, which signal processing
-    writes for their convolution and is a product elsewhere: the language does not decide
-    between them yet (design/notation.md, 27)."""
-    factors: list[ast.Expr] = []
-    left: ast.Expr = product
-    while isinstance(left, ast.Binary) and left.op == "*":
-        factors.insert(0, left.right)
-        left = left.left
-    factors.insert(0, left)
-    for first, second in itertools.pairwise(factors):
-        if not (isinstance(first, Sample) and isinstance(second, Sample)):
-            continue
-        between = first.span.source.text[first.span.end : second.span.start].strip()
-        if between not in ("*", "\\ast"):
-            continue
-        x, h = first.func.span.text, second.func.span.text
-        raise CompileError(
-            f"{first.span.text} {between} {second.span.text}: between two sequences, {between} "
-            "is their convolution in signal processing, and a product elsewhere, which the "
-            "language does not decide yet",
-            span=first.span.to(second.span),
-            hint=f"write the convolution as its sum, \\sum_k {x}[k] {h}[n - k], or the product "
-            f"without {between}",
         )
 
 

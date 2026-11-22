@@ -104,6 +104,16 @@ class Binary(Expr):
 
 
 @dataclass(frozen=True)
+class CircularConvolution(Expr):
+    """``x \\circledast h``, the circular convolution of two sequences, of the ``length`` its
+    subscript writes, as in ``x \\circledast_N h``, or else, where none is written, of theirs."""
+
+    left: Expr
+    right: Expr
+    length: Expr | None = None
+
+
+@dataclass(frozen=True)
 class Comparison(Expr):
     """One or more chained comparisons: ``x > 0`` or ``0 < x <= 1``."""
 
@@ -605,6 +615,10 @@ class _Printer:
     def _Substitution(self, node: Substitution) -> str:
         bindings = " ".join(f"({self.render(t)} {self.render(v)})" for t, v in node.bindings)
         return f"(at {self.render(node.expr)} {bindings})"
+
+    def _CircularConvolution(self, node: CircularConvolution) -> str:
+        length = f"_{self.render(node.length)}" if node.length is not None else ""
+        return f"(⊛{length} {self.render(node.left)} {self.render(node.right)})"
 
     def _Evaluation(self, node: Evaluation) -> str:
         variable = self.render(node.variable) if node.variable is not None else "?"

@@ -419,8 +419,10 @@ qm.square-well.orthogonality
 qm.square-well.uncertainty
 qm.time-evolution.beats
 qm.time-evolution.precession
+sig.convolution.continuous
 sig.convolution.exponentials
 sig.convolution.sequences
+sig.dft.circular-convolution
 sig.dft.cosine
 sig.dft.parseval
 sig.filters.bilinear

@@ -307,7 +307,7 @@ UNICODE_LETTERS: Mapping[str, str] = MappingProxyType(
 UNICODE_COMMANDS: Mapping[str, str] = MappingProxyType(
     {
         "∂": "partial", "∇": "nabla", "√": "sqrt", "∑": "sum", "∏": "prod",
-        "∫": "int", "∬": "iint", "∭": "iiint", "∮": "oint",
+        "∫": "int", "∬": "iint", "∭": "iiint", "∮": "oint", "⊛": "circledast",
     }
 )  # fmt: skip
 
@@ -338,6 +338,7 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
     {
         "·": TokenKind.STAR,
         "⋅": TokenKind.STAR,
+        "∗": TokenKind.STAR,
         "×": TokenKind.STAR,
         "÷": TokenKind.SLASH,
         "−": TokenKind.MINUS,
@@ -411,14 +412,14 @@ DIRAC_COMMANDS: frozenset[str] = frozenset({"ket", "bra", "braket", "ketbra", "e
 
 #: Commands the parser reads itself: fractions, roots, big operators, derivatives,
 #: binomials, floors and ceilings, TeX's generalised fractions, the brackets of the
-#: Stirling numbers among them, and Dirac's notation.
+#: Stirling numbers among them, circular convolution, and Dirac's notation.
 PARSER_COMMANDS: frozenset[str] = frozenset(
     {
         "frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "int", "oint", "iint",
         "iiint", "lim", "partial", "nabla", "Box", "square", "pounds", "pdv", "dv",
         "binom", "dbinom", "tbinom", "lfloor", "rfloor", "lceil", "rceil", "over", "choose",
         "sup", "inf", "underset",
-        "brace", "brack", "bmod", "mod", "pmod",
+        "brace", "brack", "bmod", "mod", "pmod", "circledast",
         *DIRAC_COMMANDS,
     }
 )  # fmt: skip
@@ -485,7 +486,5 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
         "forall": (r"the quantifier \forall is not supported", r"write \text{for all}"),
         "exists": (r"the quantifier \exists is not supported", r"write \text{there is}"),
         "not": (r"\not is not supported", r"write \neq for not equal, or \notin"),
-        "circledast": (r"\circledast, circular convolution, is not supported",
-                       r"write its sum, as \sum_{m=0}^{N-1} x[m]\,h[(n - m) \bmod{N}]"),
     }
 )  # fmt: skip

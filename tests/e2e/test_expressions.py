@@ -135,5 +135,6 @@ def test_long_expressions(wb):
 
 def test_definitions_are_remembered(wb):
     a = diff(f(x), x) + P(x) * f(x) - Q(x)
-    assert wb.expr("a := diff(f(x), x) + P(x)*f(x) - Q(x)\ndsolve(a, f(x))") == dsolve(a, f(x))
+    # P(x) f(x), side by side: P(x)*f(x) is their convolution (design/notation.md, 27)
+    assert wb.expr("a := diff(f(x), x) + P(x) f(x) - Q(x)\ndsolve(a, f(x))") == dsolve(a, f(x))
     assert wb.expr("b := f(x)\ndiag(a, b)") == Array([[a, 0], [0, f(x)]])

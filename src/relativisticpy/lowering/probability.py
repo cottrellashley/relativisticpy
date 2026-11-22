@@ -31,7 +31,7 @@ from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
-from relativisticpy.lowering.sequences import Sequences
+from relativisticpy.lowering.convolutions import Convolutions
 from relativisticpy.reading import probability
 from relativisticpy.reading.probability import DISTRIBUTED, RANDOM, Declaration, Law
 from relativisticpy.reading.quantum import expectation_name
@@ -63,7 +63,7 @@ _INDEPENDENT = "independent random variables"
 _SAMPLE = "{}_…"
 
 
-class Probability(Sequences):
+class Probability(Convolutions):
     """The lowering of random variables."""
 
     # -- declarations -------------------------------------------------------------------

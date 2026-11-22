@@ -111,6 +111,45 @@ def _tidied(value: Any) -> Any:
     return value
 
 
+# -- circular convolution -----------------------------------------------------------------
+
+
+def circular(first: Any, second: Any, label: Any, point: Any, *length: Any) -> Any:
+    """The circular convolution at ``point`` of two sequences, written as expressions of
+    ``label``: the sum over m from 0 to N - 1 of the first at m times the second at
+    (point - m) mod N, where N is the ``length`` given, or else that of the longer sequence,
+    from 0 to its last member that is not 0."""
+    first, second = sympy.sympify(first), sympy.sympify(second)
+    if length:
+        size = sympy.sympify(length[0])
+        if not (size.is_Integer and size > 0):
+            raise ValueError(f"the length of a circular convolution is a whole number, not {size}")
+        count = int(size)
+    else:
+        count = max(_length(first, label), _length(second, label))
+    total = sympy.S.Zero
+    for m in range(count):
+        at = sympy.Mod(sympy.sympify(point) - m, count)
+        total += first.xreplace({label: m}) * second.xreplace({label: at})
+    return total
+
+
+def _length(sequence: Any, label: Any) -> int:
+    """How many members a sequence has, from 0 to its last member that is not 0, as its
+    impulses and steps say; refused for one that starts before 0, or never ends."""
+    shown = display.unicode(sequence)
+    end = _settled_from(sequence, label)
+    if end is None or sympy.simplify(_smoothed(sequence, label, end)) != 0:
+        raise ValueError(
+            f"{shown} does not end, so its circular convolution needs its length: write it "
+            "as the subscript, as in x \\circledast_N h"
+        )
+    start = _start(sequence, label)
+    if start is not None and start < min(end, 0):
+        raise ValueError(f"{shown} starts before 0, where a circular convolution starts")
+    return max(end, 0)
+
+
 # -- difference equations, at initial rest ------------------------------------------------
 
 

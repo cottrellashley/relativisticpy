@@ -198,9 +198,7 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   frequency response as a function of ω, written at e^{jω}. A bound on a modulus standing
   alone, as `|z| > \frac{1}{2}`, is an assumption, which decides where a series converges,
   and a claim about samples, as `\cos(7\pi n/5) = \cos(3\pi n/5)` of an integer n, is
-  proven where it holds at the integers. An asterisk between two sequences, their
-  convolution in signal processing and a product elsewhere, and `\circledast` are refused,
-  saying how to write a convolution as its sum.
+  proven where it holds at the integers.
 - Vectors and vector calculus as books write them (`design/notation.md`, 8, 16 and 25).
   A list, a tuple or a column of numbers is a vector, `\mathbf{v} := (1, 2, 3)`:
   `\cdot` and `\times` between vectors are the dot and cross products, and between
@@ -241,6 +239,18 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   variable is written, it is that of an integral beside it in a sum, as integration by
   parts writes it, else the one symbol what it evaluates holds, and otherwise the bar is
   refused, with a hint. Each reading is recorded, as `Workbook.explain` shows it.
+- Convolutions as signal processing writes them (`design/notation.md`, 27, now adopted):
+  `*` or `\ast` between two functions applied at one variable, `f(t) * g(t)`, is their
+  convolution, the integral over every τ of f(τ) g(t − τ), and between two sequences at
+  points of one index, `x[n] * h[n]`, the sum over every integer k of x[k] h[n − k], each
+  with a note; in their operands, u and δ that nothing defines are the unit step and the
+  Dirac delta. Between anything else `*` multiplies, as `2*x` does, and `z^*` is a
+  conjugate. `\circledast`, and ⊛, is the circular convolution, of the length its subscript
+  gives, `\circledast_N`, or else of the longer sequence: at a point,
+  `(x \circledast h)[0]`, and as a sequence, `x[n] \circledast h[n]`. These replace the
+  refusals of the asterisk between sequences and of `\circledast`. In plain text too,
+  `f(t)*g(t)` is a convolution, as the decision says; a product is written side by side,
+  as the text form of a result now writes two functions nothing defines, `A(r) B(r)`.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

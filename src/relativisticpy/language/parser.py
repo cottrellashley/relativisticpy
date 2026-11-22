@@ -56,6 +56,7 @@ class Power(IntEnum):
     COMPARISON = 50
     EVALUATION = 55
     SUM = 60
+    CONVOLUTION = 65
     PRODUCT = 70
     SIGN = 80
     POWER = 90
@@ -763,6 +764,8 @@ class Parser:
         kind = token.kind
         if kind is K.COMMAND and token.value in _MODULI:  # a \bmod m, a \equiv b \pmod{m}
             return Power.PRODUCT if token.value == "bmod" else Power.MODULUS
+        if kind is K.COMMAND and token.value == "circledast":  # x[n] \circledast h[n]
+            return Power.CONVOLUTION
         if kind is K.DEFINE and self._nesting > self._statement_nesting and _equivalence(token):
             return Power.EQUATION  # solve(x \equiv 2 \pmod{3}, x): in brackets, a relation
         if kind is K.BAR:
@@ -799,6 +802,8 @@ class Parser:
         kind = token.kind
         if kind is K.COMMAND and token.value in _MODULI:
             return self._modulus(left)
+        if kind is K.COMMAND and token.value == "circledast":
+            return self._circular_convolution(left)
         if kind is K.BAR and power in (Power.SUBSTITUTION, Power.EVALUATION):
             return self._bar(left)
         if self._hadamard(token):
@@ -846,6 +851,25 @@ class Parser:
         else:
             modulus = self.expression(Power.SIGN)
         return ast.Binary("mod", left, modulus, span=left.span.to(self._span(command)))
+
+    def _circular_convolution(self, left: ast.Expr) -> ast.CircularConvolution:
+        """``x \\circledast h``: the circular convolution of what is on either side, which
+        binds looser than a product, so that ``x[n] \\circledast h[n]`` convolves x[n] and
+        h[n]; with its length as a subscript, ``x \\circledast_N h``."""
+        command = self.advance()
+        length = None
+        if self.check(K.UNDERSCORE):
+            marker = self.advance()
+            length = self._script("_", marker).body
+            if length is None:
+                raise ParseError(
+                    "the subscript of \\circledast is the length of the convolution",
+                    span=self._span(marker),
+                    hint="for example x \\circledast_N h, or x \\circledast_{4} h",
+                )
+        self._continue_after(command)
+        right = self.expression(Power.CONVOLUTION)
+        return ast.CircularConvolution(left, right, length, span=left.span.to(right.span))
 
     def _hadamard(self, token: Token) -> bool:
         """``A \\odot B`` or ``A ⊙ B``: the elementwise product, where ``\\odot`` stands
