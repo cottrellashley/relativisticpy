@@ -230,6 +230,21 @@ or an equation to solve.
 
 Everything needed to use RelativisticPy is in the installed package, offline.
 
+- **Call it as a tool.** `relativisticpy mcp` serves RelativisticPy over the Model
+  Context Protocol to Claude Code, Claude Desktop or any MCP client: `compute` runs
+  mathematics written as in a paper, `verify` checks a claimed step and gives the
+  difference of its sides in LaTeX, `check` checks a paper, and `help` is the
+  documentation. Install it with the `mcp` extra, and connect it:
+
+  ```bash
+  pip install "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy@v2"
+  claude mcp add relativisticpy -- relativisticpy mcp
+  ```
+
+  [The MCP server](docs/mcp.md) has the configuration of other clients, every tool, and
+  the bounds the server keeps: no Python, files only in folders allowed, and a time limit
+  on every call.
+
 - **Learn the language.** `relativisticpy help` lists the pages of the documentation,
   and `relativisticpy help TOPIC` prints one. `relativisticpy help reference` prints the
   whole language on one page of about 8,000 tokens: every statement, command,

@@ -2,7 +2,8 @@
 
 The `relativisticpy` command runs programs and Markdown notebooks, checks the
 equations of papers, prints this documentation offline, and gives a prompt to
-compute at. `python -m relativisticpy` is the same command.
+compute at. `python -m relativisticpy` is the same command. `relativisticpy mcp`
+serves the same to AI agents, as tools: see [the MCP server](mcp.md).
 
 ```bash
 relativisticpy schwarzschild.relpy             # run a program, each result as it comes

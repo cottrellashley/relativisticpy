@@ -6,6 +6,8 @@ it as a client does, over standard input and output."""
 
 import json
 import os
+import re
+import shlex
 import signal
 import subprocess
 import sys
@@ -642,3 +644,34 @@ def test_without_the_sdk_the_command_says_what_to_install(monkeypatch, capsys):
     )
     assert cli.main(["mcp"]) == 1
     assert 'pip install "relativisticpy[mcp]"' in capsys.readouterr().err
+
+
+# -- the documentation ---------------------------------------------------------------------------
+
+
+def launches(arguments):
+    """Whether a client's command starts the server: ``relativisticpy mcp``, by itself or
+    by uvx, with options the server takes."""
+    if arguments[0] == "uvx":
+        assert arguments[1] == "--from"
+        assert arguments[2].startswith("relativisticpy[mcp] @ git+https://github.com/")
+        arguments = arguments[3:]
+    assert arguments[:2] == ["relativisticpy", "mcp"]
+    server.parser().parse_args(arguments[2:])
+    return True
+
+
+def test_every_configuration_in_the_docs_starts_the_server():
+    page = (ROOT / "docs" / "mcp.md").read_text(encoding="utf-8")
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    blocks = re.findall(r"```json\n(.*?)```", page, re.DOTALL)
+    assert len(blocks) == 3
+    for block in blocks:
+        configuration = json.loads(block)
+        servers = configuration.get("mcpServers") or configuration.get("servers")
+        for entry in servers.values():
+            assert launches([entry["command"], *entry["args"]])
+    added = re.findall(r"^ *claude mcp add relativisticpy -- (.*)$", page + readme, re.MULTILINE)
+    assert len(added) == 4
+    for line in added:
+        assert launches(shlex.split(line))

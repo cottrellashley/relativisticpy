@@ -24,6 +24,7 @@ nav:
       - The language reference: reference.md
       - Python API: python.md
       - Command line: cli.md
+      - MCP server, for agents: mcp.md
       - Glossary: glossary.md
   - Troubleshooting: troubleshooting.md
   - Coming from:
