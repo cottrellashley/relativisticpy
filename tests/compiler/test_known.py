@@ -105,3 +105,22 @@ class TestTheNamesAMetricIsWrittenWith:
         wb.exe("x := 2")
         assert wb._compiler.take_notes() == [self.LATE.format(2, "x")]
         assert wb.expr("g_{rr}") == 1
+
+
+class TestTheScalarsOfNotation:
+    """Tensor notation's algebra is done while compiling, with its scalar factors folded
+    from the constants they are written with, as the executor would compute them."""
+
+    def test_a_factor_written_with_numbers_symbols_and_functions(self, wb):
+        G, t = sympy.symbols("G t")
+        equation = wb.expr(r"G_{\mu\nu} = 8\pi G T_{\mu\nu}")
+        assert equation.rhs.coeff == 8 * sympy.pi * G
+        wb.exe(r"Coordinates := [t, x]")
+        equation = wb.expr(r"G_{\mu\nu} = \sqrt{2} \frac{\partial t^2}{\partial t} T_{\mu\nu}")
+        assert equation.rhs.coeff == 2 * sympy.sqrt(2) * t
+
+    def test_a_factor_computed_from_tensors_is_refused(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        with pytest.raises(CompileError, match="computed from tensors") as raised:
+            wb.expr(r"G_{\mu\nu} = Ric\, T_{\mu\nu}")
+        assert raised.value.span.text == "Ric"

@@ -92,6 +92,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK, UNICODE_LETTERS
+from relativisticpy.runtime.executor import fold
 from relativisticpy.runtime.kernels import refuse_quoted
 from relativisticpy.tensors import Index, Indices, arrays
 from relativisticpy.tensors.indices import latex_label
@@ -4690,7 +4691,16 @@ class Compiler:
             raise IndexNotationError(
                 "in tensor notation, write a tensor with its indices", span=node.span
             )
-        scalar = sympy.sympify(self.session.evaluate(value))
+        folded = fold(value)  # notation's algebra is done now, while compiling
+        if folded is NotImplemented:
+            raise CompileError(
+                "this factor is computed from tensors, but tensor notation is read before "
+                "anything is computed",
+                span=node.span,
+                hint="give the tensors of the notation components, so that the equation is "
+                "computed with components",
+            )
+        scalar = sympy.sympify(folded)
         if not isinstance(scalar, sympy.Expr):
             raise IndexNotationError(
                 "in tensor notation, each factor is a scalar or a tensor with indices",

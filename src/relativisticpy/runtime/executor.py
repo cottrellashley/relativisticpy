@@ -7,7 +7,7 @@ import os
 import sys
 from collections.abc import Callable, Hashable, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any, TypeVar
+from typing import Any, TypeVar, cast
 
 from relativisticpy.errors import (
     InternalError,
@@ -15,7 +15,7 @@ from relativisticpy.errors import (
     debugging,
     translate,
 )
-from relativisticpy.ir import Node, ops
+from relativisticpy.ir import Node, dependencies, ops
 from relativisticpy.runtime.kernels import execute, refuse_quoted, refuse_text
 from relativisticpy.tensors import numerical
 from relativisticpy.tensors.simplification import simplify_component
@@ -151,6 +151,47 @@ class Executor:
         if self._pool is not None:
             self._pool.shutdown(cancel_futures=True)
             self._pool = None
+
+
+#: What a value is folded with: arithmetic, arrays of scalars, and the registry's
+#: functions, each a function of the values of its arguments alone.
+_FOLDED = (ops.Const, ops.Add, ops.Mul, ops.Pow, ops.MakeArray, ops.Call)
+
+
+def fold(node: Node) -> Any:
+    """The value of ``node`` where it is made of constants by arithmetic, arrays of scalars
+    and the registry's functions, as :math:`8\\pi G` or :math:`\\sqrt{-g}` is; and
+    ``NotImplemented`` where it needs a tensor computed, which is not known until the
+    program runs.
+
+    It is how tensor notation, whose algebra is done while compiling, takes its scalar
+    factors, without an executor: each is computed as the executor computes it, failures
+    included, but nothing is remembered, nothing runs in parallel, and nothing is
+    computed with tensors."""
+    order = dependencies([node])
+    if not all(isinstance(each.op, _FOLDED) for each in order):
+        return NotImplemented
+    unused = cast("Executor", None)  # these operations never ask for one
+    values: dict[Hashable, Any] = {}
+    for each in order:
+        if each.key in values:
+            continue
+        args = [values[arg.key] for arg in each.args]
+        try:  # as the executor does
+            refuse_text(each.op, args, each.args)
+            values[each.key] = execute(each.op, args, unused)
+        except RelativisticPyError as error:
+            if error.span is None:
+                error.span = each.span
+            raise
+        except Exception as error:  # SymPy's or NumPy's text is never shown as it is
+            failure = translate(error, span=each.span)
+            if isinstance(failure, InternalError) or debugging():
+                raise failure from error
+            raise failure from None
+    value = values[node.key]
+    refuse_quoted(node, value)
+    return value
 
 
 def _operand_scale(equation: Node, known: dict[Hashable, Any]) -> float:
