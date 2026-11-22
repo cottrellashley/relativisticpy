@@ -153,7 +153,8 @@ def test_a_spacetime_takes_the_arguments_its_function_does(wb, name, function):
     parameters = inspect.signature(getattr(spacetimes, function)).parameters.values()
     count = sum(1 for p in parameters if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD))
     assert wb.expr(f"{name}({', '.join(['1'] * count)})") is not None
-    with pytest.raises(CompileError, match=rf"{name}\(\) takes 0 to {count} arguments"):
+    names = ", ".join(p.name for p in parameters)
+    with pytest.raises(CompileError, match=rf"{name}\({names}\) takes at most {count} arguments"):
         wb.expr(f"{name}({', '.join(['1'] * (count + 1))})")
 
 
@@ -191,7 +192,7 @@ def test_primes(wb):
 def test_geodesic_equations_arguments(wb):
     wb.exe(r"g_{\mu\nu} := Minkowski()")
     assert len(wb.expr("geodesic_equations()")) == 4
-    with pytest.raises(CompileError, match="at most one argument"):
+    with pytest.raises(CompileError, match="takes at most 1 argument, not 2"):
         wb.expr("geodesic_equations(s, u)")
 
 

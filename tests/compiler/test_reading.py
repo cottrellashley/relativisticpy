@@ -227,7 +227,7 @@ class TestRelations:
     @pytest.mark.parametrize(
         ("source", "message"),
         [
-            (r"a + \cdots + b", "⋯ stands for terms that are not written"),
+            (r"a + \cdots + b", r"\\cdots stands for terms that are not written"),
             (r"{\rm d}t = 2\,{\rm d}x", "a relation between differentials"),
             (r"*F", "the Hodge dual is not supported yet"),
             (r"\int d^4x\, f", "integrals over regions of spacetime"),

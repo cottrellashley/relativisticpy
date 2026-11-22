@@ -304,7 +304,7 @@ class TestIndexNotationErrors:
             ("V^{a} + 1", r"the free indices of a sum must agree: \^\{a\} and none"),
             ("1 / V^{a}", "cannot divide by a tensor"),
             ("V^{a}^2", "x is not a tensor|cannot raise a tensor to a power|V has 1 index"),
-            ("(V^{a} V_{a})^{V^{b}}", "cannot raise a tensor to a power"),
+            ("(V^{a} V_{a})^{V^{b}}", "cannot raise to the power of a tensor"),
             ("R_{ab} = 1", r"two sides have different free indices: _\{ab\} on the left, none"),
             (
                 "V^{a} = V_{a}",

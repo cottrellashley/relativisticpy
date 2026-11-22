@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import contextlib
 import difflib
+import inspect
 import itertools
 import math
 import operator
@@ -74,6 +75,7 @@ from relativisticpy.errors import (
     CompileError,
     EvaluationError,
     IndexNotationError,
+    ParseError,
     RelativisticPyError,
 )
 from relativisticpy.ir import (
@@ -986,8 +988,9 @@ class Compiler:
         size = sympy.sympify(self.session.evaluate(self.value(value.scripts[0].body, scope, ctx)))
         # a symbol, even an integer one, is no size: n \geq 0 cannot be decided
         if not (getattr(size, "is_integer", False) and getattr(size, "is_nonnegative", False)):
+            written = value.scripts[0].body.span.text  # 3.5 as written, not 3.50000000000000
             raise CompileError(
-                f"the dimension of a space is a whole number, not {size}", span=value.span
+                f"the dimension of a space is a whole number, not {written}", span=value.span
             )
         return Space(name, int(size), field="complex" if value.base.id == "ℂ" else "real")
 
@@ -1195,13 +1198,31 @@ class Compiler:
         to act on, as N is in N^2 (the lapse) or \\frac{N}{2}, is a symbol."""
         result = self.term(node, scope, ctx)
         if isinstance(result, FunctionReference) and scope.lookup(result.name) is None:
-            return self.graph.const(self.session.symbol(result.name), SCALAR, result.span)
+            name = result.name
+            if len(name) > 1 and name not in GREEK:  # simplify + 1, where N/2 is the lapse
+                self._note(
+                    f"{result.describe()} is a function, so alone it is read as a symbol; to "
+                    f"apply it, write {result.describe()}(...)"
+                )
+            return self.graph.const(self.session.symbol(name), SCALAR, result.span)
         if isinstance(result, Operator):
-            raise CompileError(
-                f"{result.describe()} needs something to act on, as in {result.describe()} f",
-                span=result.span,
-            )
+            raise self._nothing_to_act_on(result, scope)
         return result
+
+    def _nothing_to_act_on(self, operator_: Operator, scope: Scope) -> CompileError:
+        """The error for an operator, or a function, written with nothing after it."""
+        written = operator_.describe()
+        if isinstance(operator_, FunctionReference):
+            binding = scope.lookup(operator_.name)
+            params = binding.definition.params if isinstance(binding, FunctionBinding) else ("x",)
+            return CompileError(
+                f"{written} is a function, so it needs an argument, as in "
+                f"{written}({', '.join(params)})",
+                span=operator_.span,
+            )
+        return CompileError(
+            f"{written} needs something to act on, as in {written} f", span=operator_.span
+        )
 
     def term(self, node: ast.Expr, scope: Scope, ctx: Context) -> Term:
         """Compile an expression, which may be an operator such as ``∂_μ``."""
@@ -1244,6 +1265,7 @@ class Compiler:
             return self.graph.const(list(session.coordinates), VALUE, node.span)
         if (quantity := self._builtin_scalar(name)) is not None:
             return self._geometry(quantity, node.span)
+        self._note_symbol(node)
         if name in session.assumptions:
             return self.graph.const(session.assumptions[name], SCALAR, node.span)
         if name in CONSTANTS:
@@ -1260,6 +1282,25 @@ class Compiler:
         if _names_builtin(node, latex=ctx.latex) and (node.verbatim or not ctx.latex):
             return FunctionReference(node.span, name)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
+
+    def _note_symbol(self, node: ast.Name) -> None:
+        """Say so where a name bound to nothing is read as a symbol though it could be
+        taken for something else: R and g where the metric is written with them, or
+        where the metric was dropped, and the spelled-out names of built-ins, as
+        RicciScalar."""
+        name, written, session = node.id, node.span.text, self.session
+        built_in = name in ("R", session.names["ricci"], session.names["metric"])
+        if built_in and session.metric is not None and name in session.metric.names:
+            meant = "the Ricci scalar is Ric" if name == "R" else "its determinant is det(g_{ab})"
+            if name != session.names["ricci"]:
+                self._note(
+                    f"the metric is written with {written}, so {written} is that symbol; {meant}"
+                )
+        elif built_in and session.metric is None and session.dropped is not None:
+            self._note(f"{written} is a symbol here: {session.dropped_note()[0]}")
+        concept = _CONCEPTS.get(name.lower())
+        if concept is not None and name not in BUILTINS:
+            self._note(f"{written} is not defined, so it is a symbol; did you mean {concept}?")
 
     def _builtin_scalar(self, name: str) -> str | None:
         """The geometric quantity that ``name``, bound to nothing in the program, denotes
@@ -1293,16 +1334,41 @@ class Compiler:
 
     def _Dots(self, node: ast.Dots, scope: Scope, ctx: Context) -> Node:
         raise CompileError(
-            "⋯ stands for terms that are not written, so it cannot be computed", span=node.span
+            f"{node.span.text} stands for terms that are not written, so it cannot be computed",
+            span=node.span,
         )
 
     def _Relation(self, node: ast.Relation, scope: Scope, ctx: Context) -> Node:
         if node.op == "≡":  # A \equiv B, where A cannot be defined: an identity
             return self._Equation(ast.Equation(node.lhs, node.rhs, span=node.span), scope, ctx)
+        if node.op == "∈":
+            raise self._membership(node)
         raise CompileError(
             f"'{node.op}' is read but not computed: RelativisticPy decides equations and "
             "inequalities",
             span=node.span,
+        )
+
+    def _membership(self, node: ast.Relation) -> CompileError:
+        """``a \\in \\mathcal{B}`` of no declared space, or ``x \\in \\mathbb{R}^3``: read but
+        not computed, saying why, and how labels are made to range over a space."""
+        member, space = node.lhs.span.text, node.rhs
+        styled = _styled(space.span)  # \mathcal{B}, not B
+        written = Span(node.span.source, node.span.start, styled.end).text
+        if isinstance(space, ast.Name) and space.id not in self.session.spaces:
+            name = styled.text
+            return CompileError(
+                f"{written} is read but not computed: {name} is not a declared space",
+                span=node.span,
+                hint=f"to have {member} range over a space, declare it first, as in "
+                f"{name} := \\mathbb{{R}}^{{3}}",
+            )
+        return CompileError(
+            f"{written} says what {member} is, which is read but not computed",
+            span=node.span,
+            hint=f"to have {member} range over a space of its own, name the space, as in "
+            "\\mathcal{A} := \\mathbb{R}^{3}, and write "
+            f"{member} \\in \\mathcal{{A}}",
         )
 
     def _Chain(self, node: ast.Chain, scope: Scope, ctx: Context) -> Node:
@@ -1330,7 +1396,7 @@ class Compiler:
 
     def _Unary(self, node: ast.Unary, scope: Scope, ctx: Context) -> Node:
         if node.op == "*":
-            raise CompileError("the Hodge dual is not supported yet", span=node.span)
+            raise self._star(node)
         if node.op in ("±", "∓"):  # ±x is both x and -x
             negative = ast.Unary("-", node.operand, span=node.span)
             pair = (node.operand, negative) if node.op == "±" else (negative, node.operand)
@@ -1370,6 +1436,29 @@ class Compiler:
         if node.op == "/":
             return self._divide(left, right, node.span)
         return self._power(left, right, node.span)
+
+    def _star(self, node: ast.Unary) -> RelativisticPyError:
+        """A ``*`` with nothing on its left: the Hodge dual, *F, which is not supported,
+        where a statement or an operand starts with it; otherwise an operator written
+        twice or a \\cdot with nothing to multiply, a typo."""
+        written = node.span.text
+        star = next(
+            (command for command in ("\\cdot", "\\times", "\\ast") if written.startswith(command)),
+            written[:1],
+        )
+        before = node.span.source.text[: node.span.start].rstrip()
+        doubled = before != "" and (
+            before[-1] in "+-*/·×" or before.endswith(("\\cdot", "\\times"))
+        )
+        if star == "*" and not doubled:  # *F
+            return CompileError("the Hodge dual is not supported yet", span=node.span)
+        hodge = "a * before a form, as in *F, is the Hodge dual, which is not supported yet"
+        return ParseError(
+            f"'{star}' has nothing on its left",
+            span=Span(node.span.source, node.span.start, node.span.start + len(star)),
+            hint="remove it, or write what it multiplies",
+            notes=[hodge] if star == "*" else [],
+        )
 
     def _hadamard(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
         """``A_{ta} \\odot B_{ta}``: the elementwise product, of tensors with the same free
@@ -1598,6 +1687,8 @@ class Compiler:
             factor = factors[position]
             statistic = _statistic(factor)
             if statistic is None:
+                if position + 1 < len(factors):
+                    self._check_statistic_name(factor, scope)
                 grouped.append(factor)
                 position += 1
                 continue
@@ -1613,6 +1704,38 @@ class Compiler:
             position += 2
         return grouped
 
+    def _check_statistic_name(self, factor: ast.Expr, scope: Scope) -> None:
+        """``\\operatorname{E}_t`` or ``\\operatorname{Covv}_t`` before what it acts on: a
+        statistic misspelt is refused with the right one; any other unknown operator
+        written so is read as a symbol, and says so."""
+        if not (
+            isinstance(factor, ast.Scripted)
+            and isinstance(factor.base, ast.Name)
+            and factor.base.verbatim
+            and scope.lookup(factor.base.id) is None
+            and len(factor.scripts) == 1
+            and factor.scripts[0].kind == "_"
+            and factor.base.id not in BUILTINS
+        ):
+            return
+        name, label = factor.base.id, factor.scripts[0].span.text.lstrip("_")
+        meant = _STATISTIC_ALIASES.get(name)
+        if meant is None and (close := _close(name, _STATISTICS, shortest=3)) is not None:
+            meant = f"\\operatorname{{{close}}}"
+        if meant is not None:
+            raise CompileError(
+                f"\\operatorname{{{name}}} is not a statistic RelativisticPy knows",
+                span=factor.span,
+                hint=f"did you mean {meant}_{label}?",
+            )
+        if len(name) > 1:
+            self._note(
+                f"\\operatorname{{{name}}} is not an operator RelativisticPy knows, so "
+                f"{factor.span.text} is read as a symbol, {name}_{label}; the statistics are "
+                "\\mathbb{E}, \\operatorname{Var}, \\operatorname{Cov} and "
+                "\\operatorname{LedoitWolf}"
+            )
+
     def _statistic(
         self, kind: str, label: str, operand: ast.Expr, span: Span, scope: Scope, ctx: Context
     ) -> Node:
@@ -1620,13 +1743,19 @@ class Compiler:
         and the Ledoit–Wolf covariance, ``\operatorname{LedoitWolf}_t(R_{ta})``. The
         statistic binds ``t`` as a sum does: inside it, every factor shares ``t``."""
         operand = _operand(operand)
-        items = operand.items if isinstance(operand, ast.Tuple) else (operand,)
+        items = operand.items if isinstance(operand, ast.Tuple | ast.List) else (operand,)
         expected = 2 if kind == "covariance" else 1
         if len(items) != expected:
+            written = span.text.split("(")[0].split("[")[0]
+            hint = None
+            if kind == "expectation" and len(items) == 2:  # E_t[X, Y]: a covariance
+                arguments = ", ".join(item.span.text for item in items)
+                hint = f"for a covariance, write \\operatorname{{Cov}}_{label}({arguments})"
             raise CompileError(
-                f"{span.text.split('(')[0].split('[')[0]} takes {expected} "
-                f"argument{'s' if expected > 1 else ''}",
+                f"{written} takes {'one expression' if expected == 1 else 'two expressions'}, "
+                f"but {len(items)} {'is' if len(items) == 1 else 'are'} given",
                 span=span,
+                hint=hint,
             )
         with self._binding(label):
             nodes = [self.value(_operand(item), scope, ctx) for item in items]
@@ -1804,12 +1933,28 @@ class Compiler:
             return grouped[0]
         terms: list[Term] = []
         chosen: list[list[Node]] = []  # the components each factor selects
+        previous: ast.Expr | Node | None = None
         for factor in grouped:
             mark = len(self._selections)
             if isinstance(factor, Node):  # a statistic, already compiled
                 terms.append(factor)
                 chosen.append([])
+                previous = factor
                 continue
+            if isinstance(previous, ast.Expr) and terms and _an_index(previous, factor):
+                last = terms[-1]
+                if isinstance(last, Node) and last.type == VALUE:  # [1, 2][0], as Python does
+                    raise CompileError(
+                        "a list is not indexed with [ ]",
+                        span=previous.span.to(factor.span),
+                        notes=[
+                            f"after a list, {factor.span.text} is a factor: "
+                            f"{previous.span.text}{factor.span.text} multiplies the list by it"
+                        ],
+                        hint="to name the elements of a list, write them on the left of :=, "
+                        "as in a, b := [1, 2]",
+                    )
+            previous = factor
             inner = scope
             if terms and isinstance(terms[-1], DifferentialMarker) and _names_omega(factor):
                 # in a line element d\Omega is the solid angle, whatever \Omega means
@@ -1828,9 +1973,7 @@ class Compiler:
         for term, selections in zip(reversed(terms), reversed(chosen), strict=True):
             if isinstance(term, Operator):
                 if not stack:
-                    raise CompileError(
-                        f"{term.describe()} needs something to act on", span=term.span
-                    )
+                    raise self._nothing_to_act_on(term, scope)
                 if isinstance(term, LeibnizDerivative):
                     rest = self._multiply(stack[::-1], node.span)
                     stack = [self._apply(term, rest, node.span, scope, ctx)]
@@ -2148,15 +2291,39 @@ class Compiler:
         return self._multiply([numerator, reciprocal], span)
 
     def _power(self, base: Node, exponent: Node, span: Span) -> Node:
-        for value in (base, exponent):
-            if isinstance(value.type, TensorType):
-                raise IndexNotationError(
-                    "cannot raise a tensor to a power",
-                    span=span,
-                    hint="contract it with itself instead, as in V_{a} V^{a}",
-                )
+        if isinstance(base.type, TensorType):
+            inverse = isinstance(exponent.op, ops.Const) and exponent.op.value == -1
+            metric = isinstance(base.op, ops.Geometry) and base.op.quantity == "metric"
+            raise self._tensor_power(
+                self.session.names["metric"] if metric else None,
+                base.type.indices,
+                "-1" if inverse else None,
+                span,
+            )
+        if isinstance(exponent.type, TensorType):
+            raise IndexNotationError("cannot raise to the power of a tensor", span=span)
         kind = VALUE if VALUE in (base.type, exponent.type) else SCALAR
         return self.graph.add(ops.Pow(), (base, exponent), kind, span)
+
+    def _tensor_power(
+        self, metric: str | None, indices: Sequence[Index], exponent: str | None, span: Span
+    ) -> IndexNotationError:
+        """A tensor raised to a power: to -1, as for an inverse, or to any other."""
+        flipped = self._written_indices([index.flip() for index in indices])
+        if exponent == "-1":
+            if metric is not None:
+                hint = f"the inverse metric is {metric}{flipped}"
+            elif len(indices) == 2:
+                tensor = f"S{self._written_indices(indices)}"
+                hint = f"the inverse of a tensor {tensor} is (S^{{-1}}){flipped}"
+            else:
+                hint = "only a tensor with two indices has an inverse"
+            return IndexNotationError("cannot raise a tensor to the power -1", span=span, hint=hint)
+        return IndexNotationError(
+            "cannot raise a tensor to a power",
+            span=span,
+            hint="contract it with itself instead, as in V_{a} V^{a}",
+        )
 
     # -- relations -----------------------------------------------------------
 
@@ -2257,7 +2424,22 @@ class Compiler:
             raise CompileError(f"{name} is not a function", span=func.span)
         if name == "geodesic_equations":
             return self._geodesic_equations(node, scope, ctx)
+        if name == "geodesic":  # integrated numerically, from Python
+            raise CompileError(
+                "geodesics are integrated from Python, with relativisticpy.numeric.geodesic",
+                span=node.span,
+                hint="in the language, geodesic_equations(\\tau) gives the equations they solve",
+            )
+        if name in ("eig", "spec", "svd"):  # what _linear_algebra leaves: no tensor
+            count = ", and how many eigenvalues if not all" if name != "svd" else ""
+            raise CompileError(
+                f"{name}() takes a tensor written with its indices{count}",
+                span=node.span,
+                hint=f"for example {name}(\\Sigma^{{a}}{{}}_{{b}})",
+            )
         builtin = _names_builtin(func, latex=ctx.latex)  # \gamma(r) is an unknown function
+        if builtin:
+            self._check_keywords(BUILTINS[name], node)
         if ctx.latex and binding is None and not builtin and _splittable(func):
             # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
             labels = split_index_labels(name)
@@ -2271,10 +2453,17 @@ class Compiler:
         if builtin:
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._builtin(BUILTINS[name], args, node.span)
+        self._check_unknown_function(func, node)
         args = [self.value(a, scope, ctx) for a in node.args]
         for arg, source in zip(args, node.args, strict=True):
             if isinstance(arg.type, TensorType):
                 raise CompileError(f"cannot pass a tensor to {name}()", span=source.span)
+            if arg.type == VALUE:  # f([1, 2]): a function of numbers, not of a list
+                raise CompileError(
+                    f"{func.span.text} is a function RelativisticPy does not know, so it takes "
+                    "numbers and symbols, not a list",
+                    span=source.span,
+                )
         values = [arg.op.value if isinstance(arg.op, ops.Const) else None for arg in args]
         coordinates = self.session.coordinates or ()
         # Later, a bare name means this; but a coordinate, as r in r(t), stays a coordinate.
@@ -2282,6 +2471,58 @@ class Compiler:
             self.session.functions[name] = tuple(values)
         function = sympy.Function(name)
         return self._call(function, name, args, SCALAR, node.span)
+
+    def _check_unknown_function(self, func: ast.Name, node: ast.Call) -> None:
+        """A call of a function no one defined, which stays an unknown function: refused
+        where its name is a builtin's or a spacetime's misspelt, as simplfy, or a built-in
+        quantity's spelled out, as RicciScalar(g); said so in a note where its name is a
+        word rather than a letter, as foo(x); as it is for f(x) or \\alpha(t, r)."""
+        name, written = func.id, func.span.text
+        if name == "print":
+            arguments = ", ".join(arg.span.text for arg in node.args)
+            raise CompileError(
+                "print is not needed: each result is shown as it is computed",
+                span=func.span,
+                hint=f"write {arguments}" if arguments else None,
+            )
+        if name in GREEK or name in BUILTINS:  # \gamma(r), a function no builtin is
+            return
+        concept = _CONCEPTS.get(name.lower())
+        close = _close(name, [*BUILTINS, *_SPACETIME_NAMES]) if concept is None else None
+        if concept is not None or close is not None:
+            suggestion = concept if concept is not None else f"{close}(...)"
+            raise CompileError(
+                f"unknown function {written}", span=func.span, hint=f"did you mean {suggestion}?"
+            )
+        if len(name) > 1 and name not in GREEK and name.rstrip("'") not in GREEK:
+            self._note(
+                f"{written} is not a function RelativisticPy knows, so {node.span.text} is an "
+                "unknown function"
+            )
+
+    def _check_keywords(self, builtin: Builtin, node: ast.Call) -> None:
+        """Refuse an argument given by name, as n=5 in series(sin(x), x, 0, n=5), which
+        would be an equation passed in its place: arguments are given in order."""
+        try:
+            parameters = list(inspect.signature(builtin.func).parameters)
+        except (TypeError, ValueError):  # a function whose signature cannot be read
+            return
+        for position, arg in enumerate(node.args):
+            if not (
+                isinstance(arg, ast.Equation)
+                and isinstance(arg.lhs, ast.Name)
+                and arg.lhs.id in parameters
+            ):
+                continue
+            hint = None
+            if parameters.index(arg.lhs.id) == position:
+                hint = f"write {node.span.text.replace(arg.span.text, arg.rhs.span.text)}"
+            raise CompileError(
+                f"{builtin.name}() takes its arguments in order, not by name, as "
+                f"{arg.span.text} gives one",
+                span=arg.span,
+                hint=hint,
+            )
 
     def _index_written(self, script: ast.Script) -> str | None:
         """The label of a superscript that the statement shows to be an index: one it
@@ -2438,7 +2679,10 @@ class Compiler:
 
     def _geodesic_equations(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
         if len(node.args) > 1:
-            raise CompileError("geodesic_equations() takes at most one argument", span=node.span)
+            raise CompileError(
+                f"geodesic_equations(\\tau) takes at most 1 argument, not {len(node.args)}",
+                span=node.span,
+            )
         parameter = (
             self.value(node.args[0], scope, ctx)
             if node.args
@@ -2485,7 +2729,7 @@ class Compiler:
         if isinstance(operator_, DifferentialMarker):
             return self._differential(operand, span)
         if isinstance(operator_, Dalembertian):
-            return self._dalembertian(operand, span)
+            return self._dalembertian(operand, span, operator_.span.text)
         if isinstance(operator_, LieDerivative):
             return self._lie_derivative(operator_.vector, operand, span, scope)
         assert isinstance(operator_, IndexDerivative)
@@ -2789,9 +3033,32 @@ class Compiler:
                 return self._access(source, node, scope, ctx)
             if differentiated:  # never a symbol named phi_mu
                 raise self._underivable(node, base, binding, rank)
+            if rank is None:  # g_{\mu\nu}^{-1}: a tensor with its indices, then a power
+                self._check_tensor_power(node, base, binding)
         if (ones := _tensor_pattern_of_one(node)) is not None:  # 𝟙_a, or 1_a
             return self._ones(ones, node.span)
         return self._script_math(node, scope, ctx)
+
+    def _check_tensor_power(self, node: ast.Scripted, base: ast.Name, binding: object) -> None:
+        """Refuse a tensor written with its indices and then raised to a power, as
+        g_{\\mu\\nu}^{-1}, which would otherwise be read as a symbol g_{\\mu\\nu}."""
+        indexed = [s for s in node.scripts if s.indices is not None and s.indices.items]
+        powers = [s for s in node.scripts if s.indices is None and s.kind == "^"]
+        if not indexed or not powers or len(indexed) + len(powers) != len(node.scripts):
+            return
+        items = [(item, s.kind == "^") for s in indexed for item in s.indices.items]  # type: ignore[union-attr]
+        if not all(_plain_label(item) for item, _ in items):
+            return
+        tensor = isinstance(binding, TensorBinding) or (
+            isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType)
+        )
+        quantity = self._builtin_tensor(base.id, len(items)) if binding is None else None
+        if not tensor and quantity is None:
+            return
+        indices = [Index(str(item.label), upper) for item, upper in items]
+        exponent = powers[0].body.span.text if powers[0].body is not None else None
+        metric = base.id if quantity == "metric" else None
+        raise self._tensor_power(metric, indices, exponent, node.span)
 
     def _scalar_source(
         self, base: ast.Name, binding: object, scope: Scope, ctx: Context
@@ -3019,7 +3286,8 @@ class Compiler:
             for item in script.indices.items:
                 if item.label == "⋯":
                     raise CompileError(
-                        "⋯ stands for indices that are not written, so this cannot be computed",
+                        f"{item.span.text} stands for indices that are not written, so this "
+                        "cannot be computed",
                         span=item.span,
                     )
                 entries.append((item, script.kind == "^"))
@@ -3058,7 +3326,22 @@ class Compiler:
             result = self.graph.retype(source.node, TensorType(current, spaces))
         for position, (_, upper) in enumerate(main):
             if current[position].upper != upper:
-                result, current = self._move_index(result, current, position, node.span)
+                try:
+                    result, current = self._move_index(result, current, position, node.span)
+                except CompileError as error:  # V_a of V^{a}, with no metric to lower it
+                    if self.session.metric is not None:
+                        raise
+                    defined = self._written_label(source.name) + self._written_indices(
+                        source.indices
+                    )
+                    way = "raises" if upper else "lowers"
+                    raise CompileError(
+                        f"{source.name} is defined as {defined}; writing {node.span.text} "
+                        f"{way} an index, which needs a metric",
+                        span=node.span,
+                        hint=error.hint,
+                        notes=error.notes,
+                    ) from None
         for number, (item, upper) in enumerate(derivatives):
             covariant = item.derivative == ";"
             label = f"#d{number}"
@@ -3347,12 +3630,26 @@ class Compiler:
         if space is not None:
             return space
         if self.session.coordinates is None:
+            label = self._written_label(name)
+            data = bool(self.session.spaces) or any(
+                not space.spacetime
+                for _, binding in self.session.globals.bindings()
+                if isinstance(binding, TensorBinding)
+                for space in _spaces(binding.node) or ()
+            )
+            hint = (
+                f"declare its space, as in {label} \\in \\mathcal{{A}}"
+                if data
+                else "declare coordinates first, as in Coordinates := [t, r, \\theta, \\phi]"
+            )
             raise CompileError(
-                f"{why} needs coordinates, or a space for the index {latex_label(name)}",
+                f"{why} needs coordinates, or a space for the index {label}",
                 span=span,
-                hint="declare coordinates, as in Coordinates := [t, r, \\theta, \\phi], or the "
-                "space of the index, as in t \\in \\mathcal{T}; an index written on data in "
-                "the same statement ranges over the data's space",
+                notes=[
+                    "an index ranges over spacetime, over a space declared for it, or over the "
+                    "axis of data it is written on in the same statement"
+                ],
+                hint=hint,
             )
         return self.session.spacetime(span, why)
 
@@ -3514,9 +3811,9 @@ class Compiler:
             )
         return LieDerivative(node.span, name)
 
-    def _dalembertian(self, operand: Node, span: Span) -> Node:
+    def _dalembertian(self, operand: Node, span: Span, written: str = "\\Box") -> Node:
         """``□X = ∇^a ∇_a X``."""
-        self.session.require_coordinates(span, "\\Box")
+        self.session.require_coordinates(span, written)
         item = ast.IndexItem(f"#box{next(self._fresh)}", span=span)
         inner = self._index_derivative(operand, item, False, True, span)
         return self._index_derivative(inner, item, True, True, span)
@@ -3787,6 +4084,15 @@ class Compiler:
                     span=node.span,
                     hint=f"for the transpose, write transpose({written_base}), or, with "
                     "indices, swap them, as A_{ba} is the transpose of A_{ab}",
+                )
+            if (
+                isinstance(base, ast.Name)
+                and scope.lookup(base.id) is None
+                and self._builtin_scalar(base.id) == "determinant"
+            ):  # g^{-1} is 1/det g, which is easily taken for the inverse metric
+                self._note(
+                    f"{written_base} alone is the determinant of the metric, so {node.span.text} "
+                    f"is a power of it; the inverse metric is {written_base}^{{\\mu\\nu}}"
                 )
             exponents.append(self.value(script.body, scope, ctx))
         if not exponents:
@@ -4905,6 +5211,16 @@ def _ledoit_wolf(samples: Any) -> Any:
     return LedoitWolf(assume_centered=False).fit(data).covariance_
 
 
+#: Names of statistics written as operators, for the statistic they mean.
+_STATISTIC_ALIASES = {
+    "E": "\\mathbb{E}",
+    "Mean": "\\mathbb{E}",
+    "mean": "\\mathbb{E}",
+    "Expectation": "\\mathbb{E}",
+    "Variance": "\\operatorname{Var}",
+    "Covariance": "\\operatorname{Cov}",
+}
+
 #: The statistics written with the index they are over, as \mathbb{E}_t.
 _STATISTICS = {
     "𝔼": "expectation",
@@ -5159,13 +5475,17 @@ def _listed(items: Sequence[str], conjunction: str = "and") -> str:
     return f"{', '.join(items[:-1])} {conjunction} {items[-1]}"
 
 
-def _close(name: str, candidates: Iterable[str]) -> str | None:
+def _close(name: str, candidates: Iterable[str], shortest: int = 4) -> str | None:
     """The candidate a name is likely a misspelling of, as Schwarzchild is of
     Schwarzschild or simplfy of simplify; ``None`` where none is close. Names of fewer
-    than four letters are never compared, nor matched, so that ln is no misspelt N."""
+    than four letters are never matched, and candidates shorter than ``shortest`` never
+    offered, so that ln is no misspelt N, nor erfc a misspelt erf."""
     if len(name) < 4:
         return None
-    known = {candidate.lower(): candidate for candidate in candidates if len(candidate) >= 4}
+    known: dict[str, str] = {}
+    for candidate in candidates:  # the first spelling of each, as Cov before cov
+        if len(candidate) >= shortest:
+            known.setdefault(candidate.lower(), candidate)
     found = difflib.get_close_matches(name.lower(), list(known), n=1, cutoff=0.8)
     return known[found[0]] if found else None
 
@@ -5265,6 +5585,29 @@ def _slashed(factors: list[ast.Expr]) -> list[ast.Expr]:
         result.append(ast.Binary("/", factor.left, denominator, span=span))
         position += 1 + len(run)
     return result
+
+
+def _styled(span: Span) -> Span:
+    """A span grown over the style command around it, as B to \\mathcal{B}."""
+    text = span.source.text
+    for command in ("\\mathcal{", "\\mathbb{", "\\mathscr{", "\\mathfrak{", "\\mathrm{"):
+        start = span.start - len(command)
+        if text[max(start, 0) : span.start] == command and text[span.end : span.end + 1] == "}":
+            return Span(span.source, start, span.end + 1)
+    return span
+
+
+def _an_index(before: ast.Expr, factor: ast.Expr) -> bool:
+    """Whether ``factor`` is written as Python indexes a list: a whole number in square
+    brackets, right after what it would index, as [0] in [1, 2][0]."""
+    return (
+        isinstance(factor, ast.List)
+        and len(factor.items) == 1
+        and isinstance(factor.items[0], ast.Number)
+        and factor.items[0].text.isdigit()
+        and factor.span.text.startswith("[")
+        and before.span.end == factor.span.start
+    )
 
 
 def _bracketed(equation: ast.Equation) -> bool:
@@ -5419,6 +5762,26 @@ def _zero_literal(node: ast.Expr) -> bool:
 
 #: Superscripts that write a transpose, as in A^T.
 _TRANSPOSES = frozenset({"T", "top", "intercal"})
+
+#: The built-in tensors and scalars by the names they are spelled out with, lower case,
+#: as an agent may guess them: what to write instead.
+_CONCEPTS = {
+    "ricci": "Ric, the Ricci scalar, or R_{\\mu\\nu}, the Ricci tensor",
+    "ricciscalar": "R or Ric, the Ricci scalar",
+    "riccitensor": "R_{\\mu\\nu}, the Ricci tensor",
+    "riemann": "R^{\\rho}{}_{\\sigma\\mu\\nu}, the Riemann tensor",
+    "riemanntensor": "R^{\\rho}{}_{\\sigma\\mu\\nu}, the Riemann tensor",
+    "christoffel": "\\Gamma^{\\lambda}_{\\mu\\nu}, the Christoffel symbols",
+    "christoffelsymbols": "\\Gamma^{\\lambda}_{\\mu\\nu}, the Christoffel symbols",
+    "einstein": "G_{\\mu\\nu}, the Einstein tensor",
+    "einsteintensor": "G_{\\mu\\nu}, the Einstein tensor",
+    "weyl": "C_{\\mu\\nu\\rho\\sigma}, the Weyl tensor",
+    "weyltensor": "C_{\\mu\\nu\\rho\\sigma}, the Weyl tensor",
+    "metric": "g_{\\mu\\nu}, the metric",
+    "metrictensor": "g_{\\mu\\nu}, the metric",
+    "curvaturescalar": "R or Ric, the Ricci scalar",
+    "kretschmannscalar": "Kretschmann, or R_{abcd} R^{abcd}",
+}
 
 #: Names of built-in tensors that are as often names of one's own: a covariance C,
 #: weights W, a matrix G.

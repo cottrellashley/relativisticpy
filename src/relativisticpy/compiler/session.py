@@ -195,6 +195,13 @@ class Session:
         metric = self.require_metric(span, describe(quantity)).node
         assert self.coordinates is not None
         patch = self.coordinates
+        if quantity == "weyl" and len(patch) < 3:  # said where it is asked for
+            where = f"defined on line {metric.span.line}" if metric.span is not None else "in force"
+            raise CompileError(
+                "the Weyl tensor is defined in three dimensions or more",
+                span=span,
+                notes=[f"the metric {where} is {len(patch)}-dimensional"],
+            )
         space = spacetime(patch)
 
         def build(name: str, *args: Node) -> Node:

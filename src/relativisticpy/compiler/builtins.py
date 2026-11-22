@@ -10,8 +10,9 @@ from typing import Any
 
 import sympy
 
-from relativisticpy import spacetimes
+from relativisticpy import display, spacetimes
 from relativisticpy.diffgeom import Metric
+from relativisticpy.errors import EvaluationError
 from relativisticpy.tensors import Tensor
 from relativisticpy.tensors.equation import TensorEquation
 
@@ -32,19 +33,30 @@ class Builtin:
     scalar: bool = False
     min_args: int = 0
     max_args: int | None = None
+    parameters: tuple[str, ...] = ()  # the names of a spacetime's parameters, in order
 
     def check_arity(self, count: int) -> str | None:
-        """An error message if ``count`` arguments are wrong for this function."""
-        if count < self.min_args or (self.max_args is not None and count > self.max_args):
-            if self.max_args == self.min_args:
-                expected = f"{self.min_args}"
-            elif self.max_args is None:
-                expected = f"at least {self.min_args}"
-            else:
-                expected = f"{self.min_args} to {self.max_args}"
-            plural = "" if expected == "1" else "s"
-            return f"{self.name}() takes {expected} argument{plural}, not {count}"
-        return None
+        """An error message if ``count`` arguments are wrong for this function:
+        ``Schwarzschild(M, G, c) takes at most 3 arguments, not 4``."""
+        low, high = self.min_args, self.max_args
+        if low <= count and (high is None or count <= high):
+            return None
+        if high == low:
+            expected = f"{low}"
+        elif high is None:
+            expected = f"at least {low}"
+        elif low == 0:
+            expected = f"at most {high}"
+        elif high == low + 1:
+            expected = f"{low} or {high}"
+        else:
+            expected = f"{low} to {high}"
+        plural = "" if expected in ("1", "at least 1", "at most 1") else "s"
+        return f"{self.signature()} takes {expected} argument{plural}, not {count}"
+
+    def signature(self) -> str:
+        """How the function is called: ``Schwarzschild(M, G, c)``, or ``solve()``."""
+        return f"{self.name}({', '.join(self.parameters)})"
 
 
 # -- implementations that need more than a SymPy function ----------------------
@@ -83,7 +95,7 @@ def rhs(value: Any) -> Any:
     if isinstance(value, list | tuple):
         sides = [rhs(item) for item in value]
         return sides[0] if len(sides) == 1 else sides
-    return value.rhs
+    return _equation(value, "RHS").rhs
 
 
 def lhs(value: Any) -> Any:
@@ -91,12 +103,40 @@ def lhs(value: Any) -> Any:
     if isinstance(value, list | tuple):
         sides = [lhs(item) for item in value]
         return sides[0] if len(sides) == 1 else sides
-    return value.lhs
+    return _equation(value, "LHS").lhs
+
+
+def _equation(value: Any, name: str) -> Any:
+    """``value``, which ``name`` takes apart, if it is an equation; an error otherwise."""
+    if not hasattr(value, "lhs") or not hasattr(value, "rhs"):
+        raise EvaluationError(
+            f"{name} takes an equation, as in {name}(x^2 = 4), but {display.text(value)} is not one"
+        )
+    return value
 
 
 def subs(expr: Any, *args: Any) -> Any:
-    """``subs(expr, old, new)``, or ``subs(expr, {old: new})``."""
-    return expr.subs(*args)
+    """``subs(expr, old, new)``, or ``subs(expr, old = new, ...)`` with one rule or more,
+    each an equation."""
+    if args and all(isinstance(rule, sympy.Equality) for rule in args):
+        return sympy.sympify(expr).subs([(rule.lhs, rule.rhs) for rule in args])
+    if len(args) != 2:
+        raise EvaluationError(
+            "subs takes an expression and what to put for what, as in subs(x^2, x, 3), or "
+            "rules, as in subs(x^2, x = 3)"
+        )
+    return sympy.sympify(expr).subs(*args)
+
+
+def symbols(names: Any) -> Any:
+    """``symbols('x y')``: the symbols named in a string; a name is its own symbol."""
+    if isinstance(names, sympy.Symbol):
+        return names
+    if not isinstance(names, str):
+        raise EvaluationError(
+            f"symbols takes names in quotes, as in symbols('x y'), not {display.text(names)}"
+        )
+    return sympy.symbols(names)
 
 
 def diag(*entries: Any) -> sympy.ImmutableDenseNDimArray:
@@ -197,7 +237,7 @@ _ALGEBRA = {
 
 _VALUES = {
     "solve": solve, "dsolve": dsolve, "RHS": rhs, "rhs": rhs, "LHS": lhs, "lhs": lhs,
-    "Eq": sympy.Eq, "symbols": sympy.symbols, "latex": latex, "diag": diag, "det": det,
+    "Eq": sympy.Eq, "symbols": symbols, "latex": latex, "diag": diag, "det": det,
     "inverse": inverse, "inv": inverse, "transpose": transpose, "trace": trace,
     "log": sympy.log, "root": root, "binomial": sympy.binomial, "atan2": sympy.atan2,
     "min": sympy.Min, "Min": sympy.Min, "max": sympy.Max, "Max": sympy.Max,
@@ -255,7 +295,10 @@ def _table() -> dict[str, Builtin]:
         table[name] = Builtin(name, func, scalar=scalar, min_args=low, max_args=high)
     for name, factory in _SPACETIMES.items():
         low, high = _arity(factory)
-        table[name] = Builtin(name, _spacetime(factory), min_args=low, max_args=high)
+        parameters = tuple(inspect.signature(factory).parameters)
+        table[name] = Builtin(
+            name, _spacetime(factory), min_args=low, max_args=high, parameters=parameters
+        )
     return table
 
 
