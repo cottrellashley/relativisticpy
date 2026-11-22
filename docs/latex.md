@@ -75,16 +75,19 @@ letter, one command or a braced group, so `R^a_b` is \(R^{a}{}_{b}\), and
 `\Gamma^r_tt` as \(\Gamma^r{}_t\, t\), and so does RelativisticPy: write
 `\Gamma^{r}_{tt}`. A Greek letter spelled out is one letter, as its command
 is (`x^mu` is \(x^\mu\)), and a number is whole (`x^10` is \(x^{10}\)). A
-name written with an underscore in plain text, such as `r_s` or `x_0`, is one
-name, as in a programming language.
+sign is the whole script, a label, as in `h_+ \cos\omega t` and `e^+e^-`,
+unless what it signs is written against it, as plain text writes a power:
+`x^-1` is \(x^{-1}\). A name written with an underscore in plain text, such as
+`r_s` or `x_0`, is one name, as in a programming language.
 
 ```python
 >>> wb.exe(r"""
 ...     x^ab + y^{ab}
 ...     r_s := 2 G M
 ...     1 - r_s/r
+...     h_+ \cos(\omega t) + x^-1
 ... """)
-[b*x**a + y**ab, -2*G*M/r + 1]
+[b*x**a + y**ab, -2*G*M/r + 1, h_+*cos(omega*t) + 1/x]
 
 ```
 
@@ -95,7 +98,8 @@ argument runs over the following factors (`\sin\omega t` is
 \(\sin(\omega t)\), and `\ln A(r)` is \(\ln A(r)\)) and stops at explicit
 spacing, an operator, another function or a differential: in
 `\sin^2\theta\, d\phi^2` the argument is \(\theta\). Only `\log` takes a
-subscript, its base, as in `\log_2 x`; `\max_x` and `\det_g` are errors.
+subscript, its base, as in `\log_2 x`: `\det_g` is an error, and a maximum or
+minimum over a variable, `\max_v` or `\arg\min_w`, is not supported yet.
 
 **What RelativisticPy prints reads back.** Results are typeset as SymPy
 typesets them, with a function's arguments in braces, `a{\left(t \right)}`,
@@ -114,8 +118,10 @@ a(t)**2 + Derivative(a(t), t)*Derivative(b(t), t)
 evaluation bar.
 
 **A bracket right after a name calls it.** `A(r)` is the function A at r: an unknown
-function, if nothing defines A, which is how a metric writes one. To multiply a name by
-a bracket, leave a space or write `\,`, as in `G\,(p^2 + q^2)`:
+function, if nothing defines A, which is how a metric writes one. A name numbered by
+a subscript is a name of its own, so `\psi_1(x)` and `R_{21}(r)` are called as
+`x_0(t)` is. To multiply a name by a bracket, leave a space or write `\,`, as in
+`G\,(p^2 + q^2)`:
 
 ```python
 >>> wb.exe(r"A(r) + G\,(p^2 + q^2)")
@@ -123,7 +129,10 @@ a bracket, leave a space or write `\,`, as in `G\,(p^2 + q^2)`:
 
 ```
 
-**Definitions.** `\equiv`, `\coloneqq` and `≔` all mean `:=`.
+**Definitions.** `\equiv`, `\coloneqq` and `≔` all mean `:=`. A primed or accented
+name is a name of its own, which a definition gives a value, as in
+`x' := \gamma (x - v t)` or `\hat{p} := 2`; a dot is a time derivative, so
+`\dot{x} := v` states an identity instead.
 
 ## Environments
 
@@ -257,8 +266,8 @@ but not computed, and defines nothing.
 | Labels on symbols | `r_+`, `i^-`, `r_\pm`, `r^*` and prescripts such as `{}^{(3)}R` name symbols rather than raising to powers |
 | Primes | after a numeric subscript a prime marks the whole name, so `\phi_0'(r)` is the derivative of \(\phi_0\); after a braced script it marks the symbol, so `R_{\mu\nu}'` reads as `R'_{\mu\nu}`; after an unbraced index, the index: `x^\mu'` is `x^{\mu'}` |
 | Index labels | `\mu'`, `\mu_1`, `\mu_{p+1}`, `\phi_{t*}`, nested groups such as `R_{\rho\sigma{\mu\nu}}`, `\phi,{}_\mu` for \(\phi_{,\mu}\), and MTW's staggered `{\Gamma^r}_{tt}` |
-| Operators | `\Box` (\(\nabla^\mu\nabla_\mu\)), the Lie derivative `\pounds_V`, the wedge product `A_{\mu} \wedge B_{\nu}`, `\otimes`, `\pm` and `\mp` (both values) |
-| Not computed | `\cdots` and `\ldots`, the Hodge dual `*F`, composition `\circ`, integrals over regions `\int d^4x`, and sums over indices without limits, `\sum_b`, are read, and say why they cannot be computed |
+| Operators | `\Box` (\(\nabla^\mu\nabla_\mu\)), the Lie derivative `\pounds_V`, the wedge product `A_{\mu} \wedge B_{\nu}`, `\otimes`, `\pm` and `\mp` (both values), and the Poisson bracket with respect to a canonical pair, `\{f, g\}_{q, p}`, read as its derivatives |
+| Not computed | `\cdots` and `\ldots`, the Hodge dual `*F`, composition `\circ`, integrals over regions `\int d^4x` and `\iint_{x^2 + y^2 \le 1} f \, dA`, and sums over indices without limits, `\sum_b`, are read, and say why they cannot be computed |
 
 A relation that is read but not computed says so:
 

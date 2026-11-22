@@ -221,17 +221,21 @@ Lagrange's primes differentiate a function you have defined, or an unknown one:
 ```
 
 Integrals end at their differential, which may also come first or sit in the
-numerator of a fraction. A differential alone integrates 1:
+numerator of a fraction, where it ends the integral with its term. An evaluation
+bar before the differential is inside the integral. A differential alone
+integrates 1:
 
 ```python
 >>> wb.exe(r"""
 ...     \int_0^1 x^2 \, dx
 ...     \int_0^\infty e^{-x} dx
 ...     \int \frac{dx}{x}
+...     \int_1^\infty \frac{dr}{r^2} - \pi
+...     \int_0^\pi \left. \sin(x y) \right|_{y=1} dx
 ...     \int_0^L dx
 ...     integrate(x y, (x, 0, 1), (y, 0, 2))
 ... """)
-[1/3, 1, log(x), L, 1]
+[1/3, 1, log(x), 1 - pi, 2, L, 1]
 
 ```
 
