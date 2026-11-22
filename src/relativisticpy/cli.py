@@ -10,6 +10,7 @@ documentation offline, or compute at a prompt.
     relativisticpy -                        run standard input as a program
     relativisticpy check paper.tex          check the equations of a LaTeX document
     relativisticpy help [TOPIC]             print the documentation, offline
+    relativisticpy mcp                      serve RelativisticPy to AI agents, over MCP
     relativisticpy                          start the prompt, in a terminal
 
 Each result is printed as soon as it is computed, labelled with the statement it came
@@ -94,7 +95,7 @@ PROMPT, CONTINUATION = "rp> ", "... "
 PROGRESS_AFTER = 1.0
 
 _MARKDOWN = (".md", ".markdown")
-_COMMANDS = ("check", "help")
+_COMMANDS = ("check", "help", "mcp")
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -134,6 +135,8 @@ def _main(arguments: list[str]) -> int:
         return check(rest)
     if command == "help":
         return help_command(rest)
+    if command == "mcp":
+        return mcp_command(rest)
     return run(rest)
 
 
@@ -141,6 +144,7 @@ def _main(arguments: list[str]) -> int:
 _TAKES_VALUE = frozenset(
     {"-c", "--code", "--format", "-j", "--workers", "-o", "--output", "--color"}
     | {"--lines", "--time-limit", "--fail-on"}
+    | {"--max-output", "--max-sessions", "--memory-limit"}
 )
 
 
@@ -1184,6 +1188,17 @@ def help_command(argv: Sequence[str]) -> int:
     return OK
 
 
+# -- serving agents ------------------------------------------------------------------------------
+
+
+def mcp_command(argv: Sequence[str]) -> int:
+    """``relativisticpy mcp``: serve RelativisticPy to AI agents over the Model Context
+    Protocol, on standard input and output; :mod:`relativisticpy.mcp` is the server."""
+    from relativisticpy import mcp
+
+    return mcp.main(argv)
+
+
 #: What the language looks like, as ``help`` shows it first: statements that run, in
 #: order, each with what it does.
 CHEAT_SHEET = (
@@ -1238,6 +1253,7 @@ def help_text(*, prompt: bool) -> str:
             "  relativisticpy                 start the prompt",
             "  relativisticpy check FILE...   check the equations of LaTeX documents",
             "  relativisticpy help TOPIC      print a topic",
+            "  relativisticpy mcp             serve RelativisticPy to AI agents, over MCP",
             "  relativisticpy --help          every option",
         ]
     lines += ["", f"Online: {DOCS}"]
@@ -1964,7 +1980,8 @@ Learn more: relativisticpy help, relativisticpy help cli, or {DOCS}"""
 _USAGE = (
     "relativisticpy [options] [FILE | -c CODE | -]\n"
     "       relativisticpy check [options] FILE...\n"
-    "       relativisticpy help [TOPIC]"
+    "       relativisticpy help [TOPIC]\n"
+    "       relativisticpy mcp [options]"
 )
 
 
