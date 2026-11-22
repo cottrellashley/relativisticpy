@@ -40,6 +40,36 @@ that grew from it, and where each stands.
   pandas, statistics as contractions with a measure, spectra and linear algebra,
   sparse data, and JAX for gradients; portfolios, quantum systems, graphs and
   regressions in the notation of General Relativity.
+- **One interface everywhere**: results look the same in Python, at the command
+  line, in notebooks and as JSON; every equation says whether it holds; errors
+  say where, why and what to do; `relativisticpy help` works offline.
+- **A tool for AI agents**: `relativisticpy mcp` serves computing, verifying and
+  checking over the Model Context Protocol ([the MCP server](mcp.md)).
+- **A curriculum with known answers**: 407 problems in 18 domains, from notation
+  to research, each with an independent answer. It measures what the language
+  can do, and the test suite keeps what passes passing.
+
+## Now
+
+- **Climbing the curriculum.** Its roadmap ranks what the failing problems need,
+  and the work goes in waves. First, a guard for each way the language can
+  misread notation, so that it refuses rather than answers wrongly. Then the
+  notation and mathematics that fail most often: special functions by their
+  book names, closed-form sums, what a parameter is assumed to be, functions of
+  matrices.
+- **A pipeline with one job for each pass**: reading, then index notation, then
+  lowering to an IR of named operations, which the engines run. Each pass can be
+  inspected, and `explain` shows how a program was read.
+- **Integrations, written to a pattern.** Each library (SciPy's special
+  functions, its FFT, scikit-learn and more) is one module of capabilities: how
+  a function is written, what it takes and gives, and what computes it. A
+  conformance suite verifies each module, so a new library can be added by
+  following the pattern, by a person or an agent, with no configuration.
+- **Python objects by name**: an array, a table or a function defined in Python
+  is used in the mathematics as `\texttt{signal}`, from the scope a workbook is
+  given, without reading files.
+- **Live mathematics**: values typeset in marimo and Jupyter, and an editor that
+  computes as you type and computes any part of an equation you point at.
 
 ## Next
 
@@ -76,7 +106,10 @@ that grew from it, and where each stands.
 - **Tensor and spacetime visualisation**: embedding diagrams, light cones,
   Penrose–Carter diagrams.
 - **The ADM formalism** and tools for numerical relativity.
-- **A language server**, for highlighting and errors in editors.
+- **A language server**, for highlighting, errors and "compute this" in
+  editors.
+- **Pages that compute with no server**: notebooks exported to WebAssembly,
+  running RelativisticPy in the reader's browser.
 
 ## Someday
 
