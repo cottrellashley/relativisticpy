@@ -86,6 +86,27 @@ class TestArithmetic:
         assert sexpr("f()") == "(call f)"
         assert sexpr("f (x)") == "(* f x)"
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a name numbered by a subscript is a name of its own, called as x_0(t) is
+            (r"\psi_1(x)", "(call psi_1 x)"),
+            (r"R_{21}(r)", "(call R_21 r)"),
+            (r"\psi_{100}(r, \theta)", "(call psi_100 r theta)"),
+            (r"\phi_0'(r)", "(call phi_0' r)"),
+            ("x_0(t)", "(call x_0 t)"),
+            # and as SymPy typesets it, maybe raised to a power
+            (r"\psi_{1}{\left(x \right)}", "(call psi_1 x)"),
+            (r"\psi_{1}^{2}{\left(x \right)}", "(^ (call psi_1 x) 2)"),
+            # a space, an index or a label after the name keeps it a product
+            (r"\psi_1 (x)", "(* (psi _[1]) x)"),
+            (r"A_\mu(x)", "(* (A _[mu]) x)"),
+            (r"h_+(t)", "(* (h _+) t)"),
+        ],
+    )
+    def test_a_numbered_name_is_called_as_a_name_is(self, text, expected):
+        assert sexpr(text) == expected
+
     def test_nested_calls(self):
         assert sexpr("f(g(x))") == "(call f (call g x))"
 
@@ -826,6 +847,24 @@ class TestStatements:
         assert program("f(x) := x^2") == ["(def f (x) (^ x 2))"]
         assert program("h(x, y) := x y") == ["(def h (x y) (* x y))"]
         assert program("f() := 42") == ["(def f () 42)"]
+        assert program(r"R_{21}(r) := r e^{-r}") == ["(def R_21 (r) (* r (^ e (- r))))"]
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a primed name, as a coordinate of another frame, is a name of its own
+            ("x' := 2 t", "(:= x' (* 2 t))"),
+            (r"x' := \gamma (x - v t)", "(:= x' (* gamma (- x (* v t))))"),
+            (r"\mathbf{E}' := (E_x, E_y)", "(:= E' (tuple E_x E_y))"),
+            # so is a name under an accent that is no time derivative
+            (r"\hat{p} := 2", "(:= (hat p) 2)"),
+            (r"\bar{x} \equiv \frac{a + b}{2}", "(:= (bar x) (/ (+ a b) 2))"),
+            # a dot is a time derivative, so that is an identity, as it was
+            (r"\dot{x} := v", "(≡ (dot x) v)"),
+        ],
+    )
+    def test_decorated_names_are_defined(self, text, expected):
+        assert program(text) == [expected]
 
     def test_arrow_functions(self):
         source = """

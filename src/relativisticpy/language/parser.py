@@ -573,7 +573,7 @@ class Parser:
                 params.append(arg.id)
             return ast.FunctionDefinition(call.func.id, tuple(params), value, span=span)
         for target in targets:
-            if not isinstance(target, ast.Name | ast.Scripted):
+            if not (isinstance(target, ast.Name | ast.Scripted) or _decorated(target)):
                 raise ParseError(
                     f"cannot define {_describe_node(target)}",
                     span=target.span,
@@ -970,6 +970,14 @@ class Parser:
                 and (not self._function_argument or _plain_call(node, token))
             ):
                 node = self._call(node)
+            elif (
+                kind is K.LPAREN
+                and not token.space_before
+                and isinstance(node, ast.Scripted)
+                and (numbered := _numbered(node)) is not None
+                and (not self._function_argument or _plain_call(numbered, token))
+            ):  # \psi_1(x) and R_{21}(r) are functions, as x_0(t) is
+                node = self._call(numbered)
             elif kind is K.LBRACE and _applicable(node) and self._at_typeset_arguments():
                 node = self._typeset_call(node)
             elif kind is K.PRIME and isinstance(node, ast.Name):
@@ -1056,12 +1064,21 @@ class Parser:
         RelativisticPy prints reads back as it was: ``a^{2}{\\left(t \\right)}`` is
         ``a(t)^2``."""
         self.advance()  # the brace
-        base = func.base if isinstance(func, ast.Scripted) else func
+        base: ast.Expr = func
+        powers: tuple[ast.Script, ...] = ()
+        if isinstance(func, ast.Scripted):  # \psi_{1}^{2}{\left(x \right)} is psi_1(x)^2
+            subscripts = tuple(script for script in func.scripts if script.kind == "_")
+            powers = tuple(script for script in func.scripts if script.kind == "^")
+            base = func.base
+            if subscripts:
+                numbered = _numbered(replace(func, scripts=subscripts))
+                assert numbered is not None
+                base = numbered
         call = self._call(base)
         self.expect(K.RBRACE, after="the arguments")
         call = replace(call, span=self._span(func.span))
-        if isinstance(func, ast.Scripted):
-            return ast.Scripted(call, func.scripts, span=call.span)
+        if powers:
+            return ast.Scripted(call, powers, span=call.span)
         return call
 
     def _call(self, func: ast.Expr) -> ast.Call:
@@ -2376,13 +2393,25 @@ def _plain_call(node: ast.Name | ast.Prime, parenthesis: Token) -> bool:
 
 
 def _applicable(node: ast.Expr) -> bool:
-    """Whether arguments typeset after ``node`` apply it, as a function: a name, or a
-    name raised to a power, as SymPy prints the square of a(t), ``a^{2}{\\left(t\\right)}``."""
+    """Whether arguments typeset after ``node`` apply it, as a function: a name, maybe
+    numbered, or raised to a power, as SymPy prints the square of a(t),
+    ``a^{2}{\\left(t\\right)}``, and \\psi_1(x), ``\\psi_{1}{\\left(x \\right)}``."""
     if isinstance(node, ast.Scripted):
         return isinstance(node.base, ast.Name) and all(
-            script.kind == "^" and isinstance(script.body, ast.Number) for script in node.scripts
+            isinstance(script.body, ast.Number)
+            and (script.kind == "^" or script.body.text.isdigit())
+            for script in node.scripts
         )
     return isinstance(node, ast.Name)
+
+
+def _numbered(node: ast.Scripted) -> ast.Name | None:
+    """The name a name with whole numbers as its subscripts makes, as plain text writes
+    it: ``\\psi_1`` is ``psi_1`` and ``R_{21}`` is ``R_21``; ``None`` for other scripts."""
+    digits = _numeric_subscripts(node)
+    if digits is None or not isinstance(node.base, ast.Name):
+        return None
+    return ast.Name(f"{node.base.id}_{digits}", node.base.verbatim, span=node.span)
 
 
 def _without_script(node: ast.Expr, kind: Literal["^", "_"]) -> bool:
@@ -2897,12 +2926,26 @@ def _fraction(tokens: list[Token], overs: list[tuple[int, Token]]) -> list[Token
 
 
 def _definable(target: ast.Expr) -> bool:
-    """Whether ``target :=`` can define it: a name, a tensor, or a function of names."""
+    """Whether ``target :=`` can define it: a name, maybe decorated, a tensor, or a
+    function of names."""
     if isinstance(target, ast.Call):
         return isinstance(target.func, ast.Name) and all(
             isinstance(arg, ast.Name) for arg in target.args
         )
-    return isinstance(target, ast.Name | ast.Scripted)
+    return isinstance(target, ast.Name | ast.Scripted) or _decorated(target)
+
+
+def _decorated(target: ast.Expr) -> bool:
+    """A decorated name, which names a symbol of its own: primed, as the coordinate ``x'``
+    is, or under an accent that is not a time derivative, as ``\\hat{p}`` and ``\\bar{x}``
+    are."""
+    if isinstance(target, ast.Prime):
+        return True
+    return (
+        isinstance(target, ast.Accent)
+        and target.accent not in ("dot", "ddot")
+        and isinstance(target.base, ast.Name)
+    )
 
 
 def _identity(target: ast.Expr, value: ast.Expr, span: Span, equiv: str) -> ast.Expr:

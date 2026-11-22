@@ -81,6 +81,34 @@ class TestIntegrals:
             assert sympy.simplify(wb.expr(text) - value) == 0
 
 
+class TestNamesOfTheirOwn:
+    def test_primed_coordinates_are_defined(self):
+        # as a Lorentz transformation writes the coordinates of another frame
+        with Workbook() as wb:
+            wb.exe(
+                "\n".join(
+                    [
+                        r"\gamma := \frac{1}{\sqrt{1 - v^2/c^2}}",
+                        "x := u t",
+                        r"x' := \gamma (x - v t)",
+                        r"t' := \gamma \left(t - \frac{v x}{c^2}\right)",
+                    ]
+                )
+            )
+            u, v, c = sympy.symbols("u v c")
+            assert sympy.simplify(wb.expr(r"\frac{x'}{t'}") - (u - v) / (1 - u * v / c**2)) == 0
+
+    def test_an_accented_name_is_defined(self):
+        with Workbook() as wb:
+            assert wb.exe("\\hat{p} := 2\n\\hat{p} + 1") == [3]
+
+    def test_a_numbered_function_is_called(self):
+        with Workbook() as wb:
+            wb.exe("R_{21}(r) := r e^{-r}\n\\psi_1(x) := \\sin x")
+            assert wb.expr("R_{21}(2)") == 2 * sympy.exp(-2)
+            assert wb.expr(r"\psi_1(\pi/2) + \psi_{1}{\left(0 \right)}") == 1
+
+
 t, r, x, theta = sympy.symbols("t r x theta")
 a, f, A = (sympy.Function(name) for name in ("a", "f", "A"))
 
@@ -101,6 +129,8 @@ class TestLatexReadsBack:
             sympy.Function("alpha")(r) * sympy.diff(sympy.Function("alpha")(r), r),
             sympy.sin(theta) ** 2 / a(t),
             sympy.Subs(sympy.diff(f(x), x), x, t),
+            sympy.Function("psi_1")(x),  # \psi_{1}{\left(x \right)}
+            sympy.Function("R_21")(r) ** 2,  # R_{21}^{2}{\left(r \right)}
         ],
     )
     def test_sympy_s_latex(self, value):
