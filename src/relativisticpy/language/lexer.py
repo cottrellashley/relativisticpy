@@ -102,6 +102,7 @@ _OPERAND_ENDS = frozenset(
 )
 _OPERAND = r"\s*\(?\s*[A-Za-z0-9_.]+\s*\)?"
 _REMAINDER = re.compile(rf"{_OPERAND}(?:\s*(?:==|!=|<=|>=|<|>|[-+*/]){_OPERAND})*\s*")
+_FRACTION_SLASH = "\N{FRACTION SLASH}"
 # The alphabets of Unicode's mathematical letters, and the commands that set them.
 _ALPHABETS = {
     "DOUBLE-STRUCK": "mathbb",
@@ -569,8 +570,8 @@ class Lexer:
             message = f"unexpected character {described}, an accent on {before}" if before else ""
             return self._error(message or f"unexpected character {described}", start, hint=hint)
         plain = unicodedata.normalize("NFKC", char)
-        if "⁄" in plain:  # a vulgar fraction, ½
-            numerator, _, denominator = plain.partition("⁄")
+        if _FRACTION_SLASH in plain:  # a vulgar fraction: ½ is 1, the slash, then 2
+            numerator, _, denominator = plain.partition(_FRACTION_SLASH)
             hint = f"write \\frac{{{numerator}}}{{{denominator}}}"
         elif plain != char and plain.isascii() and plain.isprintable():
             alphabet = next((c for word, c in _ALPHABETS.items() if word in name.split()), None)

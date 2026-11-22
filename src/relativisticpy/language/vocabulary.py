@@ -368,14 +368,20 @@ UNICODE_SUBSCRIPTS: Mapping[str, str] = MappingProxyType(
 )
 
 #: Combining accents, which Unicode puts after a letter, mapped to the accent command
-#: that writes them: ``ψ̄`` is ``\bar{\psi}``.
+#: that writes them: ``ψ`` and a combining macron is ``\bar{\psi}``.
 COMBINING_ACCENTS: Mapping[str, str] = MappingProxyType(
     {
-        "̂": "hat", "̃": "tilde", "̄": "bar", "̅": "bar",
-        "̆": "breve", "̇": "dot", "̈": "ddot", "̌": "check",
-        "⃗": "vec",
+        "\N{COMBINING CIRCUMFLEX ACCENT}": "hat",
+        "\N{COMBINING TILDE}": "tilde",
+        "\N{COMBINING MACRON}": "bar",
+        "\N{COMBINING OVERLINE}": "bar",
+        "\N{COMBINING BREVE}": "breve",
+        "\N{COMBINING DOT ABOVE}": "dot",
+        "\N{COMBINING DIAERESIS}": "ddot",
+        "\N{COMBINING CARON}": "check",
+        "\N{COMBINING RIGHT ARROW ABOVE}": "vec",
     }
-)  # fmt: skip
+)
 
 # --------------------------------------------------------------------------
 # Every command
