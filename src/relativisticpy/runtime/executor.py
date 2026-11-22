@@ -30,6 +30,29 @@ def _context() -> multiprocessing.context.BaseContext | None:
 
 _R = TypeVar("_R")
 
+#: How often, in seconds, a worker process looks for the process that started it.
+_WATCH = 0.25
+
+
+def _outlive_nothing() -> None:
+    """Start a worker process that ends when the process that started it does, however
+    that ended: a run stopped with SIGTERM, as a harness stops a command that takes too
+    long, or with SIGKILL, has no Python left in it to stop its workers, which would
+    compute on for nobody. When its parent is gone, a worker is adopted by another
+    process, and so changes parent. (A worker started by a fork server has the server as
+    its parent, which ends when the workbook's process does.)"""
+    import threading
+    import time
+
+    parent = os.getppid()
+
+    def watch() -> None:
+        while os.getppid() == parent:
+            time.sleep(_WATCH)
+        os._exit(1)  # nothing of the worker's is worth finishing
+
+    threading.Thread(target=watch, name="relativisticpy-parent-watch", daemon=True).start()
+
 
 class Executor:
     """Computes node values on demand and remembers them.
@@ -42,7 +65,8 @@ class Executor:
     kernels) goes through :meth:`map`. With ``workers`` above one, batches of
     ``batch`` items or more are spread over a pool of worker processes, started when
     first needed. Even the ten components of a Ricci tensor are worth spreading: one
-    of Kerr's takes seconds to simplify.
+    of Kerr's takes seconds to simplify. A worker never outlives the process that
+    started it, even one stopped by a signal.
 
     A failure of SymPy or NumPy while computing a node is a
     :class:`~relativisticpy.errors.RelativisticPyError` where the node was written, in
@@ -99,7 +123,11 @@ class Executor:
         if self.workers == 1 or len(items) < self.batch:
             return [func(item) for item in items]
         if self._pool is None:
-            self._pool = ProcessPoolExecutor(max_workers=self.workers, mp_context=_context())
+            self._pool = ProcessPoolExecutor(
+                max_workers=self.workers,
+                mp_context=_context(),
+                initializer=_outlive_nothing,
+            )
         chunk = max(1, len(items) // (4 * self.workers))
         return list(self._pool.map(func, items, chunksize=chunk))
 
@@ -109,9 +137,9 @@ class Executor:
         return self.map(simplify_component, items)
 
     def close(self) -> None:
-        """Stop the worker processes, if any were started."""
+        """Stop the worker processes, if any were started, dropping work not yet begun."""
         if self._pool is not None:
-            self._pool.shutdown()
+            self._pool.shutdown(cancel_futures=True)
             self._pool = None
 
 

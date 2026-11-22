@@ -1,7 +1,12 @@
 """The executor: lazy, cached, and parallel when asked."""
 
+import contextlib
+import os
+import signal
 import subprocess
 import sys
+import time
+from pathlib import Path
 
 import pytest
 import sympy
@@ -96,6 +101,69 @@ def test_symbolic_equations_need_no_numpy():
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+#: A run whose workers take long: each writes its process number, then waits.
+SLOW_RUN = """
+import os
+import sys
+import time
+
+from relativisticpy.runtime import Executor
+
+
+def slow(item):
+    with open(sys.argv[1], "a") as pids:
+        pids.write(f"{os.getpid()}\\n")
+    time.sleep(60)
+    return item
+
+
+if __name__ == "__main__":
+    Executor(2, batch=1).map(slow, [1, 2, 3, 4])
+"""
+
+
+def _alive(pid: int) -> bool:
+    """Whether a process is running: not gone, and not a zombie waiting to be reaped."""
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    status = Path(f"/proc/{pid}/status")
+    with contextlib.suppress(OSError):
+        return "\nState:\tZ" not in status.read_text()
+    return True
+
+
+@pytest.mark.skipif(not hasattr(signal, "SIGTERM") or sys.platform == "win32", reason="POSIX")
+def test_a_run_stopped_with_sigterm_leaves_no_workers(tmp_path):
+    # AGT-18: a harness stops a command that takes too long with SIGTERM; its workers,
+    # which nothing would stop, compute on for nobody.
+    script, pids = tmp_path / "run.py", tmp_path / "pids"
+    script.write_text(SLOW_RUN)
+    run = subprocess.Popen([sys.executable, str(script), str(pids)])
+    try:
+        deadline = time.monotonic() + 60
+        while time.monotonic() < deadline and len(_read(pids)) < 2:
+            time.sleep(0.05)
+        workers = _read(pids)
+        assert len(workers) == 2
+        run.send_signal(signal.SIGTERM)
+        run.wait(timeout=30)
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and any(_alive(pid) for pid in workers):
+            time.sleep(0.05)
+        assert not [pid for pid in workers if _alive(pid)]
+    finally:
+        run.kill()
+        for pid in _read(pids):
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGKILL)
+
+
+def _read(pids: Path) -> list[int]:
+    return [int(pid) for pid in pids.read_text().split()] if pids.exists() else []
 
 
 def test_two_numbers_are_never_left_unevaluated():
