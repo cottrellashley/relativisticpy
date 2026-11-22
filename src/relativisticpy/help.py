@@ -48,6 +48,11 @@ ALIASES: Mapping[str, str] = {
     "spacetimes": "tensors",
     "geometry": "tensors",
     "data": "spaces",
+    "agents": "mcp",
+    "ai": "mcp",
+    "claude": "mcp",
+    "server": "mcp",
+    "tools": "mcp",
 }
 
 

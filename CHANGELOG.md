@@ -15,8 +15,8 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   mixes them freely: paste an equation from a paper and it runs.
 - Checking papers: `relativisticpy check paper.tex` and `Workbook.check` run
   the display equations of a LaTeX document, or a Markdown notebook, in order
-  and give each a verdict: holds, differs, defines, computes, not computed,
-  not understood or not parsed. An equation holds when it is proven; one that
+  and give each a verdict: holds, differs, relates, ill-formed, defines,
+  computes, not computed, not understood or not parsed. An equation holds when it is proven; one that
   is not differs only where numbers show its sides to differ. Each document is
   checked in a workbook of its own, nothing in it stops the check, and
   `--strict` makes the command fail when an equation differs or cannot be read.
@@ -73,6 +73,24 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   indexes `y` where `y` is a tensor.
 - `Workbook.each`, which runs a program one statement at a time and carries on
   after errors.
+- One way results look, everywhere: in Unicode at a terminal, and as text, LaTeX,
+  HTML or data (`relativisticpy.display`), the same in Python, at the command line
+  and in notebooks. Every equation answers `holds()`. `:=` always defines; `=`
+  defines a name that has no meaning yet, and is otherwise a claim, with a note
+  saying which it was.
+- `relativisticpy help [TOPIC]` prints the documentation offline, and the language
+  reference, generated from the language's own tables, is there even without it.
+  `--format unicode|text|latex|json` chooses how results are written, and the exit
+  status says what happened: 0, 1, 2, 130 after Ctrl-C and 143 after SIGTERM.
+- An MCP server for AI agents, `relativisticpy mcp`: tools to compute in sessions,
+  verify an equation, check a paper and read the documentation, which is also
+  served as resources, and prompts to verify a derivation and check a paper.
+  Programs run in worker processes with limits of time and memory, and files are
+  read only where `--allow-files` allows (`pip install "relativisticpy[mcp]"`).
+- A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
+  18 domains at five levels, from notation to the frontier, each a program and an
+  oracle that computes its answer independently. `benchmarks/curriculum.py` runs
+  it, and the test suite keeps every case that passes passing.
 - A corpus benchmark, `benchmarks/corpus.py`, measuring how much of real
   papers RelativisticPy reads and what checking them finds.
 - Index notation in full: Einstein summation, raising and lowering with the
@@ -84,7 +102,10 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   the source, with a hint where one helps.
 - An intermediate representation. Programs compile to a typed graph that is
   computed lazily, shares common subexpressions, remembers every value, and can
-  spread component-wise work over processes with `Workbook(workers=N)`.
+  spread component-wise work over processes with `Workbook(workers=N)`. Every
+  operation in it is named, and looked up in a registry of implementations as it
+  runs, so the graph holds no Python functions, and nothing is computed while
+  compiling.
 - The Weyl tensor and the Kretschmann scalar as built-ins.
 - Known spacetimes: Minkowski, Schwarzschild, Reissner–Nordström, Kerr,
   Kerr–Newman, FLRW, de Sitter and anti-de Sitter, each in geometric units or
@@ -110,7 +131,11 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - `Workbook.exe` always returns a list, the value of every expression in the
   program; `Workbook.expr` returns the last.
 - Errors are raised as exceptions (`ParseError`, `CompileError`,
-  `IndexNotationError`, `EvaluationError`) rather than returned as strings.
+  `IndexNotationError`, `EvaluationError`, `UnknownNameError`, `UsageError`,
+  `DataError`, `FileError`, `MetricError`, `NotComputedError` and
+  `InternalError`) rather than returned as strings. Each says where it happened,
+  with notes and a hint, and is shown as a compiler shows a diagnostic
+  (`render()`) or given as data (`to_dict()`).
 - `Workbook.markdown` takes the text of a document rather than a path, and
   returns the document with the results typeset; `Workbook.run_file` runs a
   file.

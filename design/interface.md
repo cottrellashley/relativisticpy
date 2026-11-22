@@ -133,6 +133,7 @@ hint: write the same free indices on both sides, as in R_{\mu\nu} = g_{\mu\nu}
 | 1 | a statement failed, or a check failed by `--strict` |
 | 2 | the command line was wrong: an unknown option or a missing file |
 | 130 | interrupted with Ctrl-C |
+| 143 | stopped with SIGTERM, as a harness stops a command that takes too long |
 
 ## Learning the language
 

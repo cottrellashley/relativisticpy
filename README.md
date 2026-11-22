@@ -38,6 +38,7 @@ Its only dependency is SymPy. Extras add what numerical work needs:
 | `numeric` | NumPy and SciPy | numbers, NumPy functions and geodesics |
 | `data` | NumPy, SciPy, pandas and scikit-learn | data in index notation |
 | `jax` | NumPy, SciPy and JAX | computing with JAX, on a GPU, and gradients |
+| `mcp` | the MCP SDK | serving RelativisticPy to AI agents, `relativisticpy mcp` |
 
 ```bash
 pip install "relativisticpy[data] @ git+https://github.com/cottrellashley/relativisticpy@v2"
