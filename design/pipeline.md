@@ -58,7 +58,10 @@ cases, and the verdicts on Carroll's notes, statement by statement.
 4. **Split the compiler** into `reading/`, `typing/` and `lowering/`. These are moves of
    code, each with the tests that already pin its behaviour.
 5. **One place for the rules of index notation.** The checker's "ill-formed" asks the
-   typer, instead of analysing the syntax again.
+   typer, instead of analysing the syntax again. *Done:* the rule of a term is
+   `typing.written.contraction`, which the typer keeps as notation is compiled, and a
+   check asks `typing.written.broken_rule` whether a statement surely breaks the rules
+   as written. The verdict keeps its own words, which the tests and the reports pin.
 6. **Bind data in a module of its own,** with its spaces, so that the workbook only
    orchestrates.
 7. **Turn the registry into integrations,** discovered as the design of integrations

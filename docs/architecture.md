@@ -112,6 +112,14 @@ milliseconds rather than a Riemann tensor. Every value has a static type,
 checked on these types: free indices of a sum must agree, an index may appear
 at most twice, a summed index once up and once down.
 
+The rule of one term, that an index is written once and is free, or twice, once up and
+once down, and is summed, is `relativisticpy.typing.written.contraction`. The typer
+keeps it as notation is compiled, and a check of a paper asks the typer whether a
+statement surely breaks the rules as it is written, from its syntax alone, whatever its
+tensors are, with `broken_rule`: what may be read otherwise, as a derivative or a Latin
+index twice in one position, is not blamed, and a statement that does break them is
+*ill-formed*.
+
 The compiler computes nothing. What it needs to know comes from what is written or
 from a declaration: a spacetime declares the coordinates its metric is in, a space
 written `\mathbb{R}^{3}` its dimension, and a number of eigenvalues is written as one.

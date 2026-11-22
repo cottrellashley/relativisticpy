@@ -36,6 +36,7 @@ from relativisticpy.typing.syntax import (
     _walk,
     _zero_literal,
 )
+from relativisticpy.typing.written import Repeated, contraction
 
 
 class Typer(Pass):
@@ -111,6 +112,12 @@ class Typer(Pass):
             "appears once, or twice to be summed",
             span=span,
         )
+
+    def _repeated(self, repeated: Repeated, span: Span) -> IndexNotationError:
+        """An index written in one term more often than the rule of a term allows."""
+        if len(repeated.positions) > 2:
+            return self._thrice(repeated.label, len(repeated.positions), span)
+        return self._twice(repeated.label, repeated.positions[0], span)
 
     def _two_spaces(self, name: str, one: Space, other: Space, span: Span) -> IndexNotationError:
         """An index written on axes over two spaces."""
@@ -257,18 +264,12 @@ class Typer(Pass):
 
         def contract(entries: list[tuple[str, bool]], span: Span) -> frozenset[tuple[str, bool]]:
             nonlocal summed
-            free: set[tuple[str, bool]] = set()
-            for label in dict.fromkeys(label for label, _ in entries):
-                positions = [up for other, up in entries if other == label]
-                if len(positions) > 2:
-                    raise self._thrice(label, len(positions), span)
-                if len(positions) == 2 and positions[0] == positions[1]:
-                    raise self._twice(label, positions[0], span)
-                if len(positions) == 2:
-                    summed = True
-                else:
-                    free.add((label, positions[0]))
-            return frozenset(free)
+            try:
+                free, pairs = contraction(entries)
+            except Repeated as repeated:
+                raise self._repeated(repeated, span) from None
+            summed = summed or bool(pairs)
+            return free
 
         def side(node: ast.Expr) -> frozenset[tuple[str, bool]] | None:
             if _zero_literal(node):  # zero has whatever indices the other side has
