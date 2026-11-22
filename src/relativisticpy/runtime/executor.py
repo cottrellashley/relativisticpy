@@ -11,7 +11,7 @@ from typing import Any, TypeVar
 
 from relativisticpy.errors import InternalError, RelativisticPyError, debugging, translate
 from relativisticpy.ir import Node, ops
-from relativisticpy.runtime.kernels import execute
+from relativisticpy.runtime.kernels import execute, refuse_text
 from relativisticpy.tensors import numerical
 from relativisticpy.tensors.simplification import simplify_component
 
@@ -101,6 +101,7 @@ class Executor:
                 continue
             args = [known[arg.key] for arg in current.args]
             try:
+                refuse_text(current.op, args, current.args)  # SymPy would run it as Python
                 if isinstance(current.op, ops.Equation) and numerical.involves(args):
                     # numbers are decided to rounding error in what they were computed from
                     with numerical.operands(_operand_scale(current, known)):

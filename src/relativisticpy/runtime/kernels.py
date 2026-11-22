@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import cmath
 import math
+import operator
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 from functools import reduce, singledispatch
@@ -23,7 +24,7 @@ from relativisticpy import display
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
 from relativisticpy.errors import EvaluationError, MetricError
-from relativisticpy.ir import ops
+from relativisticpy.ir import Node, ops
 from relativisticpy.tensors import arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import is_zero
@@ -35,6 +36,35 @@ if TYPE_CHECKING:
 @singledispatch
 def execute(op: ops.Op, args: list[Any], executor: Executor) -> Any:
     raise NotImplementedError(f"no kernel for {type(op).__name__}")  # pragma: no cover
+
+
+def refuse_text(op: ops.Op, args: list[Any], nodes: Sequence[Node]) -> None:
+    """Refuse text written in a program where a value is computed with: SymPy reads a
+    string given to most of its functions as Python, and evaluates it, so that
+    ``sin('...')`` could run any program. Text is given only to what takes names, as
+    ``symbols('x y')`` and ``Minkowski('spherical')`` do, which never evaluate it. The
+    options RelativisticPy itself gives, such as the side of a limit, are not written in
+    the program, and so have no span."""
+    if isinstance(op, ops.Const):
+        return
+    func = getattr(op, "func", None)
+    if func is sympy.symbols or func is operator.getitem:
+        return
+    if getattr(func, "__module__", None) == "relativisticpy.spacetimes":
+        return
+    for value, node in zip(args, nodes, strict=True):
+        own = isinstance(value, str) and isinstance(node.op, ops.Const) and node.span is None
+        if _has_text(value) and not own:
+            raise EvaluationError(
+                "text in quotes is not a value to compute with",
+                hint="write the expression without quotes, as in sin(x) rather than sin('x')",
+            )
+
+
+def _has_text(value: Any) -> bool:
+    if isinstance(value, str):
+        return True
+    return isinstance(value, list | tuple) and any(_has_text(item) for item in value)
 
 
 @execute.register(ops.Const)

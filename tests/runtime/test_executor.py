@@ -173,3 +173,26 @@ def test_two_numbers_are_never_left_unevaluated():
     assert wb.expr(r"v^a v^b \delta_{ab} = 24") is sympy.false
     assert wb.expr(r"v^a v^b \delta_{ab} = 25") is sympy.true
     assert wb.expr(r"v^a v^b \delta_{ab} = x") == sympy.Eq(25.0, Symbol("x"))  # to solve
+
+
+@pytest.mark.parametrize(
+    "program",
+    [
+        "sin('__import__(\"os\").getcwd()')",
+        "diff('__import__(\"os\").getcwd()', x)",
+        "simplify('__import__(\"os\").getcwd()')",
+        "x := '__import__(\"os\").getcwd()'\nsin(x)",
+    ],
+)
+def test_text_in_quotes_runs_nothing(program, monkeypatch):
+    # SymPy reads a string it is given as Python, and runs it
+    calls = []
+    monkeypatch.setattr(os, "getcwd", lambda: calls.append(1) or "/")
+    with pytest.raises(EvaluationError, match="text in quotes is not a value"):
+        Workbook().exe(program)
+    assert calls == []
+
+
+def test_text_that_names_things_is_taken():
+    assert Workbook().expr("symbols('a b')") == (Symbol("a"), Symbol("b"))
+    assert Workbook().expr("\\lim_{x \\to 0} \\frac{\\sin x}{x}") == 1  # a side of a limit
