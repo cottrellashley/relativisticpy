@@ -1,0 +1,443 @@
+r"""The names books write with scripts, read by what each script labels
+(``design/notation.md``, 5 and 6), each reading recorded with why, and a note where
+another reading was possible:
+
+- a subscript that labels is part of the name, whatever the base: ``\lambda_1``,
+  ``\delta_0``, ``V_{10}``, ``M_\odot``, ``R_\oplus``, ``T_{\rm eff}``, ``r_+``,
+  ``h_\times``, and ``\sigma_x := ...`` where no space is declared for x. An index of a
+  tensor in force, or a label declared or ranging over values, stays an index, as in
+  ``T_{\mu\nu}``, ``g_{tt}`` and ``x_t`` over data; and a built-in tensor claims a
+  subscripted name only with as many indices as it has, or while a metric is in force;
+- on the left of ``:=`` a number or an order raised on a name is part of the name, as in
+  ``\sigma^2 := ...`` and ``\gamma^0 := ...``, and so is an accent, as in
+  ``\hat\beta_1 := ...``;
+- a name a program defines wins over any other reading of it, as ``R_\odot`` does over the
+  Ricci tensor; and ``^*`` on it, or on a call, is its complex conjugate.
+"""
+
+from __future__ import annotations
+
+import re
+from collections.abc import Sequence
+
+from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS
+from relativisticpy.compiler.passes import Term
+from relativisticpy.compiler.scope import (
+    Context,
+    FunctionBinding,
+    Scope,
+    TensorBinding,
+    VariableBinding,
+)
+from relativisticpy.errors import IndexNotationError
+from relativisticpy.ir import SCALAR, Node, TensorType
+from relativisticpy.language import syntax as ast
+from relativisticpy.language.parser import split_index_labels
+from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.reading.matrices import Matrices
+from relativisticpy.reading.names import _bracketed_order, _letter, _shown, _written_as_letter
+from relativisticpy.typing.syntax import _plain_label, _walk
+
+#: The decision of whether a script on a name labels it or indexes it.
+LABEL = "label or index"
+
+#: The commands written as subscripts that label a name and never index it, as the Sun's
+#: \odot does in M_\odot.
+_MARKS = frozenset(
+    {
+        "odot", "oplus", "earth", "sun", "star", "ast", "bullet", "circ", "times", "pm", "mp",
+        "dagger", "ddagger", "infty", "parallel", "perp", "prime", "max", "min",
+    }
+)  # fmt: skip
+
+#: How a script writes a word, as \rm does in T_{\rm eff}.
+_WORD = re.compile(r"\\(?:rm|mathrm|text[a-z]*|mbox|operatorname)(?![A-Za-z])")
+
+
+def _base_name(base: ast.Expr) -> str | None:
+    """The name a base with scripts is written as: ``lambda`` of ``\\lambda_1``,
+    ``betahat`` of ``\\hat\\beta_1``, ``x'`` of ``x'_1``; ``None`` for what is no name."""
+    if isinstance(base, ast.Name):
+        return base.id
+    if (
+        isinstance(base, ast.Accent)
+        and base.accent not in ("dot", "ddot")
+        and isinstance(base.base, ast.Name)
+    ):
+        return base.base.id + base.accent
+    if isinstance(base, ast.Prime):
+        return base.func.id + "'" * base.order
+    return None
+
+
+def _lowered(script: ast.Script) -> str:
+    """A subscript as the name it labels writes it: ``1`` of ``\\lambda_1``, ``10`` of
+    ``V_{10}``, ``odot`` of ``M_\\odot``, ``eff`` of ``T_{\\rm eff}``, ``+`` of ``r_+``,
+    ``times`` of ``h_\\times``."""
+    if script.indices is not None:
+        return "".join(
+            str(item.label)
+            if item.label is not None
+            else (item.value.text if isinstance(item.value, ast.Number) else "")
+            for item in script.indices.items
+        )
+    written = script.span.text.lstrip("_").strip()
+    if written.startswith("{") and written.endswith("}"):
+        written = written[1:-1]
+    return written.replace(" ", "").replace("\\", "")
+
+
+def _raised(script: ast.Script) -> str | None:
+    """A superscript that labels a name, as it writes the name: ``2`` of ``\\sigma^2``,
+    ``0`` of ``\\gamma^0``, ``(0)`` of ``E^{(0)}``; ``None`` for one that is no number or
+    order, as ``\\mu`` or ``-1``."""
+    body = script.body
+    if isinstance(body, ast.Number) and body.text.isdigit():
+        return body.text
+    if _bracketed_order(body):
+        assert body is not None
+        return body.span.text.replace(" ", "")
+    return None
+
+
+def label_name(node: ast.Scripted, *, raised: bool = True) -> str | None:
+    """The name a name with scripts makes where its scripts label it, those raised first,
+    as TeX sets ``E^{(0)}_n`` and ``E_n^{(0)}`` alike: ``lambda_1`` of ``\\lambda_1``,
+    ``sigma^2`` of ``\\sigma^2``, ``E^(0)_n`` of either, ``Y^1_2`` of ``Y_2^1``, whose
+    ``Y_2`` the lexer joins. With ``raised`` false, of its base and subscripts alone, as
+    ``lambda_1`` of ``\\lambda_1^2``. ``None`` where the base is no name, or a superscript
+    is no label."""
+    base = _base_name(node.base)
+    if base is None:
+        return None
+    head, underscore, joined = base.partition("_")
+    if not head:
+        return None
+    below = [joined] if underscore and joined else []
+    marks = ""
+    for script in node.scripts:
+        if script.kind == "_":
+            below.append(_lowered(script))
+        elif raised:
+            mark = _raised(script)
+            if mark is None:
+                return None
+            marks += "^" + mark
+    if not below and not marks:
+        return None
+    return head + marks + ("_" + "".join(below) if below else "")
+
+
+def _an_index_label(label: str) -> bool:
+    """Whether a label is written as an index is: a letter or a Greek letter, maybe primed
+    or numbered, as ``\\mu'``, ``\\mu_n`` and ``i0`` are, or ``\\cdots``; not a mark, as
+    ``odot``, nor a word, as ``eff``."""
+    if label == "⋯":
+        return True
+    if label in _MARKS:
+        return False
+    letters = re.sub(r"[0-9']", "", label.partition("_")[0])
+    return (len(letters) == 1 and letters.isascii() and letters.isalpha()) or letters in GREEK
+
+
+def _index_like(script: ast.Script) -> bool:
+    """Whether a subscript could be index labels or numbers, as those of ``R_{01}``,
+    ``g_{tt}`` and ``S_{\\mu'\\nu'}`` are; not a mark, as ``\\odot``, a word, as ``eff``
+    or ``{\\rm eff}``, nor what is no index list, as ``+`` or ``n+1``."""
+    if script.indices is None or _WORD.search(script.span.text):
+        return False
+    return all(
+        item.label is None or (_an_index_label(item.label) and item.label not in _MARKS)
+        for item in script.indices.items
+    )
+
+
+def _labelled_by_index(node: ast.Scripted) -> bool:
+    """Whether a subscript of a name is written with an index label, as ``\\mu`` and ``i``
+    are in ``\\bar h_{\\mu\\nu}`` and ``\\bar h_{i0}``, and the frame's index ``(\\mu)``
+    is in ``\\hat e_{(\\mu)}``, rather than with numbers, marks, signs and words alone."""
+    for script in node.scripts:
+        if script.kind != "_":
+            continue
+        if script.indices is None:
+            body = script.body
+            name = _base_name(body) if body is not None else None
+            if name is not None and _an_index_label(name):
+                return True
+        elif any(i.label is not None and _an_index_label(i.label) for i in script.indices.items):
+            return True
+    return False
+
+
+class Labels(Matrices):
+    """How the scripts on a name are read: as part of the name, or as its indices."""
+
+    def _value_or_notation(
+        self, node: ast.Expr, scope: Scope, ctx: Context, *, definition: bool = False
+    ) -> Node:
+        """A value, or notation kept as it is written, which the lowerer gives (see
+        :class:`~relativisticpy.lowering.notation.Notation`)."""
+        raise NotImplementedError
+
+    # -- what a script on a name is -----------------------------------------------------
+
+    def _an_index_here(self, label: str) -> bool:
+        """Whether a label is an index wherever it is written: declared to range over a
+        space, ranging over one in this statement, or bound as an index is by a sum."""
+        return label in self._labels or label in self.session.labels or label in self._bound
+
+    def _indexes(self, node: ast.Scripted, base: str) -> bool:
+        """Whether the subscripts of a name nothing defines are indices (decision 5 of
+        design/notation.md): a label declared or ranging over a space; of a built-in
+        tensor, as many as it has, any index label, as \\nu' of ``W_{\\nu'}``, and numbers
+        while a metric is in force, as in ``R_{01}``. Numbers without a metric, marks and
+        words label it, as in ``\\delta_0`` and ``R_\\odot``."""
+        items = [
+            item
+            for script in node.scripts
+            if script.indices is not None
+            for item in script.indices.items
+        ]
+        if any(item.label is not None and self._an_index_here(item.label) for item in items):
+            return True
+        if not any(self._builtin_tensor(base, rank) for rank in range(1, 5)):
+            return False
+        indexed = all(s.indices is not None for s in node.scripts)
+        if indexed and self._builtin_tensor(base, len(items)) is not None:
+            return True
+        if _labelled_by_index(node):
+            return True
+        lowered = [s for s in node.scripts if s.kind == "_"]
+        return self.session.metric is not None and all(map(_index_like, lowered))
+
+    # -- names in expressions -------------------------------------------------------------
+
+    def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
+        if ctx.latex and (run := self._run_with_a_label(node, scope, ctx)) is not None:
+            return run
+        return super()._Name(node, scope, ctx)
+
+    def _run_with_a_label(self, node: ast.Name, scope: Scope, ctx: Context) -> Node | None:
+        """In LaTeX, ``iE_1``, a run of letters that names nothing, with a subscript: as TeX
+        sets it, the subscript binds to the last letter, i times E_1 (decision 5.7 of
+        design/notation.md). ``None`` for any other name."""
+        if scope.lookup(node.id) is not None:
+            return None
+        run, underscore, subscript = node.id.partition("_")
+        if not (underscore and subscript and len(run) > 1 and run.isalpha() and run.isascii()):
+            return None
+        known = run in BUILTINS or run in CONSTANTS or scope.lookup(run) is not None
+        if known or run in self.session.names.values():
+            return None
+        if any(self._builtin_tensor(run, rank) for rank in range(5)):
+            return None
+        letters = split_index_labels(run)
+        if len(letters) < 2:
+            return None
+        last = f"{letters[-1]}_{subscript}"
+        why = "in LaTeX a subscript binds to the last letter of a run that names nothing"
+        self._decide("letters", node.span, f"{' '.join(letters[:-1])} times {last}", why)
+        factors = [
+            _letter(letter, node.span, first=position == 0)
+            for position, letter in enumerate(letters[:-1])
+        ]
+        factors.append(ast.Name(last, span=node.span))
+        return self._multiply([self.value(factor, scope, ctx) for factor in factors], node.span)
+
+    def _labelled(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term | None:
+        """A name with scripts read as a name of its own (decision 5): one the program
+        defines, as ``\\lambda_1`` after ``\\lambda_1 := ...``, with what is raised on it
+        after, as the power of ``\\lambda_1^2``; or one nothing defines whose base claims
+        its subscripts for nothing else, as ``R_\\odot`` without a metric, or whose base
+        is an accent, as ``\\hat\\beta_1``. ``None`` where the scripts are read otherwise:
+        as indices, an element or a power, or, of a name nothing defines, as before."""
+        lowered = any(script.kind == "_" for script in node.scripts)
+        readings = [raised for raised in (True, False) if raised or lowered]
+        for raised in readings:  # \sigma^2 or \lambda_1^2 as the program names them
+            name = label_name(node, raised=raised)
+            if name is None or scope.lookup(name) is None:
+                continue
+            rest = () if raised else tuple(s for s in node.scripts if s.kind == "^")
+            return self._named_label(node, name, rest, scope, ctx)
+        if not lowered:
+            return None
+        base = _base_name(node.base)
+        if base is None or scope.lookup(base) is not None:
+            return None  # the scripts of what is defined: an index, an element, a power
+        if isinstance(node.base, ast.Name):
+            built_in = any(self._builtin_tensor(base, rank) for rank in range(1, 5))
+            if not built_in or self._indexes(node, base):
+                return None  # \lambda_1 is a symbol of its own, as before
+        elif not isinstance(node.base, ast.Accent) or _labelled_by_index(node):
+            return None  # \bar h_{\mu\nu} is written with indices, which no name has
+        name = label_name(node, raised=False)
+        if name is None:
+            return None
+        rest = tuple(s for s in node.scripts if s.kind == "^")
+        return self._named_label(node, name, rest, scope, ctx)
+
+    def _named_label(
+        self,
+        node: ast.Scripted,
+        name: str,
+        rest: Sequence[ast.Script],
+        scope: Scope,
+        ctx: Context,
+    ) -> Term:
+        """The name a name with scripts makes, with what is raised on it after: a power, a
+        mark, as ``T`` and ``\\dagger`` are on a matrix, or ``*``, its conjugate."""
+        written = node.base.span.text + "".join(
+            script.span.text for script in node.scripts if script not in rest
+        )
+        binding = scope.lookup(name)
+        if binding is not None:
+            why = f"{written} is defined{self._line_of(binding)}"
+        else:
+            base = _shown(_base_name(node.base) or "", ctx.latex)
+            why = f"its subscript labels {base}, which is no tensor here"
+        self._decide(LABEL, node.span, f"the name {written}", why, written=written)
+        named = ast.Name(name, verbatim=True, span=node.span)
+        if not rest:
+            return self.term(named, scope, ctx)
+        if (conjugate := self._starred(node, named, rest, scope, ctx)) is not None:
+            return conjugate
+        return self.term(ast.Scripted(named, tuple(rest), span=node.span), scope, ctx)
+
+    def _starred(
+        self,
+        node: ast.Scripted,
+        operand: ast.Expr,
+        rest: Sequence[ast.Script],
+        scope: Scope,
+        ctx: Context,
+    ) -> Node | None:
+        """``\\psi_1(x)^*`` or ``\\psi_{200}^*``: the complex conjugate of a call or of a
+        number the program defines (decision 6.4 of design/notation.md), where SymPy would
+        raise it to the power of a symbol named *; ``None`` for any other script."""
+        if len(rest) != 1 or not _a_star(rest[0]):
+            return None
+        value = self.value(operand, scope, ctx)
+        if value.type != SCALAR:
+            return None
+        why = f"{operand.span.text} has a value, and * on it is its complex conjugate"
+        self._decide(LABEL, node.span, f"the complex conjugate of {operand.span.text}", why)
+        return self._call("conjugate", [value], SCALAR, node.span)
+
+    def _starred_conjugate(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
+        """``\\psi_1(x)^*`` or ``z^*`` after ``z := 1 + i``: the complex conjugate of what a
+        call gives, or of a number the program defines; ``None`` for anything else, as
+        ``r^*``, a name of its own where r means nothing."""
+        base = node.base
+        named = isinstance(base, ast.Name) and isinstance(scope.lookup(base.id), VariableBinding)
+        if not (isinstance(base, ast.Call) or named):
+            return None
+        return self._starred(node, base, node.scripts, scope, ctx)
+
+    def _check_statistic_name(self, factor: ast.Expr, scope: Scope) -> None:
+        """A Greek letter with a subscript, as ``\\sigma_1``, or a name with a subscript the
+        program defines, is no statistic misspelt, nor an operator RelativisticPy lacks."""
+        if isinstance(factor, ast.Scripted) and isinstance(factor.base, ast.Name):
+            name = label_name(factor)
+            defined = name is not None and scope.lookup(name) is not None
+            if defined or _written_as_letter(factor.base):
+                return
+        super()._check_statistic_name(factor, scope)
+
+    @staticmethod
+    def _line_of(binding: object) -> str:
+        """`` on line 3``, where a binding was defined, if that is known."""
+        if isinstance(binding, FunctionBinding):
+            return f" on line {binding.definition.span.line}"
+        if isinstance(binding, VariableBinding | TensorBinding) and binding.node.span is not None:
+            return f" on line {binding.node.span.line}"
+        return ""
+
+    # -- definitions --------------------------------------------------------------------
+
+    def _define_labelled(
+        self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context
+    ) -> bool:
+        """Define what a name with scripts labels, where they are no indices (decisions 5
+        and 6): ``\\lambda_1 := ...``, ``r_+ := ...``, ``\\sigma^2 := ...``,
+        ``\\hat\\beta_1 := ...``, and ``\\sigma_x := ...`` with no space declared for x. A
+        definition whose scripts are indices, as of ``T^{\\mu\\nu}`` or of ``v_a`` with a
+        declared over a space, is a tensor's, and left to it: ``False`` then."""
+        if not isinstance(target, ast.Scripted):
+            return False
+        base = _base_name(target.base)
+        if base is None or base == self.session.names["metric"]:
+            return False
+        name = label_name(target)
+        if name is None or not self._labels_a_definition(target, value):
+            return False
+        written = target.span.text
+        raised = any(script.kind == "^" for script in target.scripts)
+        why = "its scripts label it, as no index does"
+        note = None
+        if raised:
+            shown = _shown(base.partition("_")[0], ctx.latex)
+            why = "what is raised on a name being defined is part of it"
+            note = f"{written} is defined as a name of its own, not as a power of {shown}"
+            self._note(note)
+        self._decide(LABEL, target.span, f"the name {written}", why, note, written=written)
+        node = self._value_or_notation(value, scope, ctx, definition=True)
+        if isinstance(node.type, TensorType):  # \Psi_2 := C_{abcd} l^a m^b \bar m^c n^d
+            free = self._written_indices(node.type.indices)
+            raise IndexNotationError(
+                f"{written} is a name of its own, with no indices, but its value has the free "
+                f"indices {free}",
+                span=value.span,
+                notes=["a name with a label, as a number below it, is no tensor"],
+                hint="contract every index of the value, or define a tensor with its indices",
+            )
+        scope.bind(name, VariableBinding(node))
+        return True
+
+    def _labels_a_definition(self, target: ast.Scripted, value: ast.Expr) -> bool:
+        """Whether the scripts of a name being defined label it rather than index a tensor:
+        a number, a mark, a sign or a word below, a number or an order above, or one Latin
+        letter below that can be no index, with no coordinates
+        and no space declared for it, and a matrix as the value, as x of
+        ``\\sigma_x := \\begin{pmatrix} ... \\end{pmatrix}``: a vector of one index has no
+        matrix as its components."""
+        items = [
+            item
+            for script in target.scripts
+            if script.indices is not None
+            for item in script.indices.items
+        ]
+        if any(item.label is not None and self._an_index_here(item.label) for item in items):
+            return False
+        if any(s.kind == "^" and _raised(s) is None for s in target.scripts):
+            return False  # T^{\mu\nu}, k'^\mu: indices
+        if any(s.kind == "_" and not _index_like(s) for s in target.scripts):
+            return True  # r_+, h_\times, M_\odot, T_{\rm eff}
+        if any(item.label is None and isinstance(item.value, ast.Number) for item in items):
+            return True  # \lambda_1, V_{10}, \sigma^2; but T_{a=0} is a component
+        if not all(_plain_label(item) for item in items):
+            return False
+        labels = [str(item.label) for item in items]
+        if len(labels) != 1 or not isinstance(target.base, ast.Name):
+            return False  # T_{ab}, \bar h_{\mu\nu}: indices
+        if labels[0] in GREEK or not labels[0].isascii():
+            return False
+        return _writes_a_matrix(value) and self.session.coordinates is None
+
+
+def _writes_a_matrix(value: ast.Expr) -> bool:
+    """Whether a value is written with a matrix of more than one row and column, which no
+    tensor with one index has as its components: ``\\begin{pmatrix} 0 & 1 \\\\ 1 & 0
+    \\end{pmatrix}`` or ``[[0, 1], [1, 0]]``, maybe times a number."""
+    for node in _walk(value):
+        if isinstance(node, ast.Matrix) and len(node.rows) > 1 and len(node.rows[0]) > 1:
+            return True
+        rows = node.items if isinstance(node, ast.List) and len(node.items) > 1 else ()
+        if rows and all(isinstance(row, ast.List) and len(row.items) > 1 for row in rows):
+            return True
+    return False
+
+
+def _a_star(script: ast.Script) -> bool:
+    """Whether a superscript is a star, ``^*`` or ``^{*}``."""
+    body = script.body
+    return script.kind == "^" and isinstance(body, ast.Name) and body.verbatim and body.id == "*"

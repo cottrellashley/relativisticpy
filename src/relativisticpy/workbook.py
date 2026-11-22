@@ -53,6 +53,7 @@ from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.syntax import Program
 from relativisticpy.language.tokens import Token
 from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS
+from relativisticpy.reading.families import Family
 from relativisticpy.reading.readings import Explanation
 from relativisticpy.runtime import Executor
 from relativisticpy.runtime.kernels import differs
@@ -1033,8 +1034,13 @@ def _definition(name: str, binding: Any) -> Definition:
     """What a binding of ``name`` is, as :meth:`Workbook.names` lists it."""
     written = latex_label(name)
     if isinstance(binding, FunctionBinding):
-        parameters = ", ".join(latex_label(p) for p in binding.definition.params)
-        return Definition("function", f"{written}({parameters})", binding.definition.span)
+        definition = binding.definition
+        family = isinstance(definition, Family)
+        params = definition.params[1:] if family else definition.params
+        if family and not params:  # c_n := 1/n^2, a family of values
+            return Definition("value", written, definition.span)
+        parameters = ", ".join(latex_label(p) for p in params)
+        return Definition("function", f"{written}({parameters})", definition.span)
     span = binding.node.span
     if isinstance(binding, TensorBinding):
         return Definition("tensor", written + _public(binding.indices).latex(), span)

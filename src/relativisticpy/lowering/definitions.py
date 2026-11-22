@@ -72,6 +72,8 @@ class Definitions(Expressions):
             self._define_now(target, value, scope, ctx)
 
     def _define_now(self, target: ast.Expr, value: ast.Expr, scope: Scope, ctx: Context) -> None:
+        if self._define_family(target, value, scope, ctx):  # c_n := ..., \psi_n(x) := ...
+            return
         target = _named(target)
         if isinstance(target, ast.Prime):  # t' = ..., a name of its own
             primed = target.func.id + "'" * target.order
@@ -110,6 +112,8 @@ class Definitions(Expressions):
         if _bold_one(target):  # \mathbf{1} := ..., the program's own, which wins (decision 23)
             ones = self._value_or_notation(value, scope, ctx, definition=True)
             scope.bind(BOLD_ONE, VariableBinding(ones))
+            return
+        if self._define_labelled(target, value, scope, ctx):  # \lambda_1, r_+, \sigma^2
             return
         if isinstance(target, _UNDEFINABLE):  # \psi_n(x), \Delta\phi, \langle p, q \rangle
             raise self._cannot_define(target, value)
@@ -157,6 +161,8 @@ class Definitions(Expressions):
                 f"{shown} calls itself, and recursive functions are not supported",
                 span=definition.span,
             )
+        if self._define_function_family(definition, scope, ctx):  # psi_n(x) := \sin(n x)
+            return
         binding = FunctionBinding(definition, scope)
         with self._atomically():
             if self._written_in_metric(name):

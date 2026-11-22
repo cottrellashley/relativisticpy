@@ -27,19 +27,6 @@ class TestColonEqualsDefinesOrRefuses:
     """Guard 1: ``:=`` defines, or is refused saying how its left side was read; it never
     makes an equation, as ``\\psi_n(x) := ...`` made Eq(psi_n x, ...) and defined nothing."""
 
-    def test_a_subscripted_function_is_refused_with_its_family(self, wb):
-        found = error(wb, r"\psi_n(x) := \sin(n x)")
-        assert found.message == r"cannot define \psi_n(x), which is read as \psi_n times x"
-        assert found.notes[0] == (
-            r"a name with a subscript, a superscript or an accent, as \psi_n, is not yet the "
-            "name of a function, nor of a family of them"
-        )
-        assert found.hint == (
-            r"define a function of n too, as in \psi(n, x) := ..., and write \psi(1, x) for "
-            r"\psi_1(x)"
-        )
-        assert wb.expr(r"\psi(n, x) := \sin(n x)" "\n" r"\psi(1, x)") == sympy.sin(x)
-
     def test_a_function_with_a_superscript(self, wb):
         found = error(wb, r"Y_2^1(\theta, \phi) := \sin\theta")
         assert found.message == (
@@ -91,12 +78,12 @@ class TestColonEqualsDefinesOrRefuses:
         assert wb.expr(r"H(e^{i\omega})") == 1 + 2 * sympy.exp(-sympy.I * sympy.Symbol("omega"))
 
     def test_nothing_is_defined_and_the_reading_says_how_it_was_read(self, wb):
-        source = r"\psi_n(x) := \sin(n x)"
+        source = r"\omega_e x_e := 52.8"
         assert decisions(wb, source, "product or call") == [
             (
-                r"\psi_n(x)",
-                r"\psi_n times x",
-                r"\psi_n is not a function: a name with scripts is a symbol",
+                r"\omega_e x_e",
+                r"\omega_e times x_e",
+                "in LaTeX names written side by side multiply",
             )
         ]
         assert wb.explain(source)[0].error is not None
@@ -273,34 +260,11 @@ class TestPairsAreNotScalars:
 
 
 class TestScriptedNamesWhoseBaseIsDefined:
-    """Guard 3: a subscripted name nothing defines, whose base is defined so that it means a
-    member or an element, is refused, where it was a symbol of its own: c_1 after c_n, x_i
-    of a list summed over i, a recurrence, f^{(4)} of a function, k_{1\\mu} beside k_1^\\mu."""
-
-    def test_a_member_of_a_family(self, wb):
-        wb.exe("c_n := 1/n^2")
-        found = error(wb, "c_1")
-        assert (
-            found.message
-            == "c_1 names nothing, and c_n is a family in n, which is not supported yet"
-        )
-        assert found.notes == [
-            "read as written, c_1 would be a symbol of its own, not c_n at n = 1"
-        ]
-        assert (
-            found.hint == "define c as a function of n, as in c(n) := ..., and write c(1) for c_1"
-        )
-        assert wb.expr("c(n) := 1/n^2\nc(1)") == 1  # the hint works
-
-    def test_members_written_in_latex(self, wb):
-        wb.exe(r"E_k := \alpha + 2\beta \cos\frac{2\pi k}{6}")
-        found = error(wb, r"E_\pi := 2E_0 + 2E_1 + 2E_{-1}")
-        assert found.message.startswith("E_0 names nothing, and E_k is a family in k")
-        wb.exe("a_n := n^2")
-        found = error(wb, r"\frac{a_{n+1}}{a_n}")
-        assert found.hint == (
-            "define a as a function of n, as in a(n) := ..., and write a(n+1) for a_{n+1}"
-        )
+    """Guard 3: a subscripted name nothing defines, whose base is defined so that it means
+    an element, is refused, where it was a symbol of its own: x_i of a list summed over i,
+    f^{(4)} of a function, k_{1\\mu} beside k_1^\\mu, and a recurrence in a label that means
+    something already. A member of a family, and a recurrence, are read
+    (tests/reading/test_families.py)."""
 
     def test_names_that_are_no_members_are_symbols(self, wb):
         x_0, v, y = sympy.symbols("x_0 v x")
@@ -329,27 +293,17 @@ class TestScriptedNamesWhoseBaseIsDefined:
         space = "\\mathcal{N} := \\mathbb{R}^{8}\ni \\in \\mathcal{N}\n"
         assert wb.expr(space + "x^i := [2, 4, 4, 4, 5, 5, 7, 9]\nx^i 1_i") == 40
 
-    @pytest.mark.parametrize(
-        ("source", "message"),
-        [
-            (
-                "T_0 = 0\nT_n = 2 T_{n-1} + 1, \\quad n > 0",
-                "T_n is defined by a recurrence, through T_{n-1}, which is not supported yet",
-            ),
-            (
-                "p_0 := \\frac{\\pi}{4}\np_n := p_{n-1} - 1",
-                "p_n is defined by a recurrence, through p_{n-1}, which is not supported yet",
-            ),
-            (
-                "C_0 = 1\nC_{n+1} = \\sum_{k=0}^{n} C_k C_{n-k}",
-                "C_{n+1} is defined by a recurrence, through C_{n-k}, which is not supported yet",
-            ),
-        ],
-    )
-    def test_a_recurrence(self, wb, source, message):
-        found = error(wb, source)
-        assert found.message == message
-        assert found.hint.startswith("give it in closed form, as a function of n:")
+    def test_a_recurrence_in_a_label_that_means_something(self, wb):
+        found = error(wb, "n := 3\np_0 := 1\np_n := p_{n-1} - 1")
+        assert found.message == (
+            "p_n is written with its own members, as a recurrence in n is, but n already "
+            "means something here"
+        )
+        assert (
+            found.hint
+            == "write the recurrence with a label that means nothing yet, as in p_k := ..."
+        )
+        assert wb.expr("p_k := p_{k-1} - 1\np_{5}") == -4  # the hint works
 
     def test_an_order_on_a_function(self, wb):
         wb.exe(r"f(x) := \sec x")

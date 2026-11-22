@@ -32,7 +32,7 @@ from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.integrations import _optimizers as optima
-from relativisticpy.runtime import core, notation
+from relativisticpy.runtime import core, notation, recurrences
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
@@ -186,6 +186,7 @@ def _core() -> Iterator[Implementation]:
     yield entry("core.time_derivative", core.time_derivative, "argument", 2, 2, componentwise=True)
     # functions, relations and logic
     yield entry("core.function", core.function, "scalar")
+    yield entry("core.recurrence", recurrences.member, "argument", 3)
     yield entry("core.lt", core.less, "scalar", 2, 2)
     yield entry("core.gt", core.greater, "scalar", 2, 2)
     yield entry("core.le", core.less_equal, "scalar", 2, 2)

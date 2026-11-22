@@ -303,6 +303,7 @@ class Expressions(LinearAlgebra):
         if ctx.latex:
             factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]
+        factors = self._calls_of_names(factors, scope)  # \psi_n(x), of the program's own
         factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call
         grouped = self._statistic_factors(factors, scope, ctx)
         grouped = self._ones_vectors(grouped, scope, ctx)  # \mathbf{1}^T A \mathbf{1}
@@ -460,6 +461,8 @@ class Expressions(LinearAlgebra):
         func = node.func
         if isinstance(func, ast.Prime):
             return self._prime(func, node.args, node.span, scope, ctx)
+        if (member := self._member_call(node, scope, ctx)) is not None:  # \psi_3(x)
+            return member
         if not isinstance(func, ast.Name):  # J_{\nu}(x), made one call by the reader
             book = self._book_call(node, scope)
             assert book is not None
@@ -835,6 +838,8 @@ class Expressions(LinearAlgebra):
         return self._call("integrate", [integrand, *limits], _passed(integrand.type), node.span)
 
     def _BigOperator(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node:
+        if (each := self._term_by_term(node, scope, ctx)) is not None:  # \lambda_a, defined
+            return each
         if node.lower is None or node.upper is None:
             hint = f"for example \\{node.op}_{{n=0}}^{{N}} a_n"
             label = node.variable.id if isinstance(node.variable, ast.Name) else None
@@ -1070,6 +1075,10 @@ class Expressions(LinearAlgebra):
             return self._capability(book, node.span, scope, ctx)
         if (matrix := self._matrix_scripted(node, scope, ctx)) is not None:  # A^T, \|A\|_2
             return matrix
+        if (labelled := self._labelled(node, scope, ctx)) is not None:  # \lambda_1, R_\odot
+            return labelled
+        if (conjugate := self._starred_conjugate(node, scope, ctx)) is not None:  # f(x)^*, z^*
+            return conjugate
         if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
             node = named  # R'_{\mu\nu}: the tensor R'
         decorated = _named(node)
