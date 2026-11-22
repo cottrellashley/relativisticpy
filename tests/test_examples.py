@@ -1,5 +1,10 @@
-"""Every example runs, and finds what its text says it finds."""
+"""Every example runs, finds what its text says it finds, and is shown on the docs'
+page of examples as it runs."""
 
+import contextlib
+import functools
+import importlib.util
+import io
 import re
 import runpy
 from pathlib import Path
@@ -15,12 +20,31 @@ from relativisticpy.documents import strip_comments
 ROOT = Path(__file__).parent.parent
 EXAMPLES = ROOT / "examples"
 DESIGN = ROOT / "design"
+TOOL = ROOT / "tools" / "examples.py"
 t = Symbol("t")
 
 
 def run(name):
     with Workbook() as wb:
         return wb.run_file(EXAMPLES / name)
+
+
+@functools.cache
+def tool():
+    """tools/examples.py, which writes the docs' page of examples."""
+    spec = importlib.util.spec_from_file_location("tools_examples", TOOL)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@functools.cache
+def printed(name):
+    """What a Python example prints, run once for every test that reads it."""
+    output = io.StringIO()
+    with contextlib.redirect_stdout(output):
+        runpy.run_path(str(EXAMPLES / name), run_name="__main__")
+    return output.getvalue()
 
 
 def examples(folder):
@@ -88,10 +112,9 @@ def test_geodesics():
     assert euler_lagrange_is_geodesic
 
 
-def test_light(capsys):
+def test_light():
     pytest.importorskip("scipy")
-    runpy.run_path(str(EXAMPLES / "light.py"), run_name="__main__")
-    output = capsys.readouterr().out
+    output = printed("light.py")
     assert "bent by 0.04122 rad" in output
     assert "captured below b = 5.19615M" in output
 
@@ -105,11 +128,22 @@ def test_spins():
     assert evolution.components.tolist() == [[phase, 0], [0, 1 / phase]]
 
 
-def test_portfolio(capsys):
-    runpy.run_path(str(EXAMPLES / "portfolio.py"), run_name="__main__")
-    output = capsys.readouterr().out
+def test_portfolio():
+    pytest.importorskip("scipy")
+    output = printed("portfolio.py")
     assert "the tangency portfolio's weights sum to 1.000000" in output
     assert "5 eigenvalues stand above the Marchenko–Pastur edge of 2.09" in output
+
+
+@pytest.mark.skipif(not TOOL.is_file(), reason="the page is written from the source tree")
+def test_the_page_of_examples_shows_each_as_it_runs():
+    pytest.importorskip("scipy")
+    names = [name for name, _ in tool().examples()]
+    assert sorted(names) == sorted(examples(EXAMPLES))
+    page = tool().page({name: printed(name) for name in names if name.endswith(".py")})
+    assert (ROOT / "docs" / "examples.md").read_text(encoding="utf-8") == page, (
+        "docs/examples.md is out of date: write it again with uv run python tools/examples.py"
+    )
 
 
 def test_the_design_of_spaces_shows_the_notation_implemented():
