@@ -362,3 +362,91 @@ class TestScriptedNamesWhoseBaseIsDefined:
         )
         assert found.hint == r"write k_1{}_{\mu}"
         assert wb.expr(r"k_1^\mu k_1{}_{\mu}") == 0  # the hint works: a null vector
+
+
+class TestOperatorsReadWithAnotherMeaning:
+    """Guard 4: an operator the lexer reads as a product, a measure, a derivative or an
+    exponential that would be computed with another meaning is refused until it is built:
+    \\otimes of matrices, \\times of unit vectors nothing defines, d\\Omega, the derivative of
+    a list, a Jacobian, the exponential of a matrix, and the bracket of two matrices."""
+
+    SIGMA_X = r"\begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix}"
+    SIGMA_Y = r"\begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix}"
+
+    def test_a_kronecker_product(self, wb):
+        found = error(wb, rf"{self.SIGMA_X} \otimes {self.SIGMA_Y}")
+        assert found.message.endswith(
+            "is read as their matrix product, not as their Kronecker product"
+        )
+        assert found.notes == ["the Kronecker product of matrices is not supported yet"]
+        wb.exe("Coordinates := [t, x]\nA_{ab} := [[1, 2], [3, 4]]")
+        assert wb.expr(r"A_{ab} \otimes A_{cd}").components.shape == (2, 2, 2, 2)  # with indices
+
+    def test_a_cross_product_of_unit_vectors(self, wb):
+        wb.exe(r"\mathbf{E} := E_0 \hat{\mathbf{x}}" "\n" r"\mathbf{B} := B_0 \hat{\mathbf{y}}")
+        found = error(wb, r"\mathbf{E} \times \mathbf{B}")
+        assert found.message == (
+            r"\mathbf{E} \times \mathbf{B} is read as a product of symbols, not as a cross "
+            r"product: \hat{x} and \hat{y} name nothing"
+        )
+        assert wb.expr(r"2 \times 10^{-5}") == sympy.Rational(1, 50000)  # numbers multiply
+
+    def test_a_solid_angle(self, wb):
+        found = error(wb, r"\int d\Omega \, \frac{\alpha^2}{4s} \left(1 + \cos^2\theta\right)")
+        assert found.message == (
+            r"d\Omega is read as the differential of a variable \Omega the integrand does not "
+            r"mention, so the integral would be \Omega times it"
+        )
+        alpha, s = sympy.symbols("alpha s")
+        over_angles = (
+            r"\int_0^{2\pi} \int_0^{\pi} \frac{\alpha^2}{4s} \left(1 + \cos^2\theta\right) "
+            r"\sin\theta \, d\theta \, d\phi"
+        )
+        assert wb.expr(over_angles) == 4 * sympy.pi * alpha**2 / (3 * s)  # the hint works
+
+    def test_the_derivative_of_a_list(self, wb):
+        wb.exe(r"\mathbf{x} := [r \cos\theta, r \sin\theta, z]")
+        found = error(wb, r"\partial_\theta \mathbf{x}")
+        assert found.message == r"the derivative of a list by \theta is not taken yet"
+        assert found.hint == (
+            r"give the list an index over a space, as in x^i with i \in \mathcal{E} := "
+            r"\mathbb{R}^{3}, and differentiate that: \frac{\partial}{\partial \theta} x^i"
+        )
+        space = "\\mathcal{E} := \\mathbb{R}^{3}\ni \\in \\mathcal{E}\n"
+        derivative = wb.expr(
+            space + r"x^i := [r \cos\theta, r \sin\theta, z]"
+            "\n"
+            r"\frac{\partial}{\partial \theta} x^i"
+        )
+        r, theta = sympy.symbols("r theta")
+        assert derivative.components == sympy.Array(
+            [-r * sympy.sin(theta), r * sympy.cos(theta), 0]
+        )
+
+    def test_a_jacobian(self, wb):
+        wb.exe(r"x := r \cos\theta" "\n" r"y := r \sin\theta")
+        found = error(wb, r"\frac{\partial(x, y)}{\partial(r, \theta)}")
+        assert found.message.endswith(
+            "is read as the derivative of a list by a list, not as a Jacobian"
+        )
+        assert wb.expr(found.hint.removeprefix("write the Jacobian as a determinant: ")) == (
+            sympy.Symbol("r")
+        )
+
+    def test_the_exponential_of_a_matrix(self, wb):
+        wb.exe(r"A := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}")
+        for written in (r"e^{A t}", r"\exp(2 A)"):
+            assert error(wb, written).message == (
+                f"{written} is the exponential of a matrix, which is not computed yet"
+            )
+
+    def test_the_bracket_of_two_matrices(self, wb):
+        wb.exe(f"K_1 := {self.SIGMA_X}\nK_2 := {self.SIGMA_Y}")
+        found = error(wb, "[K_1, K_2]")
+        assert (
+            found.message == "[K_1, K_2] is read as a list of two matrices, not as their commutator"
+        )
+        assert found.hint == "for the commutator, write K_1 K_2 - K_2 K_1"
+        assert error(wb, r"\{K_1, K_2\}").hint == "for the anticommutator, write K_1 K_2 + K_2 K_1"
+        commutator = wb.expr("K_1 K_2 - K_2 K_1")  # the hint works
+        assert sympy.Matrix(commutator) == sympy.Matrix([[2 * sympy.I, 0], [0, -2 * sympy.I]])

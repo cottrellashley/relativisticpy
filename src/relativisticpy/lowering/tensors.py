@@ -23,6 +23,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.notation import Notation
+from relativisticpy.reading.names import _elements
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space, spacetime
 from relativisticpy.typing.notation import _passed
@@ -410,6 +411,9 @@ class Tensors(Notation):
         self, operand: Node, item: ast.IndexItem, upper: bool, covariant: bool, span: Span
     ) -> Node:
         """``∂_μ X`` or ``∇_μ X``: the derivative gets the first axis."""
+        if _elements(operand) is not None:  # \partial_\theta \mathbf{x} of a list x
+            by = self._written_label(item.label) if item.label else None
+            raise self._derivative_of_a_list(operand, [], span, by)
         if (
             self.session.coordinates is None
             and item.label
@@ -477,6 +481,8 @@ class Tensors(Notation):
         return self.graph.add(ops.Add(signs), [t for _, t in terms], kind, span)
 
     def _differentiate(self, expr: Node, variables: Sequence[tuple[Node, int]], span: Span) -> Node:
+        if any(_elements(node) is not None for node in (expr, *(v for v, _ in variables))):
+            raise self._derivative_of_a_list(expr, [v for v, _ in variables], span)
         vectors = [v for v, _ in variables if isinstance(v.type, TensorType)]
         if vectors:
             vector = vectors[0]

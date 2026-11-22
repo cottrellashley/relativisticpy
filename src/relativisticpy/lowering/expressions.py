@@ -49,6 +49,7 @@ from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.linalg import LinearAlgebra
 from relativisticpy.reading.names import (
     _LINEAR_ALGEBRA,
+    _a_matrix,
     _a_pair,
     _an_index,
     _bracketed_order,
@@ -276,6 +277,8 @@ class Expressions(LinearAlgebra):
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
         if _in_angle_brackets(node) and "|" in node.span.text:  # \langle 0 | T\{...\} | 0 \rangle
             raise self._bra_ket(node)
+        if any(sign in node.span.text for sign in ("times", "×", "⊗")):  # \otimes, \times
+            self._check_product_signs(node, scope, ctx)
         factors: list[ast.Expr] = []
         left: ast.Expr = node
         while isinstance(left, ast.Binary) and left.op == "*":
@@ -383,6 +386,9 @@ class Expressions(LinearAlgebra):
             )
         if isinstance(exponent.type, TensorType):
             raise IndexNotationError("cannot raise to the power of a tensor", span=span)
+        euler = isinstance(base.op, ops.Const) and base.op.value is sympy.E
+        if euler and _a_matrix(exponent):  # e^{A t} of a matrix A
+            raise self._exponential_of_a_matrix(span)
         kind = (
             VALUE if any(isinstance(t, ValueType) for t in (base.type, exponent.type)) else SCALAR
         )
@@ -559,6 +565,8 @@ class Expressions(LinearAlgebra):
         pair = next((arg for arg in args if _a_pair(arg)), None)
         if pair is not None and builtin.name in _of_numbers():  # \sqrt{(a, b)}
             raise self._function_of_a_pair(builtin.name, pair, span)
+        if builtin.name == "exp" and args and _a_matrix(args[0]):  # \exp of a matrix
+            raise self._exponential_of_a_matrix(span)
         if builtin.componentwise:  # each component of the first tensor among the arguments
             lifted = next((k for k, a in enumerate(args) if isinstance(a.type, TensorType)), None)
             if lifted is not None:
@@ -767,6 +775,7 @@ class Expressions(LinearAlgebra):
             upper = self.value(bound.upper, scope, ctx)
             limits.append(self._call("core.limits", [symbol, lower, upper], VALUE, bound.span))
         integrand = self.value(node.integrand, inner, ctx)
+        self._check_measure(node, integrand, scope)
         if isinstance(integrand.type, TensorType):
             return self.graph.add(
                 ops.Map("integrate"), [integrand, *limits], integrand.type, node.span
@@ -949,12 +958,17 @@ class Expressions(LinearAlgebra):
 
     def _List(self, node: ast.List, scope: Scope, ctx: Context) -> Node:
         items = [self.value(item, scope, ctx) for item in node.items]
+        if len(items) == 2 and all(_a_matrix(item) for item in items):  # [K_1, K_2]
+            raise self._matrices_in_brackets(node, node.items)
         return self._call("core.list", items, VALUE, node.span)
 
     def _Tuple(self, node: ast.Tuple, scope: Scope, ctx: Context) -> Node:
         if _in_angle_brackets(node) and len(node.items) > 1:  # \langle u, v \rangle
             raise self._inner_product(node)
         items = [self.value(item, scope, ctx) for item in node.items]
+        bracketed = node.span.text.startswith(_MATRIX_BRACKETS)
+        if bracketed and len(items) == 2 and all(_a_matrix(item) for item in items):
+            raise self._matrices_in_brackets(node, node.items)  # \left[ A, B \right]
         return self._call("core.tuple", items, VALUE, node.span)
 
     def _Matrix(self, node: ast.Matrix, scope: Scope, ctx: Context) -> Node:
@@ -1145,6 +1159,8 @@ _COMPARE = {
 
 _INTEGER = re.compile(r"\d+")
 
+#: The brackets that write a commutator or an anticommutator of two matrices.
+_MATRIX_BRACKETS = ("[", "\\left[", "\\big[", "\\Big[", "\\{", "\\left\\{", "\\lbrace")
 
 #: The elementary functions, which take a number and are refused a pair, as
 #: \sqrt{(a, b)}; the absolute value says of a list what to write instead itself.

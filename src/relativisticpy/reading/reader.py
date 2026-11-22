@@ -52,6 +52,7 @@ from relativisticpy.reading.names import (
     _STATISTICS,
     _TRANSPOSES,
     INNER_PRODUCT,
+    _a_matrix,
     _a_member,
     _a_name,
     _a_pair,
@@ -75,6 +76,7 @@ from relativisticpy.reading.names import (
     _names_builtin,
     _names_inside,
     _often,
+    _operators_written,
     _other_names,
     _recurrence,
     _shown,
@@ -1295,6 +1297,150 @@ class Reader(Typer):
             notes=["bras and kets, \\langle a | and | b \\rangle, are not supported yet"],
             hint="write a state as a list of its components, and an expectation as a product "
             "of matrices",
+        )
+
+    def _check_product_signs(self, node: ast.Binary, scope: Scope, ctx: Context) -> None:
+        """Refuse the products whose sign means something else, which the lexer reads as a
+        product: ``\\otimes`` between matrices, their matrix product rather than their
+        Kronecker product, and ``\\times`` between vectors written with unit vectors that
+        nothing defines, as in ``\\mathbf{E} \\times \\mathbf{B}`` with \\hat{\\mathbf{x}}, a
+        product of symbols rather than a cross product (guard 4 of wave 0)."""
+        for left, right, sign in _operators_written(node):
+            if sign not in ("\\otimes", "⊗", "\\times", "×"):
+                continue
+            try:
+                values = [self.value(side, scope, ctx) for side in (left, right)]
+            except RelativisticPyError:  # an operator, as \nabla in \nabla \times B: said later
+                continue
+            if sign in ("\\otimes", "⊗"):
+                if all(_a_matrix(value) for value in values):
+                    reading = "their matrix product"
+                    why = "\\otimes is read as a product"
+                    self._decide("product or call", node.span, reading, why)
+                    raise CompileError(
+                        f"{left.span.text} {sign} {right.span.text} is read as {reading}, not as "
+                        "their Kronecker product",
+                        span=node.span,
+                        notes=["the Kronecker product of matrices is not supported yet"],
+                        hint="with indices, A_{ab} B_{cd} is the tensor product of A and B",
+                    )
+            else:
+                units = sorted(
+                    name
+                    for value in values
+                    for name in _written_with(value)
+                    if name.endswith("hat") and len(name) > 3 and scope.lookup(name) is None
+                )
+                if units:
+                    shown = _listed([f"\\hat{{{name[:-3]}}}" for name in dict.fromkeys(units)])
+                    self._decide(
+                        "product or call",
+                        node.span,
+                        "a product of symbols",
+                        f"{shown} name nothing",
+                    )
+                    raise CompileError(
+                        f"{left.span.text} {sign} {right.span.text} is read as a product of "
+                        f"symbols, not as a cross product: {shown} name nothing",
+                        span=node.span,
+                        notes=[
+                            "unit vectors and the cross product of vectors are not supported yet"
+                        ],
+                        hint="write each component of the cross product out, as in "
+                        "E_y B_z - E_z B_y for its x component",
+                    )
+
+    def _derivative_of_a_list(
+        self, expr: Node, variables: Sequence[Node], span: Span, by: str | None = None
+    ) -> CompileError:
+        """The error for a derivative of a list, or by one: ``\\partial_\\theta \\mathbf{x}``
+        of a list x, or the Jacobian ``\\frac{\\partial(x, y)}{\\partial(r, \\theta)}``, which
+        SymPy leaves as the derivative of a tuple, then multiplied as a scalar."""
+        listed = [v for v in variables if _elements(v) is not None]
+        written = span.text
+        if listed and _elements(expr) is not None:  # \frac{\partial(x, y)}{\partial(r, \theta)}
+            functions = _items_written(expr.span.text) if expr.span else None
+            variables_written = _items_written(listed[0].span.text) if listed[0].span else None
+            hint = None
+            if functions and variables_written:
+                rows = " \\\\ ".join(
+                    " & ".join(
+                        f"\\frac{{\\partial {f}}}{{\\partial {v}}}" for v in variables_written
+                    )
+                    for f in functions
+                )
+                matrix = f"\\begin{{pmatrix}} {rows} \\end{{pmatrix}}"
+                hint = f"write the Jacobian as a determinant: \\det {matrix}"
+            return CompileError(
+                f"{written} is read as the derivative of a list by a list, not as a Jacobian",
+                span=span,
+                notes=["a Jacobian written as a fraction is not supported yet"],
+                hint=hint,
+            )
+        size = _elements(expr) or 3
+        if by is None:
+            symbols = [v.op.value for v in variables if isinstance(v.op, ops.Const)]
+            by = self._written_label(str(symbols[0])) if symbols else "t"
+        return CompileError(
+            f"the derivative of a list by {by} is not taken yet",
+            span=span,
+            notes=["read as written, it would be left as it is, the derivative of a tuple"],
+            hint="give the list an index over a space, as in x^i with i \\in \\mathcal{E} := "
+            f"\\mathbb{{R}}^{{{size}}}, and differentiate that: \\frac{{\\partial}}{{\\partial "
+            f"{by}}} x^i",
+        )
+
+    def _check_measure(self, node: ast.Integral, integrand: Node, scope: Scope) -> None:
+        """Refuse ``\\int d\\Omega\\, f`` where nothing defines \\Omega and f does not mention
+        it: read as the differential of a variable \\Omega, the integral is \\Omega times f,
+        where the book means the solid angle."""
+        for bound in node.bounds:
+            variable = bound.variable
+            if not (isinstance(variable, ast.Name) and variable.id == "Omega"):
+                continue
+            if scope.lookup("Omega") is not None or "Omega" in _written_with(integrand):
+                continue
+            written = f"d{variable.span.text}"
+            why = f"the integrand does not mention {variable.span.text}"
+            self._decide("product or call", node.span, f"{variable.span.text} times it", why)
+            raise CompileError(
+                f"{written} is read as the differential of a variable {variable.span.text} the "
+                f"integrand does not mention, so the integral would be {variable.span.text} "
+                "times it",
+                span=node.span,
+                notes=[
+                    "the solid angle as a measure, d\\Omega = \\sin\\theta\\, d\\theta\\, "
+                    "d\\phi, is not supported yet"
+                ],
+                hint="integrate over the angles: \\int_0^{2\\pi} \\int_0^{\\pi} f \\sin\\theta "
+                "\\, d\\theta \\, d\\phi",
+            )
+
+    def _exponential_of_a_matrix(self, span: Span) -> CompileError:
+        """``\\exp(A)`` or ``e^{A}`` of a matrix A, which SymPy leaves as exp([[...]])."""
+        return CompileError(
+            f"{span.text} is the exponential of a matrix, which is not computed yet",
+            span=span,
+            notes=[
+                "read as written, SymPy would leave it as the exponential of a matrix, uncomputed"
+            ],
+            hint="for a matrix with eigenvalues, write it from them: P "
+            "\\operatorname{diag}(e^{\\lambda_1}, \\ldots) P^{-1}",
+        )
+
+    def _matrices_in_brackets(self, node: ast.Expr, items: Sequence[ast.Expr]) -> CompileError:
+        """``[K_1, K_2]`` of two matrices, read as a list of them rather than as their
+        commutator, or ``\\{A, B\\}`` as a pair rather than their anticommutator."""
+        a, b = (item.span.text for item in items)
+        braces = node.span.text.startswith(("\\{", "\\left\\{", "\\lbrace"))
+        meant, sign = ("anticommutator", "+") if braces else ("commutator", "-")
+        why = "brackets around two items are a list"
+        self._decide("product or call", node.span, f"a list of {a} and {b}", why)
+        return CompileError(
+            f"{node.span.text} is read as a list of two matrices, not as their {meant}",
+            span=node.span,
+            notes=[f"the {meant} written in brackets is not supported yet"],
+            hint=f"for the {meant}, write {a} {b} {sign} {b} {a}",
         )
 
     def _note_power(self, base: ast.Name, script: ast.Script) -> None:

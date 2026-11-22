@@ -755,6 +755,39 @@ def _a_name(node: ast.Expr) -> bool:
     return isinstance(node, ast.Name)
 
 
+def _a_matrix(node: Node) -> bool:
+    """Whether a value is a matrix, written as one, as ``\\begin{pmatrix} ...``, or made of
+    one by arithmetic, as ``-S_3`` or ``\\frac{2\\pi}{3} M`` are; known without computing."""
+    pending, seen = [node], set()
+    while pending:
+        current = pending.pop()
+        if current.id in seen or isinstance(current.type, TensorType):  # A_{ab}: indices
+            continue
+        seen.add(current.id)
+        if isinstance(current.op, ops.MakeArray):
+            return len(current.op.shape) == 2
+        if isinstance(current.op, ops.Call) and current.op.name in ("diag", "transpose", "inverse"):
+            return True
+        if isinstance(current.op, ops.Mul | ops.Scale | ops.Add | ops.Pow):
+            pending.extend(current.args)
+    return False
+
+
+def _operators_written(node: ast.Binary) -> list[tuple[ast.Expr, ast.Expr, str]]:
+    """The products of a product as written, each with what is written between its two
+    sides, as ``\\otimes`` or ``\\times``, which the lexer reads as a product's ``*``."""
+    found = []
+    pending: list[ast.Expr] = [node]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, ast.Binary) and current.op == "*":
+            left, right = current.left, current.right
+            between = Span(current.span.source, left.span.end, right.span.start).text.strip()
+            found.append((left, right, between))
+            pending.extend((left, right))
+    return found
+
+
 def _elements(node: Node) -> int | None:
     """How many elements a list or a tuple has, as ``x := [2, 4, 4]`` makes one; ``None``
     for any other value."""
