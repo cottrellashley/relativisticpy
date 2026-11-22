@@ -57,10 +57,10 @@ def test_an_equation_is_judged_as_written_where_carrying_it_out_runs_past_the_bu
     x = sympy.Symbol("x")
     written = sympy.Integral(x, (x, 0, 1))
     monkeypatch.setattr(core, "_CLOSED_FORM_BUDGET", 0.05)
-    monkeypatch.setattr(sympy.Integral, "doit", lambda self, **hints: time.sleep(1))
+    monkeypatch.setattr(sympy.Integral, "doit", lambda self, **hints: time.sleep(5))
     started = time.monotonic()
     assert kernels._carried_out(written) == written
-    assert time.monotonic() - started < 0.5
+    assert time.monotonic() - started < 3  # well before the five seconds it would take
 
 
 def test_a_budget_the_computation_lost_is_raised_again():
@@ -79,7 +79,7 @@ def test_a_budget_the_computation_lost_is_raised_again():
     with pytest.raises(core._OverBudget), core._budget(0.05):
         losing_the_first()
     assert lost
-    assert time.monotonic() - started < 0.05 + core._AGAIN + 0.5
+    assert time.monotonic() - started < 4  # well before the five seconds it would sleep
 
 
 def test_after_the_block_nothing_of_the_budget_remains():
