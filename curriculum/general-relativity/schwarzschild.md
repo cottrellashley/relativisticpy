@@ -82,3 +82,31 @@ K^\mu := [1, 0, 0, 0]
 ```python
 expected = True
 ```
+
+## The gravitational redshift
+
+**Level 3** · `gr.schwarzschild.redshift` · Hartle (2003), section 9.2
+
+A static observer at \(r\) measures a photon's frequency as \(\omega = -k_\mu u^\mu\). The
+photon's \(k_t = -E\) is conserved, so light climbing from \(r_e\) to infinity arrives
+redder by \(\sqrt{1 - 2M/r_e}\).
+
+```latex
+g_{\mu\nu} := Schwarzschild(M)
+u^\mu := \left[\left(1 - \frac{2M}{r}\right)^{-1/2}, 0, 0, 0\right]
+k_\mu := \left[-E, \frac{E}{1 - 2M/r}, 0, 0\right]
+\omega(r) := -k_\mu u^\mu
+\frac{\lim_{r \to \infty} \omega(r)}{\omega(r_e)}
+```
+
+```python
+r, re, M, E = symbols("r r_e M E", positive=True)
+f = 1 - 2 * M / r
+g, gi = diag(-f, 1 / f), diag(-1 / f, f)  # the (t, r) block
+u = Matrix([1 / sqrt(f), 0])
+k = Matrix([-E, E / f])
+assert simplify((u.T * g * u)[0]) == -1 and simplify((k.T * gi * k)[0]) == 0  # observer, photon
+omega = simplify(-(k.T * u)[0])  # the frequency measured at r
+expected = simplify(limit(omega, r, oo) / omega.subs(r, re))
+assert simplify(expected - sqrt(1 - 2 * M / re)) == 0
+```
