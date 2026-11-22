@@ -1,0 +1,255 @@
+/* The editor of relativisticpy.live, in light and dark themes alike: it takes the
+   notebook's colours, and greys that read on either. */
+
+.rp-live {
+  --rp-line: rgba(127, 127, 127, 0.35);
+  --rp-faint: rgba(127, 127, 127, 0.08);
+  --rp-error: #d32f2f;
+  --rp-holds: #2e7d32;
+  position: relative;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.rp-live math {
+  font-family: "Cambria Math", "STIX Two Math", "Latin Modern Math", "Noto Sans Math",
+    "STIXTwoMath-Regular", "NotoSansMath-Regular", math;
+}
+
+.rp-live .rp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  margin-bottom: 0.4em;
+  font-size: 0.9em;
+}
+
+.rp-live .rp-status {
+  opacity: 0.72;
+}
+
+.rp-live.rp-running .rp-status::before {
+  content: "⟳ ";
+}
+
+.rp-live button {
+  font: inherit;
+  color: inherit;
+  background: var(--rp-faint);
+  border: 1px solid var(--rp-line);
+  border-radius: 4px;
+  padding: 0.15em 0.6em;
+  cursor: pointer;
+}
+
+.rp-live button:hover,
+.rp-live button:focus-visible {
+  background: rgba(127, 127, 127, 0.18);
+}
+
+.rp-live .rp-panes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.8em;
+}
+
+@media (max-width: 720px) {
+  .rp-live .rp-panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* The source: the text area over a copy of its text, in which errors are marked. */
+.rp-live .rp-source {
+  position: relative;
+  max-height: 40em;
+  overflow: auto;
+  border: 1px solid var(--rp-line);
+  border-radius: 4px;
+}
+
+.rp-live .rp-backdrop,
+.rp-live .rp-input {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.6em 0.7em;
+  border: 0;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: normal;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  tab-size: 4;
+}
+
+.rp-live .rp-backdrop {
+  position: absolute;
+  inset: 0 0 auto 0;
+  color: transparent;
+}
+
+.rp-live .rp-input {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 12em;
+  resize: none;
+  overflow: hidden;
+  color: inherit;
+  background: transparent;
+  outline: none;
+}
+
+.rp-live .rp-mark {
+  color: transparent;
+  background: rgba(211, 47, 47, 0.1);
+  text-decoration: underline wavy var(--rp-error);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
+/* The results: each statement typeset, with what came of it. */
+.rp-live .rp-results {
+  max-height: 40em;
+  overflow: auto;
+  padding: 0 0.2em;
+}
+
+.rp-live .rp-results.rp-stale {
+  opacity: 0.55;
+}
+
+.rp-live .rp-statement {
+  border-left: 3px solid var(--rp-line);
+  margin: 0 0 0.6em;
+  padding: 0.1em 0 0.1em 0.7em;
+}
+
+.rp-live .rp-statement.rp-failed {
+  border-left-color: var(--rp-error);
+}
+
+.rp-live .rp-written {
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.rp-live .rp-value {
+  margin-left: 1em;
+}
+
+.rp-live .rp-typeset {
+  overflow-x: auto;
+}
+
+/* Display mathematics, set at the left as the statements are; Temml centres it. */
+.rp-live .rp-typeset > math {
+  display: inline-block !important;
+  display: inline math !important;
+  math-style: normal;
+  margin: 0.2em 0;
+}
+
+.rp-live .rp-code,
+.rp-live .rp-latex {
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 13px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rp-live .rp-said {
+  margin-left: 1em;
+  font-size: 0.9em;
+  opacity: 0.72;
+}
+
+.rp-live .rp-error {
+  margin: 0.2em 0 0.2em 1em;
+  color: var(--rp-error);
+}
+
+.rp-live .rp-error .rp-said {
+  margin-left: 0;
+  color: inherit;
+  opacity: 0.9;
+}
+
+/* What a part of a statement gave, under the statement. */
+.rp-live .rp-answer {
+  margin: 0.3em 0 0.3em 1em;
+  padding: 0.3em 0.6em;
+  background: var(--rp-faint);
+  border-radius: 4px;
+}
+
+.rp-live .rp-asked {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85em;
+  opacity: 0.8;
+}
+
+.rp-live .rp-dismiss {
+  padding: 0 0.4em;
+  border: 0;
+  background: transparent;
+}
+
+.rp-live .rp-verdict {
+  font-weight: 600;
+}
+
+.rp-live .rp-verdict.rp-holds {
+  color: var(--rp-holds);
+}
+
+.rp-live .rp-verdict.rp-differs {
+  color: var(--rp-error);
+}
+
+/* The menu of a selection or a result, and the details of an error under the pointer. */
+.rp-live .rp-menu,
+.rp-live .rp-tip {
+  position: absolute;
+  z-index: 10;
+  background: var(--jp-layout-color1, var(--background, Canvas));
+  color: var(--jp-ui-font-color1, CanvasText);
+  border: 1px solid var(--rp-line);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+}
+
+.rp-live .rp-menu {
+  display: flex;
+  flex-direction: column;
+  min-width: 11em;
+  padding: 0.25em;
+}
+
+.rp-live .rp-menu[hidden],
+.rp-live .rp-tip[hidden] {
+  display: none;
+}
+
+.rp-live .rp-item {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 0.3em 0.7em;
+}
+
+.rp-live .rp-tip {
+  max-width: 32em;
+  padding: 0.4em 0.6em;
+  pointer-events: none;
+  font-size: 0.9em;
+}
+
+.rp-live .rp-tip .rp-error {
+  margin: 0;
+}

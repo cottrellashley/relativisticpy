@@ -58,3 +58,26 @@ def test_help_reads_the_pages_from_the_installed_package(wheel, tmp_path):
     assert Path(folder) == installed / "relativisticpy" / "_docs"
     assert [f"{topic}.md" for topic, _ in topics] == PAGES
     assert reference == (ROOT / "docs" / "reference.md").read_text(encoding="utf-8")
+
+
+def test_the_wheel_carries_what_the_editor_shows(wheel, tmp_path):
+    pytest.importorskip("anywidget", reason="the editor needs the live extra, with anywidget")
+    static = "relativisticpy/live/static/"
+    carried = ("editor.js", "editor.css", "temml/temml.min.js", "temml/Temml-Local.css")
+    names = zipfile.ZipFile(wheel).namelist()
+    for name in (*carried, "temml/Temml.woff2", "temml/LICENSE"):
+        assert static + name in names
+    installed = tmp_path / "site-packages"
+    zipfile.ZipFile(wheel).extractall(installed)
+    script = (
+        "import json, relativisticpy.live.editor as e; "
+        "print(json.dumps([e.__file__, len(e.Editor._esm), len(e.Editor._css)]))"
+    )
+    environment = {**os.environ, "PYTHONPATH": str(installed)}
+    ran = subprocess.run(
+        [sys.executable, "-c", script], capture_output=True, text=True, env=environment, check=True
+    )
+    module, script_size, style_size = json.loads(ran.stdout)
+    assert Path(module).is_relative_to(installed)
+    assert script_size > 150_000  # Temml, then the editor
+    assert style_size > 10_000

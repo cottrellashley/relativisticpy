@@ -10,6 +10,12 @@ typesets a Markdown notebook, but as HTML, in marimo and in Jupyter::
         g_{\mu\nu} := Schwarzschild(M)
         R_{abcd} R^{abcd}
     ''')
+
+:class:`~relativisticpy.live.editor.Editor` is a widget, for marimo, Jupyter and VS Code:
+the source on the left, each statement typeset with its results on the right, computed
+as it is typed, in a process of its own, with a time limit. It needs the ``live`` extra,
+which adds anywidget: ``pip install "relativisticpy[live]"``. ``relativisticpy help
+live`` says more.
 """
 
 from __future__ import annotations
@@ -17,7 +23,7 @@ from __future__ import annotations
 import html
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from relativisticpy import display
 from relativisticpy.errors import RelativisticPyError, UsageError
@@ -25,7 +31,26 @@ from relativisticpy.language import Source, Span
 from relativisticpy.language import syntax as ast
 from relativisticpy.workbook import Step, Workbook
 
-__all__ = ["Shown", "show"]
+if TYPE_CHECKING:
+    from relativisticpy.live.editor import Editor
+
+__all__ = ["Editor", "Shown", "show"]
+
+
+def __getattr__(name: str) -> Any:
+    """The :class:`~relativisticpy.live.editor.Editor`, imported when it is first asked
+    for, since it needs anywidget, which ``show`` does not."""
+    if name != "Editor":
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    try:
+        from relativisticpy.live.editor import Editor
+    except ImportError as error:
+        if error.name not in ("anywidget", "ipywidgets", "traitlets"):
+            raise
+        raise ImportError(
+            'the editor needs the live extra, with anywidget: pip install "relativisticpy[live]"'
+        ) from error
+    return Editor
 
 
 def show(

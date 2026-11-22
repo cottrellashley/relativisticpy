@@ -140,3 +140,14 @@ def test_a_real_marimo_typesets_it(shown):
     formatted = try_format(shown)
     assert formatted.mimetype == "text/html"
     assert formatted.data.count("marimo-tex") >= 2 * 7
+
+
+def test_the_editor_says_what_it_needs_without_anywidget(monkeypatch):
+    import relativisticpy.live as live
+
+    monkeypatch.setitem(sys.modules, "anywidget", None)
+    monkeypatch.delitem(sys.modules, "relativisticpy.live.editor", raising=False)
+    with pytest.raises(ImportError, match=r'pip install "relativisticpy\[live\]"'):
+        live.Editor  # noqa: B018
+    with pytest.raises(AttributeError, match="has no attribute 'Editors'"):
+        live.Editors  # noqa: B018
