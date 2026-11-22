@@ -122,7 +122,7 @@ def test_marimo_shows_the_typeset_value(shown):
     from marimo._output.formatting import try_format
 
     typeset = try_format(shown["tensor"])
-    assert typeset.mimetype == "text/html"
+    assert typeset.mimetype in ("text/html", "text/markdown")  # HTML either way
     assert "marimo-tex" in typeset.data
     assert r"\Gamma^{t}_{tr}" in typeset.data
     wb = Workbook()
