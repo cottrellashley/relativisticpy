@@ -74,6 +74,9 @@ def _from_python(method: _F) -> _F:
     return call  # type: ignore[return-value]
 
 
+#: The built-in scalars of a metric, which a program computes rather than defines.
+_BUILT_IN_SCALARS = frozenset({"R", "Ric", "Kretschmann"})
+
 #: How the compiler words a statement it reads but does not compute, as a relation such
 #: as ≈. Until the compiler raises :class:`~relativisticpy.errors.NotComputedError` for
 #: one itself, an error of these words is given that type here, where a step of
@@ -402,10 +405,18 @@ class Workbook:
         """The error for a name nothing in this workbook defines."""
         defined = [definition.written for definition in self.names().values()]
         notes = [f"defined here: {', '.join(defined)}"] if defined else []
-        if name == self._session.names["metric"]:
+        session = self._session
+        builtin = name in _BUILT_IN_SCALARS or any(
+            self._compiler._builtin_tensor(name, rank) for rank in range(1, 5)
+        )
+        if name == session.names["metric"]:
             hint = "define the metric first, as in wb.expr(r'g_{\\mu\\nu} := Schwarzschild(M)')"
+        elif builtin:
+            hint = f"a built-in quantity is computed by a program, as in wb.expr(r'{written}')"
+        elif session.metric is not None and name in session.metric.names:
+            hint = f"{written} is a symbol the metric is written with, and has no value"
         else:
-            hint = f"built-in tensors are computed by a program, as in wb.expr(r'{written}')"
+            hint = f"define it first, as in wb[{written!r}] = 1 or wb.expr(r'{written} := 1')"
         return UnknownNameError(f"{written} is not defined", notes=notes, hint=hint)
 
     def _function(self, name: str, binding: FunctionBinding) -> sympy.Lambda:

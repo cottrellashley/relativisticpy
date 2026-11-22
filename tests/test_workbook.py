@@ -191,6 +191,20 @@ class TestInspecting:
         with pytest.raises(UnknownNameError, match="x \\+ 1 is not a name"):
             wb["x + 1"]
 
+    @pytest.mark.parametrize(
+        ("name", "hint"),
+        [
+            (r"\Gamma", r"a built-in quantity is computed by a program, as in wb.expr(r'\Gamma')"),
+            ("R", "a built-in quantity is computed by a program, as in wb.expr(r'R')"),
+            ("M", "M is a symbol the metric is written with, and has no value"),
+            ("T", "define it first, as in wb['T'] = 1 or wb.expr(r'T := 1')"),
+        ],
+    )
+    def test_a_missing_name_says_what_it_may_be(self, wb, name, hint):
+        with pytest.raises(UnknownNameError) as error:
+            wb[name]
+        assert error.value.hint == hint
+
 
 class TestMetric:
     def test_the_metric_is_kept_with_what_it_computed(self):
