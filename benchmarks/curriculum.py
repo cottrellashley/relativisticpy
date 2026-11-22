@@ -19,11 +19,13 @@ from __future__ import annotations
 
 import argparse
 import collections
+import contextlib
+import os
 import random
 import re
 import sys
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -178,9 +180,21 @@ def problems(cases: Sequence[Case]) -> list[str]:
 # -- running a case -----------------------------------------------------------------------
 
 
+@contextlib.contextmanager
+def _beside(case: Case) -> Iterator[None]:
+    """Work in the case's folder, so that a table it reads, ``tables/signal.csv``, is
+    found beside it, by the program and the oracle alike."""
+    before = os.getcwd()
+    os.chdir(case.path.parent)
+    try:
+        yield
+    finally:
+        os.chdir(before)
+
+
 def oracle(case: Case) -> dict[str, Any]:
-    """Run a case's oracle, with SymPy's names in scope, and NumPy as ``np``: what it
-    expects of the program."""
+    """Run a case's oracle, with SymPy's names in scope, and NumPy as ``np``, in the case's
+    folder: what it expects of the program."""
     namespace: dict[str, Any] = {}
     exec("from sympy import *", namespace)
     try:
@@ -189,7 +203,8 @@ def oracle(case: Case) -> dict[str, Any]:
         namespace["np"] = numpy
     except ImportError:  # pragma: no cover - NumPy is a development dependency
         pass
-    exec(compile(case.oracle, case.where, "exec"), namespace)
+    with _beside(case):
+        exec(compile(case.oracle, case.where, "exec"), namespace)
     names = (*_EXPECTATIONS, "message", "tolerance")
     return {name: namespace[name] for name in names if name in namespace}
 
@@ -203,7 +218,7 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
     tolerance = float(expectation.get("tolerance", 1e-9))
     start = time.perf_counter()
     try:
-        with Workbook() as workbook, _time_limit(time_limit):
+        with _beside(case), Workbook() as workbook, _time_limit(time_limit):
             values = workbook.exe(case.program)
     except TimeoutError:
         seconds = time.perf_counter() - start

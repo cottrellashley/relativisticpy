@@ -35,6 +35,8 @@ of the conformance suite.
 | solver | equations in, solutions out | `solve`, `dsolve`, ODE integration, roots, optimisation |
 | constructor | builds an object the language works with | spacetimes, distributions, spaces |
 | backend | an array library | NumPy, JAX, CuPy, PyTorch, Dask, through the Python array API standard |
+| source | where large sets of numbers come from | CSV, Parquet, Excel, JSON, NumPy files, HDF5 and netCDF, SQL, the tables of a Markdown notebook, pandas and xarray objects |
+| rewrite | a faster way to compute what is written | the Fourier transform written as its sum, computed as an FFT; an inverse times a vector, computed as a solve |
 
 ### Written forms
 
@@ -47,6 +49,33 @@ same declaration does two jobs:
   capabilities need no change to the parser.
 - **Printing.** The printer writes a call the way it was declared, so every result
   reads back.
+
+## Large sets of numbers
+
+Data is written in the notation, not only bound from Python:
+
+- **Tables.** A file named in `\texttt{...}` is a table, as LaTeX typesets a path.
+  - `P_{ta} := \texttt{prices.csv}` is the whole table. Its row labels are the basis of
+    `t`, and its column names that of `a`, as a pandas DataFrame bound from Python gives
+    them.
+  - `x_t := \texttt{signal.csv}[x]` is one column.
+  - Data from two tables meets by label, never by position.
+  - Each kind of file is a source integration. It is read lazily, and in chunks when
+    large, and it is only ever read: nothing in a file runs.
+  - Paths are relative to the document.
+- **Grids.** `x_n := n\,\Delta x, \quad n = 0, \ldots, N-1` defines a vector, as
+  mathematics does: the range of an index declares its space.
+- **Samples.** `f_n := \sin(2\pi \cdot 5\, t_n)` samples a function on a grid, and
+  `\epsilon_t \sim \mathcal{N}(0, 1)` draws from a distribution, with a seed so that a
+  result can be reproduced.
+- **Transforms.** `\operatorname{fft}(x_t)` names the FFT. The same transform written as
+  its sum, `\sum_{t=0}^{N-1} x_t\, e^{-2\pi i k t/N}`, is computed as an FFT too, by a
+  rewrite that the FFT's integration declares. Write the mathematics; the engine finds
+  the fast algorithm.
+
+Grids, samples and ranges are forms of the language, lowered to operations of the IR
+that the engines compute lazily. Tables and transforms are integrations. The cases in
+`curriculum/data-sources/` fix this notation, and fail until it is built.
 
 ## An example
 
