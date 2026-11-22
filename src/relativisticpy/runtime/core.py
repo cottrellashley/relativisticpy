@@ -9,6 +9,7 @@ its attributes, by name: module-level, so that a worker process can run it.
 from __future__ import annotations
 
 import contextlib
+import gc
 import itertools
 import math
 import re
@@ -16,6 +17,7 @@ import signal
 import threading
 import time
 from collections.abc import Iterator, Sequence
+from types import FrameType
 from typing import Any
 
 import sympy
@@ -98,6 +100,12 @@ def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
     return written if isinstance(found, sympy.Basic) and found.has(sympy.Product) else found
 
 
+#: How soon, in seconds, a budget's exception is raised again, where it ran out in a
+#: callback of the garbage collector, as JAX gives it one, in which Python would lose the
+#: exception, or where the computation lost it.
+_AGAIN = 0.5
+
+
 class _OverBudget(BaseException):
     """A computation that took longer than it was given, and is kept as written. Not an
     Exception, so that SymPy, which catches those, does not carry on past it."""
@@ -105,29 +113,44 @@ class _OverBudget(BaseException):
 
 @contextlib.contextmanager
 def _budget(seconds: float) -> Iterator[None]:
-    """Raise :class:`_OverBudget` if the block runs longer than ``seconds``, leaving a time
-    limit in force around it as it was, with what remains of it; one that ends first
-    decides. Only with ``SIGALRM``, in the main thread; elsewhere the block runs as long
-    as it takes."""
+    """Raise :class:`_OverBudget` if the block runs longer than ``seconds``, and again every
+    :data:`_AGAIN` seconds until it ends, as the exception cannot be raised in a callback
+    of the garbage collector and a computation may lose one; then leave a time limit in
+    force around it as it was, with what remains of it; one that ends first decides. Only
+    with ``SIGALRM``, in the main thread; elsewhere the block runs as long as it takes."""
     usable = hasattr(signal, "SIGALRM") and threading.current_thread() is threading.main_thread()
     outer = signal.getitimer(signal.ITIMER_REAL)[0] if usable else 0.0
     if not usable or (outer and outer <= seconds):
         yield
         return
+    finished = False
 
     def expire(signum: int, frame: Any) -> None:
-        raise _OverBudget
+        if not finished and not _collecting(frame):
+            raise _OverBudget
 
     start = time.monotonic()
     previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
+    signal.setitimer(signal.ITIMER_REAL, seconds, _AGAIN)
     try:
         yield
     finally:
+        finished = True
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
         if outer:
             signal.setitimer(signal.ITIMER_REAL, max(outer - (time.monotonic() - start), 1e-6))
+
+
+def _collecting(frame: FrameType | None) -> bool:
+    """Whether ``frame`` is in a callback the garbage collector runs, where an exception
+    raised is lost: Python reports it as unraisable, and goes on."""
+    callbacks = {getattr(callback, "__code__", None) for callback in gc.callbacks}
+    while frame is not None:
+        if frame.f_code in callbacks:
+            return True
+        frame = frame.f_back
+    return False
 
 
 def _finite(written: Any, lower: Any, upper: Any) -> Any:

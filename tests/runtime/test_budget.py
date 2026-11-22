@@ -1,6 +1,7 @@
 """The time budget a closed form is looked for in: past it, a sum or a product is kept as
 written, and a time limit in force around it keeps what remains of it."""
 
+import gc
 import signal
 import time
 
@@ -60,3 +61,57 @@ def test_an_equation_is_judged_as_written_where_carrying_it_out_runs_past_the_bu
     started = time.monotonic()
     assert kernels._carried_out(written) == written
     assert time.monotonic() - started < 0.5
+
+
+def test_a_budget_the_computation_lost_is_raised_again():
+    # As Python loses an exception raised in a finalizer that the garbage collector runs:
+    # a computation that lost the first goes on only until the next.
+    lost = []
+
+    def losing_the_first() -> None:
+        try:
+            time.sleep(1)
+        except core._OverBudget:
+            lost.append(time.monotonic())
+        time.sleep(5)
+
+    started = time.monotonic()
+    with pytest.raises(core._OverBudget), core._budget(0.05):
+        losing_the_first()
+    assert lost
+    assert time.monotonic() - started < 0.05 + core._AGAIN + 0.5
+
+
+def test_after_the_block_nothing_of_the_budget_remains():
+    handler = signal.getsignal(signal.SIGALRM)
+    with pytest.raises(core._OverBudget):
+        sleep_within(0.05)
+    assert signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0)
+    assert signal.getsignal(signal.SIGALRM) == handler
+    time.sleep(core._AGAIN + 0.1)  # nothing is raised after it
+
+
+def test_a_budget_runs_out_after_a_callback_of_the_garbage_collector():
+    # JAX gives the garbage collector one: an exception raised in it would be lost, as
+    # unraisable, and the computation would go on for ever.
+    held = []
+
+    def callback(phase: str, info: dict) -> None:
+        if phase == "start" and not held:
+            held.append(phase)
+            time.sleep(0.2)  # the budget runs out in here
+
+    def collecting_then_computing() -> None:
+        gc.collect()
+        while True:
+            time.sleep(0.01)
+
+    gc.callbacks.append(callback)
+    try:
+        started = time.monotonic()
+        with pytest.raises(core._OverBudget), core._budget(0.05):
+            collecting_then_computing()
+    finally:
+        gc.callbacks.remove(callback)
+    assert held
+    assert time.monotonic() - started < 0.05 + core._AGAIN + 0.5
