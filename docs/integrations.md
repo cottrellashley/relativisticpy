@@ -25,6 +25,7 @@ how the language treats it:
 | `constructor` | builds an object the language works with | `Schwarzschild`, `Eq`, `symbols` |
 | `transform` | a function of a variable in, a function of another out; or data over an index in, data over a new space out | `LaplaceTransform`, `FourierTransform`, `fft` |
 | `rewrite` | a faster computation of what a program writes, to the same numbers | the DFT written as its sum, computed by `fft` |
+| `python_object` | what a Python object read by name, `\texttt{prices}`, becomes | NumPy arrays, pandas tables, SymPy expressions, functions |
 
 The decorator takes, by name:
 
@@ -203,6 +204,47 @@ q of `{}_pF_q(a; b; z)`: `exact` takes it by keyword, `def exact(self, a, b, z, 
 q=None)`, and checks it. A capability whose calls print other than by its parameters in
 order says how, with a method `arguments(self, call)` that gives the value of each, as
 the hypergeometric function does in `special_functions.py`.
+
+## Python objects
+
+An object integration says what a family of Python objects becomes when a program reads
+one by name, as `\texttt{prices}` (see [Beyond spacetime](spaces.md#python-objects-by-name)):
+a `Scalar`, a number or an expression; `Data`, an array with the labels and the name of
+each axis, where the object has them, by which data from two objects meets; an `Array`, a
+vector or a matrix, as the language's lists are; or a `PythonFunction`, called on numbers
+and elementwise on data. It declares the classes it `takes`, by their module and name,
+which takes their subclasses too, or a protocol, by its method, as `"__array__"`. The
+most specific class an object has decides, then a protocol, a function last. Nothing is
+imported to tell: no object of a library's class exists without the library. Its
+examples are given the objects their programs read:
+
+```python
+>>> import datetime
+>>> from relativisticpy.integrations import Scalar, python_object
+>>> @python_object(
+...     "durations",
+...     takes="datetime.timedelta",
+...     summary="a duration: its seconds, a number",
+...     examples=[
+...         Example(r"\texttt{lap} / 60", 3, "three minutes",
+...                 given=lambda: {"lap": datetime.timedelta(minutes=3)}),
+...         Example(r"\texttt{day}", 86400, "a day",
+...                 given=lambda: {"day": datetime.timedelta(days=1)}),
+...     ],
+... )
+... class Durations:
+...     def becomes(self, value):
+...         return Scalar(value.total_seconds())
+>>> integrations.check(Durations)
+{'declaration': [], 'examples': [], 'errors': [], 'reference': []}
+
+```
+
+Its checks are four: the declaration; the examples, each run in a workbook given its
+objects; that what its objects become, called, added and given to a function, is computed
+or refused, never a failure inside RelativisticPy; and the reference, which lists what
+each object becomes. `numpy_arrays.py`, `pandas_tables.py` and `python.py` are
+integrations of this kind.
 
 ## Integrations outside RelativisticPy
 

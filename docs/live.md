@@ -92,9 +92,43 @@ call are there in the next, as from one cell to the next:
 
 ```
 
-Python objects read by name, as `show(r"\hat{x} := \mathcal{F}[\texttt{signal}]",
-signal=signal)` will read them, come in a later version. Until then, bind data to a
-workbook, as in `wb["x_t"] = signal`, and pass the workbook.
+## Python objects
+
+Python reads the files, in its own cells, and the mathematics reads the objects by name:
+`\texttt{signal}` is the object passed to `show` as `signal=signal`. The objects passed
+come before the scope of the workbook, if it has one, and are read for that call alone
+(see [Beyond spacetime](spaces.md#python-objects-by-name) for what each becomes):
+
+```python
+>>> import numpy as np
+>>> signal = np.array([1.0, 2.0, 6.0])
+>>> show(r"x_t := \texttt{signal}" "\n" r"\mathbb{E}_t[x_t]", signal=signal).values
+[3.0]
+
+```
+
+In marimo, pass each object a cell's mathematics reads by name. marimo runs a cell again
+whenever a name it uses changes, and it sees the names the cell passes, so the mathematics
+follows the data. One cell reads the table:
+
+```python
+prices = pd.read_csv("prices.csv", index_col="date")
+```
+
+and another shows the mathematics, and runs again whenever `prices` changes:
+
+```python
+show(
+    r"""
+P_{ta} := \texttt{prices}
+\mathbb{E}_t[P_{ta}]
+""",
+    prices=prices,
+)
+```
+
+`Workbook(scope=globals())` reads any name of the notebook too, but marimo cannot see
+which, so a cell that uses it does not run again when one of them changes.
 
 ## The editor
 
@@ -181,11 +215,18 @@ waits on it, in marimo and in Jupyter alike:
   enforces it, as Linux does. A computation that needs more fails, and the editor goes on.
 - **Your workbook goes with it.** The worker is given the workbook, pickled, with what it
   has computed, whenever it has changed.
+- **Python objects go as data.** `Editor(wb, scope=globals())`, or a dict of objects,
+  gives its programs a scope; without one, the workbook's. The objects a program names
+  are read in the notebook's process as each run starts, and go to the worker as what
+  they become, arrays, numbers and expressions, whenever they have changed: never the
+  scope itself. A Python function goes by name, where the worker can import it, as
+  `numpy.hanning` or a function of an installed module.
 
 Where no process can be started, as in a notebook running in the browser, the editor
 computes in the notebook's own process, without a time limit; so it does for a workbook
-holding data no other process can take, and says so. On Windows, a stale run or a run
-over its time stops its worker, as there is no Ctrl-C to send it.
+holding data no other process can take, or a program that calls a function defined in
+the notebook, which no other process can import, and says why under each run. On Windows,
+a stale run or a run over its time stops its worker, as there is no Ctrl-C to send it.
 
 ### Typesetting
 
@@ -197,8 +238,6 @@ without one, brackets around a matrix do not stretch.
 
 ## Later
 
-- Python objects read by name, `\texttt{signal}`, in `show` and the editor, from the
-  scope of the notebook.
 - Right-clicking a part of a typeset result, rather than all of it.
 - Notebooks exported as pages that compute in the reader's browser.
 

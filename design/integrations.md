@@ -114,6 +114,31 @@ Standard protocols cover new libraries without code of their own: the array API,
 DataFrame interchange protocol, `__array__` and `_sympy_`. Data from two objects meets
 by label, never by position.
 
+What implementing it settled:
+
+- **`\texttt{...}` is one name, as written.** The lexer reads `\texttt{prices["NVDA"]}`
+  as one name, so that `\texttt{model.predict}(x)` is a call and `\texttt{c}^2` a power,
+  as with any name; the compiler reads it as a Python object before anything else, so
+  that it is never a name of the language's.
+- **An object becomes one of four things:** a `Scalar`, `Data` with the labels and the
+  name of each axis, an `Array`, as the language's lists are, or a `PythonFunction`. An
+  object integration declares the classes it takes by name, never importing their
+  library, or a protocol by its method; the most specific class decides, then a
+  protocol, a function last. Its examples give the objects their programs read, and four
+  checks hold it to the pattern: declaration, examples, errors and reference.
+- **Data defined with indices is bound as `wb[...] = data` binds it,** by the same
+  function, so that `P_{ta} := \texttt{prices}` and `wb["P_{ta}"] = prices` give the same
+  spaces; labelled data meets the space whose elements its labels are, whatever its axis
+  is named, for both. Data read inline has indices no one wrote, over spaces named after
+  its axes, or after the object.
+- **An object is read anew each time a program names it,** and copied, so that the
+  workbook holds data, never the object. A SymPy expression's symbols are the program's,
+  by name, so that `\frac{d}{dx}` differentiates with respect to the program's x.
+- **What crosses to the editor's worker is data.** The objects a program names are read
+  where the scope is, as each run starts, and carried as what they became. A function
+  crosses by its module's name, where the module is installed; one defined in a notebook
+  cannot, and the editor computes in the notebook's own process, saying why.
+
 ### Grids and samples
 
 Grids and samples are written in the notation:

@@ -105,6 +105,19 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   capability needs is imported only when it is used. A conformance suite holds every
   capability to the pattern in nine checks, saying in words what to fix, and
   `integrations.check` runs it on one ([Integrations](docs/integrations.md)).
+- Python objects read by name: `\texttt{prices}` is the object called prices in the scope
+  a workbook is given, `Workbook(scope=globals())`, with its attributes, keys and
+  positions, `\texttt{prices["NVDA"]}`, read by a grammar of its own that never runs
+  Python. Object integrations, a kind of their own, decide what an object becomes: a
+  number a scalar, an array data, a pandas table labelled data whose index and columns
+  are the bases of spaces, a SciPy sparse matrix sparse data, an xarray DataArray data
+  over its named dimensions, a SymPy expression an expression in the program's symbols, a
+  list a vector or a matrix, and a function a function, called on numbers and on data
+  elementwise. Data from two objects meets by label, never by position, as data bound
+  with `wb["P_{ta}"] = frame` now does too. `show(source, signal=signal)` and
+  `Editor(wb, scope=...)` read objects, the editor's going to its worker as data; a
+  document checked and a program sent to the MCP server have no scope, and refuse a
+  reference, saying so ([Beyond spacetime](docs/spaces.md#python-objects-by-name)).
 - Functions read as books write them, each capability declaring its forms in LaTeX and
   Unicode: `\Gamma(x)`, `\mathrm{B}(a, b)`, `\zeta(s)`, the Bessel functions `J_{\nu}(x)`,
   `Y_{\nu}`, `I_{\nu}`, `K_{\nu}`, `j_n` and `y_n`, the Airy functions, `P_n(x)`,

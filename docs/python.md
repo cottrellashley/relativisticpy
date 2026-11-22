@@ -39,8 +39,10 @@ holds, and how results are shown. Write LaTeX in raw strings, `r"..."`, and see
 
 `workers` sets how many processes share component-wise work such as
 simplification (`None` for one per CPU). `backend="jax"` keeps bound data as JAX
-arrays, so that it is computed with JAX. A workbook is a context manager, which
-stops its workers on exit.
+arrays, so that it is computed with JAX. `scope=globals()` is where programs read
+Python objects by name, as `\texttt{prices}` (see
+[Beyond spacetime](spaces.md#python-objects-by-name)). A workbook is a context manager,
+which stops its workers on exit.
 
 ```python
 >>> wb.exe(r"""

@@ -80,8 +80,9 @@ Data brings its own spaces, by these rules:
    assets.
 6. **pandas names spaces and their bases.** An axis's name names its space, and its
    labels the space's basis, by which components can be taken, as coordinates name the
-   components of a metric. Data is aligned with a space's basis by label, and refused
-   when its labels are not the space's:
+   components of a metric. Labelled data meets the space whose elements its labels are,
+   whatever its axis is named, and is aligned with that space's basis by label, never by
+   position; it is refused where its labels are not the space's:
 
 ```python
 >>> import pandas as pd
@@ -127,6 +128,98 @@ relativisticpy.errors.DataError: the data for v^a is ragged: entry 3 is a list, 
 
 A name takes a number, `wb["J"] = 1.5`, or text, which is read as a program reads
 it, never run as Python: `wb["J"] = "x^2 + 1"`.
+
+## Python objects, by name
+
+Python reads the files, in its own cells, with any library there is, and the language
+reads the objects by name. `\texttt{prices}` is the object called `prices` in the scope
+the workbook is given, and attributes, keys and positions follow, as in
+`\texttt{table.x}`, `\texttt{prices["NVDA"]}` and `\texttt{data[0]}`. The scope is a
+mapping, as `globals()` or a dict, or a module or any object whose attributes are read:
+
+```python
+>>> import pandas as pd
+>>> prices = pd.DataFrame(
+...     {"AAPL": [231.5, 233.0, 229.75], "NVDA": [141.2, 143.8, 140.1]},
+...     index=pd.Index(["2026-11-16", "2026-11-17", "2026-11-18"], name="date"),
+... )
+>>> weights = pd.Series([0.25, 0.75], index=pd.Index(["NVDA", "AAPL"], name="asset"))
+>>> market = Workbook(scope={"prices": prices, "weights": weights})
+>>> market.exe(r"""
+...     P_{ta} := \texttt{prices}
+...     w^a := \texttt{weights}
+...     x_t := \texttt{prices["NVDA"]}
+... """)
+[]
+>>> market.expr(r"P_{ta} w^a").to_numpy().round(2).tolist()   # each asset by its own weight
+[208.92, 210.7, 207.34]
+>>> market.expr(r"\mathbb{E}_t[x_t]")
+141.7
+
+```
+
+What an object becomes depends on its type, as an object integration of
+`relativisticpy.integrations` declares it:
+
+- **A number** is a scalar, exact where Python's is: an integer or a fraction stays one.
+- **An array**, from NumPy, or anything with `__array__` or the array API, as a JAX or
+  PyTorch array, is data, each axis over a space of its size.
+- **A pandas DataFrame or Series** is labelled data. Defined with indices, as
+  `P_{ta} := \texttt{prices}`, it is bound as `wb["P_{ta}"] = prices` binds it: its index
+  and columns are the bases of spaces, named after its axes.
+- **A SciPy sparse matrix** is sparse data, and **an xarray DataArray** data over its
+  named dimensions, labelled by their coordinates.
+- **A SymPy expression**, or anything with `_sympy_`, is an expression, its symbols the
+  program's by name, and a SymPy matrix is a matrix.
+- **A list or tuple of numbers** is a vector or a matrix, as `[1, 2]` is.
+- **A function**, or anything else Python calls, is called: on numbers, and on data
+  elementwise. One written with NumPy is given whole arrays; any other, one number at a
+  time.
+
+Data from two objects meets by label, never by position: above, `weights` lists the
+assets in another order than `prices`, and each asset is weighed by its own weight.
+Labels that are not the same elements are refused where they meet. A function and an
+expression are used as the program's own:
+
+```python
+>>> import numpy as np
+>>> import sympy
+>>> def hann(n, N):
+...     return 0.5 - 0.5 * np.cos(2 * np.pi * n / (N - 1))
+>>> windowed = Workbook(scope={"hann": hann, "signal": np.array([4.0, 2.0, 6.0, 8.0])})
+>>> windowed.exe(r"x_t := \texttt{signal}")
+[]
+>>> windowed.expr(r"\texttt{hann}(x_t, 9)").to_numpy().round(3).tolist()
+[1.0, 0.5, 0.5, 0.0]
+>>> x = sympy.Symbol("x")
+>>> Workbook(scope={"f": sympy.sin(x) ** 2}).expr(r"\frac{d}{dx} \texttt{f}")
+2*sin(x)*cos(x)
+
+```
+
+A reference is read by a grammar of its own, a name, then attributes, keys in quotes and
+positions, and is never Python to run: anything else is refused, saying what may be
+written. An object is read anew each time a program names it, and what it becomes is
+the workbook's own, so that changing the object afterwards changes nothing already read.
+A workbook given no scope reaches nothing in Python, nor does a document checked with
+`relativisticpy check`, nor a program sent to the [MCP server](mcp.md):
+
+```python
+>>> Workbook().expr(r"\texttt{prices}")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.CompileError: \texttt{prices} names a Python object, but no Python scope was given to read it from
+ --> <input>:1:1
+  |
+1 | \texttt{prices}
+  | ^^^^^^^^^^^^^^^
+note: a document checked with relativisticpy check, and a program sent to the MCP server, are given no Python scope, so that they never reach into Python
+hint: give the workbook one, as Workbook(scope=globals()), or the object to show, as show(source, prices=prices)
+
+```
+
+In a notebook, `show(source, prices=prices)` gives a program its objects, and the editor
+takes a scope: see [Live mathematics](live.md#python-objects).
 
 ## Positions, metrics and duals
 

@@ -237,6 +237,9 @@ rather than tens of minutes.
   `relativisticpy/integrations/` that declares capabilities, each checked by the
   conformance suite; [Integrations](integrations.md) says how, step by step. The registry
   in `relativisticpy/runtime/registry.py` registers each capability under its names.
+- **A kind of Python object**, read by name as `\texttt{prices}`: an object integration
+  of the same package says what it becomes, data, a number, an expression or a function;
+  [Integrations](integrations.md#python-objects) says how.
 - **A LaTeX command or symbol**: add it to `relativisticpy/language/vocabulary.py`;
   structural commands need a case in the parser's `_command`.
 - **A spacetime**: add a function to `relativisticpy/spacetimes.py`, declaring the
