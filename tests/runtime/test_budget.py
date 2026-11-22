@@ -82,6 +82,39 @@ def test_a_budget_the_computation_lost_is_raised_again():
     assert time.monotonic() - started < 4  # well before the five seconds it would sleep
 
 
+def test_a_budget_inside_another_leaves_it_its_alarm(monkeypatch):
+    # A sum has a budget of its own, of five seconds; inside a budget of two, which runs out
+    # while SymPy looks for the sum's closed form, it is the outer computation that stops:
+    # the sum does not take the alarm for its own, and give itself as written.
+    def searching(*args, **kwargs):
+        time.sleep(3)  # as SymPy searched for 1/(n^5 + n + 1)
+        raise AssertionError("the outer budget should have stopped this")
+
+    monkeypatch.setattr(core.assumptions, "summed", searching)
+    n = sympy.Symbol("n", integer=True)
+    given = []
+
+    def summing_then_going_on() -> None:
+        with core._budget(2.0):
+            given.append(core.summation(1 / (n**5 + n + 1), n, 1, sympy.oo))
+            time.sleep(4)
+
+    started = time.monotonic()
+    with pytest.raises(core._OverBudget):
+        summing_then_going_on()
+    assert given == []
+    assert time.monotonic() - started < 2.4
+
+
+def test_an_inner_budget_that_runs_out_first_is_its_own():
+    with core._budget(10):
+        with pytest.raises(core._OverBudget):
+            sleep_within(0.05)
+        started = time.monotonic()
+        time.sleep(0.2)  # the outer budget goes on, untouched
+    assert time.monotonic() - started >= 0.2
+
+
 def test_after_the_block_nothing_of_the_budget_remains():
     handler = signal.getsignal(signal.SIGALRM)
     with pytest.raises(core._OverBudget):

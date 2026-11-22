@@ -17,6 +17,7 @@ import signal
 import threading
 import time
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from types import FrameType
 from typing import Any
 
@@ -108,38 +109,126 @@ _AGAIN = 0.5
 
 class _OverBudget(BaseException):
     """A computation that took longer than it was given, and is kept as written. Not an
-    Exception, so that SymPy, which catches those, does not carry on past it."""
+    Exception, so that SymPy, which catches those, does not carry on past it. Its ``token``
+    is that of the budget that ran out, whose block alone takes it as its own."""
+
+    def __init__(self, token: object = None) -> None:
+        super().__init__()
+        self.token = token
+
+
+class _Passing(BaseException):
+    """The ``alarm`` of a budget, on its way out through a budget inside it: the computation
+    around that one ran out of time, not it, so that nothing that waits for the inner
+    budget's alarm takes it."""
+
+    def __init__(self, alarm: _OverBudget) -> None:
+        super().__init__()
+        self.alarm = alarm
+
+
+@dataclass(eq=False)
+class _Limit:
+    """A budget in force: when it ends, by :func:`time.monotonic`, and its token."""
+
+    end: float
+    token: object
+
+
+@dataclass(eq=False)
+class _Around:
+    """What was in force before the first budget: the handler of ``SIGALRM``, and when a
+    time limit set with it ends, if one was running."""
+
+    handler: Any
+    end: float | None
+
+
+#: The budgets in force, the outermost first, and what was in force around them.
+_LIMITS: list[_Limit] = []
+_AROUND: list[_Around] = []
 
 
 @contextlib.contextmanager
 def _budget(seconds: float) -> Iterator[None]:
     """Raise :class:`_OverBudget` if the block runs longer than ``seconds``, and again every
     :data:`_AGAIN` seconds until it ends, as the exception cannot be raised in a callback
-    of the garbage collector and a computation may lose one; then leave a time limit in
-    force around it as it was, with what remains of it; one that ends first decides. Only
-    with ``SIGALRM``, in the main thread; elsewhere the block runs as long as it takes."""
+    of the garbage collector and a computation may lose one. A budget inside another has a
+    token of its own: where the outer one runs out first, its alarm passes through the inner
+    one's block, which never takes it for its own. A time limit in force around them is left
+    as it was, with what remains of it; one that ends first decides. Only with ``SIGALRM``,
+    in the main thread; elsewhere the block runs as long as it takes."""
     usable = hasattr(signal, "SIGALRM") and threading.current_thread() is threading.main_thread()
-    outer = signal.getitimer(signal.ITIMER_REAL)[0] if usable else 0.0
-    if not usable or (outer and outer <= seconds):
+    if not usable:
         yield
         return
-    finished = False
-
-    def expire(signum: int, frame: Any) -> None:
-        if not finished and not _collecting(frame):
-            raise _OverBudget
-
-    start = time.monotonic()
-    previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds, _AGAIN)
+    now = time.monotonic()
+    if not _LIMITS:
+        outer = signal.getitimer(signal.ITIMER_REAL)[0]
+        if outer and outer <= seconds:  # a time limit around it ends first, and decides
+            yield
+            return
+        handler = signal.signal(signal.SIGALRM, _ring)
+        _AROUND.append(_Around(handler, now + outer if outer else None))
+    limit = _Limit(now + seconds, object())
+    _LIMITS.append(limit)
+    _arm()
     try:
         yield
+    except _OverBudget as alarm:
+        if alarm.token is not limit.token:
+            raise _Passing(alarm) from None
+        raise
+    except _Passing as passing:
+        if passing.alarm.token is limit.token:
+            raise passing.alarm from None
+        raise
     finally:
-        finished = True
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)
-        if outer:
-            signal.setitimer(signal.ITIMER_REAL, max(outer - (time.monotonic() - start), 1e-6))
+        _LIMITS.remove(limit)
+        if _LIMITS:
+            _arm()
+        else:
+            _leave()
+
+
+def _arm() -> None:
+    """Set the alarm for when the first budget in force ends, and every :data:`_AGAIN`
+    seconds after it."""
+    ends = [limit.end for limit in _LIMITS]
+    around = _AROUND[-1].end if _AROUND else None
+    if around is not None:
+        ends.append(around)
+    soonest = min(ends) - time.monotonic()
+    signal.setitimer(signal.ITIMER_REAL, max(soonest, 1e-6), _AGAIN)
+
+
+def _ring(signum: int, frame: FrameType | None) -> None:
+    """The alarm: of the outermost budget that has run out, whose block it stops; of the
+    time limit around them all, where that has ended, as its own handler raises it."""
+    now = time.monotonic()
+    around = _AROUND[-1] if _AROUND else None
+    if around is not None and around.end is not None and now >= around.end:
+        around.end = None  # it rings once, as it would have alone
+        if callable(around.handler):
+            around.handler(signum, frame)
+        return
+    due = next((limit for limit in _LIMITS if now >= limit.end - 1e-3), None)
+    if due is None:
+        if _LIMITS:
+            _arm()
+        return
+    if not _collecting(frame):  # where it would be lost, the next alarm raises it
+        raise _OverBudget(due.token)
+
+
+def _leave() -> None:
+    """Put back what was in force before the first budget: its handler, and the time limit
+    it set, with what remains of it."""
+    signal.setitimer(signal.ITIMER_REAL, 0)
+    around = _AROUND.pop()
+    signal.signal(signal.SIGALRM, around.handler)
+    if around.end is not None:
+        signal.setitimer(signal.ITIMER_REAL, max(around.end - time.monotonic(), 1e-6))
 
 
 def _collecting(frame: FrameType | None) -> bool:
