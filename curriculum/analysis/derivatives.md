@@ -78,3 +78,20 @@ assert limit(sin(1 / h), h, 0) == AccumBounds(-1, 1)
 error = "EvaluationError"
 message = "does not exist"
 ```
+
+## The square of a time derivative
+
+**Level 1** · `analysis.derivatives.dot-squared` · standard
+
+Newton's dot, squared, as the Friedmann equation writes \(\dot a^2\): the square of the
+derivative, never the derivative of the square.
+
+```latex
+a(t) := t^3
+\dot{a}^2
+```
+
+```python
+t = symbols("t")
+expected = 9 * t**4
+```
