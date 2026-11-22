@@ -50,7 +50,8 @@ ASSUMPTION_STATEMENTS = {
     "Positive": {"positive": True},
 }
 
-_GEOMETRY_TYPES = {
+#: The positions of the indices of each geometric tensor, upper or not, in order.
+GEOMETRY_POSITIONS: dict[str, tuple[bool, ...]] = {
     "inverse": (True, True),
     "christoffel": (True, False, False),
     "riemann": (True, False, False, False),
@@ -186,19 +187,19 @@ class Session:
         of one metric is the same node, computed once.
         """
         if quantity == "kronecker":  # needs coordinates, not a metric
-            coordinates = self.require_coordinates(span, _describe(quantity))
+            coordinates = self.require_coordinates(span, describe(quantity))
             indices = Indices([Index("a", True), Index("b")])
             kronecker = ops.Geometry("kronecker", coordinates)
             kind = TensorType(indices, (spacetime(coordinates),) * 2)
             return self.graph.add(kronecker, (), kind, span)
-        metric = self.require_metric(span, _describe(quantity)).node
+        metric = self.require_metric(span, describe(quantity)).node
         assert self.coordinates is not None
         patch = self.coordinates
         space = spacetime(patch)
 
         def build(name: str, *args: Node) -> Node:
-            if name in _GEOMETRY_TYPES:
-                positions = _GEOMETRY_TYPES[name]
+            if name in GEOMETRY_POSITIONS:
+                positions = GEOMETRY_POSITIONS[name]
                 labels = "abcd"
                 indices = Indices(Index(labels[i], up) for i, up in enumerate(positions))
                 kind: Any = TensorType(indices, (space,) * len(indices))
@@ -230,7 +231,8 @@ class Session:
         return self.executor.evaluate(node)
 
 
-def _describe(quantity: str) -> str:
+def describe(quantity: str) -> str:
+    """What a geometric quantity is called: ``ricci`` is the Ricci tensor."""
     return {
         "metric": "the metric",
         "inverse": "raising an index",
@@ -244,4 +246,4 @@ def _describe(quantity: str) -> str:
         "weyl": "the Weyl tensor",
         "kretschmann": "the Kretschmann scalar",
         "kronecker": "the Kronecker delta",
-    }[quantity]
+    }.get(quantity, quantity)

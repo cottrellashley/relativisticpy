@@ -156,7 +156,9 @@ class TestLatexReading:
     def test_a_superscript_the_statement_shows_to_be_an_index_is_not_a_power(self, wb):
         n, x, y = Symbol("n"), Symbol("x"), Symbol("y")
         for source in (r"x^\mu x_\mu", r"p^\mu N^\nu = nm U^\mu U^\nu"):
-            with pytest.raises(CompileError, match="is not a tensor, so mu on it is not an index"):
+            with pytest.raises(
+                CompileError, match=r"is not a tensor, so \\mu on it is not an index"
+            ):
                 wb.expr(source)
         assert wb.expr(r"t^\alpha + \beta") == t ** Symbol("alpha") + Symbol("beta")  # a power law
         assert wb.expr("x^n y^n") == x**n * y**n  # a Latin exponent stays a power

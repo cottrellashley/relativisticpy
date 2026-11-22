@@ -62,9 +62,10 @@ def test_metric_from_a_tensor(wb):
 
 def test_a_metric_from_a_tensor_takes_it_as_written(wb):
     wb.exe("Coordinates := [x, y]\nh_{ab} := [[-1, 0], [0, 4]]")
-    with pytest.raises(IndexNotationError, match=r"must agree: \^\{ab\} and _\{ab\}"):
+    sides = r"the two sides have different free indices: \^\{ab\} on the left, _\{ab\} on the right"
+    with pytest.raises(IndexNotationError, match=sides):
         wb.exe("g^{ab} := h_{ab}")  # h has its indices down
-    with pytest.raises(IndexNotationError, match="must agree"):
+    with pytest.raises(IndexNotationError, match="the two sides have different free indices"):
         wb.exe(r"g_{\mu\nu} := h_{ab}")
     wb.exe("g_{ab} := h_{ab}")
     assert wb.expr("g^{ab}").components == Array([[-1, 0], [0, sympy.Rational(1, 4)]])

@@ -63,9 +63,11 @@ from relativisticpy.compiler.scope import (
 )
 from relativisticpy.compiler.session import (
     ASSUMPTION_STATEMENTS,
+    GEOMETRY_POSITIONS,
     RENAMING_STATEMENTS,
     MetricState,
     Session,
+    describe,
 )
 from relativisticpy.diffgeom import Metric, differential, geodesic_equations
 from relativisticpy.errors import (
@@ -87,7 +89,7 @@ from relativisticpy.ir import (
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.language.vocabulary import GREEK, UNICODE_LETTERS
 from relativisticpy.tensors import Index, Indices, Tensor, arrays, linalg
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.indices import latex_label
@@ -147,6 +149,8 @@ class Compiler:
         # The names the statement being compiled writes as factors, not as functions
         # called: G in 2GM, which makes G(p^2 + q^2) in the same statement a product.
         self._factors: frozenset[str] = frozenset()
+        # The statement's text, to write index labels as it does.
+        self._text = ""
         self._bound: frozenset[str] = frozenset()
         # How the statement being compiled was read, where that could surprise, and the
         # notes of statements that showed nothing to carry them, such as definitions.
@@ -176,12 +180,13 @@ class Compiler:
     def statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None = None
     ) -> list[Output]:
-        saved = self._labels, self._scripts, self._factors
+        saved = self._labels, self._scripts, self._factors, self._text
         top = self._depth == 0
         if top:
             self._notes = []
         self._depth += 1
         try:
+            self._text = statement.span.text
             self._labels = self._infer_labels(statement, scope)
             self._scripts = _script_labels(statement)
             self._factors = _factor_names(statement)
@@ -193,7 +198,7 @@ class Compiler:
                 error.notes.extend(note for note in self._notes if note not in error.notes)
             raise
         finally:
-            self._labels, self._scripts, self._factors = saved
+            self._labels, self._scripts, self._factors, self._text = saved
             self._depth -= 1
         if top and self._notes:
             if outputs:
@@ -1444,19 +1449,117 @@ class Compiler:
                 (sign, new, term) for (sign, _, term), new in zip(values, spread, strict=True)
             ]
             tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
+        self._check_terms([(value, term) for _, value, term in values], node.span, scope)
         reference = tensors[0].type
         assert isinstance(reference, TensorType)
         kept: list[tuple[int, Node]] = []
         for sign, value, term in values:
             if isinstance(value.type, TensorType):
                 kept.append((sign, self._align(value, reference.indices, term.span)))
-            elif not _is_zero(value):
-                raise IndexNotationError(
-                    f"cannot add a scalar to a tensor with free indices {reference.indices}",
-                    span=term.span,
-                )
         signs = tuple(sign for sign, _ in kept)
         return self.graph.add(ops.Add(signs), [value for _, value in kept], reference, node.span)
+
+    def _check_terms(
+        self, terms: Sequence[tuple[Node, ast.Expr]], span: Span, scope: Scope
+    ) -> None:
+        """That the terms of a sum have the same free indices, or say which term does
+        not, and which index is wrong in it, where the others agree."""
+        free = [
+            frozenset(_indices(value)) if isinstance(value.type, TensorType) else frozenset()
+            for value, _ in terms
+        ]
+        written = [
+            (value, term, indices)
+            for (value, term), indices in zip(terms, free, strict=True)
+            if indices or not _is_zero(value)
+        ]
+        kinds = Counter(indices for _, _, indices in written)
+        if len(kinds) <= 1:
+            return
+        common, count = kinds.most_common(1)[0]
+        odd = [(value, term, indices) for value, term, indices in written if indices != common]
+        if count > 1 and len(odd) == 1:  # the others agree: say what is wrong in this one
+            _, term, indices = odd[0]
+            raise self._odd_term(term, indices, common, scope)
+        first, second = list(kinds)[:2]
+        shown = []
+        for kind in (first, second):
+            value, term, _ = next(entry for entry in written if entry[2] == kind)
+            shown.append(str(_indices(value)) if kind else "none")
+            where = term.span
+        raise IndexNotationError(
+            f"the free indices of a sum must agree: {shown[0]} and {shown[1]}",
+            span=where,
+            notes=self._undefined_notes(
+                [term for _, term, indices in written if not indices], scope
+            ),
+        )
+
+    def _odd_term(
+        self,
+        term: ast.Expr,
+        indices: frozenset[Index],
+        common: frozenset[Index],
+        scope: Scope,
+    ) -> IndexNotationError:
+        """The error for the one term of a sum whose free indices are not the others':
+        ``\\rho is free in this term but in no other``, and what the others have."""
+        mine = {index.name: index.upper for index in indices}
+        theirs = {index.name: index.upper for index in common}
+        extra = sorted(name for name in mine if name not in theirs)
+        missing = sorted(name for name in theirs if name not in mine)
+        moved = sorted(name for name in mine if name in theirs and mine[name] != theirs[name])
+        others = self._written_free(common)
+        notes = [f"the other terms have {others} free"]
+        hint = None
+        if extra:
+            message = f"{self._are(extra)} free in this term but in no other"
+            if missing:
+                notes.append(f"{self._are(missing)} missing here")
+            if len(extra) == 1 and len(missing) == 1:
+                text = term.span.text
+                wrong, right = self._written_label(extra[0]), self._written_label(missing[0])
+                if text.count(wrong) == 1:
+                    hint = f"did you mean {text.replace(wrong, right)}?"
+        elif moved:
+            name = moved[0]
+            here, there = ("up" if mine[name] else "down"), ("up" if theirs[name] else "down")
+            message = (
+                f"{self._written_label(name)} is {here} in this term, but {there} in the others"
+            )
+        elif not indices:
+            message = "this term has no free indices, but the others do"
+            notes.extend(self._undefined_notes([term], scope))
+        else:
+            message = f"{self._are(missing)} free in the other terms, but not in this one"
+        return IndexNotationError(message, span=term.span, notes=notes, hint=hint)
+
+    def _are(self, labels: Sequence[str]) -> str:
+        """``\\rho is`` or ``\\rho and \\sigma are``, as the statement writes the labels."""
+        shown = _listed([self._written_label(label) for label in labels])
+        return f"{shown} {'is' if len(labels) == 1 else 'are'}"
+
+    def _undefined_notes(self, terms: Sequence[ast.Expr], scope: Scope) -> list[str]:
+        """Notes for terms that are scalars only because a name is not defined, as y_t is
+        one symbol where y is no tensor."""
+        notes = []
+        for term in terms:
+            if isinstance(term, ast.Name) and "_" in term.id:
+                base = term.id.partition("_")[0]
+                if scope.lookup(base) is None:
+                    notes.append(
+                        f"{base} is not defined, so {term.span.text} is read as one symbol, "
+                        f"{term.span.text}"
+                    )
+            elif (
+                isinstance(term, ast.Scripted)
+                and isinstance(term.base, ast.Name)
+                and scope.lookup(term.base.id) is None
+                and _tensor_pattern(term)
+            ):
+                written = term.base.span.text
+                notes.append(f"{written} is not defined, so {term.span.text} is not a tensor")
+        return notes
 
     def _broadcast(self, values: list[Node], span: Span) -> list[Node]:
         """Inside an expectation over t, a term without t is constant in t, as \\mu_a is
@@ -2063,24 +2166,47 @@ class Compiler:
         tensor = next((v.type for v in (lhs, rhs) if isinstance(v.type, TensorType)), None)
         if tensor is not None:
             assert isinstance(tensor, TensorType)
-            lhs, rhs = (
-                self._align(v, tensor.indices, side.span)
-                if isinstance(v.type, TensorType)
-                else self._zero_side(v, tensor, side.span)
-                for v, side in ((lhs, node.lhs), (rhs, node.rhs))
-            )
-            return self.graph.add(ops.Equation(), (lhs, rhs), EquationType(tensor), node.span)
+            sides = []
+            for v, side in ((lhs, node.lhs), (rhs, node.rhs)):
+                if isinstance(v.type, TensorType):
+                    sides.append(self._align_sides(v, tensor, lhs, side.span, node.span))
+                else:
+                    sides.append(self._zero_side(v, tensor, side, lhs is v, scope))
+            return self.graph.add(ops.Equation(), sides, EquationType(tensor), node.span)
         return self.graph.add(ops.Equation(), (lhs, rhs), EquationType(SCALAR), node.span)
 
-    def _zero_side(self, value: Node, tensor: TensorType, span: Span) -> Node:
+    def _align_sides(
+        self, value: Node, tensor: TensorType, lhs: Node, span: Span, equation: Span
+    ) -> Node:
+        """One side of a tensor equation, its axes in the order of the first side's."""
+        assert isinstance(value.type, TensorType)
+        if sorted(value.type.indices, key=str) == sorted(tensor.indices, key=str):
+            return self._align(value, tensor.indices, span)
+        left = _indices(lhs) if isinstance(lhs.type, TensorType) else value.type.indices
+        right = value.type.indices if value is not lhs else tensor.indices
+        raise IndexNotationError(
+            f"the two sides have different free indices: {self._written_indices(left)} on the "
+            f"left, {self._written_indices(right)} on the right",
+            span=equation,
+        )
+
+    def _zero_side(
+        self, value: Node, tensor: TensorType, side: ast.Expr, left: bool, scope: Scope
+    ) -> Node:
         """The side of a tensor equation that is not a tensor: zero, or components."""
         if value.type == VALUE:
-            return self.graph.add(ops.ToArray(tensor.shape), (value,), tensor, span)
+            return self.graph.add(ops.ToArray(tensor.shape), (value,), tensor, side.span)
         if not _is_zero(value):
+            here = self._written_indices(tensor.indices)
+            left_text, right_text = ("none", here) if left else (here, "none")
             raise IndexNotationError(
-                f"one side of this equation is a tensor with free indices {tensor.indices} "
-                "and the other is not",
-                span=span,
+                f"the two sides have different free indices: {left_text} on the left, "
+                f"{right_text} on the right",
+                span=side.span,
+                notes=[
+                    *self._undefined_notes([side], scope),
+                    "a scalar side can only be 0, which has whatever indices the other has",
+                ],
             )
         return value
 
@@ -2647,8 +2773,15 @@ class Compiler:
             source = None
             if binding is None and labels_only and (pattern := _tensor_pattern(node)):
                 source = self._space_tensor(name, pattern[1], node.span)
-            if source is None:
-                source = self._tensor_source(name, binding, rank, node.span, strict=labels_only)
+            if source is None:  # R_{(\mu\nu\rho)} is checked as R_{\mu\nu\rho} is
+                strict = rank is not None and all(
+                    item.label is not None and item.value is None and item.derivative is None
+                    for s in node.scripts
+                    for item in s.indices.items  # type: ignore[union-attr]
+                )
+                source = self._tensor_source(
+                    name, binding, rank, node.span, strict=strict, node=node
+                )
             differentiated = _has_derivative(node)
             if source is None and rank == 0 and differentiated:  # \phi_{;\mu}
                 source = self._scalar_source(base, binding, scope, ctx)
@@ -2677,22 +2810,32 @@ class Compiler:
         self, node: ast.Scripted, base: ast.Name, binding: object, rank: int | None
     ) -> CompileError:
         """The error for a comma or semicolon derivative of what has none to take."""
-        name, written = base.id, base.span.text
+        written = base.span.text
         if binding is not None:
             return CompileError(
-                f"{name} is not a scalar or a tensor, so it has no derivative", span=node.span
+                f"{written} is not a scalar or a tensor, so it has no derivative", span=node.span
             )
         if not rank:
             return CompileError(
-                f"{name} is not defined, so it has no derivative",
+                f"{written} is not defined, so it has no derivative",
                 span=node.span,
                 hint=f"define it first, for example {written} := ...",
             )
-        labels = "".join(_EXAMPLE_LABELS[:rank])
+        # T^{\mu\nu}_{;\nu}: the tensor as written, without the derivative's index
+        own = [
+            Index(str(item.label), script.kind == "^")
+            for script in node.scripts
+            if script.indices is not None
+            for item in script.indices.items
+            if item.derivative is None and item.label is not None
+        ]
+        example = (
+            self._written_indices(own) if own else "_{" + "".join(_EXAMPLE_LABELS[:rank]) + "}"
+        )
         return CompileError(
-            f"{name} is not a tensor",
+            f"{written} is not a tensor",
             span=node.span,
-            hint=f"define it first, for example {written}_{{{labels}}} := [...]",
+            hint=f"define it first, for example {written}{example} := [...]",
         )
 
     def _inverse_access(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
@@ -2795,31 +2938,72 @@ class Compiler:
         return candidates.get(rank) if rank is not None else None
 
     def _tensor_source(
-        self, name: str, binding: object, rank: int | None, span: Span, *, strict: bool = False
+        self,
+        name: str,
+        binding: object,
+        rank: int | None,
+        span: Span,
+        *,
+        strict: bool = False,
+        node: ast.Scripted | None = None,
     ) -> TensorSource | None:
         """What ``name`` with ``rank`` indices refers to, if it is a tensor. With
-        ``strict`` (the scripts are plain index labels), a built-in tensor given the
-        wrong number of indices is an error rather than an ordinary symbol."""
+        ``strict`` (the scripts are index labels), a built-in tensor given the wrong
+        number of indices is an error rather than an ordinary symbol. A name that is also
+        common for a tensor of one's own, as C for a covariance, says what it is built in
+        as, and how to use it for one's own."""
         if isinstance(binding, TensorBinding):
             return TensorSource(binding.node, binding.indices, name)
         if isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType):
             return TensorSource(binding.node, binding.node.type.indices, name)
         if binding is not None or rank is None:
             return None
+        written = node.base.span.text if node is not None else name
         quantity = self._builtin_tensor(name, rank)
         if quantity is None:
             ranks = [n for n in range(1, 5) if self._builtin_tensor(name, n)]
             if ranks and strict:
                 expected = " or ".join(str(n) for n in ranks)
+                notes: list[str] = []
+                hint = None
+                if name in _SHARED_NAMES:  # W_{ij}, a matrix of weights
+                    built = _listed([self._built_in_as(name, n) for n in ranks], "or")
+                    notes.append(f"{written} is a built-in name: {built}")
+                    own = node.span.text if node is not None else written
+                    hint = f"to use {written} for a tensor of your own, define it first: "
+                    hint += f"{own} := [...]"
                 raise IndexNotationError(
-                    f"{name} has {expected} indices, but {rank} "
+                    f"{written} has {expected} indices, but {rank} "
                     f"{'is' if rank == 1 else 'are'} given",
                     span=span,
+                    notes=notes,
+                    hint=hint,
                 )
             return None
-        node = self._geometry(quantity, span)
-        assert isinstance(node.type, TensorType)
-        return TensorSource(node, node.type.indices, name)
+        try:
+            geometry = self._geometry(quantity, span)
+        except CompileError as error:  # G_{kl} = X_{tk} X_{tl}: G is the Einstein tensor
+            here = node.span.text if node is not None else written
+            error.notes.append(f"{here} is {describe(quantity)}, which is built in")
+            pattern = _tensor_pattern(node) if node is not None else None
+            if pattern is not None and any(
+                (space := self._labels.get(label) or self.session.labels.get(label)) is not None
+                and not space.spacetime
+                for label, _ in pattern[1]
+            ):  # its indices range over data: a tensor of one's own is meant
+                error.hint = f"to use {written} for a tensor of your own, define it: {here} := ..."
+            raise
+        assert isinstance(geometry.type, TensorType)
+        return TensorSource(geometry, geometry.type.indices, name)
+
+    def _built_in_as(self, name: str, rank: int) -> str:
+        """What a built-in tensor's name means with ``rank`` indices, as it is written:
+        the Christoffel connection C^{a}_{bc}."""
+        quantity = self._builtin_tensor(name, rank) or ""
+        positions = GEOMETRY_POSITIONS.get(quantity, (False,) * rank)
+        labels = "abcd"[:rank]
+        indices = [Index(label, upper) for label, upper in zip(labels, positions, strict=True)]
+        return f"{describe(quantity)} {name}{self._written_indices(indices)}"
 
     def _geometry(self, quantity: str, span: Span) -> Node:
         return self.session.geometry(quantity, span)
@@ -2990,14 +3174,106 @@ class Compiler:
         return self.graph.add(ops.Permute(tuple(axes)), (node,), kind, node.span)
 
     def _align(self, value: Node, indices: Indices, span: Span, what: str = "a sum") -> Node:
-        """``value``'s components with axes in the order of ``indices``."""
+        """``value``'s components with axes in the order of ``indices``: those of the
+        other terms of ``what``, a sum, the other side of an equation or a definition, or
+        the other factor of an elementwise product."""
         assert isinstance(value.type, TensorType)
         have = value.type.indices
         if sorted(have, key=str) != sorted(indices, key=str):
-            raise IndexNotationError(
-                f"the free indices of {what} must agree: {indices} and {have}", span=span
-            )
+            wanted, found = self._written_indices(indices), self._written_indices(have)
+            if what in ("an equation", "a definition"):
+                message = (
+                    f"the two sides have different free indices: {wanted} on the left, "
+                    f"{found} on the right"
+                )
+            elif what == "a sum":
+                message = f"the free indices of a sum must agree: {indices} and {have}"
+            else:
+                message = f"the free indices of {what} must agree: {wanted} and {found}"
+            raise IndexNotationError(message, span=span)
         return self._permute(value, [have.index(i) for i in indices], indices)
+
+    # -- the user's notation ----------------------------------------------------------
+
+    def _written_label(self, label: str) -> str:
+        """An index label as the statement writes it: ``\\mu`` in LaTeX, ``μ`` in
+        Unicode, ``mu`` in plain text, and a Latin letter as it is."""
+        name = _display(label)
+        if name not in GREEK:
+            return name
+        text = self._text
+        if "\\" + name in text:
+            return "\\" + name
+        character = _GREEK_CHARACTERS.get(name)
+        if character is not None and character in text:
+            return character
+        return name if re.search(rf"(?<![\\A-Za-z]){name}(?![A-Za-z])", text) else "\\" + name
+
+    def _written_indices(self, indices: Sequence[Index]) -> str:
+        """Indices as the statement writes them, grouped by position: ``_{\\mu\\nu}``,
+        ``^{a}_{b}``, or ``none``."""
+        groups: list[tuple[bool, list[str]]] = []
+        for index in indices:
+            label = self._written_label(index.name)
+            if groups and groups[-1][0] == index.upper:
+                groups[-1][1].append(label)
+            else:
+                groups.append((index.upper, [label]))
+        rendered = []
+        for upper, labels in groups:
+            plain = any(len(label) > 1 and label.isalpha() for label in labels)
+            joined = " ".join(labels) if plain else "".join(labels)
+            rendered.append(("^" if upper else "_") + "{" + joined + "}")
+        return "".join(rendered) or "none"
+
+    def _written_free(self, free: Iterable[Index]) -> str:
+        """A set of free indices, upper first and in order of their labels."""
+        return self._written_indices(sorted(free, key=lambda index: (not index.upper, index.name)))
+
+    # -- the rules of index notation, one message each ------------------------------
+    #
+    # Each rule has one phrasing, on every path that checks it: as components and as
+    # notation. The phrasings of README.md, docs/spaces.md and docs/getting-started.md
+    # are kept as their examples show them.
+
+    def _twice(self, name: str, upper: bool, span: Span) -> IndexNotationError:
+        """An index written twice in one term in the same position."""
+        label = self._written_label(name)
+        notes = []
+        coordinates = [c.name for c in self.session.coordinates or ()]
+        if (
+            coordinates
+            and _display(name) in _COORDINATE_NAMES
+            and _display(name) not in coordinates
+        ):  # R_{zz} in (t, r, \theta, \phi): a component that is none
+            shown = _listed([self._written_label(c) for c in coordinates])
+            notes.append(
+                f"{label} is not a coordinate, so it is an index; the coordinates are {shown}"
+            )
+        position = "an upper" if upper else "a lower"
+        return IndexNotationError(
+            f"index {label} appears twice as {position} index; a summed index must appear "
+            "once up and once down",
+            span=span,
+            notes=notes,
+        )
+
+    def _thrice(self, name: str, count: int, span: Span) -> IndexNotationError:
+        """An index written three times or more in one term."""
+        return IndexNotationError(
+            f"index {self._written_label(name)} appears {count} times in one term; an index "
+            "appears once, or twice to be summed",
+            span=span,
+        )
+
+    def _two_spaces(self, name: str, one: Space, other: Space, span: Span) -> IndexNotationError:
+        """An index written on axes over two spaces."""
+        ranges, written = _apart(one, other)
+        return IndexNotationError(
+            f"the index {self._written_label(name)} ranges over {ranges}, but is written here "
+            f"on an axis over {written}",
+            span=span,
+        )
 
     def _contract(
         self,
@@ -3016,30 +3292,16 @@ class Compiler:
             for index, space in zip(indices, spaces, strict=True):
                 seen.setdefault(index.name, []).append((index, space))
         for name, found in seen.items():
-            label = _display(name)
             over = list(dict.fromkeys(space for _, space in found))
             if len(over) > 1:
-                one, other = _apart(over[0], over[1])
-                raise IndexNotationError(
-                    f"index {label} ranges over {one} in one place and {other} in "
-                    "another; an index ranges over one space",
-                    span=span,
-                )
+                raise self._two_spaces(name, over[0], over[1], span)
             if name in self._bound:
                 continue
             if len(found) > 2:
-                raise IndexNotationError(
-                    f"index {label} appears {len(found)} times; an index may appear at most twice",
-                    span=span,
-                )
+                raise self._thrice(name, len(found), span)
             positions = {index.upper for index, _ in found}
             if len(found) == 2 and len(positions) == 1 and not self._euclidean(over[0]):
-                position = "an upper" if found[0][0].upper else "a lower"
-                raise IndexNotationError(
-                    f"index {label} appears twice as {position} index; "
-                    "a summed index must appear once up and once down",
-                    span=span,
-                )
+                raise self._twice(name, found[0][0].upper, span)
         if output is None:
             kept = {
                 name: found[0][0]
@@ -3108,12 +3370,7 @@ class Compiler:
         if expected is None:
             self._labels[name] = space
         elif expected != space:
-            ranges, written = _apart(expected, space)
-            raise IndexNotationError(
-                f"the index {latex_label(name)} ranges over {ranges}, but is written "
-                f"here on an axis over {written}",
-                span=span,
-            )
+            raise self._two_spaces(name, expected, space, span)
 
     def _infer_labels(self, statement: ast.Statement, scope: Scope) -> dict[str, Space]:
         """The spaces of the labels written on tensors with spaces of their own in a
@@ -3134,12 +3391,7 @@ class Compiler:
                     continue
                 expected = labels.get(label) or self.session.labels.get(label)
                 if expected is not None and expected != space:
-                    ranges, written = _apart(expected, space)
-                    raise IndexNotationError(
-                        f"the index {latex_label(label)} ranges over {ranges}, but is "
-                        f"written here on an axis over {written}",
-                        span=current.span,
-                    )
+                    raise self._two_spaces(label, expected, space, current.span)
                 labels[label] = space
         return labels
 
@@ -3493,21 +3745,21 @@ class Compiler:
             marks = "".join(_mark(s) for s in decorations)
             base = ast.Name(f"{base.id}^{marks}", verbatim=True, span=base.span)
             scripts = [s for s in scripts if s not in decorations]
+        for script in scripts:  # x_{} or x^{}: nothing to read
+            if script.body is None and (script.indices is None or not script.indices.items):
+                where = "subscript" if script.kind == "_" else "superscript"
+                raise CompileError(
+                    f"empty {where}", span=script.span, hint="write what it holds, or remove it"
+                )
         subscripts = [s for s in scripts if s.kind == "_"]
         powers = [s for s in scripts if s.kind == "^"]
+        written_base = base.span.text if isinstance(base, ast.Name) else "this"
         if subscripts:
             if not isinstance(base, ast.Name):
                 raise CompileError("only a name can have a subscript", span=node.span)
             items = [i for s in subscripts if s.indices for i in s.indices.items]
             if len(items) > 1 and all(_plain_label(i) for i in items):
-                written = _written(subscripts)
-                if any(self._names_component(str(i.label)) for i in items):  # T_{tt}
-                    written = "_{" + "".join(_EXAMPLE_LABELS[: len(items)]) + "}"
-                raise CompileError(
-                    f"{base.id} is not a tensor",
-                    span=node.span,
-                    hint=f"define it first, for example {base.id}{written} := [...]",
-                )
+                raise self._not_a_tensor(node, base, subscripts, items)
             symbol_name = _subscripted_name(ast.Scripted(base, tuple(subscripts), span=node.span))
             value = self.value(ast.Name(symbol_name, verbatim=True, span=node.span), scope, ctx)
         else:
@@ -3515,13 +3767,26 @@ class Compiler:
         exponents = []
         for script in powers:
             if script.body is None or isinstance(script.body, ast.Equation):
-                name = base.id if isinstance(base, ast.Name) else "this"
-                raise CompileError(f"{name} is not a tensor", span=script.span)
+                raise CompileError(f"{written_base} is not a tensor", span=script.span)
             if isinstance(base, ast.Name) and (label := self._index_written(script)):
+                shown = self._written_label(label)
                 raise CompileError(
-                    f"{base.id} is not a tensor, so {label} on it is not an index",
+                    f"{written_base} is not a tensor, so {shown} on it is not an index",
                     span=node.span,
-                    hint=f"define it first, for example {base.id}^{{{label}}} := [...]",
+                    hint=f"define it first, for example {written_base}^{{{shown}}} := [...]",
+                )
+            if (
+                isinstance(script.body, ast.Name)
+                and script.body.id in _TRANSPOSES
+                and scope.lookup(script.body.id) is None
+                and value.type == VALUE
+            ):  # A^T of a matrix: a power, which is not what is meant
+                raise CompileError(
+                    f"{node.span.text} is read as {written_base} to the power "
+                    f"{script.body.span.text}",
+                    span=node.span,
+                    hint=f"for the transpose, write transpose({written_base}), or, with "
+                    "indices, swap them, as A_{ba} is the transpose of A_{ab}",
                 )
             exponents.append(self.value(script.body, scope, ctx))
         if not exponents:
@@ -3530,6 +3795,34 @@ class Compiler:
         for previous in reversed(exponents[:-1]):  # x^a^b is x^(a^b)
             exponent = self._power(previous, exponent, node.span)
         return self._power(value, exponent, node.span)
+
+    def _not_a_tensor(
+        self,
+        node: ast.Scripted,
+        base: ast.Name,
+        subscripts: Sequence[ast.Script],
+        items: Sequence[ast.IndexItem],
+    ) -> CompileError:
+        """``T_{ab}`` where ``T`` names no tensor: define it first, or, where the
+        subscript is a word, as in ``T_{eff}``, it names a symbol, written so."""
+        name = base.span.text
+        written = _written(subscripts)
+        run = written.lstrip("_").strip("{}")
+        if len(subscripts) == 1 and _a_word(run):  # T_{eff}: a name, not three indices
+            labels = _listed([str(item.label) for item in items])
+            return CompileError(
+                f"{name} is not a tensor",
+                span=node.span,
+                notes=[f"in braces each letter is an index: {labels}"],
+                hint=f"to name a symbol, write {name}_{{\\rm {run}}} or {name}_{{\\text{{{run}}}}}",
+            )
+        if any(self._names_component(str(item.label)) for item in items):  # T_{tt}
+            written = "_{" + "".join(_EXAMPLE_LABELS[: len(items)]) + "}"
+        return CompileError(
+            f"{name} is not a tensor",
+            span=node.span,
+            hint=f"define it first, for example {name}{written} := [...]",
+        )
 
     # -- abstract index notation -------------------------------------------------------
     #
@@ -3634,20 +3927,10 @@ class Compiler:
             free: set[tuple[str, bool]] = set()
             for label in dict.fromkeys(label for label, _ in entries):
                 positions = [up for other, up in entries if other == label]
-                text = latex_label(label)
                 if len(positions) > 2:
-                    raise IndexNotationError(
-                        f"the index {text} appears {len(positions)} times in one term",
-                        span=span,
-                        hint="an index appears once, or twice to be summed",
-                    )
+                    raise self._thrice(label, len(positions), span)
                 if len(positions) == 2 and positions[0] == positions[1]:
-                    raise IndexNotationError(
-                        f"the index {text} appears twice in one term, both times "
-                        + ("up" if positions[0] else "down"),
-                        span=span,
-                        hint="a summed index is written once up and once down",
-                    )
+                    raise self._twice(label, positions[0], span)
                 if len(positions) == 2:
                     summed = True
                 else:
@@ -3668,24 +3951,36 @@ class Compiler:
                 if lhs is not None and rhs is not None and lhs != rhs:
                     raise IndexNotationError(
                         "the two sides have different free indices: "
-                        f"{_free_latex(lhs)} on the left, {_free_latex(rhs)} on the right",
+                        f"{self._written_free(_as_indices(lhs))} on the left, "
+                        f"{self._written_free(_as_indices(rhs))} on the right",
                         span=node.span,
                     )
                 either = lhs if lhs is not None else rhs
                 return None if either is None else sorted(either)
             if isinstance(node, ast.Binary) and node.op in ("+", "-"):
                 common: frozenset[tuple[str, bool]] | None = None
+                kinds: list[tuple[ast.Expr, frozenset[tuple[str, bool]]]] = []
                 for _, term in _signed_terms(node):
                     free = side(term)
                     if free is None:
                         continue
-                    if common is not None and free != common:
-                        raise IndexNotationError(
-                            "the terms of a sum have different free indices: "
-                            f"{_free_latex(common)} and {_free_latex(free)}",
-                            span=node.span,
+                    kinds.append((term, free))
+                    common = free if common is None else common
+                if len({free for _, free in kinds}) > 1:
+                    counted = Counter(free for _, free in kinds)
+                    most, count = counted.most_common(1)[0]
+                    odd = [(term, free) for term, free in kinds if free != most]
+                    if count > 1 and len(odd) == 1:
+                        raise self._odd_term(
+                            odd[0][0], _as_indices(odd[0][1]), _as_indices(most), scope
                         )
-                    common = free
+                    first, second = list(counted)[:2]
+                    raise IndexNotationError(
+                        "the free indices of a sum must agree: "
+                        f"{self._written_free(_as_indices(first))} and "
+                        f"{self._written_free(_as_indices(second))}",
+                        span=node.span,
+                    )
                 return None if common is None else sorted(common)
             if isinstance(node, ast.Binary) and node.op == "*":
                 entries: list[tuple[str, bool]] = []
@@ -5122,13 +5417,46 @@ def _zero_literal(node: ast.Expr) -> bool:
     return isinstance(node, ast.Number) and float(node.text) == 0
 
 
-def _free_latex(free: frozenset[tuple[str, bool]]) -> str:
-    """Free indices as scripts, ``^{\\mu}_{\\nu}``, or ``none``."""
-    ordered = sorted(free)
-    upper = abstract.latex_labels([label for label, up in ordered if up])
-    lower = abstract.latex_labels([label for label, up in ordered if not up])
-    written = (f"^{{{upper}}}" if upper else "") + (f"_{{{lower}}}" if lower else "")
-    return written or "none"
+#: Superscripts that write a transpose, as in A^T.
+_TRANSPOSES = frozenset({"T", "top", "intercal"})
+
+#: Names of built-in tensors that are as often names of one's own: a covariance C,
+#: weights W, a matrix G.
+_SHARED_NAMES = frozenset({"C", "G", "W"})
+
+#: Words written as subscripts, as in T_{eff}: names, not one index per letter.
+_SUBSCRIPT_WORDS = frozenset(
+    {
+        "eff", "vac", "max", "min", "tot", "obs", "crit", "irr", "ext", "int", "rad",
+        "kin", "pot", "rel", "ret", "adv", "out", "in", "cm", "lab", "rest", "sun", "orb",
+        "com", "phys", "BH", "ADM", "Pl", "em", "dm", "de",
+    }
+)  # fmt: skip
+
+
+def _a_word(run: str) -> bool:
+    """Whether a subscript written as a run of letters is a word that names something,
+    as eff in T_{eff}, rather than one index per letter, as in T_{abc}: a word often
+    written as a subscript, or three letters or more of which some repeat."""
+    if not (run.isalpha() and run.isascii()):
+        return False
+    return run in _SUBSCRIPT_WORDS or (len(run) >= 3 and len(set(run)) < len(run))
+
+
+def _as_indices(free: Iterable[tuple[str, bool]]) -> frozenset[Index]:
+    """Free indices read from syntax, ``(label, upper)``, as indices."""
+    return frozenset(Index(label, upper) for label, upper in free)
+
+
+#: Greek letters as Unicode writes them, to write a label as the user did.
+_GREEK_CHARACTERS: dict[str, str] = {}
+for _character, _name in UNICODE_LETTERS.items():
+    if _name in GREEK:
+        _GREEK_CHARACTERS.setdefault(_name, _character)
+
+#: Names usual for coordinates: written twice down on a tensor, as z in R_{zz}, and
+#: not a coordinate in force, such a label is more likely a component than a sum.
+_COORDINATE_NAMES = frozenset({"t", "x", "y", "z", "r", "theta", "phi", "rho", "chi", "psi"})
 
 
 def _notation_of(node: Node) -> IndexEquation | IndexExpression | None:

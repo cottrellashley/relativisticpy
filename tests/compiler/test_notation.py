@@ -204,7 +204,10 @@ class TestDefinitionsAndEquations:
         assert wb.expr("w^a").to_numpy().tolist() == [1.0, 2.0]
 
     def test_definitions_check_their_free_indices(self, plane):
-        with pytest.raises(IndexNotationError, match="must agree"):
+        sides = (
+            r"the two sides have different free indices: _\{a\} on the left, _\{b\} on the right"
+        )
+        with pytest.raises(IndexNotationError, match=sides):
             plane.expr("W_{a} := V_{b}")
 
     def test_definitions_reorder_to_the_left(self, plane):
@@ -298,11 +301,15 @@ class TestIndexNotationErrors:
             ("V^{a} + V_{a}", r"the free indices of a sum must agree: \^\{a\} and _\{a\}"),
             ("V^{a} V^{a}", "index a appears twice as an upper index"),
             ("V^{a} V_{a} V^{a}", "index a appears 3 times"),
-            ("V^{a} + 1", r"cannot add a scalar to a tensor with free indices \^\{a\}"),
+            ("V^{a} + 1", r"the free indices of a sum must agree: \^\{a\} and none"),
             ("1 / V^{a}", "cannot divide by a tensor"),
             ("V^{a}^2", "x is not a tensor|cannot raise a tensor to a power|V has 1 index"),
             ("(V^{a} V_{a})^{V^{b}}", "cannot raise a tensor to a power"),
-            ("R_{ab} = 1", "one side of this equation is a tensor"),
+            ("R_{ab} = 1", r"two sides have different free indices: _\{ab\} on the left, none"),
+            (
+                "V^{a} = V_{a}",
+                r"two sides have different free indices: \^\{a\} on the left, _\{a\}",
+            ),
             ("V^{a=2}", "index value 2 is out of range for 2 coordinates"),
             ("V^{a=z}", "z is not a coordinate"),
         ],

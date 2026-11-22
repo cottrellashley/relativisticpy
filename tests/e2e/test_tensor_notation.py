@@ -147,10 +147,15 @@ class TestWithoutAMetric:
     @pytest.mark.parametrize(
         ("source", "message"),
         [
-            (r"T_{\mu\nu} u^\nu u_\nu = 0", r"the index \nu appears 3 times in one term"),
+            (
+                r"T_{\mu\nu} u^\nu u_\nu = 0",
+                r"index \nu appears 3 times in one term; an index appears once, or twice to be "
+                "summed",
+            ),
             (
                 r"solve(G_{\mu\nu} = 8\pi T_{\mu\nu}, T_{\mu\mu})",
-                r"the index \mu appears twice in one term, both times down",
+                r"index \mu appears twice as a lower index; a summed index must appear once up "
+                "and once down",
             ),
             (
                 r"G_{\mu\nu} = 8\pi T_{\mu\nu\rho}",
@@ -159,7 +164,7 @@ class TestWithoutAMetric:
             ),
             (
                 r"T_{\mu\nu} + u_\mu u^\nu = 0",
-                r"the terms of a sum have different free indices: _{\mu\nu} and ^{\nu}_{\mu}",
+                r"the free indices of a sum must agree: _{\mu\nu} and ^{\nu}_{\mu}",
             ),
             (r"T_{\mu\nu} u^\nu = \frac{u_\mu}{v^\alpha}", "cannot divide by a tensor"),
         ],
