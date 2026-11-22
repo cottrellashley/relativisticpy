@@ -46,6 +46,7 @@ data.finance.continuous-compounding
 data.learning.anscombe-regression
 data.learning.cross-entropy
 data.learning.least-squares-gradient
+data.learning.pca
 data.portfolio.minimum-variance
 data.portfolio.tangency
 data.portfolio.variance
@@ -68,10 +69,12 @@ dg.symmetry.conformal-killing
 dg.symmetry.flrw-conformally-flat
 dg.symmetry.sphere-killing
 dyn.control.overshoot
+dyn.control.step-response
 dyn.flows.lyapunov-function
 dyn.flows.stability-1d
 dyn.maps.logistic-fixed-point
 dyn.maps.period-two
+econ.bonds.duration
 econ.bonds.price
 econ.demand.arc-elasticity
 econ.games.mixed-equilibrium
@@ -88,8 +91,13 @@ em.sources.coulomb
 em.sources.loop-moment
 em.waves.speed-of-light
 em.waves.stress-energy-traceless
+fa.laplace.convolution
+fa.laplace.derivative
+fa.laplace.power
+fa.laplace.step
 fa.series.coefficient
 fa.transforms.convolution
+fa.transforms.dft
 fa.transforms.gaussian
 fa.transforms.rayleigh
 fa.transforms.rectangle
@@ -140,6 +148,7 @@ gr.waves.linearised-riemann
 gr.waves.plane-wave
 gr.waves.tt-gauge
 graph.trees.reduced-laplacian
+group.finite.permutation-representation
 group.rotations.adjoint-action
 group.su3.decuplet
 la.index.free-indices
@@ -166,6 +175,7 @@ prob.bayes.rule-of-succession
 prob.distributions.binomial-pmf
 prob.distributions.normal-one-sigma
 prob.estimation.mle-exponential
+prob.estimation.sample-variance
 prob.information.binary-entropy-maximum
 prob.information.entropy
 prob.information.kl-bernoulli
