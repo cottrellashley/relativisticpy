@@ -159,8 +159,7 @@ class TestDiscreteFourierTransform:
         assert np.allclose(found.to_numpy(), np.fft.fft(SIGNAL))
         (space,) = found.spaces
         assert space.name == "the frequencies of the space of t"
-        assert space.basis == ("0", "1/8", "1/4", "3/8", "-1/2", "-3/8", "-1/4", "-1/8")
-        assert [float(sympy.Rational(label)) for label in space.basis] == list(np.fft.fftfreq(8))
+        assert space.basis == ("0", "1", "2", "3", "4", "5", "6", "7")  # the bins, as X_k
 
     def test_the_inverse_gives_data_over_the_samples_again(self, wb):
         wb["x_t"] = SIGNAL
@@ -177,12 +176,15 @@ class TestDiscreteFourierTransform:
         energy = wb.expr(r"\frac{1}{8} \sum_k |X_k|^2")
         assert np.isclose(complex(energy), SIGNAL @ SIGNAL)
 
-    def test_a_grid_has_frequencies_in_cycles_per_step(self, wb):
+    def test_the_frequencies_of_a_grid_are_its_bins_as_x_k_is_written(self, wb):
         wb.exe(r"N := 64" "\n" r"t_n := \frac{n}{N}, \quad n = 0, \ldots, N-1")
         spectrum = wb.expr(r"\operatorname{fft}(\sin(2\pi \cdot 5\, t_n))")
         peak = int(np.argmax(np.abs(spectrum.to_numpy()[:32])))
         assert peak == 5
-        assert spectrum.spaces[0].basis[5] == "5/64"
+        assert spectrum.spaces[0].basis[5] == "5"  # bin 5: five cycles over the grid
+        wb.exe(r"f_n := \sin(2\pi \cdot 5\, t_n)")
+        tone = r"\operatorname*{arg\,max}_k \left| \operatorname{fft}(f)_k \right|"
+        assert wb.expr(tone) == 5
 
     def test_a_list_is_transformed_exactly(self, wb):
         assert list(wb.expr("fft([1, 2, 0, -1])").components) == [

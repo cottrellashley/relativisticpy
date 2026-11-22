@@ -82,16 +82,16 @@ class FastFourierTransform:
         return xp.fft.fft(x, axis=0)
 
     def space(self, over: Space) -> Space:
-        """The frequencies of the samples a space holds, in cycles per step of its index, in
-        the order of the transform's values, as ``numpy.fft.fftfreq`` gives them."""
-        step = transforms.spacing(over.basis)
-        basis = tuple(transforms.label(f) for f in self.labels(over.dim, step))
+        """The frequencies of the samples a space holds, labelled by their bins, k = 0, ...,
+        N - 1, as X_k is written, so that the bin where |X_k| is largest is k: bin k holds
+        the frequency k/(N d), for samples d apart, and (k - N)/(N d) from N/2 on."""
+        basis = tuple(transforms.label(k) for k in self.labels(over.dim, 1))
         space = Space(f"the frequencies of {over.name}", over.dim, basis, "complex")
         _SAMPLES[space] = over
         return space
 
     def labels(self, size: int, step: Any) -> list[Any]:
-        return transforms.frequencies(size, step)
+        return list(range(size))
 
     def sum(self, x: Sequence[Any], k: int) -> complex:
         size = len(x)
