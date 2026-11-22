@@ -348,31 +348,22 @@ def symmetrize(array: Any, axes: Sequence[int], *, antisymmetric: bool) -> Any:
     return total / len(orderings)
 
 
-#: Elementwise functions by the name of RelativisticPy's builtin.
-_UFUNCS = {
-    "sin": "sin", "cos": "cos", "tan": "tan", "asin": "arcsin", "acos": "arccos",
-    "atan": "arctan", "sinh": "sinh", "cosh": "cosh", "tanh": "tanh", "exp": "exp",
-    "log": "log", "ln": "log", "sqrt": "sqrt", "abs": "abs", "Abs": "abs",
-    "sign": "sign", "floor": "floor", "ceil": "ceil", "conjugate": "conj",
-    "re": "real", "im": "imag",
-}  # fmt: skip
-
-
-def elementwise(name: str) -> bool:
-    """Whether NumPy (and JAX) have their own version of the builtin ``name``."""
-    return name in _UFUNCS
-
-
-def apply(array: Any, func: Callable[..., Any], name: str, extra: Sequence[Any] = ()) -> Any:
-    """``func`` applied to every component: NumPy's own version where there is one, and
-    otherwise its translation into NumPy and SciPy, made once from what it does to a
+def apply(
+    array: Any,
+    func: Callable[..., Any],
+    extra: Sequence[Any] = (),
+    numeric: Callable[..., Any] | None = None,
+) -> Any:
+    """``func`` applied to every component: by ``numeric``, where the operation computes
+    with arrays itself, given the array module, the array and the ``extra`` arguments;
+    otherwise by its translation into NumPy and SciPy, made once from what it does to a
     symbol, as ``erf`` becomes ``scipy.special.erf``; one component at a time, through
     SymPy, only where there is none."""
     xp = _xp(array)
     array = dense(array)
-    if not extra and (ufunc := _UFUNCS.get(name)) is not None:
-        return getattr(xp, ufunc)(array)
     numbers = [number(e) for e in extra]
+    if numeric is not None:
+        return numeric(xp, array, *numbers)
     np = numpy()
     try:
         translated = _translated(func, tuple(numbers)) if xp is np else None

@@ -98,6 +98,13 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   (`pip install "relativisticpy[live]"`).
 - `Workbook.copy`, a workbook in the same state whose definitions are its own from then
   on.
+- Integrations: every function the language knows is a capability that a module of
+  `relativisticpy.integrations` declares, a class whose methods compute it with SymPy
+  and, where it has one, with arrays. The package is scanned, outside packages
+  contribute through the `relativisticpy.integrations` entry points, and a library a
+  capability needs is imported only when it is used. A conformance suite holds every
+  capability to the pattern in seven checks, saying in words what to fix, and
+  `integrations.check` runs it on one ([Integrations](docs/integrations.md)).
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

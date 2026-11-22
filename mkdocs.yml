@@ -22,6 +22,7 @@ nav:
       - Numerics: numerics.md
   - Reference:
       - The language reference: reference.md
+      - Integrations: integrations.md
       - Python API: python.md
       - Command line: cli.md
       - MCP server, for agents: mcp.md

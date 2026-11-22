@@ -99,6 +99,11 @@ def absent_from(factory: Callable[..., Metric]) -> frozenset[str]:
     return frozenset(factory.absent)  # type: ignore[attr-defined]
 
 
+def declares(factory: Callable[..., Any]) -> bool:
+    """Whether ``factory`` is a spacetime: it declares the coordinates of its metric."""
+    return hasattr(factory, "coordinates") and hasattr(factory, "absent")
+
+
 def _value(value: Any) -> Expr:
     """A parameter as SymPy: a name becomes a symbol, and a decimal the exact fraction
     it denotes."""

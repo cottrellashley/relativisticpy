@@ -105,73 +105,109 @@ Each is a function that gives a metric, as in `g_{\mu\nu} := Schwarzschild(M)`. 
 
 ## Functions
 
-A builtin is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`. The elementary functions and those of algebra and calculus apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component.
-
-### Elementary functions
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `sin` `cos` `tan` `cot` `sec` `csc` | 1 | the trigonometric functions; `\sin^2\theta` is the square of `\sin\theta` |
-| `asin` `acos` `atan` `acot` `asec` `acsc` `arcsin` `arccos` `arctan` | 1 | their inverses; `\sin^{-1} x` too |
-| `sinh` `cosh` `tanh` `coth` `sech` `csch` | 1 | the hyperbolic functions |
-| `asinh` `acosh` `atanh` `acoth` `asech` `acsch` | 1 | their inverses |
-| `exp` | 1 | the exponential; `e^{x}` too |
-| `ln` | 1 | the natural logarithm |
-| `sqrt` | 1 | the square root; `\sqrt[n]{x}` is the nth root |
-| `abs` `Abs` | 1 | the absolute value; `\lvert x \rvert` too |
-| `sign` | 1 | the sign: −1, 0 or 1 |
-| `floor` `ceiling` | 1 | rounded down and up; `\lfloor x \rfloor`, `\lceil x \rceil` |
-| `factorial` `factorial2` | 1 | the factorial and the double factorial; `n!` and `n!!` too |
-| `gamma` | 1 | Euler's gamma function; `\gamma` is the letter |
-| `erf` | 1 | the error function |
-| `re` `Re` `im` `Im` | 1 | the real and imaginary parts; `\Re`, `\Im` |
-| `conjugate` `conj` | 1 | the complex conjugate |
-| `arg` | 1 | the argument of a complex number |
+A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component. Each is a capability of an integration, a module of `relativisticpy.integrations` ([Integrations](integrations.md)), from whose declaration this list is written.
 
 ### Algebra and calculus
 
 | Function | Arguments | Meaning |
 |---|---|---|
-| `simplify` `tsimplify` | 1 | the simplest form; of an equation between tensors without components, its canonical form |
-| `expand` | 1 | multiplied out |
-| `factor` | 1 | factorised |
-| `collect` | 2 or more | `collect(f, x)`, the terms of f gathered by powers of x |
-| `cancel` | 1 | a fraction, with common factors cancelled |
-| `apart` | 1 | partial fractions |
-| `together` | 1 | one fraction |
-| `trigsimp` | 1 | trigonometric functions simplified |
-| `powsimp` | 1 | powers combined: `x^a x^b` is `x^{a+b}` |
-| `expand_trig` | 1 | functions of sums and multiples of angles, expanded |
-| `nsimplify` | 1 | the exact number a decimal stands for: `0.5` is `1/2` |
-| `diff` | 1 or more | `diff(f, x)`, `diff(f, x, 2)`, `diff(f, x, y)`: derivatives, as `\frac{d}{dx}` |
-| `integrate` | 1 or more | `integrate(f, x)`, `integrate(f, (x, 0, 1))`: integrals, as `\int` |
-| `limit` `lim` | 3 to 4 | `limit(f, x, a)`, as x tends to a; `\lim_{x \to a^+}` for one side |
-| `series` | 1 to 4 | `series(f, x, a, n)`, the Taylor series about a, to order n |
-| `subs` | 2 to 3 | `subs(f, x, a)`, f with a put for x |
-| `N` `numerical` `evalf` | 1 to 2 | `N(x)`, `N(x, digits)`: a decimal number |
-| `doit` | 1 | sums, products and integrals, kept as written, carried out |
+| `simplify(expr)` `tsimplify` | 1 | the simplest form; of an equation between tensors without components, its canonical form |
+| `expand(expr)` | 1 | multiplied out |
+| `factor(expr)` | 1 | factorised |
+| `collect(expr, syms, ...)` | 2 or more | `collect(f, x)`, the terms of f gathered by powers of x |
+| `cancel(expr)` | 1 | a fraction, with common factors cancelled |
+| `apart(expr)` | 1 | partial fractions |
+| `together(expr)` | 1 | one fraction |
+| `trigsimp(expr)` | 1 | trigonometric functions simplified |
+| `powsimp(expr)` | 1 | powers combined: `x^a x^b` is `x^{a+b}` |
+| `expand_trig(expr)` | 1 | functions of sums and multiples of angles, expanded |
+| `nsimplify(expr)` | 1 | the exact number a decimal stands for: `0.5` is `1/2` |
+| `diff(f, ...)` | 1 or more | `diff(f, x)`, `diff(f, x, 2)`, `diff(f, x, y)`: derivatives, as `\frac{d}{dx}` |
+| `integrate(f, ...)` | 1 or more | `integrate(f, x)`, `integrate(f, (x, 0, 1))`: integrals, as `\int` |
+| `limit(f, x, a, dir)` `lim` | 3 to 4 | `limit(f, x, a)`, as x tends to a; `\lim_{x \to a^+}` for one side |
+| `series(expr, x, x0, n)` | 1 to 4 | `series(f, x, a, n)`, the Taylor series about a, to order n |
+| `subs(expr, old, new)` | 2 to 3 | `subs(f, x, a)`, f with a put for x; `subs(f, x = a)` too |
+| `N(value, digits)` `numerical` `evalf` | 1 to 2 | `N(x)`, `N(x, digits)`: a decimal number |
+| `doit(value)` | 1 | sums, products and integrals, kept as written, carried out |
 
-### Equations, matrices and numbers
+### Elementary functions
 
 | Function | Arguments | Meaning |
 |---|---|---|
-| `log` | 1 to 2 | the logarithm; `log(x, b)` to the base b, `\log_b x` in LaTeX |
-| `root` | 2 | `root(x, n)`, the nth root |
-| `binomial` | 2 | `binomial(n, k)`; `\binom{n}{k}` too |
-| `atan2` | 2 | `atan2(y, x)`, the angle of the point (x, y) |
-| `min` `Min` `max` `Max` | 1 or more | the least and the greatest of the arguments |
-| `gcd` `lcm` | 2 or more | the greatest common divisor and the least common multiple |
-| `solve` | 1 or more | `solve(x^2 = 4, x)`, the solutions; `solve(E, T_{\mu\nu})` solves an equation between tensors for one |
-| `dsolve` | 1 or more | `dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation |
-| `RHS` `rhs` `LHS` `lhs` | 1 | the right and the left side of an equation |
-| `Eq` | 2 | `Eq(a, b)`, the equation a = b |
-| `symbols` | 1 | `symbols('x y')`, the symbols named in quotes |
-| `latex` | 1 | the LaTeX of a value, as text |
-| `diag` | 1 or more | `diag(a, b, ...)`, a diagonal matrix |
-| `det` | 1 | the determinant |
-| `inverse` `inv` | 1 | the inverse of a matrix |
-| `transpose` | 1 | the transpose of a matrix |
-| `trace` | 1 | the trace of a matrix; of an equation between tensors, its contraction |
+| `sin(x)` | 1 | the sine; `\sin^2\theta` is the square of `\sin\theta` |
+| `cos(x)` | 1 | the cosine |
+| `tan(x)` | 1 | the tangent |
+| `cot(x)` | 1 | the cotangent |
+| `sec(x)` | 1 | the secant |
+| `csc(x)` | 1 | the cosecant |
+| `asin(x)` `arcsin` | 1 | the inverse sine; `\sin^{-1} x` too |
+| `acos(x)` `arccos` | 1 | the inverse cosine |
+| `atan(x)` `arctan` | 1 | the inverse tangent |
+| `acot(x)` | 1 | the inverse cotangent |
+| `asec(x)` | 1 | the inverse secant |
+| `acsc(x)` | 1 | the inverse cosecant |
+| `sinh(x)` | 1 | the hyperbolic sine |
+| `cosh(x)` | 1 | the hyperbolic cosine |
+| `tanh(x)` | 1 | the hyperbolic tangent |
+| `coth(x)` | 1 | the hyperbolic cotangent |
+| `sech(x)` | 1 | the hyperbolic secant |
+| `csch(x)` | 1 | the hyperbolic cosecant |
+| `asinh(x)` | 1 | the inverse hyperbolic sine |
+| `acosh(x)` | 1 | the inverse hyperbolic cosine |
+| `atanh(x)` | 1 | the inverse hyperbolic tangent |
+| `acoth(x)` | 1 | the inverse hyperbolic cotangent |
+| `asech(x)` | 1 | the inverse hyperbolic secant |
+| `acsch(x)` | 1 | the inverse hyperbolic cosecant |
+| `exp(x)` | 1 | the exponential; `e^{x}` too |
+| `ln(x)` | 1 | the natural logarithm |
+| `sqrt(x)` | 1 | the square root; `\sqrt[n]{x}` is the nth root |
+| `abs(x)` `Abs` | 1 | the absolute value; `\lvert x \rvert` too |
+| `sign(x)` | 1 | the sign: −1, 0 or 1 |
+| `floor(x)` | 1 | rounded down; `\lfloor x \rfloor` too |
+| `ceiling(x)` | 1 | rounded up; `\lceil x \rceil` too |
+| `factorial(x)` | 1 | the factorial; `n!` too |
+| `factorial2(x)` | 1 | the double factorial; `n!!` too |
+| `gamma(x)` | 1 | Euler's gamma function; `\gamma` is the letter |
+| `re(x)` `Re` | 1 | the real part; `\Re` too |
+| `im(x)` `Im` | 1 | the imaginary part; `\Im` too |
+| `conjugate(x)` `conj` | 1 | the complex conjugate |
+| `arg(x)` | 1 | the argument of a complex number |
+| `erf(x)` | 1 | the error function |
+
+### Equations
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `solve(equations, ...)` | 1 or more | `solve(x^2 = 4, x)`, the solutions; `solve(E, T_{\mu\nu})` solves an equation between tensors for one |
+| `dsolve(equations, ...)` | 1 or more | `dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation |
+| `RHS(equation)` `rhs` | 1 | the right side of an equation |
+| `LHS(equation)` `lhs` | 1 | the left side of an equation |
+| `Eq(lhs, rhs)` | 2 | `Eq(a, b)`, the equation a = b |
+| `symbols(names)` | 1 | `symbols('x y')`, the symbols named in quotes |
+| `latex(value)` | 1 | the LaTeX of a value, as text |
+
+### Matrices
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `diag(first, ...)` | 1 or more | `diag(a, b, ...)`, a diagonal matrix |
+| `det(matrix)` | 1 | the determinant |
+| `inverse(matrix)` `inv` | 1 | the inverse of a matrix |
+| `transpose(matrix)` | 1 | the transpose of a matrix |
+| `trace(matrix)` | 1 | the trace of a matrix; of an equation between tensors, its contraction |
+
+### Numbers
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `log(x, base)` | 1 to 2 | the logarithm; `log(x, b)` to the base b, `\log_b x` in LaTeX |
+| `root(x, n)` | 2 | `root(x, n)`, the nth root |
+| `binomial(n, k)` | 2 | `binomial(n, k)`; `\binom{n}{k}` too |
+| `atan2(y, x)` | 2 | `atan2(y, x)`, the angle of the point (x, y) |
+| `min(first, ...)` `Min` | 1 or more | the least of the arguments |
+| `max(first, ...)` `Max` | 1 or more | the greatest of the arguments |
+| `gcd(a, b, ...)` | 2 or more | the greatest common divisor |
+| `lcm(a, b, ...)` | 2 or more | the least common multiple |
 
 ## Data, statistics and linear algebra
 

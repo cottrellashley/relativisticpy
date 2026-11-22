@@ -85,10 +85,17 @@ def _const(op: ops.Const, args: list[Any], executor: Executor) -> Any:
 
 @execute.register(ops.Call)
 def _call(op: ops.Call, args: list[Any], executor: Executor) -> Any:
-    func = registry.lookup(op.name).func  # what computes the operation the IR names
-    if len(args) == 1 and numerical.is_numerical(args[0]) and numerical.elementwise(op.name):
-        return numerical.apply(args[0], func, op.name)  # NumPy's sqrt, or JAX's
-    return func(*args, **dict(op.attributes))
+    entry = registry.lookup(op.name)  # what computes the operation the IR names
+    if len(args) == 1 and numerical.is_numerical(args[0]) and _numeric(entry, 1) is not None:
+        return numerical.apply(args[0], entry.func, numeric=entry.numeric)  # NumPy's sqrt
+    return entry.func(*args, **dict(op.attributes))
+
+
+def _numeric(entry: registry.Implementation, count: int) -> Any:
+    """What computes an operation with arrays, given ``count`` arguments, if it has one."""
+    if entry.numeric is not None and entry.numeric.takes(count):
+        return entry.numeric
+    return None
 
 
 # Arithmetic follows mathematics, not Python: a list is a vector or a matrix, so
@@ -219,11 +226,15 @@ class ComponentCall:
 
 @execute.register(ops.Map)
 def _map(op: ops.Map, args: list[Any], executor: Executor) -> Any:
-    func = registry.lookup(op.name).func  # what computes the operation the IR names
+    entry = registry.lookup(op.name)  # what computes the operation the IR names
+    func = entry.func
     target, extra = args[0], tuple(args[1:])
     if numerical.is_numerical(target):
         each = functools.partial(func, **dict(op.attributes)) if op.attributes else func
-        return numerical.apply(target, each, op.name, extra)
+        numeric = _numeric(entry, 1 + len(extra))
+        if numeric is not None and op.attributes:
+            numeric = functools.partial(numeric, **dict(op.attributes))
+        return numerical.apply(target, each, extra, numeric)
     call = ComponentCall(func, extra, op.attributes)
     if not isinstance(target, sympy.NDimArray):
         return call(target)

@@ -15,20 +15,22 @@ The names are of two kinds:
   ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``, and
   ``notation.solve`` for the algebra of index notation.
 
-A new function is an entry here, with its implementation in
-:mod:`relativisticpy.runtime.functions` or :mod:`relativisticpy.runtime.core`.
+The builtins are the capabilities the integrations declare
+(:mod:`relativisticpy.integrations`), registered under each of their names; what the
+compiler emits for notation is the core, here, with its implementation in
+:mod:`relativisticpy.runtime.core`.
 """
 
 from __future__ import annotations
 
-import inspect
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
 
+from relativisticpy import integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
-from relativisticpy.runtime import core, functions, notation
+from relativisticpy.runtime import core, notation
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
@@ -58,6 +60,9 @@ class Implementation:
     ``references`` its arguments after the first is given those as the nodes they are,
     not computed, to make IR that uses them; one that ``evaluates`` its argument, the IR
     another made, gives that IR's value.
+
+    A capability of an integration may compute with arrays itself: ``numeric`` is then
+    given the array module of the data, NumPy's or JAX's, and the arguments.
     """
 
     name: str
@@ -71,6 +76,7 @@ class Implementation:
     parameters: tuple[str, ...] = ()
     references: bool = False
     evaluates: bool = False
+    numeric: integrations.Numerically | None = None
 
     @property
     def scalar(self) -> bool:
@@ -113,25 +119,27 @@ def lookup(name: str) -> Implementation:
 
 
 def _builtins() -> Iterator[Implementation]:
-    """The functions a program calls by name, in the order the language lists them."""
-    for name, func in functions.ELEMENTARY.items():
-        yield Implementation(name, func, "scalar", 1, 1, componentwise=True, builtin=True)
-    for name, func in functions.ALGEBRA.items():
-        low, high = functions.ARITY.get(name, (1, 1))
-        yield Implementation(name, func, "scalar", low, high, componentwise=True, builtin=True)
-    for name, func in functions.VALUES.items():
-        low, high = functions.ARITY.get(name, (1, None))
-        result: Result = "scalar" if name in functions.SCALAR_VALUES else "value"
-        yield Implementation(
-            name, func, result, low, high, builtin=True, takes_names=name == "symbols"
+    """The functions a program calls by name: every capability the integrations declare,
+    under its name and each alias. A spacetime names its parameters in messages."""
+    for capability in integrations.capabilities():
+        low, high = capability.arity
+        result: Result = "scalar" if capability.scalar else "value"
+        spacetime = isinstance(capability, integrations.Constructor) and spacetimes.declares(
+            capability.exact
         )
-    for name, factory in functions.SPACETIMES.items():
-        low, high = functions.arity(factory)
-        parameters = tuple(inspect.signature(factory).parameters)
-        spacetime = functions.Spacetime(factory)
-        yield Implementation(
-            name, spacetime, "value", low, high, builtin=True, parameters=parameters
-        )
+        for name in capability.names:
+            yield Implementation(
+                name,
+                integrations.Exactly(name),
+                result,
+                low,
+                high,
+                componentwise=capability.lifts,
+                builtin=True,
+                takes_names=capability.takes_names,
+                parameters=capability.parameters if spacetime else (),
+                numeric=integrations.Numerically(name) if capability.numeric else None,
+            )
 
 
 # -- what the compiler emits for notation ---------------------------------------------------
@@ -250,11 +258,22 @@ def _staged(lowered: Any) -> Any:  # pragma: no cover - the executor computes it
 
 
 _ENTRIES: dict[str, Implementation] = {}
-for _entry in (*_builtins(), *_core(), *_notation()):
-    if _entry.name in _ENTRIES:  # pragma: no cover - a mistake in the tables above
-        raise ValueError(f"two operations are registered as {_entry.name!r}")
-    _ENTRIES[_entry.name] = _entry
 
-#: Every operation, by its name: the builtins first, in the order the language lists
+
+def _register() -> None:
+    """Register every operation, again whenever the integrations change."""
+    entries: dict[str, Implementation] = {}
+    for entry in (*_builtins(), *_core(), *_notation()):
+        if entry.name in entries:  # pragma: no cover - a mistake in the tables above
+            raise ValueError(f"two operations are registered as {entry.name!r}")
+        entries[entry.name] = entry
+    _ENTRIES.clear()
+    _ENTRIES.update(entries)
+
+
+_register()
+integrations.on_change(_register)
+
+#: Every operation, by its name: the builtins first, in the order the integrations declare
 #: them, then what the compiler emits for notation, then the algebra of index notation.
 REGISTRY = MappingProxyType(_ENTRIES)

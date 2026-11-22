@@ -89,11 +89,12 @@ class TestComponents:
             arrays.symmetrize(square, (0, 1), antisymmetric=True), (square - square.T) / 2
         )
 
-    def test_elementwise_functions_are_numpy_s(self):
+    def test_a_function_computes_with_its_own_numeric_implementation(self):
         x = np.array([0.0, 1.0])
-        assert np.allclose(numerical.apply(x, sympy.exp, "exp"), np.exp(x))
-        # Without a NumPy version, the function is applied to each component.
-        assert np.allclose(numerical.apply(x, lambda v: v**2 + 1, "custom"), x**2 + 1)
+        exp = numerical.apply(x, sympy.exp, numeric=lambda xp, array: xp.exp(array))
+        assert np.allclose(exp, np.exp(x))
+        # Without one, the function is translated, or applied to each component.
+        assert np.allclose(numerical.apply(x, lambda v: v**2 + 1), x**2 + 1)
 
     def test_a_function_numpy_lacks_is_translated_once(self):
         import scipy.special
@@ -105,9 +106,9 @@ class TestComponents:
             return sympy.erf(value)
 
         x = rng.normal(size=(50, 20))
-        assert np.allclose(numerical.apply(x, erf, "erf"), scipy.special.erf(x))
+        assert np.allclose(numerical.apply(x, erf), scipy.special.erf(x))
         assert len(calls) == 1  # into SciPy's erf, rather than once for every component
-        assert np.allclose(numerical.apply(x, lambda value: sympy.S(2), "two"), 2.0)
+        assert np.allclose(numerical.apply(x, lambda value: sympy.S(2)), 2.0)
 
     def test_close_is_to_rounding_error(self):
         assert numerical.close(np.array([1.0, 2.0]), np.array([1.0, 2.0 + 1e-13]))

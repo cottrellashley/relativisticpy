@@ -17,7 +17,8 @@ pattern and from the tests that hold every integration to it.
   `spacetimes.py`.
 - **It declares capabilities:** what the language can now write and compute.
 - **Discovery:**
-  - The package is scanned, so adding the file is enough; no list needs editing.
+  - The package is scanned, so adding the file is enough; no list needs editing. A
+    module whose name starts with an underscore is the framework, not an integration.
   - Packages outside RelativisticPy contribute through the `relativisticpy.integrations`
     entry-point group, Python's standard mechanism.
 - **Optional dependencies:** a library is imported when a capability is first used, and
@@ -123,12 +124,12 @@ from relativisticpy.integrations import Example, function
 
 @function(
     "besselj",
-    written=[r"J_{\nu}(x)", r"\operatorname{J}_{\nu}(x)", "besselj(nu, x)"],
-    summary="the Bessel function of the first kind, of order \\nu",
+    latex=r"J_{\nu}(x)",
+    summary=r"the Bessel function of the first kind, of order \nu",
     requires="scipy",
     examples=[
-        Example(r"J_0(0)", 1),
-        Example(r"J_{1/2}(\pi/2)", 2 / sympy.pi),
+        Example("J_0(0)", 1, "DLMF 10.8.1"),
+        Example(r"J_{1/2}(\pi/2)", 2 / sympy.pi, "DLMF 10.16.1"),
     ],
 )
 class BesselJ:
@@ -141,26 +142,48 @@ class BesselJ:
         return jv(nu, x)
 ```
 
+What implementing it settled:
+
+- **The signature of `exact` is the declaration of the parameters:** how many arguments
+  a call takes, the names its written forms use, and the plain text it is called with,
+  `besselj(nu, x)`. There is no table of arities.
+- **An example names its source,** a book and equation or the library called directly,
+  so that its answer is known from outside the integration.
+- **Each kind says how the engines treat it:** a function lifts to tensors and data
+  unless it takes its arguments whole, as `min` does (`lifts=False`), and gives a
+  scalar unless it gives another value, as `latex` gives text (`scalar=False`).
+- **The registry names what computes a capability by the capability's name,** so a
+  worker process finds it again, and a missing library is an error that names the extra
+  to install, found in the package's own metadata.
+
 ## Verification
 
-The conformance suite runs for every capability that the scan finds:
+The conformance suite runs for every capability that the scan finds, each check for the
+kinds it applies to. `relativisticpy.integrations.check` runs it on one capability, so an
+agent checks a capability before it joins an integration.
 
 1. **Declaration.**
-   - Names are unique across every integration.
+   - Names are unique across every integration, and each is one name in the language.
    - Every written form parses to this capability.
-   - There is a summary, at least two examples, and the dependency is declared.
-2. **Examples.** Each runs in the language and gives its known answer. The answer comes
-   from outside the integration: the library called directly, or a closed form with its
-   source.
+   - There is a summary, at least two examples, each with its source, and the library it
+     needs is declared and imported only when it is used.
+2. **Examples.** Each runs in the language, calls the capability, and gives its known
+   answer. The answer comes from outside the integration: the library called directly,
+   or a closed form with its source.
 3. **Agreement.**
-   - The exact and numeric implementations agree at sampled points.
+   - The exact and numeric implementations agree at points: those the capability
+     declares, or 0.3, 0.7 and 1.6 for each argument.
+   - Numeric takes arrays of the points at once.
    - NumPy and JAX agree where both are installed.
 4. **Lifting.** A function applied to a tensor, or to data, gives its results component
    by component, and keeps the spaces.
 5. **Errors.** Each of these is a `RelativisticPyError` whose message says what to do:
    - the wrong number of arguments;
-   - the wrong kind of argument;
    - a dependency that is missing.
+
+   The wrong kind of argument, a list given to a function or text in quotes to anything
+   else, is computed or refused so, never a failure of RelativisticPy's own: what a
+   function can take is its own to say, as `doit` of a list is the list.
 6. **Display.** A call prints in all four forms, and each form reads back.
 7. **Reference.** The generated reference describes the capability from its
    declaration.
@@ -183,14 +206,17 @@ it once the suite passes. The pattern and the suite are what make that safe.
 
 ## Migration
 
-Today's tables become the first integrations, with their behaviour unchanged:
+Today's tables became the first integrations, with their behaviour unchanged:
 
-- `compiler/builtins.py`: SymPy's functions, algebra and calculus, and the spacetimes;
-- the statistics (`_STATISTICS`) and linear algebra (`_LINEAR_ALGEBRA`) of the compiler;
-- the numerical dispatch in `runtime/kernels.py` and `tensors/numerical.py`.
+- the builtins of `runtime/functions.py`: the elementary functions, algebra and calculus,
+  equations, matrices and numbers, and the spacetimes, a module of
+  `relativisticpy/integrations/` for each;
+- the numerical dispatch of `tensors/numerical.py`: a function NumPy has itself declares
+  `numeric`, and the engines translate the rest through SymPy.
 
-The compiler and the runtime then ask the integrations for a name, instead of their own
-tables.
+The registry, the compiler and the reference now ask the integrations for a name. The
+operations the compiler emits for notation (`core.*`, `linalg.*`, `stats.*`,
+`notation.*`) stay in the registry: they are the core, not integrations.
 
 ## What stays in the core
 

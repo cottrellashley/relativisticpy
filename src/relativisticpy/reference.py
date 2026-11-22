@@ -20,13 +20,12 @@ current and complete.
 
 from __future__ import annotations
 
-import inspect
 import re
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from pathlib import Path
 
-from relativisticpy import display
+from relativisticpy import display, integrations
 from relativisticpy.checking import EMPTY, LISTED, STRICT, TIME_LIMIT, Verdict
 from relativisticpy.compiler import builtins
 from relativisticpy.compiler.compiler import (
@@ -64,80 +63,9 @@ TITLE = "The language reference"
 
 # -- what the tables do not say -----------------------------------------------------------
 #
-# Each entry names a family of builtins, by the names the language calls them, and says
-# what they do. Every builtin but the spacetimes is in exactly one family, and every name
-# of a family is a builtin: the page cannot be written otherwise.
-
-_FUNCTIONS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("sin", "cos", "tan", "cot", "sec", "csc"),
-     r"the trigonometric functions; `\sin^2\theta` is the square of `\sin\theta`"),
-    (("asin", "acos", "atan", "acot", "asec", "acsc", "arcsin", "arccos", "arctan"),
-     r"their inverses; `\sin^{-1} x` too"),
-    (("sinh", "cosh", "tanh", "coth", "sech", "csch"), "the hyperbolic functions"),
-    (("asinh", "acosh", "atanh", "acoth", "asech", "acsch"), "their inverses"),
-    (("exp",), "the exponential; `e^{x}` too"),
-    (("ln",), "the natural logarithm"),
-    (("log",), r"the logarithm; `log(x, b)` to the base b, `\log_b x` in LaTeX"),
-    (("sqrt",), r"the square root; `\sqrt[n]{x}` is the nth root"),
-    (("root",), "`root(x, n)`, the nth root"),
-    (("abs", "Abs"), r"the absolute value; `\lvert x \rvert` too"),
-    (("sign",), "the sign: −1, 0 or 1"),
-    (("floor", "ceiling"), r"rounded down and up; `\lfloor x \rfloor`, `\lceil x \rceil`"),
-    (("factorial", "factorial2"), "the factorial and the double factorial; `n!` and `n!!` too"),
-    (("gamma",), r"Euler's gamma function; `\gamma` is the letter"),
-    (("erf",), "the error function"),
-    (("re", "Re", "im", "Im"), r"the real and imaginary parts; `\Re`, `\Im`"),
-    (("conjugate", "conj"), "the complex conjugate"),
-    (("arg",), "the argument of a complex number"),
-    (("binomial",), r"`binomial(n, k)`; `\binom{n}{k}` too"),
-    (("atan2",), "`atan2(y, x)`, the angle of the point (x, y)"),
-    (("min", "Min", "max", "Max"), "the least and the greatest of the arguments"),
-    (("gcd", "lcm"), "the greatest common divisor and the least common multiple"),
-    (("simplify", "tsimplify"),
-     "the simplest form; of an equation between tensors without components, its canonical form"),
-    (("expand",), "multiplied out"),
-    (("factor",), "factorised"),
-    (("collect",), "`collect(f, x)`, the terms of f gathered by powers of x"),
-    (("cancel",), "a fraction, with common factors cancelled"),
-    (("apart",), "partial fractions"),
-    (("together",), "one fraction"),
-    (("trigsimp",), "trigonometric functions simplified"),
-    (("powsimp",), "powers combined: `x^a x^b` is `x^{a+b}`"),
-    (("expand_trig",), "functions of sums and multiples of angles, expanded"),
-    (("nsimplify",), "the exact number a decimal stands for: `0.5` is `1/2`"),
-    (("diff",), r"`diff(f, x)`, `diff(f, x, 2)`, `diff(f, x, y)`: derivatives, as `\frac{d}{dx}`"),
-    (("integrate",), r"`integrate(f, x)`, `integrate(f, (x, 0, 1))`: integrals, as `\int`"),
-    (("limit", "lim"), r"`limit(f, x, a)`, as x tends to a; `\lim_{x \to a^+}` for one side"),
-    (("series",), "`series(f, x, a, n)`, the Taylor series about a, to order n"),
-    (("subs",), "`subs(f, x, a)`, f with a put for x"),
-    (("N", "numerical", "evalf"), "`N(x)`, `N(x, digits)`: a decimal number"),
-    (("doit",), "sums, products and integrals, kept as written, carried out"),
-    (("solve",),
-     r"`solve(x^2 = 4, x)`, the solutions; `solve(E, T_{\mu\nu})` solves an equation between "
-     "tensors for one"),
-    (("dsolve",), "`dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation"),
-    (("RHS", "rhs", "LHS", "lhs"), "the right and the left side of an equation"),
-    (("Eq",), "`Eq(a, b)`, the equation a = b"),
-    (("symbols",), "`symbols('x y')`, the symbols named in quotes"),
-    (("latex",), "the LaTeX of a value, as text"),
-    (("diag",), "`diag(a, b, ...)`, a diagonal matrix"),
-    (("det",), "the determinant"),
-    (("inverse", "inv"), "the inverse of a matrix"),
-    (("transpose",), "the transpose of a matrix"),
-    (("trace",), "the trace of a matrix; of an equation between tensors, its contraction"),
-)  # fmt: skip
-
-#: What each spacetime is, by its name in the language.
-_SPACETIMES: Mapping[str, str] = {
-    "Minkowski": "flat spacetime; `Minkowski(spherical)` in spherical coordinates",
-    "Schwarzschild": "a static black hole of mass M",
-    "ReissnerNordstrom": "a static black hole of mass M and charge Q",
-    "Kerr": "a rotating black hole of mass M and spin a = J/Mc, in Boyer–Lindquist coordinates",
-    "KerrNewman": "a rotating black hole of mass M, spin a and charge Q",
-    "FLRW": "a homogeneous, isotropic universe: spatial curvature k, scale factor a(t)",
-    "DeSitter": "the static patch of de Sitter space, of curvature radius L",
-    "AntiDeSitter": "anti-de Sitter space, of curvature radius L",
-}
+# The functions and the spacetimes are described by their declarations, in the
+# integrations (relativisticpy.integrations); what the tables of the parser and the
+# compiler name but do not describe, a short table here says.
 
 #: What the commands the parser and the lexer read themselves mean, a family at a time.
 #: Every one of them is in exactly one family.
@@ -284,8 +212,8 @@ def _table(header: Sequence[str], rows: Iterable[Sequence[str]]) -> list[str]:
     return lines
 
 
-def _arity(builtin: builtins.Builtin) -> str:
-    low, high = builtin.min_args, builtin.max_args
+def _arity(capability: integrations.Capability) -> str:
+    low, high = capability.arity
     if high is None:
         return f"{low} or more"
     if low == high:
@@ -501,8 +429,6 @@ def _index_notation() -> list[str]:
 
 
 def _spacetimes() -> list[str]:
-    if set(_SPACETIMES) != set(builtins._SPACETIMES):
-        raise AssertionError("the spacetimes are out of date: say what each new one is")
     lines = [
         "## Spacetimes",
         "",
@@ -512,31 +438,29 @@ def _spacetimes() -> list[str]:
         "",
     ]
     rows = []
-    for name, factory in builtins._SPACETIMES.items():
-        parameters = ", ".join(inspect.signature(factory).parameters)
+    for capability in _declared(spacetime=True):
+        factory = builtins._SPACETIMES[capability.name]
         coordinates = ", ".join(display.unicode(c) for c in factory().coordinates)
-        rows.append((_code(f"{name}({parameters})"), coordinates, _SPACETIMES[name]))
+        rows.append((_code(capability.text()), coordinates, capability.summary))
     lines += _table(("Spacetime", "Coordinates", "Meaning"), rows)
     return lines
 
 
-def _families() -> list[tuple[tuple[str, ...], str]]:
-    """The families of builtins, checked against the builtins: every builtin but a
-    spacetime in one family, every name of a family a builtin, and one arity in each."""
-    named = [name for names, _ in _FUNCTIONS for name in names]
-    missing = set(builtins.BUILTINS) - set(named) - set(builtins._SPACETIMES)
-    unknown = set(named) - set(builtins.BUILTINS)
-    twice = {name for name in named if named.count(name) > 1}
-    if missing or unknown or twice:
-        raise AssertionError(
-            f"the families of builtins are out of date: not described {sorted(missing)}, "
-            f"not builtins {sorted(unknown)}, described twice {sorted(twice)}"
-        )
-    for names, _ in _FUNCTIONS:
-        arities = {_arity(builtins.BUILTINS[name]) for name in names}
-        if len(arities) != 1:
-            raise AssertionError(f"the builtins {names} take different numbers of arguments")
-    return list(_FUNCTIONS)
+def _declared(*, spacetime: bool) -> list[integrations.Capability]:
+    """The capabilities the integrations declare: the spacetimes, or the rest."""
+    return [
+        capability
+        for capability in integrations.capabilities()
+        if (capability.name in builtins._SPACETIMES) == spacetime
+    ]
+
+
+def _title(module: str) -> str:
+    """The title of an integration: the first line of its module's docstring, or its
+    name."""
+    documented = getattr(sys.modules.get(module), "__doc__", None)
+    first = (documented or module.rsplit(".", 1)[-1]).strip().splitlines()[0]
+    return first.rstrip(".")
 
 
 def _structure() -> list[tuple[tuple[str, ...], str]]:
@@ -553,28 +477,30 @@ def _structure() -> list[tuple[tuple[str, ...], str]]:
 
 
 def _functions() -> list[str]:
-    sections = (
-        ("Elementary functions", builtins._ELEMENTARY),
-        ("Algebra and calculus", builtins._ALGEBRA),
-        ("Equations, matrices and numbers", builtins._VALUES),
-    )
-    families = _families()
     lines = [
         "## Functions",
         "",
-        "A builtin is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, "
-        "`\\sin x`. The elementary functions and those of algebra and calculus apply to each "
-        "component of a tensor: `simplify(R_{abcd})` simplifies every component.",
+        "A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, "
+        "`\\sin x`. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies "
+        "every component. Each is a capability of an integration, a module of "
+        "`relativisticpy.integrations` ([Integrations](integrations.md)), from whose "
+        "declaration this list is written.",
     ]
-    for title, table in sections:
+    modules: dict[str, list[integrations.Capability]] = {}
+    for capability in _declared(spacetime=False):
+        modules.setdefault(capability.module, []).append(capability)
+    for module, declared in modules.items():
         rows = [
-            (" ".join(_code(name) for name in names), _arity(builtins.BUILTINS[names[0]]), meaning)
-            for names, meaning in families
-            if names[0] in table
+            (_called(capability), _arity(capability), capability.summary) for capability in declared
         ]
-        lines += ["", f"### {title}", ""]
+        lines += ["", f"### {_title(module)}", ""]
         lines += _table(("Function", "Arguments", "Meaning"), rows)
     return lines
+
+
+def _called(capability: integrations.Capability) -> str:
+    """How a capability is written: called by its name, then its other names."""
+    return " ".join(_code(name) for name in (capability.text(), *capability.aliases))
 
 
 def _data() -> list[str]:

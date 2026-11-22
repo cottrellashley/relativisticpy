@@ -233,14 +233,15 @@ rather than tens of minutes.
 
 ## Extending RelativisticPy
 
-- **A function**: add it to a table in `relativisticpy/runtime/functions.py`, from
-  which `relativisticpy/runtime/registry.py` registers it under its name, marking
-  whether it works component-wise on tensors.
+- **A function, or anything a library computes**: write an integration, a module of
+  `relativisticpy/integrations/` that declares capabilities, each checked by the
+  conformance suite; [Integrations](integrations.md) says how, step by step. The registry
+  in `relativisticpy/runtime/registry.py` registers each capability under its names.
 - **A LaTeX command or symbol**: add it to `relativisticpy/language/vocabulary.py`;
   structural commands need a case in the parser's `_command`.
 - **A spacetime**: add a function to `relativisticpy/spacetimes.py`, declaring the
-  coordinates its metric is in, which the compiler reads without computing it, and list
-  it with the spacetimes in `relativisticpy/runtime/functions.py`.
+  coordinates its metric is in, which the compiler reads without computing it, and
+  declare it as a constructor in `relativisticpy/integrations/spacetimes.py`.
 - **An operation**: register what computes it in `relativisticpy/runtime/registry.py`
   and have the lowerer, in `relativisticpy/lowering/`, emit a `Call` of its name; one
   that is not a function of values, as a contraction is, is an op in
@@ -248,9 +249,9 @@ rather than tens of minutes.
   rule of index notation it keeps goes in the typer, `relativisticpy/typing/`, and a new
   reading of what is written in the reader, `relativisticpy/reading/`.
 
-[The language reference](reference.md) is written from these tables by
-`relativisticpy/reference.py`, which says what each name means. A new function,
-command or spacetime needs a line there too; the tests say which, and
+[The language reference](reference.md) is written from these tables, and from the
+declarations of the integrations, by `relativisticpy/reference.py`, which says what each
+name means. A new command needs a line there too; the tests say which, and
 `uv run python -m relativisticpy.reference --write docs/reference.md` writes the page
 again.
 

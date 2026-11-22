@@ -1,0 +1,147 @@
+"""What the conformance suite says of capabilities that break the pattern, written in a
+temporary module as an agent would write one: each failure names the capability and says
+what to do, in words an agent can act on."""
+
+from __future__ import annotations
+
+import importlib
+import sys
+import textwrap
+
+import pytest
+
+from relativisticpy import integrations
+
+#: A module of capabilities, each broken in ways the checks find.
+BROKEN = '''
+"""Capabilities broken in every way the conformance suite checks."""
+
+import scipy.special  # imported with the module, not when a capability is used
+import sympy
+
+from relativisticpy.integrations import Example, function
+
+
+@function(
+    "brokenj",
+    summary="the Bessel function |J_0|.",
+    requires="scipyy",
+    examples=[Example("brokenj(0)", 2, "")],
+)
+class BrokenJ:
+    def exact(self, x):
+        return sympy.besselj(0, x)
+
+    def numeric(self, xp, x):
+        return xp.cos(x)
+
+
+@function(
+    "brokenk",
+    summary="the identity, which fails inside on a list",
+    examples=[Example("brokenk(1)", 1, "standard"), Example("brokenk(2)", 2, "standard")],
+)
+class BrokenK:
+    def exact(self, x):
+        if isinstance(x, list):
+            raise KeyError(x)  # as a mistake in an integration would
+        return x
+'''
+
+
+@pytest.fixture
+def broken(tmp_path, monkeypatch):
+    """The temporary module, imported as an outside package's would be."""
+    (tmp_path / "broken_integration.py").write_text(textwrap.dedent(BROKEN), encoding="utf-8")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    module = importlib.import_module("broken_integration")
+    yield module
+    sys.modules.pop("broken_integration", None)
+
+
+def told(failures: list[str], *words: str) -> bool:
+    """Whether one failure says all of ``words``."""
+    return any(all(word in failure for word in words) for failure in failures)
+
+
+def test_every_failure_names_the_capability_and_says_what_to_do(broken):
+    found = integrations.check(broken.BrokenJ)
+    for failures in found.values():
+        for failure in failures:
+            assert "brokenj" in failure
+            assert any(
+                verb in failure
+                for verb in ("give", "declare", "fix", "import", "write", "add", "refuse")
+            ), failure
+
+
+def test_the_declaration_is_told_what_it_lacks(broken):
+    failures = integrations.check(broken.BrokenJ, ["declaration"])["declaration"]
+    assert told(failures, "give a summary, one phrase without a full stop")
+    assert told(failures, "has 1 example(s): give at least two")
+    assert told(failures, "says not where its answer comes from: give its source")
+    assert told(failures, "requires scipyy, which no extra of RelativisticPy installs")
+    assert told(failures, "imports scipy when it is imported; import it inside exact or numeric")
+    assert len(failures) == 5
+
+
+def test_an_example_with_the_wrong_answer_is_told(broken):
+    (failure,) = integrations.check(broken.BrokenJ, ["examples"])["examples"]
+    assert failure == (
+        "brokenj's example brokenj(0) gives 1, not 2: fix exact, or the example's answer"
+    )
+
+
+def test_numeric_that_disagrees_with_exact_is_told_where(broken):
+    failures = integrations.check(broken.BrokenJ, ["agreement"])["agreement"]
+    assert told(failures, "numeric and exact differ at (x=0.3)", "fix numeric", "points=[...]")
+
+
+def test_a_function_that_is_wrong_on_data_is_told(broken):
+    failures = integrations.check(broken.BrokenJ, ["lifting"])["lifting"]
+    assert told(failures, "brokenj applied to data gives", "not its value at each component")
+
+
+def test_a_library_declared_but_not_used_is_told(broken):
+    failures = integrations.check(broken.BrokenJ, ["errors"])["errors"]
+    assert failures == [
+        "brokenj computes without scipyy: does it need it? declare requires only then"
+    ]
+
+
+def test_the_wrong_kind_of_argument_that_fails_inside_is_told(broken):
+    (failure,) = integrations.check(broken.BrokenK, ["errors"])["errors"]
+    assert failure.startswith("brokenk([1, 2]) fails inside brokenk")
+    assert "refuse what it cannot take with an EvaluationError in exact" in failure
+
+
+def test_a_call_that_does_not_read_back_is_told(broken):
+    failures = integrations.check(broken.BrokenJ, ["display"])["display"]
+    assert told(failures, "prints in text as besselj(0, x), which reads back as")
+    assert told(failures, "declare a text form the language reads as brokenj")
+
+
+def test_a_summary_the_reference_cannot_hold_is_told(broken):
+    (failure,) = integrations.check(broken.BrokenJ, ["reference"])["reference"]
+    assert "write its summary without a bar" in failure
+
+
+def test_what_passes_is_told_nothing(broken):
+    found = integrations.check(broken.BrokenK)
+    assert found.pop("errors")  # its exact fails inside on a list
+    (imports,) = found.pop("declaration")  # its module imports SciPy, as brokenj's does
+    assert imports.startswith("brokenk: its module imports scipy when it is imported")
+    assert all(failures == [] for failures in found.values()), found
+
+
+def test_a_class_without_exact_is_refused_where_it_is_declared():
+    with pytest.raises(TypeError, match="declare how it is computed with SymPy"):
+
+        @integrations.function("brokenl", summary="nothing", examples=[])
+        class BrokenL:
+            pass
+
+
+def test_the_broken_capabilities_are_not_part_of_the_language(broken):
+    names = {capability.name for capability in integrations.capabilities()}
+    assert not names & {"brokenj", "brokenk"}
