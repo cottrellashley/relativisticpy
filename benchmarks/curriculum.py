@@ -409,6 +409,10 @@ def _same_expression(actual: Any, expected: Any, tolerance: float) -> bool:
     a, b = _plain(actual), _plain(expected)
     if a == b:
         return True
+    if isinstance(a, sympy.Equality) and isinstance(b, sympy.Equality):
+        return _same_equation(a, b, tolerance)
+    if isinstance(a, sympy.Piecewise) and not b.has(sympy.Piecewise):
+        return _removable(a, b, tolerance)
     if _left_undone(a, b):  # an integral left as written is not its value
         return False
     if a.is_number and b.is_number:
@@ -421,6 +425,55 @@ def _same_expression(actual: Any, expected: Any, tolerance: float) -> bool:
     except Exception:  # SymPy could not simplify it: decide by numbers
         pass
     return _agrees_numerically(difference, tolerance)
+
+
+def _same_equation(actual: Any, expected: Any, tolerance: float) -> bool:
+    """Whether two equations say the same: the differences of their sides agree, up to the
+    sides being written the other way round."""
+    mine, theirs = actual.lhs - actual.rhs, expected.lhs - expected.rhs
+    return _same_expression(mine, theirs, tolerance) or _same_expression(mine, -theirs, tolerance)
+
+
+def _removable(actual: Any, expected: Any, tolerance: float) -> bool:
+    """Whether a Piecewise is the expected value with its removable points filled in: one
+    branch is the value, as sin(πs)/(πs) for s ≠ 0, and every other is its limit at the
+    point the condition names, as 1 at s = 0. Anything else is a condition the answer
+    does not have."""
+    pieces = list(actual.args)
+    for number, (value, condition) in enumerate(pieces):
+        if not _same_expression(value, expected, tolerance):
+            continue
+        points = _points(condition)
+        others = pieces[:number] + pieces[number + 1 :]
+        if not points or not others:
+            return False
+        for other, other_condition in others:
+            at = _points(other_condition) or points  # "otherwise" holds where the first does not
+            if at is None or not all(
+                _same_expression(other, sympy.limit(expected, symbol, point), tolerance)
+                for symbol, point in at
+            ):
+                return False
+        return True
+    return False
+
+
+def _points(condition: Any) -> list[tuple[Any, Any]] | None:
+    """The points a condition excludes or names: s ≠ 0 or s = 0 gives [(s, 0)], and
+    -∞ < s < ∞, the whole line, none."""
+    if condition is sympy.true:
+        return None
+    if isinstance(condition, sympy.Ne | sympy.Eq) and isinstance(condition.lhs, sympy.Symbol):
+        return [(condition.lhs, condition.rhs)]
+    if isinstance(condition, sympy.core.relational.Relational) and any(
+        side.is_infinite for side in condition.args
+    ):
+        return []
+    if isinstance(condition, sympy.And):
+        found = [_points(part) for part in condition.args]
+        if all(part is not None for part in found):
+            return [point for part in found for point in part or []]
+    return None
 
 
 def _agrees_numerically(difference: Any, tolerance: float) -> bool:

@@ -57,6 +57,7 @@ fa.series.coefficient
 fa.transforms.convolution
 fa.transforms.gaussian
 fa.transforms.rayleigh
+fa.transforms.rectangle
 gr.black-holes.hawking-temperature-sun
 gr.black-holes.kerr-ergosphere
 gr.black-holes.surface-gravity-killing
