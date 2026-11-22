@@ -1,5 +1,10 @@
 # Checking papers
 
+> **For:** authors and readers of papers, and anyone who checks them in continuous
+> integration. **You will learn:** how to check a LaTeX document or a Markdown notebook,
+> what each verdict means, how to read a report from Python, and how Carroll's lecture
+> notes were checked, step by step. **Before this:** [LaTeX](latex.md).
+
 A paper is a program whose statements are its display equations.
 `relativisticpy check` runs them in order, as a reader would, and says what
 became of each: which hold, which do not, which relate quantities the paper never
@@ -78,7 +83,7 @@ about it, and the check goes on.
 
 ## Verdicts
 
-| | Verdict | Meaning | Fails `--strict` |
+| Mark | Verdict | Meaning | Fails `--strict` |
 |---|---|---|---|
 | ✓ | holds | proven equal: component by component, or, for an equation in [index notation](notation.md) without components, as notation. If both sides are zero the finding says so: such an equation may hold only because space is flat there, or its quantities are not yet defined | no |
 | ✗ | differs | every quantity is known, and the sides are not equal: a mistake, or a condition such as an equation of motion the text has not stated. The finding shows the difference of the sides, or, for tensors, in how many components they differ and the first few | yes |
@@ -230,6 +235,21 @@ metric as \(12G^2M^2/r^6\). The check finds \(48G^2M^2/r^6\), the established
 value. The conclusion drawn from it, that \(r = 0\) is a true singularity,
 stands.
 
+Both findings take four commands to reproduce. Download the LaTeX source of the notes
+from arXiv, unpack `grnotes.tex`, and check two passages of it:
+
+```bash
+curl -L -o carroll.tar.gz https://arxiv.org/e-print/gr-qc/9712019
+tar -xzf carroll.tar.gz grnotes.tex
+relativisticpy check grnotes.tex --lines 9058:9112   # equations (7.13) to (7.16)
+relativisticpy check grnotes.tex --lines 9284:9287   # equation (7.30)
+```
+
+The first passage takes about a second: 24 statements hold, and R₀₀, on line 9102,
+differs. In the second, the left side of (7.30) minus its right is
+\(36G^2M^2/r^6\). Each check runs what comes before its lines in their section, for
+its definitions, and reports only the lines.
+
 In all, of the equations whose sides are not equal, 20 involve only what the
 notes have defined, and so differ, these two among them; most of the others are
 steps of a derivation whose conditions are stated in the prose, as
@@ -275,3 +295,7 @@ Most of what the recent papers write between quantities they introduce relates
 them, as a paper's results do; few of their equations involve only what is
 defined. They lean on their own notation, from physics packages to macros built on
 TeX internals, so they are where the language grows next.
+
+**Next:** [Solving tensor equations](notation.md), for how equations between tensors
+without components are verified, or the [verdicts](reference.md#verdicts-of-a-check) in
+the language reference.

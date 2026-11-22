@@ -1,5 +1,10 @@
 # LaTeX
 
+> **For:** everyone, since every result can be read as LaTeX, and above all anyone who
+> pastes it from papers. **You will learn:** how LaTeX is read, letters, scripts,
+> functions and brackets, the environments and commands, Unicode, and the looser
+> notation of papers. **Before this:** [The language](language.md).
+
 RelativisticPy reads LaTeX as mathematics. Paste an equation from a paper or
 your notes and it runs; mix it with plain text as you like.
 
@@ -108,6 +113,16 @@ a(t)**2 + Derivative(a(t), t)*Derivative(b(t), t)
 `\left| ... \right|` is an absolute value and `\left. ... \right|_{x=a}` an
 evaluation bar.
 
+**A bracket right after a name calls it.** `A(r)` is the function A at r: an unknown
+function, if nothing defines A, which is how a metric writes one. To multiply a name by
+a bracket, leave a space or write `\,`, as in `G\,(p^2 + q^2)`:
+
+```python
+>>> wb.exe(r"A(r) + G\,(p^2 + q^2)")
+[G*(p**2 + q**2) + A(r)]
+
+```
+
 **Definitions.** `\equiv`, `\coloneqq` and `≔` all mean `:=`.
 
 ## Environments
@@ -134,7 +149,7 @@ evaluation bar.
 
 ## Commands
 
-| | Commands |
+| Kind | Commands |
 |---|---|
 | Fractions and roots | `\frac` `\dfrac` `\tfrac` `\cfrac` `\sqrt` `\sqrt[n]` `\binom` |
 | Big operators | `\sum` `\prod` `\int` `\iint` `\iiint` `\oint` `\lim` |
@@ -147,7 +162,8 @@ evaluation bar.
 | Symbols | all Greek letters and their `\var` forms, `\infty`, `\hbar`, `\ell` |
 | Text and style | `\text` `\mathrm` `\mathbf` `\mathcal` `\boldsymbol` and friends |
 
-An unknown command is an error, with a suggestion:
+[The language reference](reference.md#commands) lists every command, with what it
+means. An unknown command is an error, with a suggestion:
 
 ```python
 >>> wb.expr(r"\farc{1}{2}")
@@ -233,7 +249,7 @@ before `\in` are one declaration: `a, b \in \mathcal{A}`. Names set equal to a
 list of values, `\mu, \nu = 0, 1, 2, 3`, give the range of indices; that is read
 but not computed, and defines nothing.
 
-| | Notation |
+| Kind | Notation |
 |---|---|
 | Plain TeX | `{a \over b}`, `{n \choose k}`, the font switches `{\rm d}`, `{\bf x}`, `{\cal L}`, `\matrix{a & b \cr c & d}`, `\pmatrix`, `\cases`, `\bgroup` |
 | Relations read but not computed | `\sim` `\simeq` `\approx` `\cong` `\propto` `\ll` `\gg` `\in` `\subset` `\to` `\leftrightarrow`, `:` as in `\phi : M \to N`, and ranges such as `\mu, \nu = 0, 1, 2, 3` |
@@ -257,3 +273,6 @@ relativisticpy.errors.CompileError: '∝' is read but not computed: Relativistic
   | ^^^^^^^^^^^^^^^^^^^
 
 ```
+
+**Next:** [Checking papers](checking.md), to run the equations of a whole paper, or
+[Tensors and geometry](tensors.md), for the tensors they are written in.

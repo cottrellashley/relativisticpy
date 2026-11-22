@@ -1,9 +1,15 @@
 # The language
 
+> **For:** everyone who writes RelativisticPy, whatever the field. **You will learn:**
+> statements and comments, numbers and names, what `:=` and `=` mean, functions,
+> equations, calculus, piecewise functions and matrices, and what the language makes of
+> Python's habits. **Before this:** [Getting started](getting-started.md).
+
 A RelativisticPy program is a sequence of statements: definitions, which
 give names to things, and expressions, whose values are the program's results.
 Everything below can be written in plain text or in LaTeX; the
-[LaTeX page](latex.md) explains how the two relate.
+[LaTeX page](latex.md) explains how the two relate. The
+[language reference](reference.md) lists everything the language reads, on one page.
 
 ```python
 >>> from relativisticpy import Workbook
@@ -99,18 +105,39 @@ simplify with them:
 
 ```
 
-The declarations are `Constants`, `Reals`, `Integers`, `Complex` and `Positive`.
+The declarations are `Coordinates`, `Constants`, `Reals`, `Integers`, `Complex` and
+`Positive`.
 
-## Definitions
+## Definitions, and what `=` means
 
-`:=` defines a name; LaTeX's `\equiv` and `\coloneqq` mean the same. With a
-plain name on the left, `=` defines it too.
+`:=` defines a name, or gives it a new value; LaTeX's `\equiv` and `\coloneqq` mean the
+same.
 
 ```python
->>> wb.expr(r"E \equiv m c^2" "\n" "E")
+>>> wb.expr(r"""
+...     E \equiv m c^2
+...     E
+... """)
 c**2*m
 
 ```
+
+Papers write `=` both to define and to claim, so `=` defines only what has no meaning
+yet, and otherwise states something to check or to solve. What it does depends on what
+its left side already means:
+
+| You write | When | It means |
+|---|---|---|
+| `x := 2`, `x \equiv 2`, `x \coloneqq 2` | always | define x, or give it a new value |
+| `x = 2` | x has no meaning yet | define x; so do `f(x) = x^2`, a new tensor `T_{ab} = ...` and a line element `ds^2 = ...` |
+| `x = 3` | x already has a value | a claim, checked: is x equal to 3? |
+| `R = 0`, `g_{tt} = -1` | a metric is in force | a claim about a built-in, or about a component |
+| `t = 0` | t is a coordinate | a condition: read, but not computed |
+| `x^2 + y^2 = 1` | otherwise | an equation, to solve |
+| `a = b = c` | in a derivation | one claim for each link |
+
+To give a name that has a value a new one, or a built-in's name a meaning of your own,
+write `:=`.
 
 Functions are defined by writing their parameters:
 
@@ -138,7 +165,7 @@ half + 20
 
 ## Equations
 
-`=` between anything other than a plain name and a value is an equation.
+`=` between expressions that are not a name being defined is an equation.
 
 ```python
 >>> wb.expr("x^2 + y^2 = 1")
@@ -315,3 +342,8 @@ An equation in a call is an equation, as in `subs(x^2, x = 2)` or
 `solve(x^2 = 4, x)`: only after the first argument, a name set to a value with
 no space around `=`, and used by no other argument, is taken for a keyword
 argument.
+
+**Next:** [LaTeX](latex.md), for how LaTeX is read, then
+[Tensors and geometry](tensors.md) for General Relativity or
+[Beyond spacetime](spaces.md) for data. When a result surprises you, see
+[Troubleshooting](troubleshooting.md).

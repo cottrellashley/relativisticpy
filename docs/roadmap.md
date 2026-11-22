@@ -1,5 +1,8 @@
 # Roadmap
 
+> **For:** anyone deciding whether RelativisticPy will do what they need, and anyone
+> who would like to help. **You will learn:** what is done, and what comes next.
+
 RelativisticPy began with one idea: Einstein's equations should look exactly as
 they do in papers, with an engine that can compute them. These are the plans
 that grew from it, and where each stands.

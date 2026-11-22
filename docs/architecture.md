@@ -1,6 +1,9 @@
 # How it works
 
-```
+> **For:** contributors, and the curious. **You will learn:** how text becomes results,
+> stage by stage, and where to add a function, a command, a spacetime or an operation.
+
+```text
 source text ─▶ lexer ─▶ tokens ─▶ parser ─▶ syntax tree ─▶ compiler ─▶ IR graph ─▶ executor ─▶ results
 ```
 
@@ -24,7 +27,11 @@ You can watch the pipeline at work:
 ['Gamma', '^', '{', 'mu', '}', '_']
 >>> to_sexpr(parse(r"\frac{1}{2} g^{ab}(\partial_c g_{bd})"))
 '(* (* (/ 1 2) (g ^[a b])) (* (∂ _[c]) (g _[b d])))'
->>> print(Workbook().ir(r"Coordinates := [x, y]" "\n" r"g_{ab} := diag(1, x^2)" "\n" r"\Gamma^{x}_{yy}"))
+>>> print(Workbook().ir(r"""
+...     Coordinates := [x, y]
+...     g_{ab} := diag(1, x^2)
+...     \Gamma^{x}_{yy}
+... """))
 %0 = const 1                                             Scalar
 %1 = const x                                             Scalar
 %2 = const 2                                             Scalar
@@ -181,5 +188,13 @@ rather than tens of minutes.
 - **An operation**: add an op to `relativisticpy/ir/ops.py`, a kernel to
   `relativisticpy/runtime/kernels.py`, and have the compiler emit it.
 
+[The language reference](reference.md) is written from these tables by
+`relativisticpy/reference.py`, which says what each name means. A new function,
+command or spacetime needs a line there too; the tests say which, and
+`uv run python -m relativisticpy.reference --write docs/reference.md` writes the page
+again.
+
 Every stage has its own tests under `tests/`, and every example in these pages
 runs as part of the test suite.
+
+**Next:** the [roadmap](roadmap.md), for what comes next.

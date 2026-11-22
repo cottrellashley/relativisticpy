@@ -1,9 +1,15 @@
 # Python API
 
+> **For:** programmers and agents who use RelativisticPy from Python. **You will learn:**
+> the workbook, every kind of result and how to ask whether a claim holds, how results
+> are shown, tensors, metrics, equations, spaces, checks, geodesics, spacetimes and
+> errors. **Before this:** [Getting started](getting-started.md).
+
 Everything the language does is available from Python, and the language's
 results are ordinary Python values. This page is the reference: the
 [Workbook](#workbook), then what each result is, how to ask whether a claim
-holds, and how results are shown.
+holds, and how results are shown. Write LaTeX in raw strings, `r"..."`, and see
+[the language reference](reference.md) for what a program may say.
 
 ## Workbook
 
@@ -13,7 +19,7 @@ holds, and how results are shown.
 
 ```
 
-| | |
+| Method | What it does |
 |---|---|
 | `wb.expr(source)` | run a program; the value of its last expression, or `None` |
 | `wb.exe(source)` (also `wb.run`) | run a program; the value of every expression, as a list |
@@ -118,7 +124,7 @@ Every result is shown in four forms, by `relativisticpy.display`, the one
 printer that the command line, the prompt, notebooks, `repr` and the report of
 a check all use:
 
-| | |
+| Function | What it gives |
 |---|---|
 | `display.unicode(value)` | mathematics for a terminal: `48M²/r⁶`; it is what `repr` shows |
 | `display.text(value)` | ASCII in the language's own syntax: `48*M^2/r^6` |
@@ -213,7 +219,7 @@ True
 
 ```
 
-| | |
+| Attribute or method | What it is |
 |---|---|
 | `T.rank` (also `ndim`), `T.shape`, `T.size`, `T.dim` | the number of indices, of components along each axis, of components, and along every axis where they agree |
 | `T[...]` | a component by position or by name (`G['r', 't', 't']`, `w['MSFT']`), or with a slice the tensor of those left free |
@@ -274,7 +280,7 @@ g_{μν} in (θ, φ): ds² = a² dθ² + a² sin(θ)² dφ²
 
 ```
 
-| | |
+| Attribute or method | What it is |
 |---|---|
 | `inverse`, `determinant` | \(g^{\mu\nu}\) and \(\det g_{\mu\nu}\) |
 | `christoffel`, `riemann`, `ricci`, `einstein`, `weyl` | the tensors, with indices `^{a}_{bc}`, `^{a}_{bcd}`, `_{ab}`, `_{ab}`, `_{abcd}` |
@@ -316,7 +322,7 @@ R_{μν} = g_{μν}: differs in 2 of 3 components
 
 ```
 
-| | |
+| Attribute or method | What it is |
 |---|---|
 | `E.holds()`, `bool(E)` | whether every component holds, as above |
 | `E.failures()` | the components where the sides are not shown equal, keyed by coordinate names, each its two sides |
@@ -337,7 +343,7 @@ An equation between tensors that have no components, such as
 `IndexExpression` (see [Solving tensor equations](notation.md)). They are
 `relativisticpy.abstract` values, built on `sympy.tensor.tensor`:
 
-| | |
+| Attribute or method | What it is |
 |---|---|
 | `E.lhs`, `E.rhs`, `X.value` | the sides of an equation, the value of an expression: SymPy tensor expressions |
 | `E.holds()`, `bool(E)` | whether an equation is an identity |
@@ -399,17 +405,20 @@ rather than declared. `position(name)` is the number of a basis element:
 exported by `relativisticpy`) with the document's `name`, the number of its
 display `equations`, and its `findings`, in the order of the document:
 
-| | |
+| Attribute or method | What it is |
 |---|---|
 | `report.findings` | one `Finding` for each statement, and for each link of a chain |
 | `report.count(verdict)` | how many findings met a `Verdict` |
-| `report.summary()` | how many statements met each verdict, as text |
+| `report.summary()`, `report.describe()` | how many statements met each verdict; and the whole report, as text |
+| `report.ok`, `report.failed(verdicts)` | whether the check passes `--strict`, or fails on the verdicts given |
+| `report.to_dict()` | the whole report as data, for JSON |
 | `finding.verdict`, `finding.span`, `finding.detail` | what became of a statement, where it was written, and why |
-| `finding.line`, `finding.describe()` | its line, and the finding on one line with its detail beneath |
+| `finding.line`, `finding.location`, `finding.describe()` | its line, its place as `paper.tex:12:5`, and the finding on one line with its detail beneath |
 
-A `Verdict` is one of `HOLDS`, `DIFFERS`, `DEFINES`, `COMPUTES`,
-`NOT_COMPUTED`, `NOT_UNDERSTOOD` and `NOT_PARSED`; its `value` is its name in
-words and its `mark` the sign the report shows (✓ ✗ = → ~ ? !):
+A `Verdict` is one of `HOLDS`, `DIFFERS`, `RELATES`, `ILL_FORMED`, `DEFINES`,
+`COMPUTES`, `NOT_COMPUTED`, `NOT_UNDERSTOOD` and `NOT_PARSED`; its `value` is its
+name in words, its `mark` the sign the report shows (✓ ✗ ↔ ✗ = → ~ ? !) and its
+`meaning` what it means. [Checking papers](checking.md#verdicts) explains each:
 
 ```python
 >>> from relativisticpy import Document, Verdict
@@ -455,21 +464,40 @@ SymPy expressions, and `G` and `c` default to one:
 
 ## Errors
 
-Errors from a program derive from `RelativisticPyError` and carry the `span` of
-source text responsible, a `hint` where there is a fix and `notes` where there is
-more to say:
+Every error a user can cause derives from `RelativisticPyError`, and carries its
+`message`, the `span` of source text responsible (with its `line`, `column` and
+`source.name`), a `hint` where there is a fix and `notes` where there is more to say.
+`error.render()` gives the whole diagnostic, as the command line prints it, and
+`error.to_dict()` the same as data:
 
-| | |
+| Error | What it means |
 |---|---|
 | `ParseError` | the text is not valid RelativisticPy |
 | `CompileError` | a statement makes no sense: an unknown tensor, a metric without coordinates |
 | `IndexNotationError` | a `CompileError` breaking the rules of index notation |
+| `NotComputedError` | a `CompileError` for what is read but not computed, such as `\propto` or a condition |
 | `EvaluationError` | a computation failed, such as inverting a degenerate metric |
+| `MetricError` | a metric that cannot be one; also a `ValueError` |
+| `DataError` | data from Python that cannot be bound as written; also a `ValueError` |
+| `UnknownNameError` | `wb[name]` for a name nothing defines; also a `KeyError` |
+| `UsageError` | a call from Python given what it cannot take; also a `TypeError` and a `ValueError` |
+| `FileError` | a file that does not exist, or is not UTF-8; also an `OSError` |
 | `UndecidedError` | `bool()` of an equation whose truth is not decided; also a `TypeError` |
+| `InternalError` | a failure of RelativisticPy's own, never of the input, which invites a report |
+
+```python
+>>> from relativisticpy import RelativisticPyError
+>>> try:
+...     Workbook().expr(r"\frac{1}{2")
+... except RelativisticPyError as error:
+...     print(error.to_dict()["type"], error.to_dict()["line"])
+ParseError 1
+
+```
 
 Some calls from Python raise Python's own errors for Python's mistakes: a
-`KeyError` for a component name that is not a coordinate, a `ValueError` for a
-metric that is not one, a `TypeError` for components given after their indices.
+`KeyError` for a component name that is not a coordinate, and a `TypeError` for
+components given after their indices.
 
 ## LaTeX output
 
@@ -484,3 +512,6 @@ tensors, metrics and equations also display themselves in Jupyter.
 True
 
 ```
+
+**Next:** [the language reference](reference.md), for what a program may say, or
+[Jupyter and notebooks](jupyter.md), for how results display there.

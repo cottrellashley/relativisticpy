@@ -1,11 +1,15 @@
 # Beyond spacetime
 
+> **For:** anyone with data in NumPy or pandas; no General Relativity needed. **You will
+> learn:** how data is bound to tensors, what spaces and indices are, and how to write
+> statistics, linear algebra, graphs and regressions in index notation, as on a page.
+> **Before this:** [Getting started](getting-started.md), with the `data` extra.
+
 Index notation never needed spacetime. An index ranges over a **space**: the four
 coordinates of a metric, 500 assets, 2,520 trading days, the two states of a qubit.
-A tensor is an array whose axes range over spaces, Einstein summation is a
-contraction, and a metric identifies a space with its dual. RelativisticPy reads the
-same notation in every case. It computes symbolic components with SymPy and
-numerical ones with NumPy, SciPy and scikit-learn.
+A tensor is an array whose axes range over spaces, and RelativisticPy reads the same
+notation in every case. It computes symbolic components with SymPy and numerical ones
+with NumPy, SciPy and scikit-learn.
 
 ```python
 >>> import numpy as np
@@ -27,6 +31,22 @@ numerical ones with NumPy, SciPy and scikit-learn.
 
 ```
 
+## Five words
+
+- **Index.** A letter written on a tensor, as `t` and `a` are on `R_{ta}`, which counts
+  along one of its axes: here `t` counts the days and `a` the assets.
+- **Space.** What an index counts over: the days, the assets. Data brings its own
+  spaces, and a space can be declared.
+- **Upper and lower.** An index is written up, as in `w^a`, or down, as in `\mu_a`.
+  Upper indices are vectors, such as the weights of a portfolio; lower ones are
+  covectors, such as the returns that weights are weighed against.
+- **Contraction.** An index written twice in a term, once up and once down, is summed
+  over: `w^a \mu_a` is the sum of each weight times its expected return. This is
+  Einstein's convention, and it is how every product of tensors is written.
+- **Metric.** A tensor `g_{ab}` that turns upper indices into lower ones,
+  `w_a = g_{ab} w^b`, and so measures lengths. Until a space is given one, its metric is
+  the identity, and an index may be summed in any position.
+
 ## Spaces
 
 A space is declared in the notation, with its dimension, and the index labels that
@@ -45,17 +65,23 @@ Space(name='H', dim=2, basis=None, field='complex', spacetime=False)
 
 ```
 
-Data brings its own spaces. Binding `R_{ta}` says that `t` ranges over the rows and
-`a` over the columns, and a label used on a tensor ranges over that tensor's space
-for the rest of the statement, so it need not be declared. Binding declares nothing
-beyond that, so `t` can still be a coordinate in \(\Gamma^{t}{}_{tr}\). Data bound
-later shares the space of the same index of a tensor already bound, of the same
-size, as `w^a` would share the assets of `R_{ta}`, and like indices of one tensor
-share one space, as both of a covariance's do; `t` and `a` are not alike, even when
-there are as many days as assets. With pandas, an axis's name names its space and its
-labels name the space's basis, by which components can be taken, as coordinates name
-the components of a metric. Data is aligned with a space's basis by label, and
-refused when its labels are not the space's:
+Data brings its own spaces, by these rules:
+
+1. **Binding names the axes.** `wb["R_{ta}"] = returns` says that `t` ranges over the
+   rows of `returns` and `a` over its columns.
+2. **A label written on a tensor takes that tensor's space** for the rest of the
+   statement, so it need not be declared: in `\mathbb{E}_t[R_{ta}]`, `t` counts days.
+3. **Binding declares nothing else**, so `t` can still be a coordinate elsewhere, as in
+   `\Gamma^{t}{}_{tr}`.
+4. **Data bound later shares a space** with the same index of a tensor already bound,
+   if it has as many components: `w^a`, bound after `R_{ta}`, ranges over its assets.
+5. **Like indices of one tensor share one space**, as the two of a covariance
+   `\Sigma_{ab}` do. `t` and `a` are not alike, even when there are as many days as
+   assets.
+6. **pandas names spaces and their bases.** An axis's name names its space, and its
+   labels the space's basis, by which components can be taken, as coordinates name the
+   components of a metric. Data is aligned with a space's basis by label, and refused
+   when its labels are not the space's:
 
 ```python
 >>> import pandas as pd
@@ -150,7 +176,7 @@ measure=weights)` gives it weights, and RelativisticPy computes it as one contra
 with whatever it multiplies, never forming the product of everything averaged. With
 2,520 days and 500 assets, that product would take 5 GB.
 
-| | |
+| Statistic | Meaning |
 |---|---|
 | `\mathbb{E}_t[X]` | the expectation over `t` |
 | `\operatorname{Var}_t(X)` | the variance of each component, of \(\lvert X - \mathbb{E}_t X \rvert^2\) for complex data |
@@ -165,7 +191,7 @@ True
 
 ## Linear algebra
 
-| | |
+| Written | Meaning |
 |---|---|
 | `(\Sigma^{-1})^{ab}` | the inverse of a two-index tensor: of a form, its indices in the other position; of a map, a map, `(A^{-1})^a{}_b` |
 | `\operatorname{eig}(A^a{}_b)` | eigenvalues and eigenvectors: `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)` |
@@ -190,11 +216,11 @@ True
 
 ```
 
-A map is a tensor with upper indices that it takes to lower ones; its eigenvalues
-come with a new index, over a space of their own. A bilinear form, with both indices
-down, has eigenvalues only relative to a metric:
-\(S_{ab} v^b = \lambda g_{ab} v^b\). They are computed relative to the metric of the
-form's space. Symbolic components give exact results:
+A map, or linear operator, has one index up and one down, `A^a{}_b`: it takes a vector
+`v^b` to the vector `A^a{}_b v^b`. Its eigenvalues come with a new index, over a space
+of their own. A bilinear form, with both indices down, has eigenvalues only relative to
+a metric: \(S_{ab} v^b = \lambda g_{ab} v^b\). They are computed relative to the metric
+of the form's space. Symbolic components give exact results:
 
 ```python
 >>> spins.exe(r"H^{i}{}_{j} := [[\epsilon, \Delta], [\Delta, -\epsilon]]")
@@ -208,18 +234,58 @@ spec(H^i{}_j) over eigenvectors of H^i{}_j: 2 components non-zero
 
 ## Domains
 
-- **Portfolios**: expected returns, covariances, the tangency portfolio, risk as a
-  metric, and the spectrum of the correlation matrix against the Marchenko–Pastur
-  law of random matrices, which tells real factors from noise. See
-  [examples/portfolio.py](https://github.com/cottrellashley/relativisticpy/blob/main/examples/portfolio.py).
-- **Quantum systems**: an operator on two spins is a tensor with two indices of each
-  kind, \(H^{ik}{}_{jl}\) on \(\mathcal{H} \otimes \mathcal{H}\). See
-  [examples/spins.md](https://github.com/cottrellashley/relativisticpy/blob/main/examples/spins.md).
-- **Graphs**: the Laplacian \(L_{ij} = \operatorname{diag}(k)_{ij} - A_{ij}\) with
-  \(k_i = A_{ij} 1^j\), and the eigenvector of its second eigenvalue, which cuts the
-  graph in two.
-- **Regression**: the normal equations, \(\beta^k = (G^{-1})^{kl} X_{tl} y^t\) with
-  \(G_{kl} = X_{tk} X_{tl}\), solved rather than inverted.
+**Portfolios**: expected returns, covariances, the tangency portfolio, risk as a metric,
+and the spectrum of the correlation matrix against the Marchenko–Pastur law of random
+matrices, which tells real factors from noise: see the
+[portfolio of 500 assets](examples.md#a-portfolio-of-500-assets-in-index-notation).
+
+**Quantum systems**: an operator on two spins is a tensor with two indices of each kind,
+\(H^{ik}{}_{jl}\) on \(\mathcal{H} \otimes \mathcal{H}\): see
+[two spins](examples.md#two-spins).
+
+**Graphs**: a graph of six nodes, two triangles joined by one edge, has the adjacency
+matrix `A_{ij}`. Its degrees are `k_i = A_{ij} 1^j`, its Laplacian is
+`L_{ij} = \operatorname{diag}(k)_{ij} - A_{ij}`, and the eigenvector of its second
+eigenvalue, Fiedler's vector, cuts the graph in two where it is thinnest:
+
+```python
+>>> A = np.zeros((6, 6))
+>>> for i, j in [(0, 1), (1, 2), (0, 2), (3, 4), (4, 5), (3, 5), (2, 3)]:
+...     A[i, j] = A[j, i] = 1.0
+>>> graph = Workbook()
+>>> graph["A_{ij}"] = A
+>>> graph.exe(r"""
+...     k_i := A_{ij} 1^j
+...     L_{ij} := \operatorname{diag}(k)_{ij} - A_{ij}
+...     \lambda_n, v^i{}_n := \operatorname{eig}(L^i{}_j)
+... """)
+[]
+>>> round(float(graph["lambda"].to_numpy()[1]), 4)                # the second eigenvalue
+0.4384
+>>> fiedler = graph["v"].to_numpy()[:, 1]
+>>> (np.sign(fiedler) == np.sign(fiedler[0])).tolist()   # each node's side of the cut
+[True, True, True, False, False, False]
+
+```
+
+**Regression**: least squares is the normal equations as they are written,
+\(\beta^k = (G^{-1})^{kl} X_{tl} y_t\) with \(G_{kl} = X_{tk} X_{tl}\), and the inverse is
+solved for, never formed. Define `G` with `:=`, since `G_{kl}` with two indices is
+otherwise the Einstein tensor:
+
+```python
+>>> fit = Workbook()
+>>> fit["X_{tk}"] = np.column_stack([np.ones(5), np.arange(5.0)])   # a constant, and t
+>>> fit["y_t"] = np.array([1.0, 3.0, 5.0, 7.0, 9.0])
+>>> fit.exe(r"""
+...     G_{kl} := X_{tk} X_{tl}
+...     \beta^k := (G^{-1})^{kl} X_{tl} y_t
+... """)
+[]
+>>> fit["beta"].to_numpy().round(10).tolist()                     # y = 1 + 2t
+[1.0, 2.0]
+
+```
 
 ## Scale
 
@@ -251,3 +317,6 @@ array([ 4., 12.])
 
 Numerical work needs `pip install "relativisticpy[numeric]"`; pandas and
 scikit-learn come with `relativisticpy[data]`, and JAX with `relativisticpy[jax]`.
+
+**Next:** [Python API](python.md#tensor), for every method of a tensor and of its data,
+or the [examples](examples.md), worked through.

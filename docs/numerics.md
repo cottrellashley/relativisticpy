@@ -1,13 +1,14 @@
 # Numerics
 
+> **For:** physicists who want numbers: values, plots, orbits and light rays. **You
+> will learn:** how to compile a result into a NumPy function, evaluate it at a point,
+> and integrate geodesics of particles and light with SciPy. **Before this:**
+> [Tensors and geometry](tensors.md).
+
 The symbolic results of RelativisticPy become numbers through
 `relativisticpy.numeric`, which compiles expressions and tensors into NumPy
-functions and integrates geodesics with SciPy. It needs the optional
-dependencies:
-
-```bash
-pip install "relativisticpy[numeric]"
-```
+functions and integrates geodesics with SciPy. It needs the `numeric` extra (see
+[Getting started](getting-started.md#install)), which installs NumPy and SciPy.
 
 ## NumPy functions
 
@@ -156,9 +157,8 @@ whether that happened:
 
 ```
 
-[`examples/light.py`](https://github.com/cottrellashley/relativisticpy/blob/main/examples/light.py)
-finds the critical impact parameter this way, and measures the bending of
-starlight.
+The example [light near a black hole](examples.md#light-near-a-black-hole) finds the
+critical impact parameter this way, and measures the bending of starlight.
 
 ## Results from a workbook
 
@@ -176,3 +176,6 @@ force as a `Metric`, and tensor results are `Tensor` values.
 [0.134, 1.866]
 
 ```
+
+**Next:** the [examples](examples.md), for light bent by a black hole and more, or
+[Jupyter and notebooks](jupyter.md), to plot what you compute.
