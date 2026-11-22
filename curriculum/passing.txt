@@ -203,6 +203,7 @@ geom.hyperbolic.modular-domain
 geom.surfaces.catenoid-minimal
 geom.surfaces.codazzi
 geom.surfaces.helicoid-catenoid
+geom.topology.hopf-link
 geom.topology.torus-triangulation
 gr.black-holes.hawking-temperature-sun
 gr.black-holes.kerr-ergosphere
