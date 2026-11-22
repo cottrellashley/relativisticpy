@@ -60,6 +60,8 @@ class TokenKind(Enum):
     LBRACE = "{"
     RBRACE = "}"
     BAR = "|"
+    LANGLE = "\\langle"  # Dirac's brackets, and an expectation value
+    RANGLE = "\\rangle"
 
     # Punctuation
     COMMA = ","

@@ -1033,6 +1033,10 @@ class Definition:
 def _definition(name: str, binding: Any) -> Definition:
     """What a binding of ``name`` is, as :meth:`Workbook.names` lists it."""
     written = latex_label(name)
+    if (shown := getattr(binding, "shown", None)) is not None:  # |0\rangle, \hat{p}, as written
+        function = isinstance(binding, FunctionBinding)
+        span = binding.definition.span if function else binding.node.span
+        return Definition("function" if function else "value", shown, span)
     if isinstance(binding, FunctionBinding):
         definition = binding.definition
         family = isinstance(definition, Family)

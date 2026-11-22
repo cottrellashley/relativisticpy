@@ -78,6 +78,7 @@ KINDS = (
     "function named alone",
     "book name",
     "matrix or number",
+    "bracket or operator",
 )
 
 

@@ -166,6 +166,8 @@ _OPENING = frozenset({"(", "[", r"\{", r"\lbrace", r"\lbrack", r"\langle"})
 _CLOSING = frozenset({")", "]", r"\}", r"\rbrace", r"\rbrack", r"\rangle"})
 _BARS = frozenset({"|", r"\|", r"\vert", r"\Vert", r"\lvert", r"\rvert", r"\lVert", r"\rVert"})
 _FLOORS = {r"\lfloor": "lfloor", r"\rfloor": "rfloor", r"\lceil": "lceil", r"\rceil": "rceil"}
+# Angle brackets, which write Dirac's notation and expectation values rather than group.
+_ANGLES = {r"\langle": TokenKind.LANGLE, r"\rangle": TokenKind.RANGLE}
 
 
 _LETTERS = re.compile(r"[A-Za-z]+")
@@ -654,7 +656,7 @@ class Lexer:
     def _command(self, name: str, start: int) -> None:
         if name in ("left", "right"):
             self._left_right(name, start)
-        elif name in vocab.SIZE_COMMANDS:
+        elif name in vocab.SIZE_COMMANDS or name == "middle":  # \middle| between angles
             self._sized_delimiter(start)
         elif name in ("begin", "end"):
             self._environment(name, start)
@@ -888,6 +890,8 @@ class Lexer:
             self._open_left.append((role, span))
             if role == "bar":
                 self._emit(TokenKind.BAR, "|", start, self.pos)
+            elif role == "angle":
+                self._emit(TokenKind.LANGLE, TokenKind.LANGLE.value, start, self.pos)
             elif role in ("lfloor", "lceil"):
                 self._emit(TokenKind.COMMAND, role, start, self.pos)
             else:  # brackets of every shape group, and '.' is an invisible opener
@@ -905,7 +909,9 @@ class Lexer:
                 self._ampersands[len(self._environments)] = 0
                 self._column_marker(broken.group("cells").count("&"))
                 return
-        if opened == "bar":
+        if delimiter == r"\rangle":  # a ket, \left| \psi \right\rangle, or a bracket
+            self._emit(TokenKind.RANGLE, TokenKind.RANGLE.value, start, self.pos)
+        elif opened == "bar" or (opened == "angle" and delimiter in _BARS):  # or a bra
             self._emit(TokenKind.BAR, "|", start, self.pos)
         elif opened in ("lfloor", "lceil"):
             self._emit(TokenKind.COMMAND, "r" + opened[1:], start, self.pos)
@@ -921,6 +927,9 @@ class Lexer:
             self.space_before = True
         elif delimiter == "/":  # a \big/ is a division, only taller
             self._emit(TokenKind.SLASH, "/", start, self.pos)
+        elif delimiter in _ANGLES:
+            kind = _ANGLES[delimiter]
+            self._emit(kind, kind.value, start, self.pos)
         elif delimiter in _OPENING:
             self._emit(TokenKind.LPAREN, "(", start, self.pos)
         elif delimiter in _CLOSING:
@@ -936,6 +945,8 @@ class Lexer:
     def _delimiter_role(delimiter: str) -> str:
         if delimiter in _BARS:
             return "bar"
+        if delimiter == r"\langle":
+            return "angle"
         if delimiter in (r"\lfloor", r"\rfloor"):
             return "lfloor"
         if delimiter in (r"\lceil", r"\rceil"):

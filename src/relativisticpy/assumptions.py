@@ -484,9 +484,11 @@ def _undone(value: Any) -> bool:
 
 def _on_conditions(piecewise: Any) -> bool:
     """Whether a piecewise value is a result under conditions SymPy puts on its parameters,
-    as an integral's ``|arg a| < π/2`` or a geometric series' ``|e^{-a}| < 1``."""
+    as an integral's ``|arg a| < π/2`` or a geometric series' ``|e^{-a}| < 1``, or that a
+    parameter is not 0, as of the integral of :math:`\\sin^2(\\pi x/a)` over the width a."""
     return any(
         condition.has(sympy.arg, sympy.re, sympy.im, sympy.polar_lift, sympy.Abs)
+        or any(isinstance(part, sympy.Ne) for part in sympy.And.make_args(condition))
         for _, condition in piecewise.args
     )
 

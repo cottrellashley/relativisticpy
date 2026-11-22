@@ -96,10 +96,15 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
     (("pounds",), r"the Lie derivative, `\pounds_V T_{ab}`"),
     (("pdv", "dv"),
      r"the physics package's derivatives: `\pdv{f}{x}`, `\pdv[2]{f}{x}`, `\dv{f}{x}`"),
+    (("ket", "bra", "braket", "ketbra", "expval", "mel"),
+     r"Dirac's notation as the physics and braket packages write it: `\ket{\psi}`, "
+     r"`\bra{\phi}`, `\braket{\phi}{\psi}`, `\ketbra{a}{b}`, `\expval{A}` and "
+     r"`\mel{\phi}{A}{\psi}`"),
     (("lfloor", "rfloor", "lceil", "rceil"), r"the floor `\lfloor x \rfloor` and the ceiling"),
-    (("left", "right"),
+    (("left", "middle", "right"),
      r"`\left( ... \right)` groups, with any delimiters; between bars it is an absolute "
-     r"value, and from `\left.` to a bar with `_{x=a}` an evaluation bar"),
+     r"value, from `\left.` to a bar with `_{x=a}` an evaluation bar, and between angle "
+     r"brackets, with `\middle` before the bar, Dirac's notation"),
     (("begin", "end"), r"an environment, `\begin{pmatrix} ... \end{pmatrix}`"),
     (("bgroup", "egroup"), "plain TeX's braces"),
     (("cr",), r"ends a row of plain TeX's `\matrix` and `\cases`"),
@@ -117,8 +122,10 @@ _OPERATORS: tuple[tuple[tuple[str, ...], str], ...] = (
      "comparisons, in this order: `<`, `>`, `<=` (three spellings), `>=` (three), `!=` (two)"),
     (("ARROW",), r"an arrow, as in `\lim_{x \to 0}`"),
     (("DEFINE",), "a definition, `:=`"),
-    (("BAR",), "a bar: absolute values, norms and evaluation bars"),
-    (("LPAREN", "RPAREN"), r"brackets: `\langle x \rangle` groups"),
+    (("BAR",), "a bar: absolute values, norms, evaluation bars, and the bar of a bra or a ket"),
+    (("LANGLE", "RANGLE"),
+     r"angle brackets: Dirac's notation, with the bar of a bra or a ket; without a bar, an "
+     r"expectation value, `\langle x \rangle`, or an inner product, `\langle u, v \rangle`"),
     (("PLUS_MINUS", "MINUS_PLUS"), "both signs, so two values"),
     (("WEDGE",), "the wedge product"),
     (("COMPOSE",), "composition: read, not computed"),

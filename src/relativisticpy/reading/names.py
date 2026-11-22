@@ -986,17 +986,10 @@ def _may_be_a_pair(node: Node) -> bool:
     return isinstance(node.op, ops.Const) and isinstance(node.op.value, Symbol)
 
 
-#: The inner product, as it is written today, for hints.
-INNER_PRODUCT = (
-    "for the inner product of vectors, write them with an index over a space and contract "
-    "it: \\mathcal{V} := \\mathbb{R}^{2}, a \\in \\mathcal{V}, then p^a q_a"
-)
-
 #: What two items in brackets often are in books, by the brackets they are written in, and
 #: how to write it today, with {0} and {1} for the two items. Numbers in brackets are
 #: none of them: [4, 9] is a list.
 _BRACKETS = (
-    (("\\langle", "⟨"), "an inner product", INNER_PRODUCT),
     (
         ("\\{", "\\left\\{", "\\lbrace", "\\left\\lbrace"),
         "a Poisson bracket",
@@ -1025,17 +1018,13 @@ def _bracket_meaning(written: str) -> tuple[str, str] | None:
     return None
 
 
-def _in_angle_brackets(node: ast.Expr) -> bool:
-    """Whether an expression is written in angle brackets, as ``\\langle u, v \\rangle`` and
-    ``\\langle 0 | T | 0 \\rangle`` are, which the parser reads as brackets."""
-    written = node.span.text.strip()
-    return written.startswith(("\\langle", "⟨")) and written.endswith(("\\rangle", "⟩"))
-
-
 def _often(meant: tuple[str, str] | None) -> list[str]:
     """The note on what brackets often are in books, as a Poisson bracket, where they are."""
     if meant is None:
         return []
+    if meant[0] == "a commutator":  # read so of operators and matrices
+        return ["in these brackets, two items are often a commutator, which is read so of "
+                "operators and matrices"]  # fmt: skip
     return [f"in these brackets, two items are often {meant[0]}, which is not supported yet"]
 
 

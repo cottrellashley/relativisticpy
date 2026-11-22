@@ -54,7 +54,6 @@ from relativisticpy.reading.names import (
     _STATISTIC_ALIASES,
     _STATISTICS,
     _TRANSPOSES,
-    INNER_PRODUCT,
     _a_member,
     _a_name,
     _a_pair,
@@ -1442,29 +1441,6 @@ class Reader(Typer):
         items = _items_written(written) or [arg.span.text for arg in pair.args if arg.span]
         kind = "pair" if len(items) == 2 else "list"
         return f"the {kind} ({', '.join(items)})", items, _bracket_meaning(written)
-
-    def _inner_product(self, node: ast.Tuple) -> CompileError:
-        """``\\langle u, v \\rangle``, read as the pair (u, v): never what is meant."""
-        items = ", ".join(item.span.text for item in node.items)
-        why = "angle brackets around items separated by commas are read as brackets"
-        self._decide("product or call", node.span, f"the pair ({items})", why)
-        return CompileError(
-            f"{node.span.text} is read as the pair ({items}), not as an inner product",
-            span=node.span,
-            notes=["an inner product written in angle brackets is not supported yet"],
-            hint=INNER_PRODUCT,
-        )
-
-    def _bra_ket(self, node: ast.Expr) -> CompileError:
-        """``\\langle 0 | T\\{\\ldots\\} | 0 \\rangle``, read as 0 times |...| times 0:
-        Dirac's notation, which is not supported yet."""
-        return CompileError(
-            f"{node.span.text} is read as a product with absolute values, not as Dirac's notation",
-            span=node.span,
-            notes=["bras and kets, \\langle a | and | b \\rangle, are not supported yet"],
-            hint="write a state as a list of its components, and an expectation as a product "
-            "of matrices",
-        )
 
     def _check_product_signs(self, node: ast.Binary, scope: Scope, ctx: Context) -> None:
         """Refuse the products whose sign means something else, which the lexer reads as a

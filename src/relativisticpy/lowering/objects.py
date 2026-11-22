@@ -41,7 +41,7 @@ from relativisticpy.integrations._objects import (
 from relativisticpy.ir import SCALAR, VALUE, EquationType, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
-from relativisticpy.lowering.optima import Optima
+from relativisticpy.lowering.quantum import Quantum
 from relativisticpy.tensors import Index, Indices, Space, numerical
 from relativisticpy.typing.syntax import _plain_label
 
@@ -58,7 +58,7 @@ NO_SCOPE = (
 CALL = "product or call"
 
 
-class PythonObjects(Optima):
+class PythonObjects(Quantum):
     r"""The reading of the Python objects a statement names, as ``\texttt{prices}``: before
     any other form, since what ``\texttt`` names is never the language's."""
 

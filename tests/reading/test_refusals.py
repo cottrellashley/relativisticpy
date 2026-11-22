@@ -110,9 +110,9 @@ class TestColonEqualsDefinesOrRefuses:
         assert found.message.startswith(r"cannot define \operatorname{sinc} x y")
 
     def test_brackets_and_numbers_say_how_they_were_read(self, wb):
-        found = error(wb, r"\langle p, q \rangle := \int_{-1}^{1} p(x) q(x) \, dx")
-        assert found.message == (
-            r"cannot define \langle p, q \rangle, which is read as the pair (p, q)"
+        found = error(wb, r"\left( p, q \right) := \int_{-1}^{1} p(x) q(x) \, dx")
+        assert (
+            found.message == r"cannot define \left( p, q \right), which is read as the pair (p, q)"
         )
         assert found.hint == "for a function of p, q, define one, as in f(p, q) := ..."
         found = error(wb, r"\mathbf{2} := \begin{pmatrix} 2 \\ 2 \end{pmatrix}")
@@ -122,6 +122,11 @@ class TestColonEqualsDefinesOrRefuses:
         # decision 7: on the left of :=, a prime is part of the name
         wb.exe(r"\rho'(x, t) := R e^{i(k x - \omega t)}")
         assert wb.expr(r"\rho'(0, 0)") == sympy.Symbol("R")
+
+    def test_angle_brackets_define_a_bracket(self, wb):
+        # \langle p, q \rangle := ... is no pair: the program's own bracket (decision 13)
+        wb.exe(r"\langle p, q \rangle := \int_{-1}^{1} p(x) q(x) \, dx")
+        assert wb.expr(r"\langle 1, x^2 \rangle") == sympy.Rational(2, 3)
 
 
 class TestEqualsDefinesAFunctionOrRefuses:
@@ -184,9 +189,10 @@ class TestDIsAVariableWithoutAnIndex:
 
 
 class TestPairsAreNotScalars:
-    """Guard 4, in part: brackets of two items are read as a pair, so a pair equated to a
-    scalar, a function of a pair and ``\\langle u, v \\rangle`` are refused, saying what
-    the brackets often are in books. ``\\{L_x, L_y\\} = L_z`` was a silent False."""
+    """Guard 4, in part: brackets of two items that are neither operators nor matrices are
+    read as a pair, so a pair equated to a scalar and a function of a pair are refused, as
+    are angle brackets around what is no vector, saying what the brackets often are in
+    books. ``\\{L_x, L_y\\} = L_z`` was a silent False."""
 
     ANGULAR = r"L_x = y p_z - z p_y, \quad L_y = z p_x - x p_z, \quad L_z = x p_y - y p_x"
 
@@ -226,25 +232,24 @@ class TestPairsAreNotScalars:
         assert found.notes == ["sin applies to a number or an expression, not to a pair or a list"]
         assert found.hint == "apply it to each item, as in sin(1)"
 
-    def test_an_inner_product_in_angle_brackets(self, wb):
-        for written in (r"\langle (1, 2), (3, 4) \rangle", r"\sqrt{\langle p, p \rangle}"):
-            assert "not as an inner product" in error(wb, written).message
+    def test_angle_brackets_around_what_is_no_vector(self, wb):
+        assert wb.expr(r"\langle (1, 2), (3, 4) \rangle") == 11  # an inner product, now read
         found = error(wb, r"\sqrt{\langle p, p \rangle}")
         assert found.message == (
-            r"\langle p, p \rangle is read as the pair (p, p), not as an inner product"
+            r"\langle p, p \rangle is angle brackets around p, p, which are not two vectors, "
+            "and no bracket the program defines"
         )
         assert found.hint == (
-            r"for the inner product of vectors, write them with an index over a space and "
-            r"contract it: \mathcal{V} := \mathbb{R}^{2}, a \in \mathcal{V}, then p^a q_a"
+            r"define the bracket, as in \langle p, q \rangle := \int_{-1}^{1} p(x) q(x) \, dx"
         )
-        space = "\\mathcal{V} := \\mathbb{R}^{2}\na \\in \\mathcal{V}\n"
-        assert wb.expr(space + "p^a := [1, 2]\nq^a := [3, 4]\np^a q_a") == 11  # the hint works
+        wb.exe(found.hint.removeprefix("define the bracket, as in "))
+        assert wb.expr(r"\sqrt{\langle x, x \rangle}") == sympy.sqrt(6) / 3  # the hint works
 
-    def test_dirac_notation(self, wb):
+    def test_a_time_ordered_product_between_a_bra_and_a_ket(self, wb):
         found = error(wb, r"\langle 0 | T\{\phi(x_1)\phi(x_2)\} | 0 \rangle = 2")
         assert found.message == (
-            r"\langle 0 | T\{\phi(x_1)\phi(x_2)\} | 0 \rangle is read as a product with absolute "
-            "values, not as Dirac's notation"
+            r"T\{\phi(x_1)\phi(x_2)\}, between a bra and a ket, is read as a time-ordered "
+            "product of fields, which is not supported yet"
         )
 
 
@@ -314,9 +319,9 @@ class TestScriptedNamesWhoseBaseIsDefined:
 class TestOperatorsReadWithAnotherMeaning:
     """Guard 4: an operator the lexer reads as a product, a measure or a derivative that
     would be computed with another meaning is refused until it is built: \\times of unit
-    vectors nothing defines, d\\Omega, the derivative of a list, a Jacobian, and the bracket
-    of two matrices. The Kronecker product and the exponential of a matrix are built, and
-    read so."""
+    vectors nothing defines, d\\Omega, the derivative of a list and a Jacobian. The
+    Kronecker product, the exponential of a matrix and the bracket of two matrices, their
+    commutator, are built, and read so."""
 
     SIGMA_X = r"\begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix}"
     SIGMA_Y = r"\begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix}"
@@ -388,14 +393,10 @@ class TestOperatorsReadWithAnotherMeaning:
 
     def test_the_bracket_of_two_matrices(self, wb):
         wb.exe(f"K_1 := {self.SIGMA_X}\nK_2 := {self.SIGMA_Y}")
-        found = error(wb, "[K_1, K_2]")
-        assert (
-            found.message == "[K_1, K_2] is read as a list of two matrices, not as their commutator"
-        )
-        assert found.hint == "for the commutator, write K_1 K_2 - K_2 K_1"
-        assert error(wb, r"\{K_1, K_2\}").hint == "for the anticommutator, write K_1 K_2 + K_2 K_1"
-        commutator = wb.expr("K_1 K_2 - K_2 K_1")  # the hint works
-        assert sympy.Matrix(commutator) == sympy.Matrix([[2 * sympy.I, 0], [0, -2 * sympy.I]])
+        commutator = sympy.Matrix([[2 * sympy.I, 0], [0, -2 * sympy.I]])
+        assert sympy.Matrix(wb.expr("[K_1, K_2]")) == commutator  # their commutator
+        assert sympy.Matrix(wb.expr("K_1 K_2 - K_2 K_1")) == commutator
+        assert sympy.Matrix(wb.expr(r"\{K_1, K_2\}")) == sympy.zeros(2, 2)
 
 
 class TestConstrainedSymbols:

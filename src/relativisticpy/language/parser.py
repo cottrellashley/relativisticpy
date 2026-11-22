@@ -32,6 +32,7 @@ from enum import IntEnum
 from typing import Literal, TypeVar, cast
 
 from relativisticpy.errors import ParseError
+from relativisticpy.language import dirac
 from relativisticpy.language import syntax as ast
 from relativisticpy.language import vocabulary as vocab
 from relativisticpy.language.lexer import tokenize
@@ -611,7 +612,9 @@ class Parser:
                 params.append(parameter)
             return ast.FunctionDefinition(called, tuple(params), value, span=span)
         for target in targets:
-            if not (isinstance(target, ast.Name | ast.Scripted) or _decorated(target)):
+            if not (
+                isinstance(target, ast.Name | ast.Scripted | dirac.DEFINABLE) or _decorated(target)
+            ):
                 raise ParseError(
                     f"cannot define {_describe_node(target)}",
                     span=target.span,
@@ -914,7 +917,7 @@ class Parser:
         kind = token.kind
         if self._integral_depth and self._at_differential():
             return False
-        if kind in (K.NUMBER, K.LPAREN, K.LBRACKET, K.LBRACE, K.ELLIPSIS):
+        if kind in (K.NUMBER, K.LPAREN, K.LBRACKET, K.LBRACE, K.ELLIPSIS, K.LANGLE):
             return True
         if kind is K.IDENT:
             return token.value not in _KEYWORDS and not self._at_connective(token)
@@ -1081,7 +1084,9 @@ class Parser:
         if kind is K.LBRACE:
             return self._braced()
         if kind is K.BAR:
-            return self._absolute_value()
+            return dirac.ket(self) if dirac.at_ket(self) else self._absolute_value()
+        if kind is K.LANGLE:
+            return dirac.angle(self)
         previous = self.previous
         after = ""
         if (
@@ -1129,6 +1134,15 @@ class Parser:
                 and (not self._function_argument or _plain_call(numbered, token))
             ):  # \psi_1(x) and R_{21}(r) are functions, as x_0(t) is
                 node = self._call(numbered)
+            elif (
+                kind is K.LPAREN
+                and not token.space_before
+                and isinstance(node, ast.Scripted)
+                and _starred(node)
+                and not self._function_argument
+            ):  # \psi^*(x) is \psi(x)^*, the conjugate of the call
+                call = self._call(node.base)
+                node = ast.Scripted(call, node.scripts, span=self._span(node.span))
             elif kind is K.LBRACE and _applicable(node) and self._at_typeset_arguments():
                 node = self._typeset_call(node)
             elif kind is K.PRIME and isinstance(node, ast.Name):
@@ -1745,6 +1759,8 @@ class Parser:
             return self._optimum(self.advance(), name)  # \sup_{x \in S} f(x)
         if name == "underset" and (beneath := self._beneath()) is not None:
             return beneath  # \underset{x}{\min} f(x)
+        if name in dirac.COMMANDS:  # \ket{\psi}, \braket{\phi|\psi}
+            return dirac.command(self)
         notes = self._expanded_from(token)
         if (unsupported := vocab.UNSUPPORTED_COMMANDS.get(name)) is not None:
             message, hint = unsupported
@@ -2938,6 +2954,15 @@ def _numbered(node: ast.Scripted) -> ast.Name | None:
     return ast.Name(f"{node.base.id}_{digits}", node.base.verbatim, span=node.span)
 
 
+def _starred(node: ast.Scripted) -> bool:
+    """Whether a name's one script is a star, as ``\\psi^*``'s is."""
+    if not isinstance(node.base, ast.Name) or len(node.scripts) != 1:
+        return False
+    script = node.scripts[0]
+    star = isinstance(script.body, ast.Name) and script.body.id == "*" and script.body.verbatim
+    return script.kind == "^" and star
+
+
 def _without_script(node: ast.Expr, kind: Literal["^", "_"]) -> bool:
     """Whether ``node`` is a name with scripts, none of them of this kind."""
     return (
@@ -3632,13 +3657,14 @@ def _modular(value: ast.Expr) -> bool:
 
 
 def _definable(target: ast.Expr) -> bool:
-    """Whether ``target :=`` can define it: a name, maybe decorated, a tensor, or a
-    function of names, maybe primed (decision 7 of design/notation.md)."""
+    """Whether ``target :=`` can define it: a name, maybe decorated, a tensor, a function of
+    names, maybe primed (decision 7 of design/notation.md), or a ket, a bracket or angle
+    brackets, as ``|0\\rangle``."""
     if isinstance(target, ast.Call):
         return _parameter(target.func) is not None and all(
             _parameter(arg) is not None for arg in target.args
         )
-    return isinstance(target, ast.Name | ast.Scripted) or _decorated(target)
+    return isinstance(target, ast.Name | ast.Scripted | dirac.DEFINABLE) or _decorated(target)
 
 
 def _parameter(node: ast.Expr) -> str | None:

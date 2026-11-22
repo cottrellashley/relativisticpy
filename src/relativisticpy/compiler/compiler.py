@@ -164,6 +164,8 @@ class Compiler(Arithmetic):
             return []
         if isinstance(statement, ast.Define) and self._defines_transform(statement, scope, ctx):
             return []  # \mathcal{F}\{f\}(\omega) := \int ...: the convention of a transform
+        if isinstance(statement, ast.Define) and self._defines_quantum(statement, scope, ctx):
+            return []  # |0\rangle := ..., \langle x|p\rangle := ..., \hat{p} := -i\hbar d/dx
         if isinstance(statement, ast.Define) and self._states_identity(statement, scope):
             target = statement.targets[0]
             why = "it says, with \\equiv, what a built-in already is"
@@ -185,6 +187,8 @@ class Compiler(Arithmetic):
         assert isinstance(statement, ast.Evaluate)
         expr = statement.expr
         if isinstance(expr, ast.Relation) and self._declares(expr):
+            return []
+        if self._states_rule(expr, scope, ctx):  # [\hat{x}, \hat{p}] = i\hbar, for what follows
             return []
         if assumptions.assume(self, expr, scope, ctx):  # a > 0, x \in \mathbb{R}
             return []

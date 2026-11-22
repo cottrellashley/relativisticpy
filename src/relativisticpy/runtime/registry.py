@@ -32,7 +32,7 @@ from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.integrations import _optimizers as optima
-from relativisticpy.runtime import arithmetic, core, notation, recurrences
+from relativisticpy.runtime import arithmetic, core, notation, quantum, recurrences
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
@@ -251,6 +251,19 @@ def _core() -> Iterator[Implementation]:
     yield entry("arith.power_mod", arithmetic.power_mod, "scalar", 3, 3)
     yield entry("arith.coefficient", arithmetic.coefficient, "scalar", 3, 3)
     yield entry("arith.solve", arithmetic.solve_congruences, "value", 3)
+    # quantum mechanics without a representation, and its brackets
+    yield entry("quantum.ket", quantum.ket, "value", 1)
+    yield entry("quantum.dagger", quantum.dagger, "value", 1, 1)
+    yield entry("quantum.braket", quantum.braket, "value", 2)
+    yield entry("quantum.commutator", quantum.commutator, "value", 3, 3)
+    yield entry("quantum.rule", quantum.rule, "value", 2, 3)
+    yield entry("quantum.reduced", quantum.reduced, "scalar", 1)
+    yield entry("quantum.ordered", quantum.ordered, "scalar", 1)
+    yield entry("quantum.delta", quantum.delta, "scalar", 2, 2)
+    yield entry("quantum.clebsch_gordan", quantum.clebsch_gordan, "scalar", 6, 6)
+    yield entry("quantum.conjugate", quantum.conjugate, "argument", 1)
+    yield entry("quantum.modulus", quantum.modulus, "scalar", 1)
+    yield entry("quantum.inner", quantum.inner, "scalar", 2, 2)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

@@ -583,6 +583,30 @@ class _PlainPrinter(StrPrinter):  # type: ignore[misc]
             return f"|{self._print(expr.args[0])}|"
         return self._call("abs", expr.args)
 
+    # -- Dirac's notation, of operators and kets nothing defines --
+
+    def _print_Ket(self, expr: Any) -> str:
+        closing = "⟩" if self.unicode else "\\rangle"
+        return "|" + self._labels(expr) + closing
+
+    def _print_Bra(self, expr: Any) -> str:
+        opening = "⟨" if self.unicode else "\\langle "
+        return opening + self._labels(expr) + "|"
+
+    def _print_InnerProduct(self, expr: Any) -> str:
+        opening, closing = ("⟨", "⟩") if self.unicode else ("\\langle ", "\\rangle")
+        return opening + self._labels(expr.bra) + "|" + self._labels(expr.ket) + closing
+
+    def _print_Operator(self, expr: Any) -> str:
+        return self._labels(expr)
+
+    def _print_Dagger(self, expr: Any) -> str:
+        mark = "†" if self.unicode else "^\\dagger"
+        return self._print(expr.args[0]) + mark
+
+    def _labels(self, state: Any) -> str:
+        return ", ".join(self._print(label) for label in state.label)
+
     def _print_factorial(self, expr: Any) -> str:
         argument = expr.args[0]
         shown = self._print(argument)

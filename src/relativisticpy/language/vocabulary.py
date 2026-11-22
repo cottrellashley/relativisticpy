@@ -128,8 +128,8 @@ OPERATOR_COMMANDS: Mapping[str, TokenKind] = MappingProxyType(
         "lVert": TokenKind.BAR,
         "rVert": TokenKind.BAR,
         "mid": TokenKind.BAR,
-        "langle": TokenKind.LPAREN,  # \langle x \rangle groups, as brackets do
-        "rangle": TokenKind.RPAREN,
+        "langle": TokenKind.LANGLE,  # Dirac's notation, or an expectation value
+        "rangle": TokenKind.RANGLE,
         "otimes": TokenKind.STAR,  # in index notation a tensor product is a product
         "pm": TokenKind.PLUS_MINUS,
         "mp": TokenKind.MINUS_PLUS,
@@ -353,6 +353,10 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
         "∘": TokenKind.COMPOSE,
         "⊗": TokenKind.STAR,
         "‖": TokenKind.BAR,
+        "⟨": TokenKind.LANGLE,
+        "⟩": TokenKind.RANGLE,
+        "〈": TokenKind.LANGLE,
+        "〉": TokenKind.RANGLE,
         "…": TokenKind.ELLIPSIS,
         "⋯": TokenKind.ELLIPSIS,
     }
@@ -399,9 +403,13 @@ COMBINING_ACCENTS: Mapping[str, str] = MappingProxyType(
 # Every command
 # --------------------------------------------------------------------------
 
+#: The physics and braket packages' commands for Dirac's notation, which the parser reads as
+#: what they print (:mod:`relativisticpy.language.dirac`).
+DIRAC_COMMANDS: frozenset[str] = frozenset({"ket", "bra", "braket", "ketbra", "expval", "mel"})
+
 #: Commands the parser reads itself: fractions, roots, big operators, derivatives,
-#: binomials, floors and ceilings, and TeX's generalised fractions, the brackets of the
-#: Stirling numbers among them.
+#: binomials, floors and ceilings, TeX's generalised fractions, the brackets of the
+#: Stirling numbers among them, and Dirac's notation.
 PARSER_COMMANDS: frozenset[str] = frozenset(
     {
         "frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "int", "oint", "iint",
@@ -409,12 +417,13 @@ PARSER_COMMANDS: frozenset[str] = frozenset(
         "binom", "dbinom", "tbinom", "lfloor", "rfloor", "lceil", "rceil", "over", "choose",
         "sup", "inf", "underset",
         "brace", "brack", "bmod", "mod", "pmod",
+        *DIRAC_COMMANDS,
     }
 )  # fmt: skip
 
 #: Commands the lexer reads itself: brackets, environments, plain TeX's groups and rows.
 STRUCTURE_COMMANDS: frozenset[str] = frozenset(
-    {"left", "right", "begin", "end", "bgroup", "egroup", "cr", "mathbb"}
+    {"left", "middle", "right", "begin", "end", "bgroup", "egroup", "cr", "mathbb"}
 )
 
 #: Every command RelativisticPy reads, which is where "did you mean" looks.
@@ -439,7 +448,6 @@ COMMANDS: frozenset[str] = frozenset().union(
 )
 
 _MACRO = "write what it stands for; relativisticpy check reads the macros of a document"
-_DIRAC = "write a state as a list of its components"
 
 #: Commands of LaTeX and its packages, such as physics, that RelativisticPy does not
 #: read, each with what it is and what to write instead. "Did you mean" never offers
@@ -451,9 +459,6 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
         "providecommand": (r"\providecommand defines a macro, which a program cannot", _MACRO),
         "def": (r"\def defines a macro, which a program cannot", _MACRO),
         "let": (r"\let defines a macro, which a program cannot", _MACRO),
-        "bra": (r"Dirac's notation, \bra, is not supported", _DIRAC),
-        "ket": (r"Dirac's notation, \ket, is not supported", _DIRAC),
-        "braket": (r"Dirac's notation, \braket, is not supported", _DIRAC),
         "abs": (r"\abs, the physics package's absolute value, is not supported",
                 r"write |x|, or \left| x \right|"),
         "norm": (r"\norm, the physics package's norm, is not supported", r"write \| x \|"),

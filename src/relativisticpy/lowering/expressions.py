@@ -57,7 +57,6 @@ from relativisticpy.reading.names import (
     _an_index,
     _bold_one,
     _bracketed_order,
-    _in_angle_brackets,
     _letter,
     _mentions_symbol,
     _named,
@@ -287,8 +286,6 @@ class Expressions(LinearAlgebra):
         return self.graph.add(ops.Add(signs), [value for _, value in kept], reference, node.span)
 
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
-        if _in_angle_brackets(node) and "|" in node.span.text:  # \langle 0 | T\{...\} | 0 \rangle
-            raise self._bra_ket(node)
         if (kronecker := self._kronecker(node, scope, ctx)) is not None:  # A \otimes B
             return kronecker
         if any(sign in node.span.text for sign in ("times", "×")):  # \times
@@ -1041,8 +1038,6 @@ class Expressions(LinearAlgebra):
         return self._call("core.list", items, VALUE, node.span)
 
     def _Tuple(self, node: ast.Tuple, scope: Scope, ctx: Context) -> Node:
-        if _in_angle_brackets(node) and len(node.items) > 1:  # \langle u, v \rangle
-            raise self._inner_product(node)
         items = [self.value(item, scope, ctx) for item in node.items]
         bracketed = node.span.text.startswith(_MATRIX_BRACKETS)
         if bracketed and len(items) == 2 and all(_a_matrix(item) for item in items):

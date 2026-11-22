@@ -204,6 +204,48 @@ class Substitution(Expr):
 
 
 # ---------------------------------------------------------------------------
+# Dirac's notation, and angle brackets
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Ket(Expr):
+    """A ket, ``|\\psi\\rangle``. Its ``label`` is what is written between the bar and the
+    angle bracket: a name, a number, a sign alone as in ``|+\\rangle``, an expression as in
+    ``|n - 1\\rangle``, or several, ``|j, m\\rangle``, a tuple, whose groups a semicolon
+    separates, as Clebsch–Gordan's ``|j_1, j_2; j, m\\rangle`` is a tuple of tuples."""
+
+    label: Expr
+
+
+@dataclass(frozen=True)
+class Bra(Expr):
+    """A bra, ``\\langle\\phi|``, with a label as a ket's."""
+
+    label: Expr
+
+
+@dataclass(frozen=True)
+class BraKet(Expr):
+    """A bracket of a bra and a ket, ``\\langle\\phi|\\psi\\rangle``, or a matrix element,
+    ``\\langle\\phi|A|\\psi\\rangle``, with the ``operator`` between their bars. ``bra`` and
+    ``ket`` are their labels."""
+
+    bra: Expr
+    operator: Expr | None
+    ket: Expr
+
+
+@dataclass(frozen=True)
+class Expectation(Expr):
+    """Angle brackets around what holds no bar: ``\\langle x \\rangle``, an expectation value,
+    or ``\\langle u, v \\rangle``, an inner product, or a bracket a program defines. Whatever
+    it is, the reader decides."""
+
+    operand: Expr
+
+
+# ---------------------------------------------------------------------------
 # Scripts and indices
 # ---------------------------------------------------------------------------
 
@@ -548,6 +590,19 @@ class _Printer:
     def _Substitution(self, node: Substitution) -> str:
         bindings = " ".join(f"({self.render(t)} {self.render(v)})" for t, v in node.bindings)
         return f"(at {self.render(node.expr)} {bindings})"
+
+    def _Ket(self, node: Ket) -> str:
+        return f"(ket {self.render(node.label)})"
+
+    def _Bra(self, node: Bra) -> str:
+        return f"(bra {self.render(node.label)})"
+
+    def _BraKet(self, node: BraKet) -> str:
+        operator = f" {self.render(node.operator)}" if node.operator is not None else ""
+        return f"(braket {self.render(node.bra)}{operator} {self.render(node.ket)})"
+
+    def _Expectation(self, node: Expectation) -> str:
+        return f"(expectation {self.render(node.operand)})"
 
     def _IndexItem(self, node: IndexItem) -> str:
         if node.value is None:

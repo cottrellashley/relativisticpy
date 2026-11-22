@@ -1646,3 +1646,79 @@ class TestMoreErrors:
     def test_parse_expression_rejects_trailing_input(self):
         with pytest.raises(ParseError, match=r"unexpected '\)'"):
             parse_expression("x )")
+
+
+class TestDiracNotation:
+    """Angle brackets are tokens of their own, and a bar belongs to a bra, a ket or an
+    absolute value by what closes it (relativisticpy.language.dirac)."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"|\psi\rangle", "(ket psi)"),
+            (r"\langle\phi|", "(bra phi)"),
+            (r"\langle\phi|\psi\rangle", "(braket phi psi)"),
+            (r"\langle \phi | A | \psi \rangle", "(braket phi A psi)"),
+            (r"\langle x \rangle", "(expectation x)"),
+            (r"\langle x^2 \rangle", "(expectation (^ x 2))"),
+            (r"\langle u, v \rangle", "(expectation (tuple u v))"),
+            (r"|+\rangle\langle+|", "(* (ket +) (bra +))"),
+            (r"|n - 1\rangle", "(ket (- n 1))"),
+            (r"|j, m\rangle", "(ket (tuple j m))"),
+            (r"\langle n' | n \rangle", "(braket n' n)"),
+            (r"\left| \psi \right\rangle", "(ket psi)"),
+            (r"\left\langle \phi \middle| \psi \right\rangle", "(braket phi psi)"),
+            ("⟨φ|ψ⟩", "(braket phi psi)"),
+            (r"\ket{\psi}", "(ket psi)"),
+            (r"\bra{\phi}", "(bra phi)"),
+            (r"\braket{\phi|\psi}", "(braket phi psi)"),
+            (r"\braket{\phi}{\psi}", "(braket phi psi)"),
+            (r"\ketbra{a}{b}", "(* (ket a) (bra b))"),
+            (r"\expval{A}", "(expectation A)"),
+            (r"\expval{A}{\psi}", "(braket psi A psi)"),
+            (r"\mel{a}{A}{b}", "(braket a A b)"),
+        ],
+    )
+    def test_kets_bras_and_brackets(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_a_label_of_groups(self):
+        written = (
+            r"\langle 1, \tfrac{1}{2}; 1, -\tfrac{1}{2} | 1, \tfrac{1}{2}; \tfrac{3}{2}, 1 \rangle"
+        )
+        assert sexpr(written) == (
+            "(braket (tuple (tuple 1 (/ 1 2)) (tuple 1 (- (/ 1 2)))) "
+            "(tuple (tuple 1 (/ 1 2)) (tuple (/ 3 2) 1)))"
+        )
+
+    def test_a_bra_alone_is_not_a_matrix_element(self):
+        # the + between the outer products is no operator between the bars
+        written = r"|+\rangle\langle+| + |-\rangle\langle-|"
+        assert sexpr(written) == "(+ (* (ket +) (bra +)) (* (ket -) (bra -)))"
+
+    def test_bars_of_absolute_values_stay_so(self):
+        assert sexpr("|x| + |y|") == "(+ (abs x) (abs y))"
+        assert sexpr(r"|\langle k | H | 0 \rangle|^2") == "(^ (abs (braket k H 0)) 2)"
+        assert sexpr(r"\left. x^2 \right|_{x=1}") == "(at (^ x 2) (x 1))"
+
+    def test_a_ket_after_a_coefficient_is_a_product(self):
+        assert sexpr(r"i|1\rangle - 2|2\rangle") == "(- (* i (ket 1)) (* 2 (ket 2)))"
+        assert sexpr(r"a_- |n\rangle") == "(* (a _-) (ket n))"
+
+    def test_kets_brackets_and_angle_brackets_are_defined(self):
+        assert program(r"|0\rangle := 1") == ["(:= (ket 0) 1)"]
+        assert program(r"\langle x | p \rangle := 1") == ["(:= (braket x p) 1)"]
+        assert program(r"\langle x^2 \rangle := 1") == ["(:= (expectation (^ x 2)) 1)"]
+
+    def test_a_star_before_brackets_conjugates_the_call(self):
+        assert sexpr(r"\psi^*(x)") == sexpr(r"\psi(x)^*") == "(^ (call psi x) *)"
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            (r"\langle x", r"expected '|' or '\rangle' to close the bracket"),
+            (r"|x\rangle\rangle", r"unexpected '\rangle'"),
+        ],
+    )
+    def test_brackets_left_open(self, text, message):
+        assert message in str(error(text))

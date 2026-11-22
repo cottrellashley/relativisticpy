@@ -415,8 +415,8 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\lt \gt \le \leq \leqslant \ge \geq \geqslant \ne \neq` | comparisons, in this order: `<`, `>`, `<=` (three spellings), `>=` (three), `!=` (two) |
 | `\longrightarrow \mapsto \rightarrow \to` | an arrow, as in `\lim_{x \to 0}` |
 | `\coloneq \coloneqq \defeq \equiv \triangleq` | a definition, `:=` |
-| `\Vert \lVert \lvert \mid \rVert \rvert \vert` | a bar: absolute values, norms and evaluation bars |
-| `\langle \rangle` | brackets: `\langle x \rangle` groups |
+| `\Vert \lVert \lvert \mid \rVert \rvert \vert` | a bar: absolute values, norms, evaluation bars, and the bar of a bra or a ket |
+| `\langle \rangle` | angle brackets: Dirac's notation, with the bar of a bra or a ket; without a bar, an expectation value, `\langle x \rangle`, or an inner product, `\langle u, v \rangle` |
 | `\pm \mp` | both signs, so two values |
 | `\wedge` | the wedge product |
 | `\circ` | composition: read, not computed |
@@ -444,8 +444,9 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\Box \square` | the d'Alembertian, `\nabla^\mu \nabla_\mu`, as is `\nabla^2` |
 | `\pounds` | the Lie derivative, `\pounds_V T_{ab}` |
 | `\dv \pdv` | the physics package's derivatives: `\pdv{f}{x}`, `\pdv[2]{f}{x}`, `\dv{f}{x}` |
+| `\bra \braket \expval \ket \ketbra \mel` | Dirac's notation as the physics and braket packages write it: `\ket{\psi}`, `\bra{\phi}`, `\braket{\phi}{\psi}`, `\ketbra{a}{b}`, `\expval{A}` and `\mel{\phi}{A}{\psi}` |
 | `\lceil \lfloor \rceil \rfloor` | the floor `\lfloor x \rfloor` and the ceiling |
-| `\left \right` | `\left( ... \right)` groups, with any delimiters; between bars it is an absolute value, and from `\left.` to a bar with `_{x=a}` an evaluation bar |
+| `\left \middle \right` | `\left( ... \right)` groups, with any delimiters; between bars it is an absolute value, from `\left.` to a bar with `_{x=a}` an evaluation bar, and between angle brackets, with `\middle` before the bar, Dirac's notation |
 | `\begin \end` | an environment, `\begin{pmatrix} ... \end{pmatrix}` |
 | `\bgroup \egroup` | plain TeX's braces |
 | `\cr` | ends a row of plain TeX's `\matrix` and `\cases` |
@@ -468,7 +469,6 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 These commands are LaTeX's, or a package's, but not the language's. Each is an error that says what to write instead:
 
 - `\abs`: the physics package's absolute value, is not supported; write `|x|`, or `\left| x \right|`.
-- `\bra \braket \ket`: dirac's notation is not supported; write a state as a list of its components.
 - `\dd`: the physics package's differential, is not supported; write `d x`, or `\mathrm{d} x`.
 - `\def \let \newcommand \providecommand \renewcommand`: defines a macro, which a program cannot; write what it stands for; relativisticpy check reads the macros of a document.
 - `\eval`: the physics package's evaluation bar, is not supported; write `\left. f \right|_{x=0}`.
@@ -486,7 +486,7 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 
 ### Unicode
 
-Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`. The operators · ⋅ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
+Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`. The operators · ⋅ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
 
 ## Verdicts of a check
 

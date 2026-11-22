@@ -158,6 +158,28 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   where another was possible, and computed exactly with SymPy and numerically with NumPy
   and SciPy, or JAX; given a map `A^a{}_b`, a function of a matrix acts on it, over its
   space.
+- Quantum notation as books write it, read by its operands (`design/notation.md`, 13
+  and 20). Dirac's kets, bras, brackets and matrix elements, and the physics and braket
+  packages' `\ket`, `\bra` and `\braket`: a ket defined as a column is that vector, its
+  bra the conjugate transpose, `|a\rangle\langle b|` a matrix and `|00\rangle` the
+  tensor product of the kets it names; a function of one variable is a wavefunction,
+  whose brackets are integrals over the domain the program states; a bracket a program
+  defines, `\langle x|p\rangle := ...`, is a function of its labels, and its conjugate
+  written the other way round; labels may be lists, as Clebsch–Gordan coefficients are
+  written. Angle brackets without a bar hold what a program defines, the inner product of
+  two vectors, or an expectation value in the state it names. `[A, B]` and `\{A, B\}` of
+  matrices or operators are the commutator and the anticommutator, and of anything else
+  a list and a set, as before. An expression that ends in an operator,
+  `\hat{p} := -i\hbar \frac{d}{dx}`, defines an operator, applied by juxtaposition and
+  composed by products and powers, and `a_\pm` defines both signs; a claim between
+  operators is decided on a test function. An `=` whose left side is written with
+  operators and kets nothing defines, `[\hat{x}, \hat{p}] = i\hbar`,
+  `a|n\rangle = \sqrt{n}|n-1\rangle` or `\langle m|n\rangle = \delta_{mn}`, states a rule
+  for what follows, which the algebra of those operators and kets reduces by, and the
+  modulus of whose brackets, `|\langle k|H'|0\rangle|^2`, a sum over a label takes. A
+  star before a call's arguments, `\psi^*(x)`, conjugates the call, as `\psi(x)^*` does.
+  These replace the refusals of the commutator of matrices, of angle brackets and of
+  Dirac's notation.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs
@@ -275,6 +297,9 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - An equation that is an identity, such as `e^{2a}(1 + b) = e^{2a} + b e^{2a}`,
   evaluates to `True`, decided exactly.
 - `\[ ... \]` and `$$ ... $$` hold one formula, however their lines break.
+- Angle brackets no longer group as brackets do: `\langle x \rangle` is what a program
+  defines, an expectation value or an inner product, and refused where it is none of
+  them, rather than `x`.
 - RelativisticPy needs Python 3.10 or later. SymPy is its only required
   dependency.
 
