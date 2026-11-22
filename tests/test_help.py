@@ -38,7 +38,7 @@ def test_a_topic_that_does_not_exist_is_told_what_it_may_have_meant():
 
 def test_without_the_documentation_it_says_where_it_is(monkeypatch):
     monkeypatch.setattr(documentation, "_folder", lambda: None)
-    assert documentation.topics() == []
+    assert [topic for topic, _ in documentation.topics()] == ["reference"]  # always there
     with pytest.raises(UsageError, match="the documentation is not installed") as error:
         documentation.page("checking")
     assert "https://relativisticpy.org" in error.value.hint

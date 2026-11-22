@@ -95,7 +95,8 @@ def test_help_has_it_without_any_pages(monkeypatch):
     assert offline.page("reference") == PAGE
     with pytest.raises(UsageError, match="no help on 'tensors'") as raised:
         offline.page("tensors")
-    assert raised.value.hint == "the topics are reference"
+    assert "the documentation is not installed" in raised.value.message
+    assert "relativisticpy help reference" in raised.value.hint
 
 
 def test_help_reads_its_page_where_there_is_one():

@@ -102,6 +102,12 @@ def page(topic: str) -> str:
         from relativisticpy.reference import markdown
 
         return markdown()
+    if folder is None:
+        raise UsageError(
+            f"there is no help on {topic!r}: the documentation is not installed",
+            hint="read it online, at https://relativisticpy.org; relativisticpy help reference "
+            "prints the language, which is always there",
+        )
     known = [name for name, _ in topics()]
     candidates = known + [alias for alias, target in ALIASES.items() if target in known]
     close = difflib.get_close_matches(topic.strip().lower(), candidates, n=1, cutoff=0.6)
