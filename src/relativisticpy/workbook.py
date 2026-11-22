@@ -2,23 +2,45 @@ r"""The :class:`Workbook`: a session in which RelativisticPy programs run."""
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+import functools
+import numbers
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
 
 import sympy
 from sympy import Symbol
 
-from relativisticpy import checking
+from relativisticpy import checking, display
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.compiler.compiler import _public
-from relativisticpy.compiler.scope import Context, Output, Scope, TensorBinding, VariableBinding
+from relativisticpy.compiler.scope import (
+    Context,
+    FunctionBinding,
+    Output,
+    Scope,
+    TensorBinding,
+    VariableBinding,
+)
 from relativisticpy.diffgeom import Metric
 from relativisticpy.documents import Document, find_math_blocks, math_blocks
-from relativisticpy.errors import CompileError, EvaluationError, RelativisticPyError
-from relativisticpy.ir import SCALAR, EquationType, ScalarType, TensorType, render
+from relativisticpy.errors import (
+    CompileError,
+    DataError,
+    EvaluationError,
+    FileError,
+    InternalError,
+    NotComputedError,
+    RelativisticPyError,
+    UnknownNameError,
+    UsageError,
+    debugging,
+    place,
+    translate,
+)
+from relativisticpy.ir import SCALAR, EquationType, ScalarType, TensorType, ops, render
 from relativisticpy.language import Source, Span, parse, tokenize
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
@@ -28,11 +50,59 @@ from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS
 from relativisticpy.runtime import Executor
 from relativisticpy.tensors import Index, Indices, Space, Tensor, arrays, numerical
 from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import is_zero, tidy
+
+_F = TypeVar("_F", bound=Callable[..., Any])
+
+
+def _from_python(method: _F) -> _F:
+    """A method called from Python, whose errors show the caller's line and the
+    diagnostic, not RelativisticPy's frames or the library exceptions behind it
+    (``RELATIVISTICPY_DEBUG=1`` keeps them). A failure of RelativisticPy's own keeps its
+    traceback, which a report needs."""
+
+    @functools.wraps(method)
+    def call(*args: Any, **kwargs: Any) -> Any:
+        try:
+            return method(*args, **kwargs)
+        except RelativisticPyError as error:
+            if isinstance(error, InternalError) or debugging():
+                raise
+            raise error.with_traceback(None) from None
+
+    return call  # type: ignore[return-value]
+
+
+#: How the compiler words a statement it reads but does not compute, as a relation such
+#: as ≈. Until the compiler raises :class:`~relativisticpy.errors.NotComputedError` for
+#: one itself, an error of these words is given that type here, where a step of
+#: :meth:`Workbook.each` takes the compiler's error, so that a check judges it by its
+#: type. This goes when the compiler raises the type.
+_NOT_COMPUTED = "is read but not computed"
+
+
+def _typed(error: RelativisticPyError) -> RelativisticPyError:
+    """An error of the compiler's, with the type that says what it is."""
+    if type(error) is CompileError and _NOT_COMPUTED in error.message:
+        typed = NotComputedError(error.message, span=error.span, hint=error.hint, notes=error.notes)
+        typed.cause = error.cause
+        return typed
+    return error
 
 
 class Workbook:
     r"""A session for RelativisticPy programs, like the cells of a notebook.
+
+    Start here:
+
+    - :meth:`expr` runs a program and returns the value of its last expression;
+    - :meth:`run`, also called :meth:`exe`, runs a program and returns the value of
+      every expression in it, in order;
+    - :meth:`each` runs a program one statement at a time, as its steps are asked for,
+      and carries on after an error: each :class:`Step` holds what one statement gave,
+      or the error it raised;
+    - :meth:`check` runs the equations of a paper and says which hold.
 
     Definitions persist from one call to the next::
 
@@ -44,10 +114,11 @@ class Workbook:
         >>> wb.expr(r"R_{abcd} R^{abcd}")
         48*M**2/r**6
 
-    :meth:`expr` returns the value of the last expression and :meth:`exe` the
-    value of every expression. Scalars are SymPy expressions; tensors are
-    :class:`~relativisticpy.tensors.Tensor` values carrying their indices and
-    coordinates.
+    ``wb["x"]`` reads what a program defined, ``wb["w^a"] = data`` binds data from
+    Python, and ``"x" in wb`` and :meth:`names` say what is defined. Scalars are SymPy
+    expressions; tensors are :class:`~relativisticpy.tensors.Tensor` values carrying
+    their indices and coordinates. Every error is a
+    :class:`~relativisticpy.errors.RelativisticPyError`.
 
     ``workers`` sets how many processes share component-wise work such as
     simplification (``None`` means one per CPU). Batches of a few components or more
@@ -58,18 +129,25 @@ class Workbook:
 
     def __init__(self, *, workers: int | None = 1, backend: str = "numpy") -> None:
         if backend not in ("numpy", "jax"):
-            raise ValueError(f"the backend is numpy or jax, not {backend!r}")
+            raise UsageError(f"the backend is numpy or jax, not {backend!r}")
+        if workers is not None and not isinstance(workers, int):
+            raise UsageError(f"workers is a number of processes, not {workers!r}")
         self._backend = backend
         self._workers = workers
         self._executor = Executor(workers)
         self._session = Session(executor=self._executor)
         self._compiler = Compiler(self._session)
+        self._metric: tuple[Any, Metric] | None = None  # the metric in force, by its node
 
     # -- running programs --------------------------------------------------------
 
+    @_from_python
     def exe(self, source: str | Source, *, name: str = "<input>") -> list[Any]:
-        """Run a program and return the value of each expression it contains."""
-        outputs = self._compiler.compile(self._parse(source, name))
+        """Run a program and return the value of every expression in it, in order: a
+        definition gives none, an expression one, and a chain of relations,
+        ``a = b = c``, one for each link. An error stops the program and is raised;
+        what came before it is kept. :meth:`run` is the same method."""
+        outputs = self._compiler.compile(self._parse(source, name, "exe"))
         return [self._present(output) for output in outputs]
 
     run = exe
@@ -77,25 +155,30 @@ class Workbook:
     def each(self, source: str | Source, *, name: str = "<input>") -> Iterator[Step]:
         """Run a program one statement at a time, carrying on after errors.
 
-        Each :class:`Step` holds what one statement showed or the error it raised. A
-        chain of relations, ``a = b = c``, gives a step for each link. Errors in the
-        program's syntax are raised at once, before any statement runs.
+        It is lazy: a statement runs when its :class:`Step` is asked for, as by a ``for``
+        loop or ``list(...)``, so nothing runs until then. Each step holds what one
+        statement showed, or the error it raised, with how the statement was read where
+        that could surprise. A chain of relations, ``a = b = c``, gives a step for each
+        link. Errors in the program's syntax are raised as soon as the first step is
+        asked for, before any statement runs.
 
             >>> wb = Workbook()
             >>> [(step.values, step.error) for step in wb.each("x := 2; y; x + 1")][1:]
             [([y], None), ([3], None)]
         """
-        program = self._parse(source, name)
+        try:
+            program = self._parse(source, name, "each")
+        except RelativisticPyError as error:
+            if debugging():
+                raise
+            raise error.with_traceback(None) from None
         for statement in program.statements:
             for piece in _pieces(statement):
                 try:
                     outputs = self._compiler.statement(piece, self._session.globals)
                     values = [self._present(output) for output in outputs]
-                except RelativisticPyError as error:
-                    yield Step(piece.span, piece, error=error)
-                except Exception as error:  # a failure of RelativisticPy's: the next goes on
-                    message = f"{type(error).__name__}: {error}" if str(error) else repr(error)
-                    failure = EvaluationError(message, span=piece.span)
+                except Exception as error:  # an error of the input's, or a failure of ours
+                    failure = _typed(translate(error, span=piece.span))
                     yield Step(piece.span, piece, error=failure)
                 else:
                     notes = [output.note for output in outputs if output.note]
@@ -117,6 +200,7 @@ class Workbook:
             return None
         return lhs, rhs
 
+    @_from_python
     def check(
         self,
         document: str | Path | Document,
@@ -131,22 +215,34 @@ class Workbook:
         See :mod:`relativisticpy.checking`."""
         return checking.check(self, document, lines=lines, time_limit=time_limit)
 
+    @_from_python
     def expr(self, source: str | Source, *, name: str = "<input>") -> Any:
-        """Run a program and return the value of its last expression (``None`` if it has none)."""
+        """Run a program and return the value of its last expression (``None`` if it has
+        none, as when it only defines). An error stops the program and is raised."""
         results = self.exe(source, name=name)
         return results[-1] if results else None
 
+    @_from_python
     def run_file(self, path: str | Path) -> list[Any]:
-        """Run a program from a file. In a Markdown file, the ``$$...$$`` blocks are the program."""
-        path = Path(path)
-        text = path.read_text(encoding="utf-8-sig")  # with a byte order mark or without
+        """Run a program from a file, as :meth:`run` does. In a Markdown file, the
+        ``$$...$$`` blocks are the program."""
+        path = _path(path, "run_file")
+        try:
+            text = path.read_text(encoding="utf-8-sig")  # with a byte order mark or without
+        except UnicodeDecodeError as error:
+            raise _not_utf8(path, error) from None
+        except OSError as error:
+            raise _unreadable(path, error) from None
         if path.suffix.lower() in (".md", ".markdown"):
             return [result for block in math_blocks(text, str(path)) for result in self.exe(block)]
         return self.exe(text, name=str(path))
 
+    @_from_python
     def markdown(self, text: str, *, name: str = "<markdown>") -> str:
         """Run the ``$$...$$`` blocks of a Markdown document in order, and return the
         document with each block's results typeset after it."""
+        if not isinstance(text, str):
+            raise UsageError(f"markdown takes the document as a str, not {_kind(text)}")
         pieces: list[str] = []
         done = 0
         for block, end in find_math_blocks(text, name):
@@ -166,27 +262,161 @@ class Workbook:
         """The syntax tree of ``source``."""
         return parse(source)
 
+    @_from_python
     def ir(self, source: str | Source) -> str:
         """The IR that ``source`` compiles to, as text. Nothing is computed, and the
         workbook is left as it was: a definition in ``source`` is not made."""
         compiler = Compiler(self._session.fork())
-        outputs = compiler.compile(self._parse(source, "<input>"))
+        outputs = compiler.compile(self._parse(source, "<input>", "ir"))
         return render([output.node for output in outputs])
 
-    def __getitem__(self, name: str) -> Any:
-        """The value bound to ``name``: ``wb["x"]``, or a tensor such as ``wb["T"]``."""
-        binding = self._session.globals.lookup(name)
-        if isinstance(binding, TensorBinding | VariableBinding):
-            return self._present(Output(binding.node, binding.node.span or _nowhere(), name))
-        raise KeyError(name)
+    @_from_python
+    def __getitem__(self, written: str) -> Any:
+        r"""What ``written`` names in this workbook, as a program would see it:
 
+        - a name a program defined, ``wb["x"]``, or a tensor, by its name, ``wb["T"]``;
+        - a tensor written with indices, as it was bound, ``wb["w^a"]``, or with others,
+          ``wb["w_a"]``, which are lowered as a program would lower them;
+        - a Greek name in any of its forms: ``wb[r"\Sigma"]``, ``wb["Σ"]``, ``wb["Sigma"]``;
+        - ``wb["g"]``, the metric in force (:attr:`metric`);
+        - a function, ``wb["f"]``, as a SymPy ``Lambda``, which can be called;
+        - a coordinate, as its symbol, and a space, as a
+          :class:`~relativisticpy.tensors.Space`.
+
+        A name nothing defines raises :class:`~relativisticpy.errors.UnknownNameError`,
+        a ``KeyError``. The built-in tensors, such as ``R`` and ``\Gamma``, are computed
+        by a program, as in ``wb.expr(r"\Gamma^a_{bc}")``."""
+        name, entries = self._key(written)
+        session = self._session
+        binding = session.globals.lookup(name)
+        if binding is None and name == session.names["metric"] and self.metric is not None:
+            return self.metric if entries is None else self.expr(_spelled(name, entries))
+        if isinstance(binding, TensorBinding | VariableBinding):
+            if entries is not None:  # with indices, which may be in other positions
+                return self.expr(_spelled(name, entries))
+            return self._present(Output(binding.node, binding.node.span or _nowhere(), name))
+        if isinstance(binding, FunctionBinding):
+            return self._function(name, binding)
+        for coordinate in session.coordinates or ():
+            if coordinate.name == name and entries is None:
+                return coordinate
+        if name in session.spaces and entries is None:
+            return session.spaces[name]
+        raise self._unknown(name, written)
+
+    def __contains__(self, written: object) -> bool:
+        """Whether ``written`` names something in this workbook, as ``wb[written]``
+        would find it: ``"x" in wb``."""
+        if not isinstance(written, str):
+            return False
+        try:
+            name, _ = self._key(written)
+        except RelativisticPyError:
+            return False
+        return name in self.names()
+
+    def __iter__(self) -> Iterator[str]:
+        """The names this workbook defines, as :meth:`names` lists them."""
+        return iter(self.names())
+
+    def names(self) -> dict[str, Definition]:
+        r"""What this workbook defines, by name, in the order it was defined: its
+        coordinates, the metric and every name a program defined or Python bound, with
+        what kind of thing each is and how it is written::
+
+            >>> wb = Workbook()
+            >>> wb.exe(r"Coordinates := [t, x]; f(y) := y^2; V^{a} := [1, t]; c := 3")
+            []
+            >>> wb.names()
+            {'t': <coordinate t>, 'x': <coordinate x>, 'f': <function f(y)>,
+             'V': <tensor V^{a}>, 'c': <value c>}
+        """
+        found: dict[str, Definition] = {}
+        session = self._session
+        for coordinate in session.coordinates or ():
+            found[coordinate.name] = Definition("coordinate", latex_label(coordinate.name))
+        if session.metric is not None:
+            name = session.names["metric"]
+            span = session.metric.node.span
+            found[name] = Definition("metric", f"{name}_{{\\mu\\nu}}", span)
+        for name, binding in session.globals.bindings():
+            found[name] = _definition(name, binding)
+        for name, space in session.spaces.items():
+            found.setdefault(name, Definition("space", str(space.name)))
+        return found
+
+    def __repr__(self) -> str:
+        """``<Workbook: coordinates t, r, θ, φ; metric g_{\\mu\\nu} := Schwarzschild(M);
+        defined u^{\\mu}, \\Sigma>``"""
+        parts = []
+        session = self._session
+        if session.coordinates:
+            shown = ", ".join(display.unicode(c) for c in session.coordinates)
+            parts.append(f"coordinates {shown}")
+        if session.metric is not None:
+            parts.append(f"metric {_shortened(session.metric.node.span)}")
+        defined = [
+            definition.written
+            for definition in self.names().values()
+            if definition.kind not in ("coordinate", "metric")
+        ]
+        if defined:
+            parts.append("defined " + ", ".join(defined))
+        return f"<Workbook: {'; '.join(parts) or 'nothing defined'}>"
+
+    def _key(self, written: str) -> tuple[str, list[tuple[str, bool]] | None]:
+        """A name as it may be written to read it, and its indices, if any are written."""
+        if not isinstance(written, str):
+            raise UsageError(f"a name is a str, as in wb['x'], not {_kind(written)}")
+        try:
+            target = _written(written)
+        except RelativisticPyError:
+            raise UnknownNameError(
+                f"{written} is not a name",
+                hint="write a name, as in wb['x'], or a tensor with its indices, as in "
+                "wb['w^a']; to compute an expression, use wb.expr",
+            ) from None
+        if isinstance(target, ast.Name):
+            return target.id, None
+        return target
+
+    def _unknown(self, name: str, written: str) -> UnknownNameError:
+        """The error for a name nothing in this workbook defines."""
+        defined = [definition.written for definition in self.names().values()]
+        notes = [f"defined here: {', '.join(defined)}"] if defined else []
+        if name == self._session.names["metric"]:
+            hint = "define the metric first, as in wb.expr(r'g_{\\mu\\nu} := Schwarzschild(M)')"
+        else:
+            hint = f"built-in tensors are computed by a program, as in wb.expr(r'{written}')"
+        return UnknownNameError(f"{written} is not defined", notes=notes, hint=hint)
+
+    def _function(self, name: str, binding: FunctionBinding) -> sympy.Lambda:
+        """A function a program defined, as a SymPy ``Lambda`` of its parameters."""
+        definition = binding.definition
+        parameters = [sympy.Dummy(parameter) for parameter in definition.params]
+        session = self._session.fork()
+        compiler = Compiler(session)
+        scope = session.globals.child()
+        for parameter, symbol in zip(definition.params, parameters, strict=True):
+            scope.bind(parameter, VariableBinding(session.graph.const(symbol, SCALAR)))
+        call = ast.Call(
+            ast.Name(name, span=_nowhere()),
+            tuple(ast.Name(p, span=_nowhere()) for p in definition.params),
+            span=_nowhere(),
+        )
+        value = self._executor.evaluate(compiler.value(call, scope, Context()))
+        return sympy.Lambda(tuple(parameters), value)
+
+    @_from_python
     def __setitem__(self, written: str, value: Any) -> None:
         r"""Bind data from Python: ``wb["R_{ta}"] = returns`` binds a tensor whose first
         index ranges over the rows of ``returns`` and its second over the columns, and
         ``wb["J"] = 1.5`` a number.
 
         The data may be a NumPy array, a pandas DataFrame or Series, a SciPy sparse
-        matrix, a SymPy array or nested lists, and is copied. Each axis ranges over:
+        matrix, a SymPy array or nested lists, and is copied. A name may be bound to a
+        number, a SymPy expression, or text, which is read as the language reads it, and
+        never run as Python: ``wb["J"] = "x^2 + 1"``. Each axis ranges over:
 
         - the space of its index, if the index was declared, as by
           ``a, b \in \mathcal{A}`` or :meth:`space`;
@@ -211,23 +441,28 @@ class Workbook:
             >>> wb["w^a"] = np.array([0.5, 0.25, 0.25])
             >>> wb.expr("w^{a} w^{b} \\delta_{ab}")
             0.375
+
+        Data that cannot be bound raises :class:`~relativisticpy.errors.DataError`, a
+        ``ValueError``.
         """
+        if not isinstance(written, str):
+            raise UsageError(f"a name is a str, as in wb['x'] = 2, not {_kind(written)}")
         target = _written(written)
         session = self._session
         if isinstance(target, ast.Name) and "_" in target.id and _rank_of(value):
             base, _, tail = target.id.partition("_")  # y_t: the tensor y, with index t
             target = (base, [(label, False) for label in split_index_labels(tail)])
         if isinstance(target, ast.Name):
-            session.globals.bind(
-                target.id, VariableBinding(session.graph.const(_scalar(value), SCALAR))
-            )
+            session.globals.bind(target.id, VariableBinding(self._scalar(written, value)))
             return
         name, entries = target
-        components, bases, axis_names = _data(value)
+        components, bases, axis_names = _data(value, written)
         shape = tuple(getattr(components, "shape", ()))
         if len(shape) != len(entries):
-            raise CompileError(
-                f"{written} has {len(entries)} indices but the data has {len(shape)} axes"
+            raise DataError(
+                f"{written} has {_count(len(entries), 'index', 'indices')}, but the data "
+                f"has {_count(len(shape), 'axis', 'axes')}",
+                hint="write one index for each axis of the data, as in R_{ta} for a table",
             )
         complex_data = numerical.is_numerical(components) and numerical.numpy().iscomplexobj(
             components
@@ -240,7 +475,7 @@ class Workbook:
             earlier = [(entries[k][0], space) for k, space in enumerate(spaces)]
             space = _axis_space(session, name, label, size, basis, axis_name, field, earlier)
             if space.dim != size:
-                raise CompileError(
+                raise DataError(
                     f"the index {label} ranges over {space}, of dimension {space.dim}, "
                     f"but this axis of the data has {size} components"
                 )
@@ -261,6 +496,39 @@ class Workbook:
         node = session.graph.const(components, TensorType(indices, tuple(spaces)))
         session.globals.bind(name, TensorBinding(node, indices))
 
+    def _scalar(self, written: str, value: Any) -> Any:
+        """The node of a value bound to a name from Python: a number or a SymPy
+        expression as it is, and text as the language reads it, which never runs Python."""
+        session = self._session
+        if isinstance(value, str):
+            source = Source(value, f"<the value of {written}>")
+            try:
+                statements = parse(source).statements
+                if len(statements) != 1 or not isinstance(statements[0], ast.Evaluate):
+                    raise DataError("give one expression", span=Span(source, 0, len(value)))
+                ctx = Context(latex=statements[0].latex)
+                return self._compiler.value(statements[0].expr, session.globals, ctx)
+            except RelativisticPyError as error:
+                raise DataError(
+                    f"the text bound to {written} is not an expression: {error.message}",
+                    span=error.span,
+                    hint=f"write it in the language, as in wb[{written!r}] = 'x^2 + 1'",
+                ) from None
+        if numerical.is_numerical(value) and getattr(value, "shape", ()) != ():
+            raise DataError(
+                f"an array is bound to a tensor written with its indices, as in {written}^{{a}}"
+            )
+        if numerical.is_numerical(value):
+            scalar = value[()] if isinstance(value, numerical.numpy().ndarray) else value
+            return session.graph.const(scalar, SCALAR)  # a view of nothing
+        if isinstance(value, sympy.Basic | numbers.Number):  # never text, which SymPy would run
+            return session.graph.const(sympy.sympify(value, strict=True), SCALAR)
+        raise DataError(
+            f"{written} can be bound to a number, a SymPy expression or text in the "
+            f"language, not {_kind(value)}"
+        )
+
+    @_from_python
     def grad(self, expression: str, wrt: str) -> Tensor:
         r"""The gradient of a scalar ``expression`` with respect to the data bound to the
         tensor ``wrt``, by automatic differentiation with JAX: the derivative of every
@@ -281,13 +549,22 @@ class Workbook:
             import jax.numpy as jnp
         except ImportError as error:  # pragma: no cover - depends on the environment
             raise ImportError('gradients need JAX: pip install "relativisticpy[jax]"') from error
-        outputs = self._compiler.compile(self._parse(expression, "<gradient>"))
+        outputs = self._compiler.compile(self._parse(expression, "<gradient>", "grad"))
         if not outputs or isinstance(outputs[-1].node.type, TensorType | EquationType):
-            raise ValueError("a gradient is of a scalar expression, such as w^a S_{ab} w^b")
+            raise UsageError("a gradient is of a scalar expression, such as w^a S_{ab} w^b")
         node = outputs[-1].node
         binding = self._session.globals.lookup(wrt)
         if not isinstance(binding, TensorBinding):
-            raise KeyError(f"{wrt} is not a tensor bound to data")
+            data = [
+                name
+                for name, other in self._session.globals.bindings()
+                if isinstance(other, TensorBinding) and isinstance(other.node.op, ops.Const)
+            ]
+            raise UnknownNameError(
+                f"{wrt} is not bound to data",
+                notes=[f"the tensors bound to data are {', '.join(data)}"] if data else [],
+                hint="bind it first, as in wb['w^a'] = np.array([1.0, 2.0])",
+            )
         key = binding.node.key
         data = numerical.dense(numerical.as_array(self._executor.evaluate(binding.node)))
         _double_precision(jax)
@@ -303,6 +580,7 @@ class Workbook:
             spaces=binding.node.type.spaces,
         )
 
+    @_from_python
     def space(
         self,
         name: str,
@@ -325,15 +603,28 @@ class Workbook:
         names = tuple(str(b) for b in basis) if basis is not None else None
         size = len(names) if names is not None else dim
         if size is None:
-            raise ValueError("give the dimension of the space, or the names of its basis")
+            raise UsageError("give the dimension of the space, or the names of its basis")
+        if field not in ("real", "complex"):
+            raise UsageError(f"a space's field is real or complex, not {field!r}")
         kind: Literal["real", "complex"] = "complex" if field == "complex" else "real"
-        space = Space(name, size, basis=names, field=kind)
+        try:
+            space = Space(name, size, basis=names, field=kind)
+        except ValueError as error:
+            raise UsageError(str(error)) from None
         session = self._session
         if measure is not None:
-            weights, labelled, _ = _data(measure)
+            weights, labelled, _ = _data(measure, f"the measure on {name}")
             weights = numerical.numpy().asarray(numerical.dense(weights), dtype=float)
             if weights.shape != (size,):
-                raise ValueError(f"a measure on {name} has {size} weights")
+                given = len(weights) if weights.ndim == 1 else None
+                raise DataError(
+                    f"a measure on {name} needs {size} weights, one for each element, but "
+                    + (
+                        f"{given} {'is' if given == 1 else 'are'} given"
+                        if given is not None
+                        else f"the weights have {_count(weights.ndim, 'axis', 'axes')}"
+                    )
+                )
             if labelled[0] is not None and names is not None:
                 what = f"the measure on {name}"
                 weights = _in_basis_order(weights, 0, labelled[0], space, what)
@@ -345,15 +636,27 @@ class Workbook:
 
     @property
     def coordinates(self) -> tuple[Symbol, ...] | None:
+        """The coordinates in force, declared or read from a line element; ``None``
+        before there are any."""
         return self._session.coordinates
 
     @property
     def metric(self) -> Metric | None:
-        """The metric in force, as a :class:`~relativisticpy.diffgeom.Metric`."""
-        if self._session.metric is None or self._session.coordinates is None:
+        """The metric in force, as a :class:`~relativisticpy.diffgeom.Metric`: the same
+        one until the metric is defined again, so that what it computes, as its
+        ``christoffel``, is computed once. Its components are those a program shows for
+        ``g_{\\mu\\nu}``."""
+        state, coordinates = self._session.metric, self._session.coordinates
+        if state is None or coordinates is None:
             return None
-        components = self._executor.evaluate(self._session.metric.node)
-        return Metric(components, self._session.coordinates, check=False)
+        key = (state.node.key, coordinates)
+        if self._metric is None or self._metric[0] != key:
+            components = arrays.apply(self._executor.evaluate(state.node), tidy)
+            metric = Metric(
+                components, coordinates, check=False, simplify=self._executor.simplify_map
+            )
+            self._metric = (key, metric)
+        return self._metric[1]
 
     # -- lifecycle ---------------------------------------------------------------
 
@@ -363,6 +666,7 @@ class Workbook:
         self._executor = Executor(self._workers)
         self._session = Session(executor=self._executor)
         self._compiler = Compiler(self._session)
+        self._metric = None
 
     def close(self) -> None:
         """Stop any worker processes."""
@@ -382,13 +686,18 @@ class Workbook:
     # -- internals -----------------------------------------------------------------
 
     @staticmethod
-    def _parse(source: str | Source, name: str) -> Program:
+    def _parse(source: str | Source, name: str, method: str = "exe") -> Program:
+        if not isinstance(source, str | Source):
+            raise UsageError(f"{method} takes the program as a str, not {_kind(source)}")
+        if not isinstance(name, str):
+            raise UsageError(f"the name of a program is a str, not {_kind(name)}")
         return parse(source if isinstance(source, Source) else Source(source, name))
 
     def _present(self, output: Output) -> Any:
-        """The value of an output as it is shown. What cannot be shown is an
-        :class:`EvaluationError` where the output was written, never a Python exception
-        that would stop a run, or the check of a paper, at one statement."""
+        """The value of an output as it is shown. What cannot be shown is a
+        :class:`~relativisticpy.errors.RelativisticPyError` where the output was written,
+        never a Python exception that would stop a run, or the check of a paper, at one
+        statement."""
         value = self._executor.evaluate(output.node)
         if value is NotImplemented:  # an operation SymPy declined, as [1, 2] < [3, 4]
             raise EvaluationError("this is not defined for these values", span=output.span)
@@ -419,17 +728,17 @@ class Workbook:
             if isinstance(kind, ScalarType):
                 return tidy(value)
             return value
-        except RelativisticPyError:
-            raise
-        except Exception as error:
-            message = str(error) or type(error).__name__
-            raise EvaluationError(message, span=output.span) from error
+        except Exception as error:  # in RelativisticPy's words, or an internal error
+            failure = translate(error, span=output.span)
+            if failure is error or isinstance(failure, InternalError):
+                raise failure from failure.__cause__  # its traceback, which a report needs
+            raise failure from None
 
 
 @dataclass(frozen=True)
 class Step:
     """One statement of a program, run by :meth:`Workbook.each`: the values it showed
-    (none for a definition), or the error it raised."""
+    (none for a definition), or the error it raised, and the notes on how it was read."""
 
     span: Span
     statement: ast.Statement
@@ -442,6 +751,115 @@ class Step:
     def zero(self) -> bool:
         """Whether this is an equation whose two sides are both zero."""
         return self.sides is not None and all(_zero(side) for side in self.sides)
+
+    def __repr__(self) -> str:
+        """``Step(line 1: R_{ab} → CompileError: the Ricci tensor needs coordinates)``,
+        or ``Step(line 1: x + 1 → [x + 1])``."""
+        text = " ".join(self.span.text.split())
+        if len(text) > 60:
+            text = text[:59] + "…"
+        if self.error is not None:
+            outcome = f"{self.error.kind}: {self.error.message}"
+        elif self.values:
+            outcome = "[" + ", ".join(_shown(value) for value in self.values) + "]"
+        else:
+            outcome = "defined"
+        return f"Step(line {self.span.line}: {text} → {outcome})"
+
+
+def _shown(value: Any) -> str:
+    """A value as a repr shows it; never a failure."""
+    try:
+        return display.unicode(value)
+    except Exception:  # a repr must not fail, whatever the value
+        return f"<a {type(value).__name__}>"
+
+
+@dataclass(frozen=True)
+class Definition:
+    """Something a workbook defines: its ``kind``, one of ``coordinate``, ``metric``,
+    ``value``, ``tensor``, ``function`` and ``space``; how it is ``written``, with its
+    indices or parameters; and, if a statement defined it, its ``span``."""
+
+    kind: str
+    written: str
+    span: Span | None = field(default=None, compare=False)
+
+    def __repr__(self) -> str:
+        return f"<{self.kind} {self.written}>"
+
+    def to_dict(self) -> dict[str, Any]:
+        """The definition as data: its kind, how it is written and where."""
+        where = place(self.span)
+        return {
+            "kind": self.kind,
+            "written": self.written,
+            "file": where["file"],
+            "line": where["line"],
+            "column": where["column"],
+        }
+
+
+def _definition(name: str, binding: Any) -> Definition:
+    """What a binding of ``name`` is, as :meth:`Workbook.names` lists it."""
+    written = latex_label(name)
+    if isinstance(binding, FunctionBinding):
+        parameters = ", ".join(latex_label(p) for p in binding.definition.params)
+        return Definition("function", f"{written}({parameters})", binding.definition.span)
+    span = binding.node.span
+    if isinstance(binding, TensorBinding):
+        return Definition("tensor", written + _public(binding.indices).latex(), span)
+    if isinstance(binding.node.type, TensorType):
+        return Definition("tensor", written + _public(binding.node.type.indices).latex(), span)
+    return Definition("value", written, span)
+
+
+def _spelled(name: str, entries: Sequence[tuple[str, bool]]) -> str:
+    """A tensor written with its indices, unambiguously: ``w^{a}_{b}``."""
+    return name + "".join(f"{'^' if upper else '_'}{{{label}}}" for label, upper in entries)
+
+
+def _shortened(span: Span | None, width: int = 60) -> str:
+    """A statement on one line, cut short if long."""
+    text = " ".join(span.text.split()) if span is not None else ""
+    return text if len(text) <= width else text[: width - 1] + "…"
+
+
+def _kind(value: Any) -> str:
+    """What kind of Python value ``value`` is, as a message says it: ``int``, ``None``."""
+    return "None" if value is None else type(value).__name__
+
+
+def _count(number: int, one: str, many: str) -> str:
+    """``1 index``, ``2 indices``."""
+    return f"{number} {one if number == 1 else many}"
+
+
+def _path(path: Any, method: str) -> Path:
+    if not isinstance(path, str | Path):
+        raise UsageError(f"{method} takes the path of a file, not {_kind(path)}")
+    return Path(path)
+
+
+def _not_utf8(path: Path, error: UnicodeDecodeError) -> RelativisticPyError:
+    """The error for a file that is not UTF-8 text."""
+    text = error.object[: error.start]
+    line = text.count(b"\n") + 1
+    column = error.start - (text.rfind(b"\n") + 1) + 1
+    return FileError(
+        f"{path} is not UTF-8 text: the byte 0x{error.object[error.start]:02X} at line "
+        f"{line}, column {column} is not",
+        hint=f"save it as UTF-8, as with  iconv -f latin1 -t utf-8 {path}",
+    )
+
+
+def _unreadable(path: Path, error: OSError) -> RelativisticPyError:
+    """The error for a file that cannot be read."""
+    if isinstance(error, FileNotFoundError):
+        return FileError(f"no file {path}")
+    if isinstance(error, IsADirectoryError):
+        return FileError(f"{path} is a folder, not a file")
+    return FileError(f"cannot read {path}: {error.strerror or error}")
 
 
 def _double_precision(jax: Any) -> None:
@@ -485,7 +903,7 @@ def _written(written: str) -> ast.Name | tuple[str, list[tuple[str, bool]]]:
                 count += sum(1 for label in rest if label)
         if entries and len(entries) == count == len({label for label, _ in entries}):
             return name, entries
-    raise CompileError(
+    raise DataError(
         f"cannot bind {written!r}: write a name, as in x, or a tensor with distinct index "
         "labels, as in R_{ta}"
     )
@@ -498,35 +916,83 @@ def _rank_of(value: Any) -> int:
     return len(shape) if shape is not None else 0
 
 
-def _scalar(value: Any) -> Any:
-    if numerical.is_numerical(value) and getattr(value, "shape", ()) != ():
-        raise CompileError("an array is bound to a tensor written with its indices, as in w^{a}")
-    if not numerical.is_numerical(value):
-        return sympy.sympify(value)
-    return value[()] if isinstance(value, numerical.numpy().ndarray) else value  # not a view
-
-
-def _data(value: Any) -> tuple[Any, list[tuple[str, ...] | None], list[str | None]]:
+def _data(value: Any, written: str) -> tuple[Any, list[tuple[str, ...] | None], list[str | None]]:
     """Components, the names of each axis's elements and each axis's name, from a pandas
     object; just the components from anything else. The components are a copy, so that
-    data changed in place afterwards changes nothing bound."""
+    data changed in place afterwards changes nothing bound. Text is refused, never read
+    as SymPy would read it, as Python."""
     module = type(value).__module__ or ""
     if module.startswith("pandas"):
         axes = [value.index] if value.ndim == 1 else [value.index, value.columns]
         bases = [None if _is_range(axis) else tuple(str(x) for x in axis) for axis in axes]
         names = [str(axis.name) if axis.name is not None else None for axis in axes]
-        return _copy(value.to_numpy()), bases, names
+        return _copy(_numbers(value.to_numpy(), written)), bases, names
     if numerical.is_numerical(value):
         rank = len(getattr(value, "shape", ()))
-        return _copy(value), [None] * rank, [None] * rank
+        return _copy(_numbers(value, written)), [None] * rank, [None] * rank
     if isinstance(value, sympy.NDimArray | sympy.MatrixBase):
         array = arrays.to_array(value)
         return array, [None] * array.rank(), [None] * array.rank()
-    array = numerical.numpy().array(value)
-    if array.dtype == object:
+    if not isinstance(value, list | tuple):
+        raise DataError(
+            f"the data for {written} is {_kind(value)}: bind an array, a pandas object, a "
+            "SciPy sparse matrix, a SymPy array or nested lists"
+        )
+    _refuse_text(value, written)
+    try:
+        array = numerical.numpy().array(value)
+    except ValueError:
+        where = _ragged(value) or "its rows are not all of one length"
+        raise DataError(f"the data for {written} is ragged: {where}") from None
+    if array.dtype == object:  # SymPy expressions among the numbers
         array = arrays.to_array(value)
         return array, [None] * array.rank(), [None] * array.rank()
     return array, [None] * array.ndim, [None] * array.ndim
+
+
+def _numbers(array: Any, written: str) -> Any:
+    """A numerical array, refused if it holds text."""
+    dtype = getattr(array, "dtype", None)
+    if dtype is not None and dtype.kind in "USa":
+        raise DataError(f"the data for {written} is text: bind numbers")
+    if dtype is not None and dtype.kind == "O":
+        _refuse_text(array.tolist(), written)
+    return array
+
+
+def _refuse_text(value: Any, written: str) -> None:
+    """Refuse text anywhere in nested lists: SymPy would read it as Python, and run it."""
+    if isinstance(value, str | bytes):
+        raise DataError(
+            f"the data for {written} holds text, {value[:40]!r}: bind numbers or SymPy expressions",
+            hint="to compute with an expression written as text, write it in a program",
+        )
+    if isinstance(value, list | tuple):
+        for item in value:
+            _refuse_text(item, written)
+
+
+def _ragged(value: Sequence[Any]) -> str:
+    """Where nested lists are not rectangular, as a message says it; empty if they are."""
+    nested = [isinstance(item, list | tuple) for item in value]
+    if not any(nested):
+        return ""
+    if not all(nested):
+        odd = (
+            nested.index(True) if nested.count(True) < nested.count(False) else nested.index(False)
+        )
+        what = "a list" if nested[odd] else "a number"
+        others = "numbers" if nested[odd] else "lists"
+        return f"entry {odd + 1} is {what}, the others are {others}"
+    lengths = [len(item) for item in value]
+    for position, length in enumerate(lengths):
+        if length != lengths[0]:
+            return f"entry {position + 1} has {length} entries, but entry 1 has {lengths[0]}"
+    for position, item in enumerate(value):
+        inner = _ragged(item)
+        if inner:
+            return f"in entry {position + 1}, {inner}"
+    return ""
 
 
 def _copy(array: Any) -> Any:
@@ -659,5 +1125,6 @@ def latex(value: Any) -> str:
     return str(sympy.latex(value))
 
 
-def _nowhere() -> Any:
-    return Source("").__class__("")
+def _nowhere() -> Span:
+    """The span of something written nowhere, as data bound from Python is."""
+    return Span(Source(""), 0, 0)

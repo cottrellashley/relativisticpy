@@ -13,6 +13,7 @@ import sympy
 from sklearn.covariance import LedoitWolf
 
 from relativisticpy import CompileError, EvaluationError, IndexNotationError, Workbook
+from relativisticpy.errors import DataError, UsageError
 from relativisticpy.tensors import Space, Tensor
 
 rng = np.random.default_rng(11)
@@ -153,10 +154,38 @@ class TestData:
         assert str(wb["X"].indices) == "^{i}_{j}"
 
     def test_what_cannot_be_bound(self, wb):
-        with pytest.raises(CompileError, match="has 1 indices but the data has 2 axes"):
+        with pytest.raises(DataError, match="has 1 index, but the data has 2 axes"):
             wb["w^a"] = np.eye(2)
-        with pytest.raises(CompileError, match="cannot bind"):
+        with pytest.raises(DataError, match="cannot bind"):
             wb["2 + x"] = 1.0
+        # a binding mistake is still a CompileError, and a ValueError, as Python expects
+        for kind in (CompileError, ValueError):
+            with pytest.raises(kind):
+                wb["w^a"] = np.eye(2)
+
+    @pytest.mark.parametrize(
+        ("data", "message"),
+        [
+            ([1, 2, [3]], "the data for w^a is ragged: entry 3 is a list, the others are numbers"),
+            ([[1, 2], [3]], "the data for w^a is ragged: entry 2 has 1 entries, but entry 1 has 2"),
+            (None, "the data for w^a is None: bind an array"),
+            ("hello", "the data for w^a is str: bind an array"),
+            (["1", 2], "the data for w^a holds text, '1'"),
+            (np.array(["a", "b"]), "the data for w^a is text"),
+        ],
+    )
+    def test_data_that_cannot_be_bound_says_why(self, wb, data, message):
+        # ERR-31: one kind of error, in RelativisticPy's words, never NumPy's
+        with pytest.raises(DataError, match=re.escape(message)):
+            wb["w^a"] = data
+
+    def test_a_measure_with_too_few_weights_says_how_many_it_needs(self, wb):
+        with pytest.raises(DataError, match=r"a measure on A needs 3 weights, .* but 2 are given"):
+            wb.space("A", 3, measure=[1, 2])
+
+    def test_a_space_needs_its_size(self, wb):
+        with pytest.raises(UsageError, match="give the dimension of the space"):
+            wb.space("A")
 
     def test_data_is_copied_when_bound(self, wb):
         x = np.array([1.0, 2.0])
