@@ -175,6 +175,7 @@ class Compiler(Definitions):
             if len(statement.targets) > 1:
                 self._destructure(statement.targets, statement.value, scope, ctx)
             else:
+                self._check_recurrence(statement.targets[0], statement.value, statement.span)
                 self._define(statement.targets[0], statement.value, scope, ctx)
             return []
         assert isinstance(statement, ast.Evaluate)
@@ -224,6 +225,7 @@ class Compiler(Definitions):
                 span=equation.span,
                 hint=f"to compute with it, write it without the brackets: {_unbracketed(equation)}",
             )
+        self._check_recurrence(lhs, rhs, equation.span)  # T_n = 2 T_{n-1} + 1
         applied = _with_arguments(lhs)
         if (
             applied is not None

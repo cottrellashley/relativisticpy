@@ -270,3 +270,95 @@ class TestPairsAreNotScalars:
             r"\langle 0 | T\{\phi(x_1)\phi(x_2)\} | 0 \rangle is read as a product with absolute "
             "values, not as Dirac's notation"
         )
+
+
+class TestScriptedNamesWhoseBaseIsDefined:
+    """Guard 3: a subscripted name nothing defines, whose base is defined so that it means a
+    member or an element, is refused, where it was a symbol of its own: c_1 after c_n, x_i
+    of a list summed over i, a recurrence, f^{(4)} of a function, k_{1\\mu} beside k_1^\\mu."""
+
+    def test_a_member_of_a_family(self, wb):
+        wb.exe("c_n := 1/n^2")
+        found = error(wb, "c_1")
+        assert (
+            found.message
+            == "c_1 names nothing, and c_n is a family in n, which is not supported yet"
+        )
+        assert found.notes == [
+            "read as written, c_1 would be a symbol of its own, not c_n at n = 1"
+        ]
+        assert (
+            found.hint == "define c as a function of n, as in c(n) := ..., and write c(1) for c_1"
+        )
+        assert wb.expr("c(n) := 1/n^2\nc(1)") == 1  # the hint works
+
+    def test_members_written_in_latex(self, wb):
+        wb.exe(r"E_k := \alpha + 2\beta \cos\frac{2\pi k}{6}")
+        found = error(wb, r"E_\pi := 2E_0 + 2E_1 + 2E_{-1}")
+        assert found.message.startswith("E_0 names nothing, and E_k is a family in k")
+        wb.exe("a_n := n^2")
+        found = error(wb, r"\frac{a_{n+1}}{a_n}")
+        assert found.hint == (
+            "define a as a function of n, as in a(n) := ..., and write a(n+1) for a_{n+1}"
+        )
+
+    def test_names_that_are_no_members_are_symbols(self, wb):
+        x_0, v, y = sympy.symbols("x_0 v x")
+        assert wb.expr("x_n := x_0 + n d\nx_0 + 1") == x_0 + 1  # a parameter of the family
+        assert wb.expr("v_x := v \\cos x\nv_y := 2\nv_x + v_y") == v * sympy.cos(y) + 2
+        assert wb.expr("p := (p_x, p_y)\np_x") == sympy.Symbol("p_x")  # an item of the pair
+
+    def test_an_element_of_a_list(self, wb):
+        wb.exe("x := [2, 4, 4, 4, 5, 5, 7, 9]\nn := 8")
+        found = error(wb, r"\frac{1}{n} \sum_{i=1}^{n} x_i")
+        assert found.message == (
+            "x_i names nothing, and x is a list, whose elements are not written with a "
+            "subscript yet"
+        )
+        assert found.hint == (
+            r"give the list an index over a space: \mathcal{N} := \mathbb{R}^{8}, i \in "
+            r"\mathcal{N} and x^i := [...]; then x^i 1_i is the sum of its elements"
+        )
+        space = "\\mathcal{N} := \\mathbb{R}^{8}\ni \\in \\mathcal{N}\n"
+        assert wb.expr(space + "x^i := [2, 4, 4, 4, 5, 5, 7, 9]\nx^i 1_i") == 40
+
+    @pytest.mark.parametrize(
+        ("source", "message"),
+        [
+            (
+                "T_0 = 0\nT_n = 2 T_{n-1} + 1, \\quad n > 0",
+                "T_n is defined by a recurrence, through T_{n-1}, which is not supported yet",
+            ),
+            (
+                "p_0 := \\frac{\\pi}{4}\np_n := p_{n-1} - 1",
+                "p_n is defined by a recurrence, through p_{n-1}, which is not supported yet",
+            ),
+            (
+                "C_0 = 1\nC_{n+1} = \\sum_{k=0}^{n} C_k C_{n-k}",
+                "C_{n+1} is defined by a recurrence, through C_{n-k}, which is not supported yet",
+            ),
+        ],
+    )
+    def test_a_recurrence(self, wb, source, message):
+        found = error(wb, source)
+        assert found.message == message
+        assert found.hint.startswith("give it in closed form, as a function of n:")
+
+    def test_an_order_on_a_function(self, wb):
+        wb.exe(r"f(x) := \sec x")
+        found = error(wb, r"\frac{f^{(4)}(0)}{4!}")
+        assert found.message == (
+            "f^{(4)} is read as a name of its own, not as a derivative of the function f"
+        )
+        assert found.hint == "for its derivative of order 4, write f''''(x)"
+        assert wb.expr(r"\frac{f''''(0)}{4!}") == sympy.Rational(5, 24)  # the hint works
+        assert wb.expr("E^{(2)} := 3\nE^{(2)} + 1") == 4  # an order on a value is a label
+
+    def test_an_index_on_a_numbered_tensor(self, wb):
+        wb.exe("ds^2 = -dt^2 + dx^2 + dy^2 + dz^2\nk_1^\\mu := (E_1, E_1, 0, 0)")
+        found = error(wb, r"k_1^\mu k_{1\mu}")
+        assert found.message == (
+            r"k_{1\mu} is read as one symbol, not as the tensor k_1 with its index \mu"
+        )
+        assert found.hint == r"write k_1{}_{\mu}"
+        assert wb.expr(r"k_1^\mu k_1{}_{\mu}") == 0  # the hint works: a null vector

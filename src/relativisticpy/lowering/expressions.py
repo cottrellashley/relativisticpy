@@ -999,6 +999,8 @@ class Expressions(LinearAlgebra):
         if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
             node = named  # R'_{\mu\nu}: the tensor R'
         decorated = _named(node)
+        if isinstance(decorated, ast.Name):  # f^{(4)} of a function f: no name of its own
+            self._check_order(node, scope)
         if isinstance(decorated, ast.Name) and all(
             not isinstance(s.body, ast.Name) or not _bracketed_order(s.body) for s in node.scripts
         ):  # L^{(2)} or r^*, a name of its own even where L is a tensor; V^{(a)} is an index

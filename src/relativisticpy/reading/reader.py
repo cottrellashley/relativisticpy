@@ -52,13 +52,16 @@ from relativisticpy.reading.names import (
     _STATISTICS,
     _TRANSPOSES,
     INNER_PRODUCT,
+    _a_member,
     _a_name,
     _a_pair,
     _a_word,
     _bracket_meaning,
+    _bracketed_order,
     _built_in,
     _close,
     _decoration,
+    _elements,
     _family_label,
     _greek_labels,
     _has_a_value,
@@ -73,8 +76,11 @@ from relativisticpy.reading.names import (
     _names_inside,
     _often,
     _other_names,
+    _recurrence,
+    _shown,
     _splittable,
     _styled,
+    _subscripted,
     _subscripted_name,
     _unprimed,
     _with_arguments,
@@ -511,6 +517,8 @@ class Reader(Typer):
             why = f"{tensor} is a tensor, and {node.span.text} names nothing"
             self._decide("index or power", node.span, f"{tensor} with its indices", why)
             return self.term(indexed, scope, ctx)  # y_t, where y is a tensor: y_{t}
+        if binding is None:  # c_1 after c_n := ..., or x_i of a list x: never a new symbol
+            self._check_member(node, scope, ctx)
         if isinstance(binding, FunctionBinding):
             self._resolve(node.span, f"a function, defined on line {binding.definition.span.line}")
             return FunctionReference(node.span, name)
@@ -917,6 +925,162 @@ class Reader(Typer):
         self._decide("index or power", node.span, f"{node.base.span.text} to a power", why)
         return False
 
+    def _check_member(self, node: ast.Name, scope: Scope, ctx: Context) -> None:
+        """Refuse a subscripted name nothing defines whose base is defined so that it means
+        a member or an element: ``c_1`` after ``c_n := ...``, a family in n, or ``x_i`` of
+        a list x summed over i. Read as written, it would be a symbol of its own, silently
+        (guard 3 of wave 0, curriculum/ROADMAP.md)."""
+        base, underscore, subscript = node.id.partition("_")
+        if not (underscore and base and subscript):
+            return
+        written, shown = node.span.text, _shown(base, ctx.latex)
+        bound = scope.lookup(subscript)
+        summed = isinstance(bound, VariableBinding) and isinstance(bound.node.op, ops.Const)
+        if not _a_member(subscript, summed):
+            return
+        within = scope.lookup(base)
+        if isinstance(within, VariableBinding) and (size := _elements(within.node)) is not None:
+            if _mentions_symbol(within.node, node.id):  # p := (p_x, p_y): p_x is a name
+                return
+            label = subscript if len(subscript) == 1 and subscript.isalpha() else "i"
+            self._decide("index or power", node.span, f"the symbol {node.id}", f"{shown} is a list")
+            raise CompileError(
+                f"{written} names nothing, and {shown} is a list, whose elements are not "
+                "written with a subscript yet",
+                span=node.span,
+                notes=[f"read as written, {written} would be a symbol of its own"],
+                hint="give the list an index over a space: "
+                f"\\mathcal{{N}} := \\mathbb{{R}}^{{{size}}}, {label} \\in \\mathcal{{N}} and "
+                f"{shown}^{label} := [...]; then {shown}^{label} 1_{label} is the sum of its "
+                "elements",
+            )
+        letter = self._family(base, node.id, scope)
+        if letter is None:
+            return
+        family = f"{shown}_{_shown(letter, ctx.latex)}"
+        why = f"{family} is a family in {letter}, which is not supported yet"
+        self._decide("index or power", node.span, f"the symbol {node.id}", why)
+        raise CompileError(
+            f"{written} names nothing, and {family} is a family in {letter}, which is not "
+            "supported yet",
+            span=node.span,
+            notes=[
+                f"read as written, {written} would be a symbol of its own, not {family} at "
+                f"{letter} = {subscript}"
+            ],
+            hint=f"define {shown} as a function of {letter}, as in {shown}({letter}) := ..., "
+            f"and write {shown}({subscript}) for {written}",
+        )
+
+    def _family(self, base: str, used: str, scope: Scope) -> str | None:
+        """The label of a family the name ``base`` is defined as, as n of ``c_n := 1/n^2``:
+        a name of base and one letter, bound to a value written with that letter, and not
+        with ``used``, which is then a symbol the family is written with, as x_0 is of
+        ``x_n := x_0 + n d``."""
+        current: Scope | None = scope
+        while current is not None:
+            for name, binding in current.bindings():
+                prefix, _, label = name.partition("_")
+                single = (len(label) == 1 and label.isalpha()) or label in GREEK
+                if prefix != base or not single or not isinstance(binding, VariableBinding):
+                    continue
+                if _mentions_symbol(binding.node, label) and not _mentions_symbol(
+                    binding.node, used
+                ):
+                    return label
+            current = current.parent
+        return None
+
+    def _check_order(self, node: ast.Scripted, scope: Scope) -> None:
+        """Refuse ``f^{(4)}`` where f is a function the program defined: read as written, it
+        is a name of its own, f^(4), so that ``f^{(4)}(0)`` was f^(4) times 0, which is 0."""
+        base = node.base
+        binding = scope.lookup(base.id) if isinstance(base, ast.Name) else None
+        if not isinstance(binding, FunctionBinding):
+            return
+        order = next(
+            (s.body for s in node.scripts if s.kind == "^" and _bracketed_order(s.body)), None
+        )
+        if order is None:
+            return
+        name, written = base.span.text, order.span.text.strip("()")
+        params = binding.definition.params
+        variable = params[0] if len(params) == 1 else "x"
+        self._decide(
+            "index or power",
+            node.span,
+            f"a name of its own, {name}^({written})",
+            f"({written}) on a name is read as a label",
+        )
+        hint = (
+            f"for its derivative of order {written}, write \\frac{{d^{{{written}}}}}"
+            f"{{d{variable}^{{{written}}}}} {name}({variable})"
+        )
+        if written.isdigit() and 0 < int(written) <= 4:
+            primes = "'" * int(written)
+            hint = f"for its derivative of order {written}, write {name}{primes}({variable})"
+        raise CompileError(
+            f"{node.span.text} is read as a name of its own, not as a derivative of the function "
+            f"{name}",
+            span=node.span,
+            notes=[f"{name} is a function, defined on line {binding.definition.span.line}"],
+            hint=hint,
+        )
+
+    def _check_numbered_tensor(self, node: ast.Scripted, scope: Scope) -> None:
+        """Refuse ``k_{1\\mu}`` beside a tensor ``k_1``: read as written, it is one symbol,
+        k_1mu, not k_1 with the index \\mu, so that a contraction became a vector."""
+        base = node.base
+        items = [i for s in node.scripts if s.kind == "_" and s.indices for i in s.indices.items]
+        if not (
+            isinstance(base, ast.Name) and len(items) > 1 and isinstance(items[0].value, ast.Number)
+        ):
+            return
+        rest = items[1:]
+        if not all(_plain_label(item) for item in rest):
+            return
+        tensor = f"{base.id}_{items[0].value.text}"
+        binding = scope.lookup(tensor)
+        if not (
+            isinstance(binding, TensorBinding)
+            or (isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType))
+        ):
+            return
+        written = f"{base.span.text}_{items[0].value.text}"
+        labels = "".join(self._written_label(str(item.label)) for item in rest)
+        self._decide(
+            "index or power",
+            node.span,
+            f"the symbol {tensor}{labels}",
+            "a subscript of numbers and labels names one symbol",
+        )
+        raise CompileError(
+            f"{node.span.text} is read as one symbol, not as the tensor {written} with its "
+            f"index {labels}",
+            span=node.span,
+            hint=f"write {written}{{}}_{{{labels}}}",
+        )
+
+    def _check_recurrence(self, target: ast.Expr, value: ast.Expr, span: Span) -> None:
+        """Refuse a sequence defined by a recurrence, as ``T_n = 2 T_{n-1} + 1``: the term
+        T_{n-1} would be a symbol of its own, so T_n would be 2 T_{n-1} + 1 for good."""
+        found = _recurrence(target, value)
+        if found is None:
+            return
+        label, term = found
+        named = _subscripted(target)
+        assert named is not None
+        base = named[0]
+        why = f"its value writes {term.span.text}, another member of {target.span.text}"
+        self._decide("definition or claim", span, "a recurrence", why, written=span.text)
+        raise CompileError(
+            f"{target.span.text} is defined by a recurrence, through {term.span.text}, which is "
+            "not supported yet",
+            span=span,
+            notes=[f"read as written, {term.span.text} would be a symbol of its own"],
+            hint=f"give it in closed form, as a function of {label}: {base}({label}) := ...",
+        )
+
     def _names_nothing(self, func: ast.Expr, scope: Scope) -> bool:
         """Whether a name with subscripts, as ``U_{\\text{eff}}``, means nothing yet, so that
         brackets after it, as in ``U_{\\text{eff}}(r) = ...``, can only make a function of it:
@@ -1195,6 +1359,7 @@ class Reader(Typer):
             items = [i for s in subscripts if s.indices for i in s.indices.items]
             if len(items) > 1 and all(_plain_label(i) for i in items):
                 raise self._not_a_tensor(node, base, subscripts, items)
+            self._check_numbered_tensor(node, scope)  # k_{1\mu} beside k_1^\mu
             if self._undefined(base, scope) and _greek_labels(subscripts):  # u_\alpha
                 shown = node.span.text if not powers else written_base + _written(subscripts)
                 self._note(

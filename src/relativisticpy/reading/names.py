@@ -755,6 +755,64 @@ def _a_name(node: ast.Expr) -> bool:
     return isinstance(node, ast.Name)
 
 
+def _elements(node: Node) -> int | None:
+    """How many elements a list or a tuple has, as ``x := [2, 4, 4]`` makes one; ``None``
+    for any other value."""
+    if isinstance(node.op, ops.Call) and node.op.name in ("core.tuple", "core.list"):
+        return len(node.args)
+    if isinstance(node.op, ops.Const) and isinstance(node.op.value, list | tuple):
+        return len(node.op.value)
+    return None
+
+
+def _a_member(subscript: str, bound: bool) -> bool:
+    """Whether a subscript picks a member of a family or an element of a list, as 1 in c_1,
+    -1 in E_{-1}, n+1 in a_{n+1}, or a variable a sum binds, as i in \\sum_i x_i, does;
+    a letter that nothing binds, as x in v_x, may name a component of its own."""
+    return bound or bool(re.fullmatch(r"-?\d+|.*[-+*/].*", subscript))
+
+
+_RECURRENCE_LABEL = re.compile(r"(?P<label>[A-Za-z])(?:[-+]\d+)?")
+
+
+def _subscripted(node: ast.Expr) -> tuple[str, str] | None:
+    """A name with a subscript and the subscript as written: ``("T", "n-1")`` of
+    ``T_{n-1}`` and of the plain name ``T_n-1``; ``None`` for anything else."""
+    if isinstance(node, ast.Name):
+        base, underscore, subscript = node.id.partition("_")
+        return (base, subscript) if underscore and base and subscript else None
+    if (
+        isinstance(node, ast.Scripted)
+        and isinstance(node.base, ast.Name)
+        and len(node.scripts) == 1
+        and node.scripts[0].kind == "_"
+    ):
+        return node.base.id, node.scripts[0].span.text.lstrip("_").strip("{}").replace(" ", "")
+    return None
+
+
+def _recurrence(target: ast.Expr, value: ast.Expr) -> tuple[str, ast.Expr] | None:
+    """The label and the term that make ``target := value`` a recurrence, as n and
+    T_{n-1} do of ``T_n = 2 T_{n-1} + 1``: the value writes the name being defined at
+    another subscript in its label. ``None`` where it does not, as x_0 in
+    ``x_n := x_0 + n d`` does not."""
+    named = _subscripted(target)
+    if named is None or (label := _RECURRENCE_LABEL.fullmatch(named[1])) is None:
+        return None
+    letter = label["label"]
+    for node in _walk(value):
+        term = _subscripted(node) if isinstance(node, ast.Name | ast.Scripted) else None
+        if (
+            term is not None
+            and term[0] == named[0]
+            and term[1] != named[1]
+            and re.search(rf"(?<![A-Za-z]){letter}(?![A-Za-z])", term[1])
+        ):
+            assert isinstance(node, ast.Expr)
+            return letter, node
+    return None
+
+
 def _a_pair(node: Node) -> bool:
     """Whether a value is a pair or a list written in brackets, of two items or more, as
     ``(a, b)``, ``[a, b]``, ``\\{a, b\\}`` and ``\\langle a, b \\rangle`` are read."""
