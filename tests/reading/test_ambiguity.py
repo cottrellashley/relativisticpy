@@ -1,4 +1,4 @@
-r"""How the compiler reads notation that the parser leaves ambiguous."""
+r"""How the reader reads notation that the parser leaves ambiguous."""
 
 import pytest
 import sympy

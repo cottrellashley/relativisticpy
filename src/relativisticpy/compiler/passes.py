@@ -96,3 +96,7 @@ class Pass:
     def _power(self, base: Node, exponent: Node, span: Span) -> Node:
         """A value raised to a power."""
         raise NotImplementedError
+
+    def _kept(self, node: Node) -> Node | None:
+        """The notation a node holds, if any, read in the algebra in force."""
+        raise NotImplementedError

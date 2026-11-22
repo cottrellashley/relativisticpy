@@ -1,0 +1,735 @@
+"""What names and forms are written: runs of letters, decorated and primed names,
+subscripted symbols, line elements, the names a statement writes as factors and those a
+value is written with, and the tables of the built-in names they are read against."""
+
+from __future__ import annotations
+
+import difflib
+import re
+from collections import Counter
+from collections.abc import Iterable, Iterator, Mapping, Sequence
+from dataclasses import replace
+from functools import reduce
+from typing import Any
+
+import sympy
+from sympy import Symbol
+from sympy.core.function import AppliedUndef
+
+from relativisticpy import spacetimes
+from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES
+from relativisticpy.compiler.session import ASSUMPTION_STATEMENTS, RENAMING_STATEMENTS, MetricState
+from relativisticpy.errors import CompileError
+from relativisticpy.ir import Node, NotationType, TensorType, dependencies, ops
+from relativisticpy.language import syntax as ast
+from relativisticpy.language.parser import split_index_labels
+from relativisticpy.language.source import Span
+from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.tensors import Indices
+from relativisticpy.tensors.indices import latex_label
+from relativisticpy.typing.syntax import _plain_label, _tensor_pattern, _used, _walk
+
+#: Built-in tensors by name and number of indices.
+_BUILTIN_TENSORS: dict[str, dict[int, str]] = {
+    "Gamma": {3: "christoffel"},
+    "R": {4: "riemann", 2: "ricci"},
+    "delta": {2: "kronecker"},
+}
+
+
+_ROLE_TENSORS = {
+    "connection": {3: "christoffel"},
+    "riemann": {4: "riemann", 2: "ricci"},
+    "ricci": {2: "ricci"},
+    "einstein": {2: "einstein"},
+    "weyl": {4: "weyl"},
+}
+
+
+#: Functions that are linear algebra when given a tensor.
+_LINEAR_ALGEBRA = frozenset(
+    {"eig", "spec", "svd", "det", "tr", "trace", "inv", "diag", "exp", "sqrt", "log"}
+)
+
+
+#: Names of statistics written as operators, for the statistic they mean.
+_STATISTIC_ALIASES = {
+    "E": "\\mathbb{E}",
+    "Mean": "\\mathbb{E}",
+    "mean": "\\mathbb{E}",
+    "Expectation": "\\mathbb{E}",
+    "Variance": "\\operatorname{Var}",
+    "Covariance": "\\operatorname{Cov}",
+}
+
+
+#: The statistics written with the index they are over, as \mathbb{E}_t.
+_STATISTICS = {
+    "𝔼": "expectation",
+    "Var": "variance",
+    "var": "variance",
+    "Cov": "covariance",
+    "cov": "covariance",
+    "LedoitWolf": "ledoit-wolf",
+}
+
+
+def _statistic(node: ast.Expr) -> tuple[str, str] | None:
+    """``\\mathbb{E}_t``, ``\\operatorname{Var}_t``, ...: the statistic and its index."""
+    if not (
+        isinstance(node, ast.Scripted)
+        and isinstance(node.base, ast.Name)
+        and node.base.id in _STATISTICS
+        and len(node.scripts) == 1
+        and node.scripts[0].kind == "_"
+        and node.scripts[0].indices is not None
+        and len(node.scripts[0].indices.items) == 1
+        and _plain_label(node.scripts[0].indices.items[0])
+    ):
+        return None
+    return _STATISTICS[node.base.id], str(node.scripts[0].indices.items[0].label)
+
+
+# Constants that an equation can only make a claim about: \pi = 3.14159 is not a new \pi.
+# (e and i are often named afresh, as a charge or an index.)
+_CLAIMED = frozenset({"pi", "infty", "oo"})
+
+
+# Statements that declare, as := does, whether written with := or =.
+_DECLARATIONS = frozenset({"Coordinates", *ASSUMPTION_STATEMENTS, *RENAMING_STATEMENTS})
+
+
+# The built-in scalars, by the geometric quantity a name denotes.
+_BUILT_IN_SCALARS = {
+    "determinant": "the determinant of the metric",
+    "ricci_scalar": "the Ricci scalar",
+    "kretschmann": "the Kretschmann scalar",
+}
+
+
+# The spacetimes, by the names the language calls them.
+_SPACETIME_NAMES = tuple(name for name in BUILTINS if name in SPACETIMES)
+
+
+#: The built-in tensors and scalars by the names they are spelled out with, lower case,
+#: as an agent may guess them: what to write instead.
+_CONCEPTS = {
+    "ricci": "Ric, the Ricci scalar, or R_{\\mu\\nu}, the Ricci tensor",
+    "ricciscalar": "R or Ric, the Ricci scalar",
+    "riccitensor": "R_{\\mu\\nu}, the Ricci tensor",
+    "riemann": "R^{\\rho}{}_{\\sigma\\mu\\nu}, the Riemann tensor",
+    "riemanntensor": "R^{\\rho}{}_{\\sigma\\mu\\nu}, the Riemann tensor",
+    "christoffel": "\\Gamma^{\\lambda}_{\\mu\\nu}, the Christoffel symbols",
+    "christoffelsymbols": "\\Gamma^{\\lambda}_{\\mu\\nu}, the Christoffel symbols",
+    "einstein": "G_{\\mu\\nu}, the Einstein tensor",
+    "einsteintensor": "G_{\\mu\\nu}, the Einstein tensor",
+    "weyl": "C_{\\mu\\nu\\rho\\sigma}, the Weyl tensor",
+    "weyltensor": "C_{\\mu\\nu\\rho\\sigma}, the Weyl tensor",
+    "metric": "g_{\\mu\\nu}, the metric",
+    "metrictensor": "g_{\\mu\\nu}, the metric",
+    "curvaturescalar": "R or Ric, the Ricci scalar",
+    "kretschmannscalar": "Kretschmann, or R_{abcd} R^{abcd}",
+}
+
+
+#: Names of built-in tensors that are as often names of one's own: a covariance C,
+#: weights W, a matrix G.
+_SHARED_NAMES = frozenset({"C", "G", "W"})
+
+
+#: Words written as subscripts, as in T_{eff}: names, not one index per letter.
+_SUBSCRIPT_WORDS = frozenset(
+    {
+        "eff", "vac", "max", "min", "tot", "obs", "crit", "irr", "ext", "int", "rad",
+        "kin", "pot", "rel", "ret", "adv", "out", "in", "cm", "lab", "rest", "sun", "orb",
+        "com", "phys", "BH", "ADM", "Pl", "em", "dm", "de",
+    }
+)  # fmt: skip
+
+
+#: Superscripts that write a transpose, as in A^T.
+_TRANSPOSES = frozenset({"T", "top", "intercal"})
+
+
+def _a_word(run: str) -> bool:
+    """Whether a subscript written as a run of letters is a word that names something,
+    as eff in T_{eff}, rather than one index per letter, as in T_{abc}: a word often
+    written as a subscript, or three letters or more of which some repeat."""
+    if not (run.isalpha() and run.isascii()):
+        return False
+    return run in _SUBSCRIPT_WORDS or (len(run) >= 3 and len(set(run)) < len(run))
+
+
+def _has_a_value(written: str) -> str:
+    """The note on ``K = ...`` once K has a value: a claim, not a new value."""
+    return (
+        f"{written} already has a value, so = compares it; to give {written} a new value, "
+        f"write {written} := ..."
+    )
+
+
+def _built_in(written: str, what: str, again: str) -> str:
+    """The note on ``R = 0``: a claim about what a built-in name already means."""
+    return (
+        f"{written} is {what}, so = compares it; to give {written} a meaning of your own, "
+        f"write {again}"
+    )
+
+
+def _late_note(written: str, metric: MetricState | None) -> str:
+    """The note on ``\\Delta = ...`` after a line element written with \\Delta."""
+    span = metric.node.span if metric is not None else None
+    where = f"on line {span.line}" if span is not None else "before"
+    return (
+        f"the metric defined {where} is written with {written}, which has this value there "
+        "from now on"
+    )
+
+
+def _shown(name: str, latex: bool) -> str:
+    """A name as the user writes it: ``\\Delta`` in LaTeX, ``Delta`` in plain text."""
+    return latex_label(name) if latex else name
+
+
+def _close(name: str, candidates: Iterable[str], shortest: int = 4) -> str | None:
+    """The candidate a name is likely a misspelling of, as Schwarzchild is of
+    Schwarzschild or simplfy of simplify; ``None`` where none is close. Names of fewer
+    than four letters are never matched, and candidates shorter than ``shortest`` never
+    offered, so that ln is no misspelt N, nor erfc a misspelt erf."""
+    if len(name) < 4:
+        return None
+    known: dict[str, str] = {}
+    for candidate in candidates:  # the first spelling of each, as Cov before cov
+        if len(candidate) >= shortest:
+            known.setdefault(candidate.lower(), candidate)
+    found = difflib.get_close_matches(name.lower(), list(known), n=1, cutoff=0.8)
+    return known[found[0]] if found else None
+
+
+def _splittable(node: ast.Name) -> bool:
+    name = node.id
+    return not node.verbatim and len(name) > 1 and name.isalpha() and name not in GREEK
+
+
+def _letter(label: str, span: Span, *, first: bool) -> ast.Name:
+    """One letter, or Greek name, of a run of letters read as a product, as G is of GM.
+    No letter is split again. A d is the letter d, as in ad - bc, except first in its run,
+    where it is the d of a differential, as in ds or dx, as {\\rm d} is."""
+    return ast.Name(label, verbatim=first and label == "d", span=span)
+
+
+def _written_as_letter(node: ast.Name) -> bool:
+    """Whether a name is a Greek letter written as one, ``\\gamma`` or ``γ``, rather than
+    spelled out as a function's name is, as in ``gamma(x)``."""
+    if node.id not in GREEK:
+        return False
+    written = node.span.text
+    return written == "\\" + node.id or len(written) == 1  # the command, or the character
+
+
+def _named(target: ast.Expr) -> ast.Expr:
+    """A decorated name, as ``\\tilde u`` or ``E^{(2)}``, as the name it is read as,
+    ``utilde`` or ``E^(2)``; a dot is a time derivative, and anything else is left as it
+    is."""
+    if (
+        isinstance(target, ast.Accent)
+        and target.accent not in ("dot", "ddot")
+        and isinstance(target.base, ast.Name)
+    ):
+        return ast.Name(target.base.id + target.accent, verbatim=True, span=target.span)
+    if (
+        isinstance(target, ast.Scripted)
+        and isinstance(target.base, ast.Name)
+        and all(script.kind == "^" and _decoration(script) for script in target.scripts)
+    ):
+        marks = "".join(_mark(script) for script in target.scripts)
+        return ast.Name(f"{target.base.id}^{marks}", verbatim=True, span=target.span)
+    return target
+
+
+def _mark(script: ast.Script) -> str:
+    """How a decoration marks a name: ``*`` in ``r^*``, ``(2)`` in ``E^{(2)}``."""
+    body = script.body
+    if isinstance(body, ast.Name) and not _bracketed_order(body):
+        return body.id
+    return body.span.text if body is not None else ""
+
+
+def _decoration(script: ast.Script) -> bool:
+    """A script that marks a name rather than raising it to a power: ``r^*``, ``i^+``, or
+    an order in brackets, as of a perturbation, ``E^{(2)}``."""
+    body = script.body
+    if isinstance(body, ast.Name) and body.verbatim and body.id in ("*", "+", "-", "±", "∓"):
+        return True
+    return _bracketed_order(body)
+
+
+def _bracketed_order(body: ast.Expr | None) -> bool:
+    """``(2)`` or ``(n)``: a whole number or one letter in brackets."""
+    if isinstance(body, ast.Number):
+        whole = body.text.isdigit()
+    else:
+        whole = isinstance(body, ast.Name) and (len(body.id) == 1 or body.id in GREEK)
+    text = body.span.text if body is not None else ""
+    return whole and text.startswith("(") and text.endswith(")")
+
+
+def _script_labels(statement: ast.Node) -> dict[str, Counter[str]]:
+    """How often a statement writes each index label as a subscript (``"_"``), as
+    \\mu in x_\\mu, and as a superscript (``"^"``)."""
+    counts: dict[str, Counter[str]] = {"_": Counter(), "^": Counter()}
+    for node in _walk(statement):
+        if isinstance(node, ast.Script) and node.indices is not None:
+            counts[node.kind].update(
+                str(item.label) for item in node.indices.items if _plain_label(item)
+            )
+    return counts
+
+
+def _names_inside(name: str, node: ast.Expr) -> bool:
+    """Whether ``name`` is written in ``node`` other than as a function called there: M
+    is in r - 2M, and f is not in f(x)."""
+    called = {id(n.func) for n in _walk(node) if isinstance(n, ast.Call)}
+    return any(
+        isinstance(n, ast.Name) and n.id == name and id(n) not in called for n in _walk(node)
+    )
+
+
+def _unprimed(node: ast.Expr) -> ast.Expr:
+    """A primed name with subscripts, as ``R'_{\\mu\\nu}``, read as the name ``R'`` with
+    them: a tensor or symbol of its own. A power of a primed name, ``A'^2``, is left as
+    it is, to be the power of what ``A'`` means."""
+    if (
+        isinstance(node, ast.Scripted)
+        and isinstance(node.base, ast.Prime)
+        and any(script.kind == "_" for script in node.scripts)
+    ):
+        prime = node.base
+        name = ast.Name(prime.func.id + "'" * prime.order, verbatim=True, span=prime.span)
+        return replace(node, base=name)
+    return node
+
+
+def _names_builtin(node: ast.Name, *, latex: bool = False) -> bool:
+    """Whether a name, bound to nothing in the program, is a builtin function: never a
+    Greek letter written as one, so that \\gamma(r) in a metric is an unknown function,
+    and in LaTeX never a single letter, so that N(t) there is the lapse, not ``N``."""
+    if latex and len(node.id) == 1:
+        return False
+    return node.id in BUILTINS and not _written_as_letter(node)
+
+
+def _names(value: ast.Expr, what: str) -> list[str]:
+    """The names listed in ``[t, r, \\theta]``, a one-row matrix, or a single name."""
+    if isinstance(value, ast.Name):
+        return [value.id]
+    if isinstance(value, ast.List | ast.Tuple):
+        items: Sequence[ast.Expr] = value.items
+    elif isinstance(value, ast.Matrix) and (len(value.rows) == 1 or len(value.rows[0]) == 1):
+        items = [cell for row in value.rows for cell in row]
+    else:
+        raise CompileError(f"{what} lists names, as in [t, r, \\theta, \\phi]", span=value.span)
+    names = []
+    for item in items:
+        if not isinstance(item, ast.Name):
+            raise CompileError("expected a name", span=item.span)
+        names.append(item.id)
+    return names
+
+
+def _indexed_target(name: str, value: Node) -> tuple[str, Indices] | None:
+    """``v_a := ...`` with a value whose free indices are exactly ``a``: the tensor
+    ``v_{a}``, with its indices where the value has them. A value whose indices no one
+    named, as the eigenvalues of s_k := \\operatorname{spec}(S), takes them in order."""
+    base, underscore, tail = name.partition("_")
+    if not (underscore and tail.isalpha() and isinstance(value.type, TensorType)):
+        return None
+    labels = split_index_labels(tail)
+    indices = value.type.indices
+    if len(labels) == len(indices) and all(index.name.startswith("#") for index in indices):
+        return base, indices  # named by the labels where they are written, s_k or s_{k}
+    have = {index.name: index for index in indices}
+    if sorted(labels) != sorted(have):
+        return None
+    return base, Indices(have[label] for label in labels)
+
+
+def _is_line_element(target: ast.Expr) -> bool:
+    """``ds^2`` (also ``ds^{2}``, ``(ds)^2``, ``d s^2`` and, in Python's way, ``ds**2``)."""
+
+    def squared(node: ast.Expr, name: str) -> bool:
+        if (
+            isinstance(node, ast.Binary)
+            and node.op == "**"
+            and isinstance(node.left, ast.Name)
+            and node.left.id == name
+        ):
+            return isinstance(node.right, ast.Number) and node.right.text == "2"
+        return (
+            isinstance(node, ast.Scripted)
+            and isinstance(node.base, ast.Name)
+            and node.base.id == name
+            and len(node.scripts) == 1
+            and node.scripts[0].kind == "^"
+            and isinstance(node.scripts[0].body, ast.Number)
+            and node.scripts[0].body.text == "2"
+        )
+
+    if squared(target, "ds"):
+        return True
+    return (
+        isinstance(target, ast.Binary)
+        and target.op == "*"
+        and isinstance(target.left, ast.Name)
+        and target.left.id == "d"
+        and squared(target.right, "s")
+    )
+
+
+_DIFFERENTIAL_NAME = re.compile(
+    r"d(" + "|".join(sorted(GREEK, key=len, reverse=True)) + r"|[A-Za-z][0-9]*)"
+)
+
+
+def _line_element_coordinates(value: ast.Expr, *, solid_angle: bool = True) -> list[str]:
+    r"""The coordinates a line element's differentials name, in the order they appear:
+    ``-dt^2 + dr^2 + r^2 d\Omega^2`` names t, r, θ and φ, or, without ``solid_angle``, t, r
+    and Ω. Empty if a differential is abstract, as in ``g_{\mu\nu} dx^\mu dx^\nu``, or if
+    there are none."""
+    atoms: list[ast.Expr] = []
+    pending: list[ast.Expr] = [value]
+    while pending:  # left to right, without recursion
+        node = pending.pop()
+        if isinstance(node, ast.Binary):
+            pending.append(node.right)
+            pending.append(node.left)
+        elif isinstance(node, ast.Unary):
+            pending.append(node.operand)
+        else:
+            atoms.append(node)
+    names: list[str] = []
+    for atom, following in zip(atoms, [*atoms[1:], None], strict=True):
+        base = atom.base if isinstance(atom, ast.Scripted) else atom
+        if isinstance(base, ast.Name) and base.id == "d" and following is not None:
+            target = following
+        elif isinstance(base, ast.Name) and (match := _DIFFERENTIAL_NAME.fullmatch(base.id)):
+            target = ast.Name(match.group(1), span=base.span)
+        else:
+            continue
+        if isinstance(target, ast.Scripted):
+            if not all(isinstance(s.body, ast.Number) for s in target.scripts):
+                return []  # dx^\mu: an abstract differential
+            target = target.base
+        if not isinstance(target, ast.Name):
+            continue
+        found = ["theta", "phi"] if target.id == "Omega" and solid_angle else [target.id]
+        names.extend(name for name in found if name not in names)
+    return names
+
+
+def _names_omega(node: ast.Expr) -> bool:
+    """``\\Omega`` or ``\\Omega^2``, as after the ``d`` of a solid angle."""
+    base = node.base if isinstance(node, ast.Scripted) else node
+    return isinstance(base, ast.Name) and base.id == "Omega"
+
+
+def _factor_names(statement: ast.Node) -> frozenset[str]:
+    """The names a statement writes as factors rather than as functions it calls: G and
+    M in 2GM, where in LaTeX a run of letters is a product of them, but neither f in
+    f(x) or f'(x), nor what a substitution sets, as r in |_{r=r(\\tau)}."""
+    other = _other_names(statement)
+    for node in _walk(statement):
+        if isinstance(node, ast.Substitution):
+            other.update(id(target) for target, _ in node.bindings)
+    latex = bool(getattr(statement, "latex", False))
+    found: set[str] = set()
+    for node in _walk(statement):
+        if isinstance(node, ast.Name) and id(node) not in other:
+            found.add(node.id)
+            known = node.id in BUILTINS or node.id in CONSTANTS
+            if latex and _splittable(node) and not known:
+                found.update(split_index_labels(node.id))
+    return frozenset(found)
+
+
+def _other_names(node: ast.Node) -> set[int]:
+    """The ids of the names in an expression that are part of another name, or of a
+    function's: f in f(x), x in x', h in \\bar h, E in E^{(2)}."""
+    found: set[int] = set()
+    for current in _walk(node):
+        if isinstance(current, ast.Call | ast.Prime):
+            found.add(id(current.func))
+        elif isinstance(current, ast.Accent | ast.Scripted) and isinstance(
+            _named(current), ast.Name
+        ):  # \bar h is hbar, and E^{(2)} is E^(2); \dot h is h, differentiated
+            found.add(id(current.base))
+    return found
+
+
+def _writes_tensor(value: ast.Expr, name: str) -> bool:
+    """Whether ``value`` writes the tensor ``name`` with index labels, or ``name`` alone,
+    other than as the tensor solve is asked to solve for: T_{\\nu\\mu} in
+    T_{\\mu\\nu} = T_{\\nu\\mu}, but not k in k^3, a power or a component."""
+    bases = {id(node.base) for node in _used(value) if isinstance(node, ast.Scripted)}
+    for node in _used(value):
+        if isinstance(node, ast.Scripted) and (pattern := _tensor_pattern(node)):
+            if pattern[0] == name:
+                return True
+        elif isinstance(node, ast.Name) and node.id == name and id(node) not in bases:
+            return True
+    return False
+
+
+def _slashed(factors: list[ast.Expr]) -> list[ast.Expr]:
+    """Factors with an inline slash read as in physics: ``x/4GM`` is x/(4GM), and
+    ``e^{-r/2GM}`` is e^{-r/(2GM)}. The letters and numbers written right after the
+    denominator, with no space, belong to it; ``x/4 GM``, with a space, and
+    ``\\frac{x}{4}GM`` are (x/4) GM, and a tensor never joins a denominator."""
+
+    def simple(node: ast.Expr) -> bool:
+        if isinstance(node, ast.Number | ast.Name):
+            return True
+        return (
+            isinstance(node, ast.Scripted)
+            and isinstance(node.base, ast.Name)
+            and _tensor_pattern(node) is None
+            and all(script.kind == "^" for script in node.scripts)
+        )
+
+    result: list[ast.Expr] = []
+    position = 0
+    while position < len(factors):
+        factor = factors[position]
+        slash = (
+            isinstance(factor, ast.Binary)
+            and factor.op == "/"
+            and Span(factor.span.source, factor.left.span.end, factor.right.span.start).text.strip()
+            == "/"
+            and simple(factor.right)
+        )
+        run: list[ast.Expr] = []
+        end = factor.span.end
+        while slash and position + 1 + len(run) < len(factors):
+            following = factors[position + 1 + len(run)]
+            if following.span.start != end or not simple(following):
+                break
+            run.append(following)
+            end = following.span.end
+        if not run:
+            result.append(factor)
+            position += 1
+            continue
+        assert isinstance(factor, ast.Binary)
+        denominator = reduce(
+            lambda a, b: ast.Binary("*", a, b, implicit=True, span=a.span.to(b.span)),
+            [factor.right, *run],
+        )
+        span = factor.span.to(run[-1].span)
+        result.append(ast.Binary("/", factor.left, denominator, span=span))
+        position += 1 + len(run)
+    return result
+
+
+def _greek_labels(scripts: Sequence[ast.Script]) -> bool:
+    """Whether scripts are index labels, all Greek, as \\alpha in u_\\alpha."""
+    items = [item for s in scripts if s.indices is not None for item in s.indices.items]
+    return bool(items) and all(_plain_label(item) and item.label in GREEK for item in items)
+
+
+def _styled(span: Span) -> Span:
+    """A span grown over the style command around it, as B to \\mathcal{B}."""
+    text = span.source.text
+    for command in ("\\mathcal{", "\\mathbb{", "\\mathscr{", "\\mathfrak{", "\\mathrm{"):
+        start = span.start - len(command)
+        if text[max(start, 0) : span.start] == command and text[span.end : span.end + 1] == "}":
+            return Span(span.source, start, span.end + 1)
+    return span
+
+
+def _an_index(before: ast.Expr, factor: ast.Expr) -> bool:
+    """Whether ``factor`` is written as Python indexes a list: a whole number in square
+    brackets, right after what it would index, as [0] in [1, 2][0]."""
+    return (
+        isinstance(factor, ast.List)
+        and len(factor.items) == 1
+        and isinstance(factor.items[0], ast.Number)
+        and factor.items[0].text.isdigit()
+        and factor.span.text.startswith("[")
+        and before.span.end == factor.span.start
+    )
+
+
+def _bracketed(equation: ast.Equation) -> bool:
+    """Whether an equation is written in brackets of its own, as the case ``(k = 0)``
+    beside a formula is."""
+    text = equation.span.text
+    for opener, closer in (("(", ")"), ("\\left(", "\\right)")):
+        if (
+            text.startswith(opener)
+            and text.endswith(closer)
+            and equation.lhs.span.start > equation.span.start
+            and equation.rhs.span.end < equation.span.end
+        ):
+            return True
+    return False
+
+
+def _unbracketed(equation: ast.Equation) -> str:
+    return Span(equation.span.source, equation.lhs.span.start, equation.rhs.span.end).text
+
+
+def _mentioned(value: ast.Expr, *, latex: bool) -> frozenset[str]:
+    """Every name written in an expression and, in LaTeX, every letter of a run of
+    letters read as a product, as GM is in \\frac{2GM}{r}. The name of a builtin, such as
+    FLRW in FLRW(k) or diag, is one name and never its letters."""
+    found: set[str] = set()
+    for node in _walk(value):
+        if isinstance(node, ast.Name):
+            found.add(node.id)
+            builtin = node.id in BUILTINS or node.id in CONSTANTS
+            if latex and _splittable(node) and not builtin:
+                found.update(split_index_labels(node.id))
+    return frozenset(found)
+
+
+def _mentions_symbol(node: Node, name: str) -> bool:
+    """Whether a value is written with the symbol ``name``: a constant it is computed
+    from has it among its free symbols."""
+    for value in _constants(node):
+        written = isinstance(value, sympy.Basic | sympy.NDimArray)
+        if written and any(symbol.name == name for symbol in value.free_symbols):
+            return True
+    return False
+
+
+def _constants(root: Node) -> Iterator[Any]:
+    """The values of the constants a value is computed from, as it is written: not those
+    of notation, which is no expression, but those of the scalars of notation that its
+    components are computed with."""
+    pending, seen = [root], set()
+    while pending:
+        node = pending.pop()
+        if node.id in seen:
+            continue
+        seen.add(node.id)
+        if isinstance(node.op, ops.Const):
+            yield node.op.value
+        elif _calls(node, "notation.lower"):
+            written = dependencies([node.args[0]])
+            yield from (each.op.value for each in written if isinstance(each.op, ops.Const))
+            pending.extend(node.args[1:])
+        elif not isinstance(node.type, NotationType):
+            pending.extend(node.args)
+
+
+def _written_with(root: Node) -> frozenset[str]:
+    """The names of the symbols and of the functions that have no value that ``root``'s
+    value is written with, read from the IR without computing it: those of its constants
+    and of the functions it applies, but not the differentials a line element takes away,
+    the variables a sum, a product, an integral, a limit or an evaluation bar binds, a name
+    a definition made after the metric gives its value to, or a parameter a spacetime is
+    not written with, as G of flat space."""
+    found: dict[int, frozenset[str]] = {}
+    for node in dependencies([root]):
+        found[node.id] = _names_written(node, found)
+    return found[root.id]
+
+
+def _names_written(node: Node, found: Mapping[int, frozenset[str]]) -> frozenset[str]:
+    """The names ``node`` is written with (see :func:`_written_with`), from those of its
+    arguments, in ``found``."""
+    op = node.op
+    if isinstance(op, ops.Const):
+        return _symbol_names(op.value)
+    if isinstance(node.type, NotationType):  # notation, which is no expression
+        return frozenset()
+    args = [found[arg.id] for arg in node.args]
+    every = frozenset().union(*args)
+    if isinstance(op, ops.LineElement):
+        return every - {differential.name for differential in op.differentials}
+    if not isinstance(op, ops.Call | ops.Map):
+        return every
+    name, rest = op.name, frozenset().union(*args[2:])
+    if name == "notation.lower":  # components: their notation's scalars, and its tensors
+        return every | frozenset().union(*map(_symbol_names, _constants(node.args[0])))
+    if name == "core.function":
+        return every | {str(dict(op.attributes)["name"])}
+    if name in ("core.sum", "core.prod", "core.limit"):  # body, variable, then the rest
+        return (args[0] - args[1]) | rest
+    if name == "core.derivative_at":  # body, the variable, the order and the point
+        return (args[0] - args[1]) | args[3]
+    if name == "core.subs":  # expr, then pairs of what and what for
+        return (args[0] - frozenset().union(*args[1::2])) | frozenset().union(*args[2::2])
+    if name == "integrate":  # what a definite integral's limits bind, as core.limits gives
+        bound = frozenset().union(
+            *(found[arg.args[0].id] for arg in node.args[1:] if _calls(arg, "core.limits"))
+        )
+        return every - bound
+    if name in ("core.where", "core.where_function"):  # the metric, the name, the value
+        defined = node.args[1].op
+        assert isinstance(defined, ops.Const)
+        parameters: frozenset[str] = frozenset()
+        if name == "core.where_function":
+            defined_name, symbols = defined.value
+            parameters = frozenset(symbol.name for symbol in symbols)
+        else:
+            defined_name = defined.value
+        return (args[0] - {defined_name}) | (args[2] - parameters)
+    if name in _SPACETIMES:
+        absent = spacetimes.absent_from(_SPACETIMES[name])
+        written = BUILTINS[name].parameters
+        return frozenset().union(
+            *(names for names, p in zip(args, written, strict=False) if p not in absent)
+        )
+    return every
+
+
+def _calls(node: Node, name: str) -> bool:
+    """Whether ``node`` applies the operation registered as ``name``."""
+    return isinstance(node.op, ops.Call) and node.op.name == name
+
+
+def _symbol_names(value: Any) -> frozenset[str]:
+    """The names of the symbols and of the functions that have no value in a constant."""
+    if isinstance(value, list | tuple):
+        return frozenset().union(*(_symbol_names(item) for item in value))
+    if not isinstance(value, sympy.Basic):
+        return frozenset()
+    names = {symbol.name for symbol in value.free_symbols if isinstance(symbol, Symbol)}
+    names.update(function.func.__name__ for function in value.atoms(AppliedUndef))
+    return frozenset(names)
+
+
+def _subscripted_symbol(target: ast.Scripted) -> bool:
+    """``r_{s}``: a single subscript, which may name a symbol."""
+    return (
+        len(target.scripts) == 1
+        and target.scripts[0].kind == "_"
+        and target.scripts[0].indices is not None
+        and len(target.scripts[0].indices.items) == 1
+    )
+
+
+def _subscripted_name(node: ast.Scripted) -> str:
+    """The symbol a subscript names: ``r_{s}`` is ``r_s`` and ``x_{0}`` is ``x_0``."""
+    assert isinstance(node.base, ast.Name)
+    parts = []
+    for script in node.scripts:
+        if script.indices is not None:
+            parts.append(
+                "".join(
+                    item.label if item.label is not None else to_text(item.value)
+                    for item in script.indices.items
+                )
+            )
+        else:
+            parts.append(script.span.text.lstrip("_").strip("{}"))
+    return f"{node.base.id}_{''.join(parts)}"
+
+
+def to_text(node: ast.Expr | None) -> str:
+    return (
+        node.text
+        if isinstance(node, ast.Number)
+        else (node.id if isinstance(node, ast.Name) else "")
+    )
