@@ -33,6 +33,7 @@ from relativisticpy.errors import (
     FileError,
     InternalError,
     NotComputedError,
+    ParseError,
     RelativisticPyError,
     UnknownNameError,
     UsageError,
@@ -160,8 +161,10 @@ class Workbook:
 
     run = exe
 
-    def each(self, source: str | Source, *, name: str = "<input>") -> Iterator[Step]:
-        """Run a program one statement at a time, carrying on after errors.
+    def each(
+        self, source: str | Source, *, name: str = "<input>", recover: bool = False
+    ) -> Iterator[Step]:
+        r"""Run a program one statement at a time, carrying on after errors.
 
         It is lazy: a statement runs when its :class:`Step` is asked for, as by a ``for``
         loop or ``list(...)``, so nothing runs until then. Each step holds what one
@@ -173,25 +176,36 @@ class Workbook:
             >>> wb = Workbook()
             >>> [(step.values, step.error) for step in wb.each("x := 2; y; x + 1")][1:]
             [([y], None), ([3], None)]
+
+        With ``recover``, a statement that cannot be read is a step of its own instead,
+        in its place: its span is the statement, and its error the
+        :class:`~relativisticpy.errors.ParseError` that says why. The statements before
+        and after it run, so that every error of a program is reported in order::
+
+            >>> steps = Workbook().each("x := 2\n\\frca{1}{2}\nx + 1", recover=True)
+            >>> [step.error.message if step.error else step.values for step in steps]
+            [[], 'unknown LaTeX command \\frca', [3]]
         """
         try:
-            program = self._parse(source, name, "each")
+            program = self._parse(source, name, "each", recover=recover)
         except RelativisticPyError as error:
             if debugging():
                 raise
             raise error.with_traceback(None) from None
-        for statement in program.statements:
-            for piece in _pieces(statement):
-                try:
-                    outputs = self._compiler.statement(piece, self._session.globals)
-                    values = [self._present(output) for output in outputs]
-                except Exception as error:  # an error of the input's, or a failure of ours
-                    failure = _typed(translate(error, span=piece.span))
-                    yield Step(piece.span, piece, error=failure)
-                else:
-                    notes = [output.note for output in outputs if output.note]
-                    sides = self._sides(piece)
-                    yield Step(piece.span, piece, values, sides=sides, notes=notes)
+        for piece, span in _steps_of(program):
+            if isinstance(piece, ParseError):  # a statement that cannot be read
+                yield Step(span, ast.Statement(span=span), error=piece)
+                continue
+            try:
+                outputs = self._compiler.statement(piece, self._session.globals)
+                values = [self._present(output) for output in outputs]
+            except Exception as error:  # an error of the input's, or a failure of ours
+                failure = _typed(translate(error, span=piece.span))
+                yield Step(piece.span, piece, error=failure)
+            else:
+                notes = [output.note for output in outputs if output.note]
+                sides = self._sides(piece)
+                yield Step(piece.span, piece, values, sides=sides, notes=notes)
 
     def _sides(self, statement: ast.Statement) -> tuple[Any, Any] | None:
         """The values of an equation's two sides, for saying how they differ."""
@@ -720,12 +734,15 @@ class Workbook:
     # -- internals -----------------------------------------------------------------
 
     @staticmethod
-    def _parse(source: str | Source, name: str, method: str = "exe") -> Program:
+    def _parse(
+        source: str | Source, name: str, method: str = "exe", *, recover: bool = False
+    ) -> Program:
         if not isinstance(source, str | Source):
             raise UsageError(f"{method} takes the program as a str, not {_kind(source)}")
         if not isinstance(name, str):
             raise UsageError(f"the name of a program is a str, not {_kind(name)}")
-        return parse(source if isinstance(source, Source) else Source(source, name))
+        text = source if isinstance(source, Source) else Source(source, name)
+        return parse(text, recover=recover)
 
     def _present(self, output: Output) -> Any:
         """The value of an output as it is shown. What cannot be shown is a
@@ -1152,6 +1169,92 @@ def _pieces(statement: ast.Statement) -> list[ast.Statement]:
             for link in statement.expr.links()
         ]
     return [statement]
+
+
+def _steps_of(program: Program) -> list[tuple[ast.Statement | ParseError, Span]]:
+    """The steps :meth:`Workbook.each` gives for a program, in order, with their spans:
+    each statement, each link of a chain as a statement of its own, and each statement
+    that cannot be read, as its error."""
+    found: list[tuple[ast.Statement | ParseError, Span]] = []
+    for item, span in _in_order(program):
+        if isinstance(item, ParseError):
+            found.append((item, span))
+        else:
+            found.extend((piece, piece.span) for piece in _pieces(item))
+    return found
+
+
+#: What separates statements, and the space around them: what a statement that cannot be
+#: read does not begin or end with.
+_BETWEEN = " \t\r\n;"
+
+
+def _in_order(program: Program) -> list[tuple[ast.Statement | ParseError, Span]]:
+    """The statements of a program and the errors of those that could not be read, in
+    the order they are written, each with the span of its statement.
+
+    A statement that cannot be read is the text between what comes before it and what
+    comes after it: from the end of the statement before it, or, after another that
+    cannot be read either, from the start of the line its error is on; to the start of
+    what follows. Separators, space and comments are left out at either end."""
+    if not program.errors:
+        return [(statement, statement.span) for statement in program.statements]
+    items = program.in_order()
+    source = program.span.source
+    text = source.text
+
+    def own(item: ast.Statement | ParseError) -> Span | None:
+        """The span of an item, if it is in this program's text."""
+        span = item.span
+        return span if span is not None and span.source is source else None
+
+    starts: list[int] = []
+    for position, item in enumerate(items):
+        previous = items[position - 1] if position else None
+        before = own(previous) if previous is not None else None
+        done = before.end if before is not None else 0
+        span = own(item)
+        if not isinstance(item, ParseError):
+            starts.append(span.start if span is not None else done)
+        elif isinstance(previous, ParseError) and span is not None:
+            line = text.rfind("\n", 0, span.start) + 1  # its own statement starts on its line
+            starts.append(max(line, min(done, span.start)))
+        else:
+            starts.append(done)
+    found: list[tuple[ast.Statement | ParseError, Span]] = []
+    for position, item in enumerate(items):
+        if not isinstance(item, ParseError):
+            found.append((item, item.span))
+            continue
+        end = starts[position + 1] if position + 1 < len(items) else len(text)
+        start = _skip_between(text, starts[position], end)
+        while end > start and text[end - 1] in _BETWEEN:
+            end -= 1
+        if text.endswith("\\\\", start, end):  # a row break ends a row, not a statement
+            end -= 2
+            while end > start and text[end - 1] in _BETWEEN:
+                end -= 1
+        span = own(item)
+        if end <= start and span is not None:  # nothing but the error itself
+            start, end = span.start, span.end
+        found.append((item, Span(source, start, max(start, end))))
+    return found
+
+
+def _skip_between(text: str, start: int, end: int) -> int:
+    """Where a statement starts, from ``start``: after separators, space, row breaks and
+    lines that are comments."""
+    while start < end:
+        if text[start] in _BETWEEN:
+            start += 1
+        elif text.startswith("\\\\", start):
+            start += 2
+        elif text[start] == "%":  # a comment, to the end of its line
+            newline = text.find("\n", start)
+            start = end if newline == -1 else newline + 1
+        else:
+            break
+    return min(start, end)
 
 
 def latex(value: Any) -> str:
