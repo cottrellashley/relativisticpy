@@ -53,7 +53,8 @@ Each domain is a folder, and each topic within it a Markdown file. Examples:
 - `signal-processing/`;
 - `machine-learning/`;
 - `graphs-and-networks/`;
-- `dynamical-systems-and-control/`.
+- `dynamical-systems-and-control/`;
+- `economics-and-finance/`.
 
 ## A case
 
