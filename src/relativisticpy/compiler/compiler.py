@@ -3938,6 +3938,14 @@ class Compiler:
         ``\\partial^2`` is \\partial^\\mu \\partial_\\mu and ``\\nabla^2`` is
         \\nabla^\\mu \\nabla_\\mu, which is \\Box."""
         scripts = node.scripts
+        for script in scripts:  # \partial_{}: no derivative at all
+            if script.body is None and (script.indices is None or not script.indices.items):
+                where = "subscript" if script.kind == "_" else "superscript"
+                raise CompileError(
+                    f"empty {where}",
+                    span=script.span,
+                    hint=f"write the index of the derivative, as in {node.base.span.text}_\\mu",
+                )
         orders = [s for s in scripts if s.kind == "^" and isinstance(s.body, ast.Number)]
         if len(orders) == 1 and len(scripts) <= 2:
             order = orders[0]

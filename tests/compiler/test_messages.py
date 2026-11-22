@@ -148,7 +148,8 @@ class TestWhatIsNotATensor:
         assert wb.expr("transpose(A)").tolist() == [[1, 3], [2, 4]]  # the hint works
 
     @pytest.mark.parametrize(
-        ("source", "message"), [("x_{}", "subscript"), ("x^{}", "superscript")]
+        ("source", "message"),
+        [("x_{}", "subscript"), ("x^{}", "superscript"), (r"\partial_{} f", "subscript")],
     )
     def test_an_empty_script(self, wb, source, message):
         assert error(wb, source).message == f"empty {message}"
