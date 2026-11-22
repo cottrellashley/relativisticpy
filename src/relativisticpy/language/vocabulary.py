@@ -56,6 +56,8 @@ SYMBOL_COMMANDS: Mapping[str, str] = MappingProxyType(
         "top": "top",  # the transpose, as in A^\top
         "intercal": "intercal",
         "dagger": "dagger",  # the conjugate transpose, as in A^\dagger
+        "imath": "i",  # the dotless i, set under a hat: \hat{\imath}, a unit vector
+        "jmath": "j",
     }
 )
 

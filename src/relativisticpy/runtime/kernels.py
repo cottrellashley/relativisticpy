@@ -468,7 +468,7 @@ def _proven(lhs: sympy.Expr, rhs: sympy.Expr) -> bool | None:
         if lhs.is_number and rhs.is_number:
             return _close(lhs, rhs)
         lhs, rhs = _rounded(lhs), _rounded(rhs)
-    if is_zero(lhs - rhs) or _simplifies_to_zero(lhs, rhs):
+    if is_zero(lhs - rhs) or simplifies_to_zero(lhs, rhs):
         return True
     return None
 
@@ -528,7 +528,7 @@ def _simplest_fraction(exact: Fraction) -> sympy.Rational:
         rest = 1 / (rest - whole)
 
 
-def _simplifies_to_zero(lhs: sympy.Expr, rhs: sympy.Expr) -> bool:
+def simplifies_to_zero(lhs: sympy.Expr, rhs: sympy.Expr) -> bool:
     """A bounded attempt to prove the sides equal where :func:`is_zero` could not: with
     trigonometric and hyperbolic functions written as exponentials, as for
     :math:`\\cosh^2 x - \\sinh^2 x = 1`, then with :func:`sympy.simplify`. Simplifying is

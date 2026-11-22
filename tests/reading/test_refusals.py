@@ -318,10 +318,10 @@ class TestScriptedNamesWhoseBaseIsDefined:
 
 class TestOperatorsReadWithAnotherMeaning:
     """Guard 4: an operator the lexer reads as a product, a measure or a derivative that
-    would be computed with another meaning is refused until it is built: \\times of unit
-    vectors nothing defines, d\\Omega, the derivative of a list and a Jacobian. The
-    Kronecker product, the exponential of a matrix and the bracket of two matrices, their
-    commutator, are built, and read so."""
+    would be computed with another meaning is refused until it is built: d\\Omega and a
+    Jacobian. The Kronecker product, the exponential of a matrix, the bracket of two
+    matrices, their commutator, \\times of vectors written with unit vectors and the
+    derivative of a list are built, and read so."""
 
     SIGMA_X = r"\begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix}"
     SIGMA_Y = r"\begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix}"
@@ -335,11 +335,8 @@ class TestOperatorsReadWithAnotherMeaning:
 
     def test_a_cross_product_of_unit_vectors(self, wb):
         wb.exe(r"\mathbf{E} := E_0 \hat{\mathbf{x}}" "\n" r"\mathbf{B} := B_0 \hat{\mathbf{y}}")
-        found = error(wb, r"\mathbf{E} \times \mathbf{B}")
-        assert found.message == (
-            r"\mathbf{E} \times \mathbf{B} is read as a product of symbols, not as a cross "
-            r"product: \hat{x} and \hat{y} name nothing"
-        )
+        E0, B0 = sympy.symbols("E_0 B_0")
+        assert list(wb.expr(r"\mathbf{E} \times \mathbf{B}")) == [0, 0, E0 * B0]
         assert wb.expr(r"2 \times 10^{-5}") == sympy.Rational(1, 50000)  # numbers multiply
 
     def test_a_solid_angle(self, wb):
@@ -357,22 +354,16 @@ class TestOperatorsReadWithAnotherMeaning:
 
     def test_the_derivative_of_a_list(self, wb):
         wb.exe(r"\mathbf{x} := [r \cos\theta, r \sin\theta, z]")
-        found = error(wb, r"\partial_\theta \mathbf{x}")
-        assert found.message == r"the derivative of a list by \theta is not taken yet"
-        assert found.hint == (
-            r"give the list an index over a space, as in x^i with i \in \mathcal{E} := "
-            r"\mathbb{R}^{3}, and differentiate that: \frac{\partial}{\partial \theta} x^i"
-        )
+        r, theta = sympy.symbols("r theta")
+        each = [-r * sympy.sin(theta), r * sympy.cos(theta), 0]
+        assert list(wb.expr(r"\partial_\theta \mathbf{x}")) == each  # component by component
         space = "\\mathcal{E} := \\mathbb{R}^{3}\ni \\in \\mathcal{E}\n"
         derivative = wb.expr(
             space + r"x^i := [r \cos\theta, r \sin\theta, z]"
             "\n"
             r"\frac{\partial}{\partial \theta} x^i"
         )
-        r, theta = sympy.symbols("r theta")
-        assert derivative.components == sympy.Array(
-            [-r * sympy.sin(theta), r * sympy.cos(theta), 0]
-        )
+        assert derivative.components == sympy.Array(each)  # with an index, as before
 
     def test_a_jacobian(self, wb):
         wb.exe(r"x := r \cos\theta" "\n" r"y := r \sin\theta")

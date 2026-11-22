@@ -80,6 +80,7 @@ KINDS = (
     "sequence or product",
     "matrix or number",
     "bracket or operator",
+    "vector or number",
 )
 
 

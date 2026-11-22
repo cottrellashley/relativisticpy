@@ -28,7 +28,7 @@ from relativisticpy.compiler.session import Saved
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
-from relativisticpy.lowering.probability import Probability
+from relativisticpy.lowering.vectors import VectorCalculus
 from relativisticpy.reading import assumptions
 
 # The tables of the language, which its reference reads from here.
@@ -59,7 +59,7 @@ _READ_AS = {
 }
 
 
-class Compiler(Probability):
+class Compiler(VectorCalculus):
     """Compiles programs against a :class:`Session`, which it updates as it goes."""
 
     # ======================================================================

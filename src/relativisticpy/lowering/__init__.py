@@ -22,5 +22,7 @@ lowering one kind of thing and using those below it:
 - :mod:`~relativisticpy.lowering.sequences`: sequences written with square brackets, the
   impulse and the step, difference equations, and their transforms;
 - :mod:`~relativisticpy.lowering.probability`: random variables, declared by their
-  distributions, and their probabilities, expectations, variances and densities.
+  distributions, and their probabilities, expectations, variances and densities;
+- :mod:`~relativisticpy.lowering.vectors`: vectors, their algebra and their calculus,
+  with \\nabla, in the frame of the coordinates in force.
 """

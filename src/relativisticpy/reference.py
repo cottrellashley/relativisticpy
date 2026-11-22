@@ -91,8 +91,9 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
      r"`\max_x` and `\arg\min_w` are optima; `\underset{x}{\min}` sets the variable beneath"),
     (("partial", "nabla"),
      r"the partial and the covariant derivative, `\partial_\mu` and `\nabla_\mu`; "
-     r"`\partial_t^2` is the second derivative"),
-    (("Box", "square"), r"the d'Alembertian, `\nabla^\mu \nabla_\mu`, as is `\nabla^2`"),
+     r"`\partial_t^2` is the second derivative, and `\nabla` alone vector calculus's"),
+    (("Box", "square"), r"the d'Alembertian, `\nabla^\mu \nabla_\mu`, as is `\nabla^2` "
+     "with a metric in force; without one, `\\nabla^2` is the Laplacian"),
     (("pounds",), r"the Lie derivative, `\pounds_V T_{ab}`"),
     (("pdv", "dv"),
      r"the physics package's derivatives: `\pdv{f}{x}`, `\pdv[2]{f}{x}`, `\dv{f}{x}`"),
@@ -118,8 +119,9 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
 
 #: What the operator commands mean, by the kinds of token they are read as, in order.
 _OPERATORS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("STAR",), "multiplication, `*`; between tensors, their product, and `\\otimes` between "
-     "matrices their Kronecker product"),
+    (("STAR",), "multiplication, `*`; between tensors, their product, `\\otimes` between "
+     "matrices their Kronecker product, and `\\cdot` and `\\times` between vectors their dot "
+     "and cross products"),
     (("SLASH",), "division, `/`"),
     (("LESS", "GREATER", "LESS_EQ", "GREATER_EQ", "NOT_EQ"),
      "comparisons, in this order: `<`, `>`, `<=` (three spellings), `>=` (three), `!=` (two)"),
@@ -451,6 +453,31 @@ def _index_notation() -> list[str]:
     return lines
 
 
+def _vectors() -> list[str]:
+    return [
+        "## Vectors",
+        "",
+        "- A list, a tuple or a column of numbers is a vector, as `\\mathbf{v} := (1, 2, 3)`. "
+        "Between vectors `\\cdot` is the dot product and `\\times` the cross product; between "
+        "numbers both multiply. `|\\mathbf{v}|` is its length, and `\\mathbf{p}^2` is "
+        "`\\mathbf{p} \\cdot \\mathbf{p}`.",
+        "- A vector's derivatives, integrals, evaluation bars and limits are each "
+        "component's; `\\mathbf{v}(\\mathbf{r}(t))` is a field at a point.",
+        "- `\\hat{\\mathbf{x}}`, `\\hat{x}`, `\\hat{\\imath}` and `\\mathbf{i}`, `\\mathbf{j}`, "
+        "`\\mathbf{k}`, which nothing defines, are Cartesian unit vectors; "
+        "`\\hat{\\mathbf{r}}` and `\\mathbf{e}_r` are those of the coordinates in force.",
+        "- `\\nabla f`, `\\nabla \\cdot \\mathbf{v}`, `\\nabla \\times \\mathbf{v}`, "
+        "`\\nabla^2 f` and `\\Delta f` are of the coordinates in force, whose scale factors "
+        "a line element gives, or the Cartesian coordinates written in them, or their names; "
+        "without coordinates they are of x, y and z. `(\\mathbf{u} \\cdot \\nabla)` acts on "
+        "what follows it. Of a function at a point, `\\nabla f(\\mathbf{a})` is its gradient "
+        "there and `\\nabla^2 f(\\mathbf{a})` its Hessian.",
+        "- An equation between vectors holds component by component; `\\mathbf{0}` is the "
+        "zero vector. `\\iint_{x^2 + y^2 \\le 1} f\\,dA` is over the disk, and "
+        "`\\iiint_{[0, 1]^3} f\\,dV` over the cube.",
+    ]
+
+
 def _spacetimes() -> list[str]:
     lines = [
         "## Spacetimes",
@@ -695,14 +722,15 @@ def _latex() -> list[str]:
         (_commands(vocab.GREEK), "Greek letters, each one symbol"),
         (_commands(variants), "variant letterforms: each the letter after `var`"),
         (_commands(symbols), r"symbols; `\odot` is the Sun, as in `M_\odot`, and between "
-         r"tensors the elementwise product; `\oplus` between matrices is their direct sum, and "
+         r"tensors the elementwise product; `\oplus` between matrices is their direct sum, "
          r"`A^\top`, `A^\intercal` and `A^\dagger` of a matrix its transpose and its conjugate "
-         "transpose"),
+         r"transpose, and `\imath` and `\jmath` are i and j, under a hat unit vectors"),
         (_commands(vocab.FUNCTION_COMMANDS), "functions, each calling the builtin of its name, "
          f"except that {renamed}; `\\sin^{{-1}}` is the inverse, and only `\\log` takes a "
          "subscript, its base; `\\Pr` is a probability"),
         (_commands(vocab.ACCENT_COMMANDS), r"accents: `\dot{a}` and `\ddot{a}` are time "
-         "derivatives of a function of one variable; the others name a new symbol"),
+         r"derivatives of a function of one variable, `\hat{x}` on a coordinate a unit "
+         "vector (see Vectors); the others name a new symbol"),
     ]  # fmt: skip
     if {kind for kinds, _ in _OPERATORS for kind in kinds} != set(operators):
         raise AssertionError("the operator commands are out of date: say what each kind means")
@@ -878,6 +906,7 @@ _SECTIONS: tuple[Callable[[], list[str]], ...] = (
     _statements,
     _names_and_numbers,
     _index_notation,
+    _vectors,
     _spacetimes,
     _functions,
     _data,

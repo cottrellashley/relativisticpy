@@ -305,9 +305,16 @@ def _zero_shaped(side: Any, other: Any) -> Any:
 
 
 def _shown_equal(lhs: Any, rhs: Any) -> bool:
-    """Whether two components are shown equal."""
-    comparable = isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr)
-    return bool(comparable and is_zero(lhs - rhs))
+    """Whether two components are shown equal, as the sides of a scalar equation are:
+    exactly, or where that fails, with hyperbolic functions written as exponentials and by
+    a bounded simplification, as :math:`\\cosh^2 v - \\sinh^2 v = 1` is."""
+    if not (isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr)):
+        return False
+    if is_zero(lhs - rhs):
+        return True
+    from relativisticpy.runtime.kernels import simplifies_to_zero
+
+    return simplifies_to_zero(lhs, rhs)
 
 
 def _differs(lhs: Any, rhs: Any) -> bool | None:

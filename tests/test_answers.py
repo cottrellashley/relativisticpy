@@ -53,8 +53,14 @@ class TestClaimsAreDecidedOrRefused:
             r"\begin{pmatrix} \cosh\zeta & -\sinh\zeta \\ -\sinh\zeta & \cosh\zeta \end{pmatrix}"
         )
         wb.exe(rf"B(\zeta) := {boost}")
-        found = undecided(wb, r"B(\zeta_1) B(\zeta_2) = B(\zeta_1 + \zeta_2)")
-        assert "in 3 of 3 components, SymPy could not show the sides equal" in found.message
+        # each component is decided as a scalar equation is, by cosh^2 - sinh^2 = 1 too
+        assert wb.expr(r"B(\zeta_1) B(\zeta_2) = B(\zeta_1 + \zeta_2)")
+        found = undecided(  # true where x > 0 alone
+            wb,
+            r"\begin{pmatrix} \arctan(x) + \arctan(1/x) & 0 \end{pmatrix} = "
+            r"\begin{pmatrix} \pi/2 & 0 \end{pmatrix}",
+        )
+        assert "in 1 of 2 components, SymPy could not show the sides equal" in found.message
 
     def test_an_order_term(self, wb):
         found = undecided(wb, r"e^x \sin x = x + x^2 + \frac{x^3}{3} + O(x^5)")

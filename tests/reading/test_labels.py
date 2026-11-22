@@ -131,8 +131,8 @@ class TestCompoundNames:
 
     def test_before_a_function_it_is_the_laplacian(self, wb):
         wb.exe("f(x) := x^2")
-        with pytest.raises(CompileError, match="is its Laplacian, which is not supported yet"):
-            wb.expr(r"\Delta f")
+        assert wb.expr(r"\Delta f") == 2  # decision 25 of design/notation.md
+        assert wb.expr(r"\Delta (x^2 + y^2 + z^2)") == 6
 
     def test_in_a_line_element_it_multiplies_a_differential(self, wb):
         wb.exe(r"ds^2 = -\Delta {\rm d} t^2 + \Delta^{-1}{\rm d} r^2")

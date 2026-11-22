@@ -34,7 +34,15 @@ from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _distributions as distributions
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.integrations import _optimizers as optima
-from relativisticpy.runtime import arithmetic, core, notation, quantum, recurrences, sequences
+from relativisticpy.runtime import (
+    arithmetic,
+    core,
+    notation,
+    quantum,
+    recurrences,
+    sequences,
+    vectors,
+)
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
@@ -284,6 +292,16 @@ def _core() -> Iterator[Implementation]:
     yield entry("prob.quantile", distributions.quantile, "scalar", 2, 2)
     yield entry("prob.mgf", distributions.generating, "scalar", 2, 2)
     yield entry("prob.cf", distributions.characteristic, "scalar", 2, 2)
+    # vector calculus, from the metric of the coordinates it is written in
+    yield entry("vectors.gradient", vectors.gradient, "value", 1, 2)
+    yield entry("vectors.divergence", vectors.divergence, "scalar", 1, 2)
+    yield entry("vectors.curl", vectors.curl, "value", 1, 2)
+    yield entry("vectors.laplacian", vectors.laplacian, "scalar", 1, 2)
+    yield entry("vectors.directional", vectors.directional, "scalar", 2, 3)
+    yield entry("vectors.hessian", vectors.hessian, "value", 1, 1)
+    yield entry("vectors.component", vectors.component, "scalar", 2, 2)
+    yield entry("vectors.norm", vectors.norm, "scalar", 1, 1)
+    yield entry("vectors.induced_metric", vectors.induced_metric, "value", 1, 1)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

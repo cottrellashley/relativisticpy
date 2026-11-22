@@ -201,6 +201,27 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   proven where it holds at the integers. An asterisk between two sequences, their
   convolution in signal processing and a product elsewhere, and `\circledast` are refused,
   saying how to write a convolution as its sum.
+- Vectors and vector calculus as books write them (`design/notation.md`, 8, 16 and 25).
+  A list, a tuple or a column of numbers is a vector, `\mathbf{v} := (1, 2, 3)`:
+  `\cdot` and `\times` between vectors are the dot and cross products, and between
+  numbers multiply; `|\mathbf{v}|` and `\|\mathbf{v}\|` are its length and
+  `\mathbf{p}^2` is \(\mathbf{p} \cdot \mathbf{p}\). Derivatives, integrals, evaluation
+  bars and limits of a vector are its components', `\mathbf{r}'(t)` and
+  `\mathbf{x}_u` among them, and `\mathbf{v}(\mathbf{r}(t))` is a field at a point.
+  `\hat{\mathbf{x}}`, `\hat{\imath}` and `\mathbf{i}`, `\mathbf{j}`, `\mathbf{k}`, which
+  nothing defines, are Cartesian unit vectors, `\hat{x}` too where no operator is near,
+  and `\hat{\mathbf{r}}` and `\mathbf{e}_r` are those of the coordinates in force.
+  `\nabla f`, `\nabla \cdot \mathbf{v}`, `\nabla \times \mathbf{v}`, `\nabla^2 f` and
+  `\Delta f` are computed from the metric of the coordinates in force, whose scale
+  factors a line element gives, or the Cartesian coordinates the program writes in them,
+  or their names; without coordinates, in x, y and z. `(\mathbf{u} \cdot \nabla)` acts on
+  what follows it. Of a function at a point, `\nabla f(\mathbf{a})` is its gradient and
+  `\nabla^2 f(\mathbf{a})` its Hessian, said in a note. An equation between vectors is
+  decided component by component, each as a scalar equation is, and so is one between
+  tensors, by \(\cosh^2 - \sinh^2 = 1\) too. Integrals over a disk or a ball about the
+  origin, `\iint_{x^2 + y^2 \le 1} f\,dA`, and over a box, `\iiint_{[0, 1]^3} f\,dV`, are
+  computed. These replace the refusals of the cross product of unit vectors, of the
+  derivative of a list and of the absolute value of one.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

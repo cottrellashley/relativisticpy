@@ -185,7 +185,11 @@ class TestScalarEquations:
             "nothing defines x, y and φ₁(x, x², x³): φ₁(x, x², x³) and (y, y²) are related, "
             "not shown equal"
         )
-        assert judged("(1, 2) = (1, 3)") == (Verdict.DIFFERS, "the two sides are not equal")
+        # vectors, decided component by component
+        assert judged("(1, 2) = (1, 3)") == (
+            Verdict.DIFFERS,
+            "differs in 1 of 2 components: at 1, 2 ≠ 3",
+        )
 
     def test_quantities_the_metric_is_written_with_are_known(self):
         # Carroll's Kretschmann scalar (7.30) and the sphere's curvature are mistakes

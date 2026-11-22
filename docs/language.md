@@ -923,6 +923,81 @@ taken.
 Sakurai writes it, and the physics and braket packages' `\ket`, `\bra`, `\braket`,
 `\ketbra`, `\expval` and `\mel` read as what they print.
 
+## Vectors
+
+A list, a tuple or a column of numbers is a vector, and is read as one by what it meets:
+`\cdot` between vectors is their dot product and `\times` their cross product, while
+between numbers both multiply; `|\mathbf{v}|` and `\|\mathbf{v}\|` are its length, and
+`\mathbf{p}^2` is \(\mathbf{p} \cdot \mathbf{p}\). Derivatives, integrals, evaluation
+bars and limits of a vector are taken component by component. Where nothing defines
+them, `\hat{\mathbf{x}}`, `\hat{\imath}` and `\mathbf{i}`, `\mathbf{j}`, `\mathbf{k}` are
+the unit vectors of Cartesian coordinates, and so is `\hat{x}`, unless an operator is
+near, as `\hat{p}` is; `\hat{\mathbf{r}}` and `\mathbf{e}_\theta` are those of the
+coordinates in force. A typeface does not make a name of its own yet: `\mathbf{r}` is
+`r` (decision 9 of the [notation decisions](notation.md)).
+
+`\nabla` with no index is vector calculus's: `\nabla f`, `\nabla \cdot \mathbf{v}`,
+`\nabla \times \mathbf{v}` and `\nabla^2 f`, or `\Delta f`, act on the factor after them,
+and `(\mathbf{u} \cdot \nabla)` on what follows it. An equation between vectors is
+decided component by component, and `\mathbf{0}` is the zero vector.
+
+```python
+>>> vc = Workbook()
+>>> vc.exe(r"""
+...     \mathbf{v} := xy\,\hat{\mathbf{x}} + 2yz\,\hat{\mathbf{y}} + 3zx\,\hat{\mathbf{z}}
+...     \mathbf{v} \cdot \hat{\mathbf{y}}
+...     \nabla \cdot \mathbf{v}
+...     \nabla \times \mathbf{v}
+...     \nabla \times (\nabla f(x, y, z)) = \mathbf{0}
+...     \mathbf{r}(t) := (\cos t, \sin t, t)
+...     |\mathbf{r}'(t)|
+...     \int_0^{2\pi} \mathbf{r}(t) \, dt
+... """)
+[2*y*z, 3*x + y + 2*z, [-2*y, -3*z, -x], equation: holds in all 3 components, sqrt(2), [0, 0, 2*pi**2]]
+
+```
+
+The operators are those of the coordinates in force, computed from their metric as index
+notation gives them, with each vector's components along their unit vectors: the
+gradient is \(g^{ij}\partial_j f\) and the divergence
+\(\frac{1}{\sqrt{g}}\partial_i(\sqrt{g}\, v^i)\). The scale factors come from a line
+element, from the Cartesian coordinates the program writes in the coordinates it
+declares, as `x := r \sin\theta \cos\phi`, or, for coordinates it only declares, from
+their names: spherical, cylindrical or polar, as a note says. Without coordinates, they
+are x, y and z, or the variables of the function, as of `f(x, y)`.
+
+```python
+>>> cylinder = Workbook()
+>>> cylinder.exe(r"""
+...     ds^2 = d\rho^2 + \rho^2\, d\varphi^2 + dz^2
+...     \mathbf{u} := \omega \rho\, \hat{\boldsymbol{\varphi}}
+...     \nabla \times \mathbf{u}
+...     \nabla^2 \rho^2
+... """)
+[[0, 0, 2*omega], 4]
+
+```
+
+Of a function the program defines, written at a point rather than at its variables,
+`\nabla f(\mathbf{a})` is its gradient there, a column, and `\nabla^2 f(\mathbf{a})` its
+Hessian, as optimisation books write them, said in a note; `\Delta f` is always the
+Laplacian. Integrals over a disk or a ball about the origin, written
+`\iint_{x^2 + y^2 \le 1}`, and over a box, `\iiint_{[0, 1]^3}`, are taken in turn; any
+other region is refused.
+
+```python
+>>> newton = Workbook()
+>>> newton.exe(r"""
+...     f(x, y) := x^2 + x y + y^2 - 3x
+...     \nabla^2 f(0, 0)
+...     \begin{pmatrix} 0 \\ 0 \end{pmatrix} - \left[\nabla^2 f(0, 0)\right]^{-1} \nabla f(0, 0)
+...     \Delta f
+...     \iint_{x^2 + y^2 \le 1} e^{-(x^2 + y^2)} \, dA
+... """)
+[[[2, 1], [1, 2]], [[2], [-1]], 4, -pi*exp(-1) + pi]
+
+```
+
 ## Coming from Python
 
 The language looks like Python in places, `:=`, `**` and calls such as

@@ -150,7 +150,7 @@ class TestTranslation:
                 r"\begin{pmatrix}1&2\\2&4\end{pmatrix}^{-1}",
                 "this matrix has no inverse: its determinant is zero",
             ),
-            ("|[1, 2]|", "the absolute value of a list is not defined"),
+            ("|[[1, 2], [3, 4]]|", "the absolute value of a list is not defined"),
             (r"solve(\sin(x) = x^3 + e^x, x)", "SymPy cannot solve this equation in closed form"),
             ("x := 3\ndiff(sin(x), x)", "cannot differentiate with respect to a number"),
         ],

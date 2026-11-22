@@ -90,6 +90,14 @@ With a metric in force, these names mean the tensors of its geometry, by name an
 | `subs` | `subs(E, rule)`: a definition, a contraction, or a value such as `\Lambda = 0` |
 | `trace` | contracts its two free indices with the metric |
 
+## Vectors
+
+- A list, a tuple or a column of numbers is a vector, as `\mathbf{v} := (1, 2, 3)`. Between vectors `\cdot` is the dot product and `\times` the cross product; between numbers both multiply. `|\mathbf{v}|` is its length, and `\mathbf{p}^2` is `\mathbf{p} \cdot \mathbf{p}`.
+- A vector's derivatives, integrals, evaluation bars and limits are each component's; `\mathbf{v}(\mathbf{r}(t))` is a field at a point.
+- `\hat{\mathbf{x}}`, `\hat{x}`, `\hat{\imath}` and `\mathbf{i}`, `\mathbf{j}`, `\mathbf{k}`, which nothing defines, are Cartesian unit vectors; `\hat{\mathbf{r}}` and `\mathbf{e}_r` are those of the coordinates in force.
+- `\nabla f`, `\nabla \cdot \mathbf{v}`, `\nabla \times \mathbf{v}`, `\nabla^2 f` and `\Delta f` are of the coordinates in force, whose scale factors a line element gives, or the Cartesian coordinates written in them, or their names; without coordinates they are of x, y and z. `(\mathbf{u} \cdot \nabla)` acts on what follows it. Of a function at a point, `\nabla f(\mathbf{a})` is its gradient there and `\nabla^2 f(\mathbf{a})` its Hessian.
+- An equation between vectors holds component by component; `\mathbf{0}` is the zero vector. `\iint_{x^2 + y^2 \le 1} f\,dA` is over the disk, and `\iiint_{[0, 1]^3} f\,dV` over the cube.
+
 ## Spacetimes
 
 Each is a function that gives a metric, as in `g_{\mu\nu} := Schwarzschild(M)`. Parameters are names or numbers, and units are geometric, G = c = 1, unless `G` and `c` follow the spacetime's own parameters.
@@ -436,10 +444,10 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 |---|---|
 | `\alpha \beta \chi \Delta \delta \epsilon \eta \Gamma \gamma \iota \kappa \Lambda \lambda \mu \nu \Omega \omega \omicron \Phi \phi \Pi \pi \Psi \psi \rho \Sigma \sigma \tau \Theta \theta \Upsilon \upsilon \Xi \xi \zeta` | Greek letters, each one symbol |
 | `\varDelta \varepsilon \varGamma \varkappa \varLambda \varOmega \varPhi \varphi \varPi \varPsi \varrho \varSigma \varsigma \varTheta \vartheta \varUpsilon \varXi` | variant letterforms: each the letter after `var` |
-| `\dagger \ell \hbar \infty \intercal \odot \oplus \star \top \varpi` | symbols; `\odot` is the Sun, as in `M_\odot`, and between tensors the elementwise product; `\oplus` between matrices is their direct sum, and `A^\top`, `A^\intercal` and `A^\dagger` of a matrix its transpose and its conjugate transpose |
+| `\dagger \ell \hbar \imath \infty \intercal \jmath \odot \oplus \star \top \varpi` | symbols; `\odot` is the Sun, as in `M_\odot`, and between tensors the elementwise product; `\oplus` between matrices is their direct sum, `A^\top`, `A^\intercal` and `A^\dagger` of a matrix its transpose and its conjugate transpose, and `\imath` and `\jmath` are i and j, under a hat unit vectors |
 | `\arccos \arccot \arcsin \arctan \arg \cos \cosh \cot \coth \csc \csch \det \dim \exp \gcd \Im \ker \ln \log \max \min \Pr \Re \sec \sech \sgn \sin \sinh \tan \tanh` | functions, each calling the builtin of its name, except that `\arccos` calls `acos`, `\arccot` calls `acot`, `\arcsin` calls `asin`, `\arctan` calls `atan`, `\Im` calls `im`, `\ker` calls `null`, `\Re` calls `re`, `\sgn` calls `sign`; `\sin^{-1}` is the inverse, and only `\log` takes a subscript, its base; `\Pr` is a probability |
-| `\bar \breve \check \ddot \dot \hat \overline \tilde \vec \widehat \widetilde` | accents: `\dot{a}` and `\ddot{a}` are time derivatives of a function of one variable; the others name a new symbol |
-| `\ast \cdot \otimes \times` | multiplication, `*`; between tensors, their product, and `\otimes` between matrices their Kronecker product |
+| `\bar \breve \check \ddot \dot \hat \overline \tilde \vec \widehat \widetilde` | accents: `\dot{a}` and `\ddot{a}` are time derivatives of a function of one variable, `\hat{x}` on a coordinate a unit vector (see Vectors); the others name a new symbol |
+| `\ast \cdot \otimes \times` | multiplication, `*`; between tensors, their product, `\otimes` between matrices their Kronecker product, and `\cdot` and `\times` between vectors their dot and cross products |
 | `\div` | division, `/` |
 | `\lt \gt \le \leq \leqslant \ge \geq \geqslant \ne \neq` | comparisons, in this order: `<`, `>`, `<=` (three spellings), `>=` (three), `!=` (two) |
 | `\longrightarrow \mapsto \rightarrow \to` | an arrow, as in `\lim_{x \to 0}` |
@@ -469,8 +477,8 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\iiint \iint \int \oint` | integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx` |
 | `\lim` | a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}` |
 | `\inf \sup \underset` | the supremum and the infimum over a variable, `\sup_{0 \le x < 1} x^n`, as `\max_x` and `\arg\min_w` are optima; `\underset{x}{\min}` sets the variable beneath |
-| `\nabla \partial` | the partial and the covariant derivative, `\partial_\mu` and `\nabla_\mu`; `\partial_t^2` is the second derivative |
-| `\Box \square` | the d'Alembertian, `\nabla^\mu \nabla_\mu`, as is `\nabla^2` |
+| `\nabla \partial` | the partial and the covariant derivative, `\partial_\mu` and `\nabla_\mu`; `\partial_t^2` is the second derivative, and `\nabla` alone vector calculus's |
+| `\Box \square` | the d'Alembertian, `\nabla^\mu \nabla_\mu`, as is `\nabla^2` with a metric in force; without one, `\nabla^2` is the Laplacian |
 | `\pounds` | the Lie derivative, `\pounds_V T_{ab}` |
 | `\dv \pdv` | the physics package's derivatives: `\pdv{f}{x}`, `\pdv[2]{f}{x}`, `\dv{f}{x}` |
 | `\bra \braket \expval \ket \ketbra \mel` | Dirac's notation as the physics and braket packages write it: `\ket{\psi}`, `\bra{\phi}`, `\braket{\phi}{\psi}`, `\ketbra{a}{b}`, `\expval{A}` and `\mel{\phi}{A}{\psi}` |
