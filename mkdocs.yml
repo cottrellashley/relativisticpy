@@ -53,8 +53,12 @@ markdown_extensions:
   - pymdownx.arithmatex:
       generic: true
   - pymdownx.details
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      pygments_lang_class: true
   - pymdownx.superfences
+
+hooks:
+  - tools/code_copy.py
 
 extra_javascript:
   - javascripts/mathjax.js
