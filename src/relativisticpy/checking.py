@@ -58,7 +58,7 @@ from relativisticpy.language import Source, Span, parse
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS
 from relativisticpy.runtime.kernels import differs
-from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.equation import TensorEquation, UndecidedError
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import tidy
 
@@ -601,7 +601,7 @@ def _finding(step: Step, session: Workbook, state: _State) -> Finding:
         at = error.span if error.span is not None and error.span != step.span else None
         if at is not None and at.source is not step.span.source:
             at = None
-        if isinstance(error, NotComputedError):
+        if isinstance(error, NotComputedError | UndecidedError):  # a claim not decided
             _declare(step.statement, state)
             return Finding(
                 Verdict.NOT_COMPUTED,

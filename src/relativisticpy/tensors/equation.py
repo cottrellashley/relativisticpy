@@ -31,6 +31,7 @@ from typing import Any
 
 import sympy
 from sympy import Eq, Symbol
+from sympy.core.function import AppliedUndef
 
 from relativisticpy.errors import RelativisticPyError
 from relativisticpy.tensors import arrays, numerical
@@ -40,8 +41,9 @@ from relativisticpy.tensors.spaces import Space
 
 
 class UndecidedError(RelativisticPyError, TypeError):
-    """An equation was asked for a truth value it does not have: SymPy could not show its
-    sides equal, nor numbers show that they differ. ``holds()`` says ``None``."""
+    """An equation was asked for a truth value it does not have, or a program claims one
+    that is not decided: SymPy could not show its sides equal, nor numbers show that they
+    differ. ``holds()`` says ``None``."""
 
 
 @dataclass
@@ -472,6 +474,8 @@ def _relation(relation: Any) -> bool | None:
             equal = _numbers_equal(lhs, rhs)
         elif _shown_equal(lhs, rhs):
             equal = True
+        elif _asymptotic(relation):  # e^x \sin x = x + ... + O(x^5): no number decides it
+            equal = None
         else:
             shown = _differs(lhs, rhs)
             equal = False if shown else None
@@ -482,6 +486,14 @@ def _relation(relation: Any) -> bool | None:
     if decided is sympy.true or decided is sympy.false:
         return decided is sympy.true
     return None
+
+
+def _asymptotic(relation: Any) -> bool:
+    """Whether a relation has an order term, SymPy's or Landau's O written as a function,
+    as ``O(x^5)``: it says how a remainder grows, which no value at a point decides."""
+    if relation.has(sympy.Order):
+        return True
+    return any(f.func.__name__ == "O" for f in relation.atoms(AppliedUndef))
 
 
 def _numbers_equal(lhs: Any, rhs: Any) -> bool | None:

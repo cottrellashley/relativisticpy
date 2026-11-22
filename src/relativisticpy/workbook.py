@@ -13,6 +13,7 @@ from typing import Any, Literal, TypeVar
 
 import sympy
 from sympy import Symbol
+from sympy.core.relational import Relational
 
 from relativisticpy import checking, display
 from relativisticpy.compiler import Compiler, Session
@@ -51,8 +52,9 @@ from relativisticpy.language.tokens import Token
 from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS
 from relativisticpy.reading.readings import Explanation
 from relativisticpy.runtime import Executor
+from relativisticpy.runtime.kernels import differs
 from relativisticpy.tensors import Index, Indices, Space, Tensor, arrays, numerical
-from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.equation import TensorEquation, UndecidedError, _asymptotic, holds
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import is_zero, tidy
 from relativisticpy.typing.typer import _public
@@ -920,6 +922,8 @@ class Workbook:
         value = self._executor.evaluate(output.node)
         if value is NotImplemented:  # an operation SymPy declined, as [1, 2] < [3, 4]
             raise EvaluationError("this is not defined for these values", span=output.span)
+        if (undecided := _undecided(output, value)) is not None:
+            raise undecided
         kind = output.node.type
         coordinates: Sequence[Symbol] = self._session.coordinates or ()
         try:
@@ -1470,6 +1474,59 @@ def _listed(names: Sequence[str]) -> str:
 def _is_range(axis: Any) -> bool:
     """Whether a pandas axis is the default numbering, 0, 1, 2, ..., not names."""
     return type(axis).__name__ == "RangeIndex" and axis.start == 0 and axis.step == 1
+
+
+#: The relations a statement claims, as ``e^x \geq 1 + x``, besides equations.
+_RELATIONS = frozenset({"core.lt", "core.gt", "core.le", "core.ge", "core.eq", "core.ne"})
+
+
+def _undecided(output: Output, value: Any) -> UndecidedError | None:
+    r"""The error for a claim whose truth is not decided, as ``holds`` judges it: an equation
+    SymPy could not show to hold, though numbers do not show its sides to differ, or an
+    inequality between expressions SymPy leaves as written. Shown as itself, it would read
+    as an answer (guard 5 of wave 0, curriculum/ROADMAP.md). An equation that numbers show
+    not to hold stays an equation, to solve; and an inequality between rational functions
+    of names, as ``a > 0`` or ``x \geq y + 1``, states a condition, and stays as written."""
+    op = output.node.op
+    claim = isinstance(op, ops.Equation) or (isinstance(op, ops.Call) and op.name in _RELATIONS)
+    if not claim or _a_condition(value):
+        return None
+    try:
+        verdict = holds(value)
+    except TypeError:  # no claim after all, as an equation of lists
+        return None
+    if verdict is not None:
+        return None
+    written = " ".join(output.span.text.split())
+    if isinstance(value, TensorEquation):
+        analysis = value.analysis()
+        why = (
+            f"in {analysis.failing} of {analysis.total} components, SymPy could not show the "
+            "sides equal, nor numbers that they differ"
+        )
+    elif isinstance(value, sympy.Equality) and _asymptotic(value):
+        why = "it has an order term, O(...), which no value at a point decides"
+    elif isinstance(value, sympy.Equality) and differs(value.lhs, value.rhs) is False:
+        why = "the sides agree numerically, but this was not proven"
+    elif isinstance(value, sympy.Equality):
+        why = "the sides could not be computed as numbers"
+    else:
+        why = "SymPy decides an inequality only where it can compare its sides"
+    return UndecidedError(
+        f"whether {written} holds is not decided: {why}",
+        span=output.span,
+        notes=["shown as it is, an undecided claim would read as an answer"],
+        hint="to see what is left, write the difference of its sides alone, as an expression",
+    )
+
+
+def _a_condition(value: Any) -> bool:
+    r"""Whether a value is an inequality between rational functions of names, as ``a > 0``,
+    ``r' < r`` or ``k_B T > h c B``: a condition the program states, as books state the
+    regime they work in, rather than a claim to decide, as ``e^x \geq 1 + x`` is."""
+    if not isinstance(value, Relational) or isinstance(value, sympy.Equality):
+        return False
+    return all(isinstance(side, sympy.Expr) and side.is_rational_function() for side in value.args)
 
 
 def _zero(value: Any) -> bool:

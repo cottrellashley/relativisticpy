@@ -139,6 +139,13 @@ its left side already means:
 To give a name that has a value a new one, or a built-in's name a meaning of your own,
 write `:=`.
 
+A claim is decided, or refused as undecided. An equation SymPy cannot show to hold,
+though numbers do not show its sides to differ, as an identity it cannot prove, and an
+inequality SymPy cannot compare, as `e^x \geq 1 + x`, raise an `UndecidedError` rather
+than show the claim as if it were an answer. An equation that numbers show not to hold,
+as `x^2 + y^2 = 1`, stays an equation, and an inequality between rational functions of
+names, as `a > 0` or `x \geq y + 1`, is a condition, shown as written.
+
 Functions are defined by writing their parameters:
 
 ```python

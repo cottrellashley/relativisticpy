@@ -12,12 +12,13 @@ from pathlib import Path
 import pytest
 import sympy
 
-from relativisticpy import Workbook, checking, display
+from relativisticpy import Workbook, checking, display, holds
 from relativisticpy.checking import STRICT, Verdict, _time_limit, line_range
 from relativisticpy.cli import main
 from relativisticpy.documents import Document
 from relativisticpy.errors import FileError, NotComputedError, UsageError
 from relativisticpy.runtime import executor
+from relativisticpy.tensors.equation import UndecidedError
 
 BENCHMARKS = Path(__file__).parent.parent / "benchmarks"
 DOCS = Path(__file__).parent.parent / "docs"
@@ -220,13 +221,15 @@ class TestScalarEquations:
         # True for positive numbers, but not proven: not a mistake in the text either
         assert judged(equation) == (
             Verdict.NOT_COMPUTED,
-            "the sides agree numerically, but this was not proven",
+            f"whether {equation} holds is not decided: the sides agree numerically, but this "
+            "was not proven",
         )
 
     def test_equations_that_are_not_numbers_are_not_decided(self):
-        assert judged(r"\lim_{x \to \infty} f(x) = 1") == (
+        equation = r"\lim_{x \to \infty} f(x) = 1"
+        assert judged(equation) == (
             Verdict.NOT_COMPUTED,
-            "not decided: the sides could not be computed as numbers",
+            f"whether {equation} holds is not decided: the sides could not be computed as numbers",
         )
 
     def test_values_keep_their_types(self):
@@ -234,7 +237,9 @@ class TestScalarEquations:
         wb = Workbook()
         assert wb.expr("0.1 + 0.2 = 0.3") is sympy.true
         assert wb.expr("0.1 + 0.2 = 0.30001") is sympy.false
-        assert wb.expr(r"\sqrt{x^2} = x") == sympy.Eq(sympy.sqrt(x**2), x)
+        with pytest.raises(UndecidedError):  # true for positive x, which is not proven
+            wb.expr(r"\sqrt{x^2} = x")
+        assert holds(sympy.Eq(sympy.sqrt(x**2), x)) is None
 
     def test_a_false_relation_says_why(self):
         assert judged(r"2 \neq 2") == (Verdict.DIFFERS, "the two sides are equal")

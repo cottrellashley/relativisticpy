@@ -174,8 +174,10 @@ False
 ```
 
 Where an equation is not decided, `bool()` is an `UndecidedError`, a
-`RelativisticPyError` and a `TypeError`, rather than a guess. A value that is no
-claim, such as `48*M**2/r**6`, is a `TypeError` for `holds`.
+`RelativisticPyError` and a `TypeError`, rather than a guess. A program that states
+such a claim gets the same error where the claim is written, rather than the claim
+shown as if it were an answer. A value that is no claim, such as `48*M**2/r**6`, is a
+`TypeError` for `holds`.
 
 ## How results look
 

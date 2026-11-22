@@ -418,5 +418,5 @@ Every error a user can cause is a `RelativisticPyError`. It says what is wrong, 
 | `UnknownNameError` | a name looked up from Python, as in `wb["T"]`, that nothing defines |
 | `UsageError` | a call from Python was given what it cannot take: `wb.exe(123)`, a backend that does not exist, a time limit of no seconds |
 | `FileError` | a file cannot be read: it does not exist, or it is not UTF-8 text |
-| `UndecidedError` | an equation was asked for a truth value it does not have: SymPy could not show its sides equal, nor numbers show that they differ |
+| `UndecidedError` | an equation was asked for a truth value it does not have, or a program claims one that is not decided: SymPy could not show its sides equal, nor numbers show that they differ |
 | `InternalError` | a failure of RelativisticPy's own: never a mistake in the input |
