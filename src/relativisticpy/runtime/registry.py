@@ -175,6 +175,7 @@ def _core() -> Iterator[Implementation]:
     yield entry("core.where_function", core.where_function, "value", 3, 3)
     yield entry("core.line_element", core.line_element, "scalar", 2, 2)
     yield entry("core.components", core.components, "value", 1, 1)
+    yield entry("core.metric_diagnosis", core.metric_diagnosis, "value", 1, 1)
     yield entry("core.geodesic_equations", geodesic_equations, "value", 3, 3)
     # values for Python
     yield entry("core.tensor", core.tensor, "value", 1, 1)

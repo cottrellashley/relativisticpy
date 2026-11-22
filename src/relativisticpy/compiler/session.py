@@ -10,11 +10,10 @@ import sympy
 from sympy import Symbol
 
 from relativisticpy.abstract import Algebra
-from relativisticpy.compiler.scope import Scope
+from relativisticpy.compiler.scope import Binding, Scope
 from relativisticpy.errors import CompileError
 from relativisticpy.ir import SCALAR, Graph, Node, TensorType, ops
 from relativisticpy.language.source import Span
-from relativisticpy.runtime import Executor
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space, spacetime
 
@@ -72,11 +71,27 @@ class MetricState:
     names: frozenset[str]
 
 
+@dataclass(frozen=True)
+class Saved:
+    """What a statement may change in a session, as it was before the statement, so that
+    the statement can be undone where a check of what it defines fails: the names bound,
+    the coordinates and the metric, the functions of the coordinates, and the names
+    written as factors."""
+
+    bindings: dict[str, Binding]
+    coordinates: tuple[Symbol, ...] | None
+    coordinates_inferred: bool
+    metric: MetricState | None
+    functions: dict[str, tuple[Symbol, ...]]
+    dropped: Span | None
+    factors: frozenset[str]
+
+
 @dataclass
 class Session:
-    """Everything the compiler remembers from one statement to the next."""
+    """Everything the compiler remembers from one statement to the next. It computes
+    nothing: values are computed by an executor, from the graph, as a program runs."""
 
-    executor: Executor = field(default_factory=Executor)
     graph: Graph = field(default_factory=Graph)
     globals: Scope = field(default_factory=Scope)
     coordinates: tuple[Symbol, ...] | None = None
@@ -117,8 +132,8 @@ class Session:
 
     def fork(self) -> Session:
         """A session in the same state whose changes leave this one as it is: to compile a
-        program in order to look at it, without running it. It shares the graph and the
-        executor, which only ever gain nodes and values."""
+        program in order to look at it, without running it. It shares the graph, which only
+        ever gains nodes."""
         return replace(
             self,
             globals=self.globals.copy(),
@@ -132,6 +147,30 @@ class Session:
             measures=dict(self.measures),
             _algebra=None,
         )
+
+    def save(self) -> Saved:
+        """What a statement may change, as it is now, to put back with :meth:`restore`."""
+        return Saved(
+            self.globals.saved(),
+            self.coordinates,
+            self.coordinates_inferred,
+            self.metric,
+            dict(self.functions),
+            self.dropped,
+            frozenset(self.factors),
+        )
+
+    def restore(self, saved: Saved) -> None:
+        """Undo a statement: put back what :meth:`save` gave before it."""
+        self.globals.restore(saved.bindings)
+        self.coordinates = saved.coordinates
+        self.coordinates_inferred = saved.coordinates_inferred
+        self.metric = saved.metric
+        self.functions.clear()
+        self.functions.update(saved.functions)
+        self.dropped = saved.dropped
+        self.factors.clear()
+        self.factors.update(saved.factors)
 
     def spacetime(self, span: Span, why: str = "index notation") -> Space:
         """The space of the coordinates in force."""
@@ -232,10 +271,6 @@ class Session:
             return build(name, *(node(dependency) for dependency in dependencies))
 
         return node(quantity)
-
-    def evaluate(self, node: Node) -> Any:
-        """Compute a value now, while compiling (used for spacetimes and constants)."""
-        return self.executor.evaluate(node)
 
 
 def describe(quantity: str) -> str:

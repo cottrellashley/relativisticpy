@@ -39,10 +39,10 @@ You can watch the pipeline at work:
 %4 = call diag(%0, %3)                                   Value
 %5 = to-array (2, 2)(%4)                                 Value
 %6 = metric(%5)                                          Tensor_{ab}
-%7 = inverse(%6)                                         Tensor^{ab}
-%10 = christoffel(%6, %7)                                Tensor^{#v0}_{#v1 #v2}
-%11 = select 0=0, 1=1, 2=1(%10)                          Scalar
-out %11
+%8 = inverse(%6)                                         Tensor^{ab}
+%11 = christoffel(%6, %8)                                Tensor^{#v0}_{#v1 #v2}
+%12 = select 0=0, 1=1, 2=1(%11)                          Scalar
+out %12
 
 ```
 
@@ -93,6 +93,14 @@ milliseconds rather than a Riemann tensor. Every value has a static type,
 checked on these types: free indices of a sum must agree, an index may appear
 at most twice, a summed index once up and once down.
 
+The compiler computes nothing, apart from the algebra of tensor notation below. What
+it needs to know comes from what is written or from a declaration: a spacetime declares the coordinates its metric is in, a space
+written `\mathbb{R}^{3}` its dimension, and a number of eigenvalues is written as one.
+A definition that needs something of the value it makes, as a metric must be one, makes
+a *check*: a node of the IR that the workbook computes as it runs the statement, before
+the next is compiled. A metric that is degenerate, of the wrong size or not symmetric
+is so refused where it is defined, saying why, and the definition is undone.
+
 Tensor notation is lowered to a small core of operations. Raising or lowering
 an index is a contraction with the metric; a covariant derivative is a partial
 derivative plus one contraction with the Christoffel symbols per index; a trace
@@ -108,7 +116,9 @@ Butler–Portugal algorithm, with the identities of General Relativity added.
 Where notation meets components, as when a tensor is defined from it with a
 metric in force, each of its terms is written back in the language, its scalar
 coefficient bound to a fresh name, and compiled like any other tensor
-expression.
+expression. This algebra is done while compiling, for now, and so is each scalar
+factor of notation, as \(8\pi G\): it is folded from the constants it is written
+with, without the executor, and a factor computed from tensors is refused.
 
 Every index ranges over a space, and a tensor's type records the space of each
 axis: spacetime in General Relativity, or assets, days, a qubit (see
@@ -153,10 +163,12 @@ indices is therefore free.
 
 ## The executor
 
-The executor computes a node by first computing whatever it depends on, and
-remembers every value by computation key. Nothing is computed that no output
-needs, and nothing is computed twice: asking for the Ricci tensor and then the
-Einstein tensor computes the Ricci tensor once.
+The workbook runs a program a statement at a time: it compiles the statement, has
+the executor compute its checks, and then the values it shows. The executor computes a
+node by first computing whatever it depends on, and remembers every value by
+computation key. Nothing is computed that no output or check needs, and nothing is
+computed twice: asking for the Ricci tensor and then the Einstein tensor computes the
+Ricci tensor once.
 
 Component-wise work, such as simplifying every component of a tensor or the
 curvature kernels' simplification passes, goes through the executor's `map`.

@@ -124,3 +124,40 @@ class TestTheScalarsOfNotation:
         with pytest.raises(CompileError, match="computed from tensors") as raised:
             wb.expr(r"G_{\mu\nu} = Ric\, T_{\mu\nu}")
         assert raised.value.span.text == "Ric"
+
+
+class TestTheChecksOfADefinition:
+    """A metric is computed as its definition runs, so that one that is no metric is
+    refused where it is defined, and the definition undone; compiling computes nothing."""
+
+    def test_a_definition_makes_a_check_and_computes_nothing(self, wb):
+        from relativisticpy.compiler import Compiler, Session
+        from relativisticpy.language import Source, parse
+
+        compiler = Compiler(Session())
+        program = parse(Source("Coordinates := [x, y]\ng_{ab} := diag(0, 1)"))
+        assert compiler.compile(program) == []  # not refused: nothing is computed
+        (check,) = compiler.take_checks()
+        assert check.node.op.label() == "metric"
+        assert check.span.text == "g_{ab} := diag(0, 1)"
+        assert compiler.take_checks() == []
+
+    def test_a_degenerate_metric_is_refused_where_it_is_defined(self, wb):
+        wb.exe("Coordinates := [x, y]\ng_{ab} := diag(1, x^2)")
+        with pytest.raises(EvaluationError, match="degenerate") as raised:
+            wb.exe("g_{ab} := diag(0, 1)\nR")
+        assert raised.value.span.text == "g_{ab} := diag(0, 1)"
+        assert raised.value.notes == ["no term of it has dx"]
+        assert wb.expr("g_{yy}") == sympy.Symbol("x") ** 2  # the metric before it
+
+    def test_a_definition_whose_check_fails_is_undone(self, wb):
+        wb.exe(r"ds^2 = -\Delta dt^2 + dr^2 + r^2 d\Omega^2")
+        steps = list(wb.each(r"\Delta = 0"))
+        assert "degenerate" in steps[0].error.message
+        assert wb.expr(r"\Delta") == sympy.Symbol("Delta")
+        assert wb._compiler.take_notes() == []  # nor said to have been bound in the metric
+
+    def test_the_ir_of_a_metric_that_is_none_is_shown(self, wb):
+        listing = wb.ir("Coordinates := [x, y]\ng_{ab} := diag(0, 1)\ng_{xx}")
+        assert "metric(" in listing
+        assert wb.coordinates is None  # nothing was defined

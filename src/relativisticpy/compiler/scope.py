@@ -61,6 +61,14 @@ class Scope:
         were first bound."""
         return list(self._bindings.items())
 
+    def saved(self) -> dict[str, Binding]:
+        """The bindings at this level, to put back with :meth:`restore`."""
+        return dict(self._bindings)
+
+    def restore(self, saved: dict[str, Binding]) -> None:
+        """Bind at this level what :meth:`saved` gave, and nothing else."""
+        self._bindings = dict(saved)
+
     def child(self) -> Scope:
         return Scope(self)
 
@@ -91,6 +99,24 @@ class Output:
     span: Span
     name: str | None = None
     note: str | None = None
+
+
+@dataclass(frozen=True)
+class Check:
+    """What a definition needs of a value it makes, as a metric must be one, computed as
+    the statement runs rather than while it is compiled, so that it fails where the
+    definition is written: ``node``, which must be computed. Where it cannot be,
+    ``diagnosis``, if there is one, gives the error that says why in the terms of what
+    was written, or ``None``, leaving the error of ``node``. To an evaluation error,
+    ``context`` adds notes and ``hint`` a hint; ``notes`` say how the statement was read,
+    up to the definition."""
+
+    node: Node
+    span: Span | None
+    diagnosis: Node | None = None
+    notes: tuple[str, ...] = ()
+    context: tuple[str, ...] = ()
+    hint: str | None = None
 
 
 # -- operators: compile-time values that act on the factor after them ------------

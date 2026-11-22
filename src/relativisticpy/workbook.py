@@ -18,6 +18,7 @@ from relativisticpy import checking, display
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.compiler.compiler import _public
 from relativisticpy.compiler.scope import (
+    Check,
     Context,
     FunctionBinding,
     Output,
@@ -56,6 +57,7 @@ from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import is_zero, tidy
 
 _F = TypeVar("_F", bound=Callable[..., Any])
+_T = TypeVar("_T")
 
 
 def _from_python(method: _F) -> _F:
@@ -145,7 +147,7 @@ class Workbook:
         self._backend = backend
         self._workers = workers
         self._executor = Executor(workers)
-        self._session = Session(executor=self._executor)
+        self._session = Session()
         self._compiler = Compiler(self._session)
         self._metric: tuple[Any, Metric] | None = None  # the metric in force, by its node
 
@@ -157,7 +159,7 @@ class Workbook:
         definition gives none, an expression one, and a chain of relations,
         ``a = b = c``, one for each link. An error stops the program and is raised;
         what came before it is kept. :meth:`run` is the same method."""
-        outputs = self._compiler.compile(self._parse(source, name, "exe"))
+        outputs = self._statements(self._parse(source, name, "exe"))
         return [self._present(output) for output in outputs]
 
     run = exe
@@ -198,7 +200,8 @@ class Workbook:
                 yield Step(span, ast.Statement(span=span), error=piece)
                 continue
             try:
-                outputs = self._compiler.statement(piece, self._session.globals)
+                compile = functools.partial(self._compiler.statement, piece, self._session.globals)
+                outputs = self._run(compile)
                 values = [self._present(output) for output in outputs]
             except Exception as error:  # an error of the input's, or a failure of ours
                 failure = _typed(translate(error, span=piece.span))
@@ -216,7 +219,9 @@ class Workbook:
         scope = self._session.globals
         try:
             lhs, rhs = (
-                self._executor.evaluate(self._compiler.value(side, scope, ctx))
+                self._executor.evaluate(
+                    self._run(functools.partial(self._compiler.value, side, scope, ctx))
+                )
                 for side in (statement.expr.lhs, statement.expr.rhs)
             )
         except Exception:  # the sides only say how an equation differs: without them, it does
@@ -479,7 +484,8 @@ class Workbook:
             tuple(ast.Name(p, span=_nowhere()) for p in definition.params),
             span=_nowhere(),
         )
-        value = self._executor.evaluate(compiler.value(call, scope, Context()))
+        compile = functools.partial(compiler.value, call, scope, Context())
+        value = self._executor.evaluate(self._run(compile, compiler))
         return sympy.Lambda(tuple(parameters), value)
 
     @_from_python
@@ -582,7 +588,10 @@ class Workbook:
                 if len(statements) != 1 or not isinstance(statements[0], ast.Evaluate):
                     raise DataError("give one expression", span=Span(source, 0, len(value)))
                 ctx = Context(latex=statements[0].latex)
-                return self._compiler.value(statements[0].expr, session.globals, ctx)
+                expr = statements[0].expr
+                return self._run(
+                    functools.partial(self._compiler.value, expr, session.globals, ctx)
+                )
             except RelativisticPyError as error:
                 raise DataError(
                     f"the text bound to {written} is not an expression: {error.message}",
@@ -624,7 +633,7 @@ class Workbook:
             import jax.numpy as jnp
         except ImportError as error:  # pragma: no cover - depends on the environment
             raise ImportError('gradients need JAX: pip install "relativisticpy[jax]"') from error
-        outputs = self._compiler.compile(self._parse(expression, "<gradient>", "grad"))
+        outputs = self._statements(self._parse(expression, "<gradient>", "grad"))
         if not outputs or isinstance(outputs[-1].node.type, TensorType | EquationType):
             raise UsageError("a gradient is of a scalar expression, such as w^a S_{ab} w^b")
         node = outputs[-1].node
@@ -739,7 +748,7 @@ class Workbook:
         """Forget every definition."""
         self._executor.close()
         self._executor = Executor(self._workers)
-        self._session = Session(executor=self._executor)
+        self._session = Session()
         self._compiler = Compiler(self._session)
         self._metric = None
 
@@ -770,6 +779,63 @@ class Workbook:
             raise UsageError(f"the name of a program is a str, not {_kind(name)}")
         text = source if isinstance(source, Source) else Source(source, name)
         return parse(text, recover=recover)
+
+    def _statements(self, program: Program) -> list[Output]:
+        """Compile a program a statement at a time, running each statement's checks before
+        the next is compiled: what it shows, in order."""
+        outputs: list[Output] = []
+        for statement in program.statements:
+            compile = functools.partial(self._compiler.statement, statement, self._session.globals)
+            outputs.extend(self._run(compile))
+        return outputs
+
+    def _run(self, compile: Callable[[], _T], compiler: Compiler | None = None) -> _T:
+        """Compile, with ``compile``, then compute what the definitions compiled need of the
+        values they make, as their checks say (see :class:`~relativisticpy.compiler.scope.Check`):
+        so a metric that cannot be one is refused where it is defined, and what the
+        statement defined is undone, as if it had not compiled. Compiling computes nothing;
+        this is where the statement runs."""
+        compiler = compiler or self._compiler
+        saved = compiler.save()
+        try:
+            compiled = compile()
+        finally:
+            checks = compiler.take_checks()
+        try:
+            for check in checks:
+                self._verify(check)
+        except BaseException:  # over a time limit too: what it defined is undone
+            compiler.restore(saved)
+            raise
+        return compiled
+
+    def _verify(self, check: Check) -> None:
+        """Compute what a check needs. Where it cannot be computed, the error is its
+        diagnosis's, if that says why, at the definition, or else the computation's own;
+        with how the statement was read."""
+        try:
+            self._executor.evaluate(check.node)
+        except RelativisticPyError as error:
+            failure = self._diagnosed(check) or error
+            if isinstance(failure, EvaluationError):
+                failure.notes.extend(check.context)
+                if check.hint is not None:
+                    failure.hint = check.hint
+            failure.notes.extend(note for note in check.notes if note not in failure.notes)
+            raise failure from None
+
+    def _diagnosed(self, check: Check) -> RelativisticPyError | None:
+        """The error a check's diagnosis gives, where the definition is written; ``None``
+        where it gives none, or where what it is computed from cannot be computed either."""
+        if check.diagnosis is None:
+            return None
+        try:
+            found = self._executor.evaluate(check.diagnosis)
+        except Exception:  # the components cannot be computed: their own error says why
+            return None
+        if not isinstance(found, RelativisticPyError):
+            return None
+        return type(found)(found.message, span=check.span, hint=found.hint, notes=found.notes)
 
     def _present(self, output: Output) -> Any:
         """The value of an output as it is shown. What cannot be shown is a

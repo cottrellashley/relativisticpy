@@ -43,10 +43,11 @@ from sympy import Symbol
 from sympy.core.function import AppliedUndef
 from sympy.tensor import tensor as symbolic
 
-from relativisticpy import abstract, display, spacetimes
+from relativisticpy import abstract, spacetimes
 from relativisticpy.abstract import IndexEquation, IndexExpression
 from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES, Builtin
 from relativisticpy.compiler.scope import (
+    Check,
     Context,
     Dalembertian,
     DifferentialMarker,
@@ -66,6 +67,7 @@ from relativisticpy.compiler.session import (
     GEOMETRY_POSITIONS,
     RENAMING_STATEMENTS,
     MetricState,
+    Saved,
     Session,
     describe,
 )
@@ -74,7 +76,6 @@ from relativisticpy.errors import (
     CompileError,
     EvaluationError,
     IndexNotationError,
-    MetricError,
     ParseError,
     RelativisticPyError,
 )
@@ -94,7 +95,7 @@ from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK, UNICODE_LETTERS
 from relativisticpy.runtime.executor import fold
 from relativisticpy.runtime.kernels import refuse_quoted
-from relativisticpy.tensors import Index, Indices, arrays
+from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.spaces import Space, spacetime
 
@@ -162,6 +163,9 @@ class Compiler:
         self._notes: list[str] = []
         self._unshown: list[str] = []
         self._depth = 0
+        # What the definitions compiled need of the values they make, for the workbook to
+        # compute as their statements run.
+        self._checks: list[Check] = []
 
     # ======================================================================
     # Statements
@@ -173,6 +177,24 @@ class Compiler:
         for statement in program.statements:
             outputs.extend(self.statement(statement, self.session.globals))
         return outputs
+
+    def take_checks(self) -> list[Check]:
+        """What the definitions compiled since this was last called need of the values they
+        make, in order (see :class:`~relativisticpy.compiler.scope.Check`), to compute as
+        their statements run; it forgets them."""
+        checks, self._checks = self._checks, []
+        return checks
+
+    def save(self) -> tuple[Saved, int]:
+        """What a statement may change, as it is before it, to put back with
+        :meth:`restore`: the session's state, and the notes no output carries."""
+        return self.session.save(), len(self._unshown)
+
+    def restore(self, saved: tuple[Saved, int]) -> None:
+        """Undo a statement whose check failed, as if it had not compiled."""
+        state, unshown = saved
+        self.session.restore(state)
+        del self._unshown[unshown:]
 
     def take_notes(self) -> list[str]:
         """The notes on how statements were read that no output carries, because the
@@ -859,69 +881,27 @@ class Compiler:
                 notes=[known],
             )
 
-    def _check_metric(self, metric: Node, span: Span | None) -> None:
-        """Compute a metric where it is defined, so that one that cannot be is refused
-        there, with the reason, rather than wherever it is first used: components of the
-        wrong size, components that are not symmetric, or a determinant of zero."""
-        try:
-            self.session.evaluate(metric)
-        except RelativisticPyError as error:
-            raise self._metric_error(metric, span) or error from None
-
-    def _metric_error(self, metric: Node, span: Span | None) -> EvaluationError | None:
-        """Why the metric ``metric`` could not be computed, in the user's terms; ``None``
-        where its components themselves could not be, which their own error says."""
-        coordinates = self.session.coordinates or ()
+    def _check_metric(
+        self,
+        metric: Node,
+        span: Span | None,
+        *,
+        context: tuple[str, ...] = (),
+        hint: str | None = None,
+    ) -> None:
+        """Have a metric computed as its definition runs, so that one that cannot be is
+        refused there, with the reason, rather than wherever it is first used: components of
+        the wrong size, components that are not symmetric, or a determinant of zero. Nothing
+        is computed now: the definition makes a :class:`Check`, which the workbook runs, with
+        ``core.metric_diagnosis`` to say why the components are no metric."""
         given = metric.args[0]
         if isinstance(given.op, ops.ToArray):  # diag(-1, 1, 1), checked for its shape
             given = given.args[0]
-        try:
-            components = arrays.to_array(self.session.evaluate(given))
-        except Exception:
-            return None
-        names = [latex_label(c.name) for c in coordinates]
-        listed = _listed(names)
-        shape = tuple(components.shape)
-        count = len(coordinates)
-        if shape != (count, count):
-            found = "×".join(map(str, shape)) if shape else "no"
-            return EvaluationError(
-                f"the metric has {found} components, but there are {count} coordinates",
-                span=span,
-                notes=[f"the coordinates are {listed}"],
-                hint=f"give {count}×{count} components, a row and a column for each coordinate",
-            )
-        matrix = sympy.Matrix(components.tolist())
-        for i, j in itertools.combinations(range(count), 2):
-            if sympy.simplify(matrix[i, j] - matrix[j, i]) != 0:
-                one, other = names[i], names[j]
-                return EvaluationError(
-                    f"the metric is not symmetric: g_{{{one}{other}}} = "
-                    f"{display.text(matrix[i, j])} but g_{{{other}{one}}} = "
-                    f"{display.text(matrix[j, i])}",
-                    span=span,
-                    hint="a metric has g_{\\mu\\nu} = g_{\\nu\\mu}",
-                )
-        if sympy.simplify(matrix.det()) != 0:
-            return None
-        missing = [
-            names[i]
-            for i in range(count)
-            if all(sympy.simplify(entry) == 0 for entry in matrix.row(i))
-        ]
-        if missing:
-            differentials = _listed([f"d{name}" for name in missing], "or")
-            return MetricError(
-                "the metric is degenerate: its determinant is zero",
-                span=span,
-                notes=[f"no term of it has {differentials}"],
-                hint=f"give it a term with {_listed([f'd{name}' for name in missing])}",
-            )
-        return MetricError(
-            "the metric is degenerate: its determinant is zero",
-            span=span,
-            notes=["so it has no inverse, and no curvature can be computed from it"],
-        )
+        coordinates = self.session.coordinates or ()
+        why = ops.Call("core.metric_diagnosis", (("coordinates", coordinates),))
+        diagnosis = self.graph.add(why, (given,), VALUE, span)
+        check = Check(metric, span, diagnosis, tuple(self._notes), context, hint)
+        self._checks.append(check)
 
     def _define_space_metric(
         self,
@@ -1115,22 +1095,21 @@ class Compiler:
             TensorType(indices, (spacetime(coordinates),) * 2),
             span,
         )
-        try:
-            self._check_metric(metric, span)
-        except EvaluationError as error:
-            if replaceable and named and set(named) < {c.name for c in coordinates}:
-                # the 2-sphere after a line element in three dimensions
-                alone = _listed([latex_label(name) for name in named])
-                in_force = _listed([latex_label(c.name) for c in coordinates])
-                error.notes.append(
-                    f"the coordinates in force are {in_force}, but this line element is "
-                    f"written in {alone} alone"
-                )
-                error.hint = (
-                    f"for a metric in {alone}, declare them first: Coordinates := "
-                    f"[{', '.join(latex_label(name) for name in named)}]"
-                )
-            raise
+        context: tuple[str, ...] = ()
+        hint = None
+        if replaceable and named and set(named) < {c.name for c in coordinates}:
+            # the 2-sphere after a line element in three dimensions, said if it is no metric
+            alone = _listed([latex_label(name) for name in named])
+            in_force = _listed([latex_label(c.name) for c in coordinates])
+            context = (
+                f"the coordinates in force are {in_force}, but this line element is "
+                f"written in {alone} alone",
+            )
+            hint = (
+                f"for a metric in {alone}, declare them first: Coordinates := "
+                f"[{', '.join(latex_label(name) for name in named)}]"
+            )
+        self._check_metric(metric, span, context=context, hint=hint)
         self.session.metric = MetricState(metric, _mentioned(value, latex=ctx.latex))
         self.session.dropped = None
 

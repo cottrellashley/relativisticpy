@@ -1,5 +1,6 @@
 """The IR is closed: every operation that calls a function names it in the registry of
-implementations, and no operation holds a Python function.
+implementations, and no operation holds a Python function. And compiling computes
+nothing: the executor is never asked for a value while a program compiles.
 
 The programs compiled are the docs' doctests, the curriculum's cases and the programs the
 tests run, read from their sources.
@@ -22,7 +23,7 @@ import sympy
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.ir import SCALAR, VALUE, Graph, Node, TensorType, ops
 from relativisticpy.language import Source, parse
-from relativisticpy.runtime import registry
+from relativisticpy.runtime import Executor, registry
 from relativisticpy.tensors import Indices
 
 ROOT = Path(__file__).parent.parent.parent
@@ -128,8 +129,10 @@ SOURCES = {
 
 def compiled(programs: list[str]) -> list[Node]:
     """Every node made compiling ``programs`` in order, in one session, a statement at a
-    time; a statement that cannot be compiled is passed over."""
+    time; a statement that cannot be compiled is passed over. Any executor asked for a
+    value meanwhile fails the test."""
     made: list[Node] = []
+    computed: list[str] = []
     add = Graph.add
 
     def recording(graph: Graph, *args: Any, **kwargs: Any) -> Node:
@@ -137,10 +140,19 @@ def compiled(programs: list[str]) -> list[Node]:
         made.append(node)
         return node
 
+    def computing(name: str) -> Any:
+        def refused(*args: Any, **kwargs: Any) -> Any:
+            computed.append(name)
+            raise AssertionError(f"compiling called Executor.{name}")
+
+        return refused
+
     session = Session()
     compiler = Compiler(session)
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(Graph, "add", recording)
+        for name in ("evaluate", "evaluate_with", "_evaluate", "map", "simplify_map"):
+            patch.setattr(Executor, name, computing(name))
         for program in programs:
             try:
                 statements = parse(Source(program)).statements
@@ -151,6 +163,7 @@ def compiled(programs: list[str]) -> list[Node]:
                     compiler.statement(statement, session.globals)
                 except Exception:  # what does not compile makes no operation worth less
                     continue
+    assert computed == [], f"compiling {programs} computed with the executor"
     return made
 
 
@@ -213,6 +226,11 @@ def test_every_operation_is_named(source):
             for fault in _faults(node):
                 faults.setdefault(fault, where)
     assert faults == {}
+
+
+def test_the_session_has_no_executor():
+    assert not hasattr(Session(), "evaluate")
+    assert not hasattr(Session(), "executor")
 
 
 def test_the_programs_are_many():

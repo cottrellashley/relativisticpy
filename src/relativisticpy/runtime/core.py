@@ -8,6 +8,7 @@ its attributes, by name: module-level, so that a worker process can run it.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Sequence
 from typing import Any
 
@@ -15,10 +16,12 @@ import sympy
 from sympy import Symbol
 from sympy.core.function import AppliedUndef
 
+from relativisticpy import display
 from relativisticpy.diffgeom.metric import differential
-from relativisticpy.errors import EvaluationError
+from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.tensors import Indices, Tensor, arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import is_zero
 
 # Spaces up to this size get SymPy's identity and ones, which stay exact with symbols.
@@ -201,6 +204,62 @@ def components(metric: Any, *, coordinates: tuple[Symbol, ...]) -> Any:
     declared = {coordinate.name: coordinate for coordinate in coordinates}
     own = {c: declared.get(c.name, c) for c in metric.coordinates}
     return metric.components.xreplace(own)
+
+
+def metric_diagnosis(given: Any, *, coordinates: tuple[Symbol, ...]) -> EvaluationError | None:
+    """Why components given for a metric in ``coordinates`` are no metric, in the terms of
+    what was written: of the wrong size, not symmetric, or degenerate, with the
+    differentials no term of it has; ``None`` where none of these is why. The error is the
+    definition's, which places it."""
+    try:
+        components = arrays.to_array(given)
+    except Exception:  # what is no array says so itself
+        return None
+    names = [latex_label(c.name) for c in coordinates]
+    listed = _listed(names)
+    shape = tuple(components.shape)
+    count = len(coordinates)
+    if shape != (count, count):
+        found = "×".join(map(str, shape)) if shape else "no"
+        return EvaluationError(
+            f"the metric has {found} components, but there are {count} coordinates",
+            notes=[f"the coordinates are {listed}"],
+            hint=f"give {count}×{count} components, a row and a column for each coordinate",
+        )
+    matrix = sympy.Matrix(components.tolist())
+    for i, j in itertools.combinations(range(count), 2):
+        if sympy.simplify(matrix[i, j] - matrix[j, i]) != 0:
+            one, other = names[i], names[j]
+            return EvaluationError(
+                f"the metric is not symmetric: g_{{{one}{other}}} = "
+                f"{display.text(matrix[i, j])} but g_{{{other}{one}}} = "
+                f"{display.text(matrix[j, i])}",
+                hint="a metric has g_{\\mu\\nu} = g_{\\nu\\mu}",
+            )
+    if sympy.simplify(matrix.det()) != 0:
+        return None
+    missing = [
+        names[i] for i in range(count) if all(sympy.simplify(entry) == 0 for entry in matrix.row(i))
+    ]
+    if missing:
+        differentials = _listed([f"d{name}" for name in missing], "or")
+        return MetricError(
+            "the metric is degenerate: its determinant is zero",
+            notes=[f"no term of it has {differentials}"],
+            hint=f"give it a term with {_listed([f'd{name}' for name in missing])}",
+        )
+    return MetricError(
+        "the metric is degenerate: its determinant is zero",
+        notes=["so it has no inverse, and no curvature can be computed from it"],
+    )
+
+
+def _listed(items: Sequence[str], conjunction: str = "and") -> str:
+    """``t, r, \\theta and \\phi``."""
+    items = list(items)
+    if len(items) <= 1:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} {conjunction} {items[-1]}"
 
 
 def line_element(metric: Any, coordinates: Sequence[Symbol]) -> Any:
