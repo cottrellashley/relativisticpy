@@ -96,6 +96,7 @@ dyn.control.observability
 dyn.control.overshoot
 dyn.control.step-response
 dyn.control.transfer-function
+dyn.flows.lorenz-hopf
 dyn.flows.lyapunov-function
 dyn.flows.stability-1d
 dyn.linear.matrix-exponential
