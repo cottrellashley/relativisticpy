@@ -21,10 +21,7 @@ Messages are pickled, each after its length, on its standard input and output.
 
 from __future__ import annotations
 
-import ast
 import contextlib
-import copyreg
-import io
 import itertools
 import json
 import os
@@ -99,11 +96,7 @@ def portable(workbook: Workbook, objects: ObjectReader | None = None) -> bytes:
     """A workbook as it is, as bytes another process carries on from: its definitions and
     what it has computed, reading the Python objects its programs name from ``objects``,
     what was read of them in this process (see :func:`given`)."""
-    buffer = io.BytesIO()
-    pickler = pickle.Pickler(buffer, protocol=pickle.HIGHEST_PROTOCOL)
-    pickler.dispatch_table = {**copyreg.dispatch_table, itertools.count: _count}
-    pickler.dump(given(workbook, objects)._portable())
-    return buffer.getvalue()
+    return pickle.dumps(given(workbook, objects)._portable(), protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def given(workbook: Workbook, objects: ObjectReader | None) -> Workbook:
@@ -113,13 +106,6 @@ def given(workbook: Workbook, objects: ObjectReader | None) -> Workbook:
     copied = workbook.copy()
     copied._session.objects = objects
     return copied
-
-
-def _count(counter: Any) -> tuple[Any, tuple[Any, ...]]:
-    """A counter as the count it has reached, since Python 3.14 pickles no counter of
-    itertools: ``count(5)`` is made again as ``count(5)``."""
-    reached = ast.literal_eval(repr(counter)[len("count") :])
-    return itertools.count, reached if isinstance(reached, tuple) else (reached,)
 
 
 class Computations:
@@ -548,17 +534,6 @@ def _interrupted(signum: int, frame: Any) -> None:
         raise KeyboardInterrupt
 
 
-def _numbered_apart() -> None:
-    """Number what this process makes apart from what the notebook's process made: the
-    constants of the IR and the dummy indices of index notation are numbered by counters
-    of the process, and the workbook this one is given comes with the notebook's numbers."""
-    from relativisticpy import abstract
-    from relativisticpy.ir import graph
-
-    graph._TOKENS = itertools.count(1 << 62)
-    abstract._FRESH = itertools.count(1 << 62)
-
-
 def main() -> None:
     """Do jobs until the notebook closes the pipe: the worker's main function."""
     from relativisticpy.mcp import _claim_standard_output, _limit_memory, _watch_parent
@@ -568,7 +543,6 @@ def main() -> None:
     wire = _claim_standard_output()
     _watch_parent()
     _limit_memory(settings.get("memory_limit"))
-    _numbered_apart()
     signal.signal(signal.SIGINT, _interrupted)
     engine = Engine()
     _send(wire, ("ready", os.getpid()))

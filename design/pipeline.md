@@ -89,6 +89,10 @@ What the work on live mathematics needed from the core, which it did without, fo
 - **Keys that do not depend on the process.** The IR numbers its constants and
   `abstract` its dummy indices from process-wide counters, so a worker that receives a
   pickled workbook must number its own from far away (2^62) to avoid collisions.
+  Done: a constant's key is its number in its graph and the graph's token, random to
+  each graph, and a graph pickles on every Python the project supports; a term's dummy
+  indices are renamed apart from the names of the rule put into it. The worker numbers
+  nothing from far away.
 - **A public way to fork an executor,** or to read the values it holds, which
   `Workbook._portable` reads privately today.
 - **A reference that stays one reading as integrations arrive.** Every capability was a

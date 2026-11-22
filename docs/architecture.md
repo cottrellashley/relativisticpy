@@ -208,7 +208,9 @@ returns the existing node, so common subexpressions are shared. Each node also
 has a *computation key* that ignores its type. Index names are part of the
 type, so `A_{ab}B^{b}{}_{c}` and `A_{xy}B^{y}{}_{z}` are different nodes with
 different types, but they share one key and one computed value. Renaming
-indices is therefore free.
+indices is therefore free. A constant's key is its own, its number in its graph with the
+graph's token, so that two constants are never one, and a workbook pickled for another
+process, as the editor's worker takes one in, meets no key of that process's.
 
 ## The executor
 

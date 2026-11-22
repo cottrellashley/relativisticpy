@@ -19,7 +19,7 @@ from __future__ import annotations
 import itertools
 import operator
 import re
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from functools import reduce
 from typing import Any
@@ -53,8 +53,6 @@ _SYMMETRIES = {
     "christoffel": lambda: TensorSymmetry.direct_product(1, 2),
 }
 _RANKS = {"riemann": 4, "weyl": 4, "ricci": 2, "einstein": 2, "christoffel": 3}
-# Numbers for the names a term's dummy indices are given as a rule is put into it.
-_FRESH = itertools.count()
 # The labels dummy indices are given when shown, in order of preference.
 _DUMMY_LABELS = (
     "alpha", "beta", "gamma", "lambda", "kappa", "rho", "sigma", "tau", "epsilon", "zeta",
@@ -510,12 +508,18 @@ def _substitute_scalars(value: Value, old: Expr, new: Value, space: Algebra) -> 
     return canonical(build(pieces), space)
 
 
-def _own_dummies(tensors: Sequence[Tensor], space: Algebra) -> list[Tensor]:
-    """The factors of a term, with each dummy index renamed to a name used nowhere else.
-    SymPy names the dummies of every product L_0, L_1, ..., so a rule's would meet the
-    term's where a rule is put in; the factors are multiplied only once it has been."""
+def _own_dummies(tensors: Sequence[Tensor], taken: Iterable[str], space: Algebra) -> list[Tensor]:
+    """The factors of a term, with each dummy index renamed to a name used nowhere else:
+    neither in the term nor among ``taken``, the names of the rule put into it. SymPy
+    names the dummies of every product L_0, L_1, ..., so a rule's would meet the term's
+    where a rule is put in; the factors are multiplied only once it has been."""
     names = [index.name for tensor in tensors for index in tensor.indices]
-    renamed = {name: f"{name}_{next(_FRESH)}" for name in names if names.count(name) == 2}
+    used = {*names, *taken}
+    renamed: dict[str, str] = {}
+    for name in dict.fromkeys(name for name in names if names.count(name) == 2):
+        number = next(n for n in itertools.count() if f"{name}_{n}" not in used)
+        renamed[name] = f"{name}_{number}"
+        used.add(renamed[name])
     return [
         tensor.head(
             *(
@@ -528,10 +532,12 @@ def _own_dummies(tensors: Sequence[Tensor], space: Algebra) -> list[Tensor]:
 
 
 def _replace_tensor(value: Value, pattern: Tensor, replacement: Value, space: Algebra) -> Value:
+    indices = replacement.get_indices() if isinstance(replacement, TensExpr) else []
+    taken = {index.name for index in (*indices, *pattern.indices)}
     pieces = []
     for coefficient, tensors in terms(canonical(value, space)):
         factors: list[Value] = []
-        for tensor in _own_dummies(tensors, space):
+        for tensor in _own_dummies(tensors, taken, space):
             if tensor.head != pattern.head:
                 factors.append(tensor)
                 continue

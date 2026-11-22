@@ -1,4 +1,6 @@
-"""The IR graph: interning, retyping and the listing."""
+"""The IR graph: interning, retyping, its keys and the listing."""
+
+import pickle
 
 import sympy
 
@@ -73,3 +75,25 @@ def test_operation_labels():
     assert ops.Call("sin").label() == "call sin"
     assert ops.Call("core.function", (("name", "f"),)).label() == "call core.function name=f"
     assert ops.Const("x" * 60).label().endswith("...")
+
+
+def test_a_graph_pickled_numbers_what_it_makes_after_what_it_was_given():
+    # A worker that takes in a pickled workbook goes on with its graph: what it makes
+    # there meets nothing made before, nor anything of a graph of its own.
+    graph = Graph()
+    made = [graph.const(n, SCALAR) for n in range(3)]
+    carried = pickle.loads(pickle.dumps(graph))
+    later = carried.const(3, SCALAR)
+    assert later.id == len(made)
+    assert later.key not in {node.key for node in made}
+    assert Graph().const(0, SCALAR).key not in {node.key for node in made}
+
+
+def test_a_graph_pickled_keeps_what_it_interned():
+    graph = Graph()
+    x = graph.const(sympy.Symbol("x"), SCALAR)
+    square = graph.add(ops.Pow(), (x, x), SCALAR)
+    carried = pickle.loads(pickle.dumps(graph))
+    again = carried.add(ops.Pow(), (x, x), SCALAR)
+    assert (again.id, again.key) == (square.id, square.key)
+    assert len(carried) == len(graph)

@@ -2,17 +2,14 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Hashable, Iterable, Sequence
 from dataclasses import dataclass, field
-from itertools import count
 from typing import Any
 
 from relativisticpy.ir import ops
 from relativisticpy.ir.types import Type
 from relativisticpy.language.source import Span
-
-#: Fresh keys for constants, one per constant made, in any graph.
-_TOKENS = count()
 
 
 @dataclass(frozen=True, eq=False)
@@ -43,24 +40,30 @@ class Graph:
     the existing node: common-subexpression elimination for free. ``∂_c g_{ab}``
     appears three times in the Christoffel formula but is computed once.
 
-    Every constant is a computation of its own, with a fresh key: two constants
-    are never one, even with the same value, so data bound again after it changed
-    in place, or one array bound to two names, is never mistaken for another.
+    Every constant is a computation of its own, with a key of its own: two constants
+    are never one, even with the same value, so data bound again after it changed in
+    place, or one array bound to two names, is never mistaken for another. A
+    constant's key is its number in the graph and the graph's token, which no other
+    graph has, in this process or another: a graph pickled and taken in by another
+    process numbers what it makes there after what it was given, and a graph made
+    there has a token of its own.
     """
 
     def __init__(self) -> None:
         self._interned: dict[tuple[Hashable, Type], Node] = {}
-        self._ids = count()
+        self._token = uuid.uuid4().hex
+        self._made = 0  # the nodes made, which numbers the next
 
     def add(self, op: ops.Op, args: Sequence[Node], type: Type, span: Span | None = None) -> Node:
         key: Hashable
         if isinstance(op, ops.Const):
-            key = ("const", next(_TOKENS))
-            return Node(op, (), type, next(self._ids), key, span)
+            number = self._number()
+            key = ("const", self._token, number)
+            return Node(op, (), type, number, key, span)
         key = (op, tuple(arg.key for arg in args))
         node = self._interned.get((key, type))
         if node is None:
-            node = Node(op, tuple(args), type, next(self._ids), key, span)
+            node = Node(op, tuple(args), type, self._number(), key, span)
             self._interned[(key, type)] = node
         return node
 
@@ -72,11 +75,17 @@ class Graph:
         if node.type == type:
             return node
         if isinstance(node.op, ops.Const):
-            return Node(node.op, (), type, next(self._ids), node.key, node.span)
+            return Node(node.op, (), type, self._number(), node.key, node.span)
         return self.add(node.op, node.args, type, node.span)
 
     def __len__(self) -> int:
         return len(self._interned)
+
+    def _number(self) -> int:
+        """The number of the next node made: nodes are numbered as they are made."""
+        number = self._made
+        self._made += 1
+        return number
 
 
 def dependencies(roots: Iterable[Node]) -> list[Node]:
