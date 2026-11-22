@@ -437,6 +437,24 @@ class TestCollections:
     def test_braces_group(self):
         assert sexpr("{x + 1}") == "(+ x 1)"
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # the Poisson bracket with respect to a canonical pair, as its derivatives
+            (r"\{q, p\}_{Q, P}", "(- (* (∂/∂Q q) (∂/∂P p)) (* (∂/∂P q) (∂/∂Q p)))"),
+            (
+                r"\left\{ f, g \right\}_{x, p_x}",
+                "(- (* (∂/∂x f) (∂/∂p_x g)) (* (∂/∂p_x f) (∂/∂x g)))",
+            ),
+            # without a pair, a pair of braces is a pair, as before, and not a bracket
+            (r"\{L_x, L_y\}", "(tuple L_x L_y)"),
+            (r"\{f, g\}_{PB}", "((tuple f g) _[P B])"),
+            ("(q, p)_{Q, P}", "((tuple q p) _[Q , P])"),
+        ],
+    )
+    def test_a_poisson_bracket_names_its_canonical_pair(self, text, expected):
+        assert sexpr(text) == expected
+
     def test_braces_with_commas_are_piecewise(self):
         assert sexpr("{ x**2, x > 0; -x, x <= 0 }") == (
             "(piecewise ((** x 2) if (> x 0)) ((- x) if (<= x 0)))"

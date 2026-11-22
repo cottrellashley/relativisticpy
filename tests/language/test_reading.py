@@ -109,6 +109,13 @@ class TestNamesOfTheirOwn:
             assert wb.expr(r"\psi_1(\pi/2) + \psi_{1}{\left(0 \right)}") == 1
 
 
+class TestBrackets:
+    def test_a_poisson_bracket_with_its_canonical_pair(self):
+        with Workbook() as wb:
+            assert wb.expr(r"\{x^2, p\}_{x, p}") == 2 * sympy.Symbol("x")
+            assert wb.expr(r"\{x, p\}_{x, p} + \{p, x\}_{x, p}") == 0
+
+
 t, r, x, theta = sympy.symbols("t r x theta")
 a, f, A = (sympy.Function(name) for name in ("a", "f", "A"))
 

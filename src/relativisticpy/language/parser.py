@@ -1115,7 +1115,45 @@ class Parser:
                     break
                 items.append(self.expression())
             self.expect(K.RPAREN, opener=opener)
+        if len(items) == 2 and opener.span.text.endswith(("\\{", "\\lbrace")):
+            bracket = self._poisson_bracket(items[0], items[1], opener)
+            if bracket is not None:
+                return bracket
         return ast.Tuple(tuple(items), span=self._span(opener))
+
+    def _poisson_bracket(self, f: ast.Expr, g: ast.Expr, opener: Token) -> ast.Expr | None:
+        """``\\{f, g\\}_{q, p}``, the Poisson bracket with respect to the canonical pair
+        ``(q, p)``, as the derivatives it stands for, ``∂f/∂q ∂g/∂p - ∂f/∂p ∂g/∂q``.
+        ``None``, having read nothing, where no pair is written as its subscript: without
+        one, ``\\{a, b\\}`` is a pair, or a set."""
+        if not self.check(K.UNDERSCORE) or self.peek().space_before:
+            return None
+
+        def pair() -> tuple[ast.Expr, ast.Expr]:
+            self.advance()  # _
+            brace = self.expect(K.LBRACE)
+            with self._nested():
+                q = self.expression()
+                self.expect(K.COMMA)
+                p = self.expression()
+                self.expect(K.RBRACE, opener=brace)
+            return q, p
+
+        variables, _ = self._attempt(pair)
+        if variables is None:
+            return None
+        q, p = variables
+        span = self._span(opener)
+
+        def derivative(of: ast.Expr, by: ast.Expr) -> ast.Expr:
+            return ast.Derivative(of, ((by, 1),), True, span=span)
+
+        def product(left: ast.Expr, right: ast.Expr) -> ast.Expr:
+            return ast.Binary("*", left, right, implicit=True, span=span)
+
+        first = product(derivative(f, q), derivative(g, p))
+        second = product(derivative(f, p), derivative(g, q))
+        return ast.Binary("-", first, second, span=span)
 
     def _list(self) -> ast.List:
         opener = self.advance()
