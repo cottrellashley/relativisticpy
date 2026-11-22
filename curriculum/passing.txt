@@ -69,6 +69,7 @@ dyn.maps.logistic-fixed-point
 dyn.maps.period-two
 econ.bonds.price
 econ.demand.arc-elasticity
+econ.games.mixed-equilibrium
 econ.interest.continuous-equivalent
 econ.interest.continuous-limit
 econ.interest.doubling-time

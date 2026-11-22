@@ -300,11 +300,15 @@ def equal(actual: Any, expected: Any, tolerance: float = 1e-9) -> bool:
     - A mapping from components, by coordinate name, to values: those components of a tensor.
     - A list, a SymPy array or matrix, or a NumPy array: every component.
     - A number or SymPy expression: the same value, symbols compared by name.
+    - Solutions, where either side is a mapping from unknowns to values or a list of them:
+      the same solutions, in any order (see :func:`_same_solutions`).
     """
     if isinstance(expected, bool) or expected in (sympy.true, sympy.false):
         return _holds(actual) is bool(expected)
     if expected is None:
         return actual is None
+    if isinstance(actual, dict) or _mappings(actual) or _mappings(expected):
+        return _same_solutions(actual, expected, tolerance)
     if isinstance(expected, dict):
         return all(
             equal(_component(actual, key), value, tolerance) for key, value in expected.items()
@@ -317,6 +321,68 @@ def equal(actual: Any, expected: Any, tolerance: float = 1e-9) -> bool:
             return False
         return all(equal(a, b, tolerance) for a, b in zip(mine[1], theirs[1], strict=True))
     return _same_expression(actual, expected, tolerance)
+
+
+def _mappings(value: Any) -> bool:
+    """Whether a value is a list of solutions, each a mapping from unknowns to values."""
+    return (
+        isinstance(value, list | tuple) and bool(value) and all(isinstance(v, dict) for v in value)
+    )
+
+
+def _solutions(value: Any) -> list[tuple[list[str] | None, list[Any]]]:
+    """The solutions of a ``solve``, each as the names of its unknowns (``None`` where they
+    are not named) and their values in order, whatever form the answer takes: a mapping
+    ``{p: 2/3}``, a list of mappings, a list of tuples ``[(8, sqrt(3))]``, or a list of the
+    values of one unknown, ``[2/3]``."""
+    if isinstance(value, dict):
+        value = [value]
+    if not isinstance(value, list | tuple):
+        return [(None, [value])]
+    solutions: list[tuple[list[str] | None, list[Any]]] = []
+    for solution in value:
+        if isinstance(solution, dict):
+            solutions.append(([str(key) for key in solution], list(solution.values())))
+        elif isinstance(solution, list | tuple):
+            solutions.append((None, list(solution)))
+        else:
+            solutions.append((None, [solution]))
+    return solutions
+
+
+def _same_solutions(actual: Any, expected: Any, tolerance: float) -> bool:
+    r"""Whether two answers of a ``solve`` give the same solutions, in any order. The values
+    of a solution are matched by the names of the unknowns where both sides name them, and
+    otherwise by position: a program names its unknowns in order, as in
+    ``solve(..., [K, \omega])``, and an oracle writes their values in that order."""
+    mine, theirs = _solutions(actual), _solutions(expected)
+    if len(mine) != len(theirs):
+        return False
+    unmatched = list(mine)
+    for names, values in theirs:
+        for candidate in unmatched:
+            if _same_solution(candidate, (names, values), tolerance):
+                unmatched.remove(candidate)
+                break
+        else:
+            return False
+    return True
+
+
+def _same_solution(
+    mine: tuple[list[str] | None, list[Any]],
+    theirs: tuple[list[str] | None, list[Any]],
+    tolerance: float,
+) -> bool:
+    (my_names, my_values), (their_names, their_values) = mine, theirs
+    if len(my_values) != len(their_values):
+        return False
+    if my_names is not None and their_names is not None:
+        if sorted(my_names) != sorted(their_names):
+            return False
+        named = dict(zip(my_names, my_values, strict=True))
+        my_values = [named[name] for name in their_names]
+    return all(equal(a, b, tolerance) for a, b in zip(my_values, their_values, strict=True))
 
 
 def _holds(value: Any) -> bool | None:

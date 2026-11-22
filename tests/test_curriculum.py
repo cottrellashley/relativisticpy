@@ -76,3 +76,23 @@ def test_equations_are_compared_by_the_difference_of_their_sides():
 def test_a_result_left_undone_is_not_its_value():
     assert not curriculum.equal(sympy.Integral(x, (x, 0, 1)), sympy.Rational(1, 2))
     assert curriculum.equal(sympy.Integral(x, (x, 0, 1)), sympy.Integral(x, (x, 0, 1)))
+
+
+def test_solutions_are_compared_in_any_form_and_order():
+    p, K, w = sympy.symbols("p K omega")
+    third = sympy.Rational(2, 3)
+    assert curriculum.equal({p: third}, [third])
+    assert curriculum.equal([{p: third}], [third])
+    assert curriculum.equal({K: 8, w: sympy.sqrt(3)}, [(8, sympy.sqrt(3))])
+    assert curriculum.equal([{w: sympy.sqrt(3), K: 8}], [{K: 8, w: sympy.sqrt(3)}])
+    assert curriculum.equal([(1, 2), (3, 4)], [{K: 3, w: 4}, {K: 1, w: 2}])
+    assert curriculum.equal([{K: 1}, {K: 2}], [2, 1])
+
+
+def test_other_solutions_are_not():
+    p, K, w = sympy.symbols("p K omega")
+    assert not curriculum.equal({p: sympy.Rational(1, 3)}, [sympy.Rational(2, 3)])
+    assert not curriculum.equal([{K: 1, w: 2}], [{K: 2, w: 1}])  # by name, not by order
+    assert not curriculum.equal([{K: 1}], [1, 2])  # a solution missing
+    assert not curriculum.equal([{K: 1}, {K: 1}], [1, 2])  # one solution twice
+    assert not curriculum.equal({p: 1}, [(1, 2)])

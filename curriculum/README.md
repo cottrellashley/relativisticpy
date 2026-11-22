@@ -84,6 +84,10 @@ section with, in this order:
      - `True` or `False`, for an equation that must hold or must not;
      - a list or SymPy array of every component of a tensor;
      - a dictionary from components, named by coordinates (`("t", "r")`), to values;
+     - the solutions of a `solve`: the values of one unknown (`[2/3]`), tuples of values in
+       the order the program names its unknowns (`[(8, sqrt(3))]` for
+       `solve(..., [K, \omega])`), or mappings from unknowns to values. The language may
+       answer in any of these forms, and the solutions in any order;
      - `None`, for a program that shows nothing.
    - `outputs`: a list with the value of every output, in order.
    - `error`: the name of the error the program must raise, such as
