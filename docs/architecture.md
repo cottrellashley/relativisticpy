@@ -13,7 +13,10 @@ Each stage has one job, its own tests, and a module of its own:
 |---|---|---|
 | Lexer | `relativisticpy.language.lexer` | text to tokens; plain text, LaTeX and Unicode become one stream |
 | Parser | `relativisticpy.language.parser` | tokens to a syntax tree that records what was written |
-| Compiler | `relativisticpy.compiler` | the tree to a typed IR: meaning, index checks, lowering |
+| Reader | `relativisticpy.reading` | what each name and each ambiguous form means, with a note where it could surprise |
+| Typer | `relativisticpy.typing` | the rules of index notation and spaces: free and summed indices, positions, spaces |
+| Lowerer | `relativisticpy.lowering` | the IR of each statement, a closed graph of named operations, computing nothing |
+| Compiler | `relativisticpy.compiler` | the three passes over a statement, the session and the scope |
 | IR | `relativisticpy.ir` | a graph of typed operations, interned |
 | Executor | `relativisticpy.runtime` | computes the values outputs need, cached, in parallel |
 | Algebra | `relativisticpy.tensors`, `relativisticpy.diffgeom` | tensors, contraction, curvature, simplification |
@@ -78,7 +81,21 @@ as an S-expression, which is how the parser's tests state what notation means.
 
 The compiler gives the tree meaning, using a symbol table of what each name
 is: a variable, a function, a tensor (with its index positions), the metric,
-or nothing yet. It decides
+or nothing yet. It reads a statement in three passes, each a package with one job:
+
+- the *reader*, `relativisticpy.reading`, decides what each name and each ambiguous
+  form means, and says so in a note where it takes the less likely reading;
+- the *typer*, `relativisticpy.typing`, holds the rules of index notation and spaces,
+  each with one message;
+- the *lowerer*, `relativisticpy.lowering`, emits the IR: notation, tensors and their
+  derivatives, statistics, linear algebra, expressions and definitions, each a module.
+
+They are one walk of the syntax tree, as reading a form may need what was made of the
+forms before it: the lowerer walks, and asks the reader and the typer. The `Compiler`
+in `relativisticpy.compiler` is the three together, and orchestrates statements, with
+the session and the scope.
+
+The reader decides
 
 - whether `x^{a}` is a power or a component, and whether `r_{s}` names a symbol;
 - which built-in tensor a name means, by name and number of indices (`R` with

@@ -200,7 +200,7 @@ def lower(kept: IndexExpression, *references: Node, context: Any) -> Node:
     """The IR that computes the components of an expression of notation, made by the
     lowerer once the notation is known, from the ``references``, the nodes of the metric
     and the tensors the notation may be written with (see
-    :func:`relativisticpy.compiler.compiler.lower_notation`)."""
-    from relativisticpy.compiler.compiler import lower_notation
+    :func:`relativisticpy.lowering.notation.lower_notation`)."""
+    from relativisticpy.lowering.notation import lower_notation
 
     return lower_notation(kept, references, context)

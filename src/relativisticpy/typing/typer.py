@@ -768,3 +768,7 @@ for _character, _name in UNICODE_LETTERS.items():
 #: Names usual for coordinates: written twice down on a tensor, as z in R_{zz}, and
 #: not a coordinate in force, such a label is more likely a component than a sum.
 _COORDINATE_NAMES = frozenset({"t", "x", "y", "z", "r", "theta", "phi", "rho", "chi", "psi"})
+
+
+#: The hint for a size computed where it must be known before anything is computed.
+_KNOWN_FIRST = "it is read before anything is computed: write it as a number, or a name given one"

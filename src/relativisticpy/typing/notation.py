@@ -18,11 +18,13 @@ from collections.abc import Iterable, Sequence
 
 from relativisticpy.ir import (
     SCALAR,
+    VALUE,
     Node,
     NotationAlgebra,
     NotationType,
     ScalarType,
     TensorType,
+    Type,
     dependencies,
     ops,
 )
@@ -146,3 +148,9 @@ def a_factor(node: Node) -> bool:
     """Whether ``node`` can be a scalar factor of notation: made of constants by
     arithmetic and functions, not computed from tensors, which notation does not read."""
     return all(isinstance(each.op, _FACTORS) for each in dependencies([node]))
+
+
+def _passed(kind: Type) -> Type:
+    """The type of what an operation gives of a value of this type, as a derivative of
+    it: the same, but of notation, which only notation's own operations give."""
+    return VALUE if isinstance(kind, NotationType) else kind
