@@ -127,6 +127,16 @@ static type. Operations are frozen data: `Contract`, `Permute`, `Select`,
 `Partial`, `Symmetrize`, `Map`, `Add`, `Mul`, `Scale`, `Pow`, `Call`, `MakeArray`,
 `ToArray`, `Equation`, `Inverse`, `LineElement` and `Geometry`.
 
+No operation holds a Python function. A `Call`, or a `Map` over every component of a
+tensor, holds the name of what it computes and its attributes, values known when
+compiling. The registry of implementations, `relativisticpy/runtime/registry.py`, maps
+each name to the function that computes it, with how many arguments it takes, whether it
+applies to each component of a tensor and what kind of value it gives. A builtin has the
+name the language calls it by, as `sin` or `solve`; what the compiler emits for notation
+has a name of its own, as `core.sum` for a sum, `core.subs` for an evaluation bar or
+`linalg.solve` for an inverse times a vector. So the whole program can be read, printed
+and compared before anything is computed.
+
 The same operations compute symbolic components with SymPy and numerical ones with
 NumPy: the kernels look at what they are given. A contraction of numbers is
 `numpy.einsum`, in the order its optimiser finds cheapest, in slices when its
@@ -186,8 +196,10 @@ rather than tens of minutes.
   structural commands need a case in the parser's `_command`.
 - **A spacetime**: add a function to `relativisticpy/spacetimes.py` and list it with
   the spacetimes in `relativisticpy/runtime/functions.py`.
-- **An operation**: add an op to `relativisticpy/ir/ops.py`, a kernel to
-  `relativisticpy/runtime/kernels.py`, and have the compiler emit it.
+- **An operation**: register what computes it in `relativisticpy/runtime/registry.py`
+  and have the compiler emit a `Call` of its name; one that is not a function of values,
+  as a contraction is, is an op in `relativisticpy/ir/ops.py` with a kernel in
+  `relativisticpy/runtime/kernels.py`.
 
 [The language reference](reference.md) is written from these tables by
 `relativisticpy/reference.py`, which says what each name means. A new function,

@@ -313,7 +313,7 @@ class TestLinearAlgebra:
         wb["y_t"] = y
         wb.exe(r"G_{kl} := X_{tk} X_{tl}")
         written = r"(G^{-1})^{kl} X_{tl} y_t"
-        solve = next(line for line in wb.ir(written).splitlines() if "call solve" in line)
+        solve = next(line for line in wb.ir(written).splitlines() if "call linalg.solve" in line)
         assert solve.endswith("Tensor^{k}")  # the solve of a vector, not of a matrix of rows
         assert np.allclose(wb.expr(written).to_numpy(), np.linalg.lstsq(x, y, rcond=None)[0])
 

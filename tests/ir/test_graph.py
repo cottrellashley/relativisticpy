@@ -69,6 +69,7 @@ def test_operation_labels():
     assert ops.Select(((0, 1),)).label() == "select 0=1"
     assert ops.Symmetrize((0, 1), antisymmetric=True).label() == "antisymmetrize (0, 1)"
     assert ops.Add((1, -1)).label() == "add + -"
-    assert ops.Map(sympy.simplify, "simplify").label() == "map simplify"
-    assert ops.Call(sympy.sin).label() == "call sin"
+    assert ops.Map("simplify").label() == "map simplify"
+    assert ops.Call("sin").label() == "call sin"
+    assert ops.Call("core.function", (("name", "f"),)).label() == "call core.function name=f"
     assert ops.Const("x" * 60).label().endswith("...")

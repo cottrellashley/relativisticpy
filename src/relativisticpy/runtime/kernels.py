@@ -4,8 +4,8 @@ which :mod:`relativisticpy.tensors.numerical` computes with NumPy."""
 from __future__ import annotations
 
 import cmath
+import functools
 import math
-import operator
 import random
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -25,6 +25,7 @@ from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
 from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.ir import Node, ops
+from relativisticpy.runtime import registry
 from relativisticpy.tensors import arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import is_zero
@@ -41,17 +42,14 @@ def execute(op: ops.Op, args: list[Any], executor: Executor) -> Any:
 def refuse_text(op: ops.Op, args: list[Any], nodes: Sequence[Node]) -> None:
     """Refuse text written in a program where a value is computed with: SymPy reads a
     string given to most of its functions as Python, and evaluates it, so that
-    ``sin('...')`` could run any program. Text is given only to what takes names, as
-    ``symbols('x y')`` and ``Minkowski('spherical')`` do, which never evaluate it. The
-    options RelativisticPy itself gives, such as the side of a limit, are not written in
-    the program, and so have no span."""
+    ``sin('...')`` could run any program. Text is given only to an operation the registry
+    says takes names, as ``symbols('x y')`` does, which never evaluates it. The options
+    RelativisticPy itself gives, such as the side of a limit, are not written in the
+    program, and so have no span."""
     if isinstance(op, ops.Const):
         return
-    func = getattr(op, "func", None)
-    if func is sympy.symbols or func is operator.getitem or getattr(func, "takes_names", False):
-        return  # a function marked takes_names reads its text as names, never as Python
-    if getattr(func, "__module__", None) == "relativisticpy.spacetimes":
-        return
+    if isinstance(op, ops.Call | ops.Map) and registry.lookup(op.name).takes_names:
+        return  # it reads its text as names, never as Python
     for value, node in zip(args, nodes, strict=True):
         # A constant the compiler made, with no place in the source, is its own: a name it
         # passes to a kernel, alone or in a tuple. Text from the source has a span.
@@ -76,9 +74,10 @@ def _const(op: ops.Const, args: list[Any], executor: Executor) -> Any:
 
 @execute.register(ops.Call)
 def _call(op: ops.Call, args: list[Any], executor: Executor) -> Any:
+    func = registry.lookup(op.name).func  # what computes the operation the IR names
     if len(args) == 1 and numerical.is_numerical(args[0]) and numerical.elementwise(op.name):
-        return numerical.apply(args[0], op.func, op.name)  # NumPy's sqrt, or JAX's
-    return op.func(*args)
+        return numerical.apply(args[0], func, op.name)  # NumPy's sqrt, or JAX's
+    return func(*args, **dict(op.attributes))
 
 
 # Arithmetic follows mathematics, not Python: a list is a vector or a matrix, so
@@ -196,21 +195,25 @@ def _symmetrize(op: ops.Symmetrize, args: list[Any], executor: Executor) -> Any:
 
 @dataclass(frozen=True)
 class ComponentCall:
-    """``func(component, *extra)``: picklable, so it can run in a worker process."""
+    """``func(component, *extra, **attributes)``: picklable, so it can run in a worker
+    process."""
 
     func: Callable[..., Any]
     extra: tuple[Any, ...]
+    attributes: ops.Attributes = ()
 
     def __call__(self, component: Any) -> Any:
-        return self.func(component, *self.extra)
+        return self.func(component, *self.extra, **dict(self.attributes))
 
 
 @execute.register(ops.Map)
 def _map(op: ops.Map, args: list[Any], executor: Executor) -> Any:
+    func = registry.lookup(op.name).func  # what computes the operation the IR names
     target, extra = args[0], tuple(args[1:])
     if numerical.is_numerical(target):
-        return numerical.apply(target, op.func, op.name, extra)
-    call = ComponentCall(op.func, extra)
+        each = functools.partial(func, **dict(op.attributes)) if op.attributes else func
+        return numerical.apply(target, each, op.name, extra)
+    call = ComponentCall(func, extra, op.attributes)
     if not isinstance(target, sympy.NDimArray):
         return call(target)
     results = executor.map(call, arrays.flatten(target))

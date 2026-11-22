@@ -15,7 +15,7 @@ from sympy import Array, Symbol
 from relativisticpy import Workbook
 from relativisticpy.errors import EvaluationError
 from relativisticpy.ir import SCALAR, Graph, ops
-from relativisticpy.runtime import Executor
+from relativisticpy.runtime import Executor, registry
 
 
 class Counter:
@@ -28,23 +28,28 @@ class Counter:
         return value + 1
 
 
-def test_values_are_computed_once():
-    graph, executor = Graph(), Executor()
-    counter = Counter()
-    one = graph.const(sympy.Integer(1), SCALAR)
-    node = graph.add(ops.Call(counter, "count"), (one,), SCALAR)
+@pytest.fixture
+def count(monkeypatch):
+    """An operation, test.count, that counts how often it is computed."""
+    entry = registry.Implementation("test.count", Counter(), "scalar", 1, 1)
+    monkeypatch.setitem(registry._ENTRIES, entry.name, entry)
     Counter.calls = 0
+    return ops.Call(entry.name)
+
+
+def test_values_are_computed_once(count):
+    graph, executor = Graph(), Executor()
+    one = graph.const(sympy.Integer(1), SCALAR)
+    node = graph.add(count, (one,), SCALAR)
     assert executor.evaluate(node) == 2
     assert executor.evaluate(node) == 2
     assert Counter.calls == 1
 
 
-def test_only_what_is_needed_is_computed():
+def test_only_what_is_needed_is_computed(count):
     graph, executor = Graph(), Executor()
-    counter = Counter()
     one = graph.const(sympy.Integer(1), SCALAR)
-    graph.add(ops.Call(counter, "count"), (one,), SCALAR)  # never asked for
-    Counter.calls = 0
+    graph.add(count, (one,), SCALAR)  # never asked for
     assert executor.evaluate(one) == 1
     assert Counter.calls == 0
 

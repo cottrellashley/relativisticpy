@@ -197,16 +197,14 @@ class TestTranslation:
     def test_a_failure_of_relativisticpys_own_is_an_internal_error(self, monkeypatch):
         # CLI-32: a Python failure inside RelativisticPy is not the user's mistake
         from dataclasses import replace
-        from types import MappingProxyType
 
-        from relativisticpy.compiler import compiler
+        from relativisticpy.runtime import registry
 
         def broken(*args):
             raise AttributeError("'list' object has no attribute 'is_Float'")
 
-        table = dict(compiler.BUILTINS)
-        table["factorial2"] = replace(table["factorial2"], func=broken)
-        monkeypatch.setattr(compiler, "BUILTINS", MappingProxyType(table))
+        entry = replace(registry.lookup("factorial2"), func=broken)
+        monkeypatch.setitem(registry._ENTRIES, "factorial2", entry)
         error = raised("factorial2(5)")
         assert isinstance(error, InternalError)
         assert error.notes == [

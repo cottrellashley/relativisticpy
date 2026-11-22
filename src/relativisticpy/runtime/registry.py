@@ -1,12 +1,21 @@
-"""The registry of implementations: what computes each operation a program names.
+"""The registry of implementations: what computes each operation the IR names.
 
-Each :class:`Implementation` holds the function that computes an operation, with what
-the compiler needs to know of it: how many arguments it takes, whether it applies to
-each component of a tensor, and what kind of value it gives.
+An operation of the IR that calls a function, :class:`~relativisticpy.ir.ops.Call` or
+:class:`~relativisticpy.ir.ops.Map`, holds a name and attributes, never a Python
+function. The engines look the name up here. Its :class:`Implementation` says how many
+arguments it takes, whether it applies to each component of a tensor, and what kind of
+value it gives.
 
-A builtin is registered under the name the language calls it by: ``sin``, ``solve``,
-``Schwarzschild``. A new function is an entry here, with its implementation in
-:mod:`relativisticpy.runtime.functions`.
+The names are of two kinds:
+
+- a builtin is registered under the name the language calls it by: ``sin``, ``solve``,
+  ``Schwarzschild``;
+- what the compiler emits for notation is registered in a namespace: ``core.sum`` for
+  :math:`\\sum`, ``core.subs`` for an evaluation bar, ``core.diff`` for a derivative,
+  ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``.
+
+A new function is an entry here, with its implementation in
+:mod:`relativisticpy.runtime.functions` or :mod:`relativisticpy.runtime.core`.
 """
 
 from __future__ import annotations
@@ -17,7 +26,9 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
 
-from relativisticpy.runtime import functions
+from relativisticpy.diffgeom import geodesic_equations
+from relativisticpy.runtime import core, functions
+from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
 #: value otherwise, as ``sin`` of a list is); ``"value"``, any other value, as a list, an
@@ -114,11 +125,86 @@ def _builtins() -> Iterator[Implementation]:
         )
 
 
+# -- what the compiler emits for notation ---------------------------------------------------
+
+
+def _core() -> Iterator[Implementation]:
+    def entry(
+        name: str,
+        func: Callable[..., Any],
+        result: Result,
+        low: int = 0,
+        high: int | None = None,
+        *,
+        componentwise: bool = False,
+        takes_names: bool = False,
+    ) -> Implementation:
+        return Implementation(
+            name, func, result, low, high, componentwise=componentwise, takes_names=takes_names
+        )
+
+    # collections
+    yield entry("core.list", core.make_list, "value")
+    yield entry("core.tuple", core.make_tuple, "value")
+    yield entry("core.item", core.item, "value", 2, 2, takes_names=True)
+    yield entry("core.part", core.item, "tensor", 2, 2, takes_names=True)
+    yield entry("core.piecewise", core.piecewise, "scalar")
+    # calculus, each applied to every component of a tensor
+    yield entry("core.limits", core.limits, "value", 3, 3)
+    yield entry("core.sum", core.summation, "argument", 4, 4, componentwise=True)
+    yield entry("core.prod", core.product, "argument", 4, 4, componentwise=True)
+    yield entry("core.limit", core.limit, "scalar", 4, 4, componentwise=True)
+    yield entry("core.diff", core.differentiate, "argument", 2, componentwise=True)
+    yield entry("core.derivative_at", core.derivative_at, "scalar", 4, 4)
+    yield entry("core.gradient", core.gradient, "tensor", 2, 2)
+    yield entry("core.subs", core.substitute, "argument", 1, componentwise=True)
+    yield entry("core.time_derivative", core.time_derivative, "argument", 2, 2, componentwise=True)
+    # functions, relations and logic
+    yield entry("core.function", core.function, "scalar")
+    yield entry("core.lt", core.less, "scalar", 2, 2)
+    yield entry("core.gt", core.greater, "scalar", 2, 2)
+    yield entry("core.le", core.less_equal, "scalar", 2, 2)
+    yield entry("core.ge", core.greater_equal, "scalar", 2, 2)
+    yield entry("core.eq", core.equal, "scalar", 2, 2)
+    yield entry("core.ne", core.unequal, "scalar", 2, 2)
+    yield entry("core.not", core.logical_not, "scalar", 1, 1)
+    yield entry("core.and", core.logical_and, "scalar", 2)
+    yield entry("core.or", core.logical_or, "scalar", 2)
+    # the metric
+    yield entry("core.where", core.where, "value", 3, 3)
+    yield entry("core.where_function", core.where_function, "value", 3, 3)
+    yield entry("core.line_element", core.line_element, "scalar", 2, 2)
+    yield entry("core.geodesic_equations", geodesic_equations, "value", 3, 3)
+    # values for Python
+    yield entry("core.tensor", core.tensor, "value", 1, 1)
+    yield entry("core.tensor_equation", core.tensor_equation, "value", 1, 1)
+    # spaces
+    yield entry("core.identity", core.identity, "tensor", 1, 1)
+    yield entry("core.ones", core.ones, "tensor", 1, 1)
+    yield entry("core.uniform", core.uniform, "tensor", 1, 1)
+    yield entry("core.space_metric", core.space_metric, "tensor", 2, 2)
+    yield entry("core.hadamard", core.elementwise_product, "value", 2, 2)
+    yield entry("core.conjugate", core.conjugated, "argument", 2, 2)
+    yield entry("core.squared_modulus", core.squared_modulus, "argument", 2, 2)
+    yield entry("core.real", core.real, "scalar", 1, 1)
+    # linear algebra and statistics
+    yield entry("linalg.solve", linalg.solve, "tensor", 3, 3)
+    yield entry("linalg.hadamard", linalg.hadamard, "argument", 2, 2)
+    yield entry("linalg.diag", linalg.diag, "tensor", 1, 1)
+    yield entry("linalg.eig", linalg.eig, "value", 4, 4)
+    yield entry("linalg.svd", linalg.svd, "value", 2, 2)
+    yield entry("linalg.det", linalg.det, "scalar", 2, 2)
+    yield entry("linalg.trace", linalg.trace, "scalar", 2, 2)
+    yield entry("linalg.function", core.matrix_function, "tensor", 3, 3)
+    yield entry("stats.ledoit_wolf", core.ledoit_wolf, "tensor", 1, 1)
+
+
 _ENTRIES: dict[str, Implementation] = {}
-for _entry in _builtins():
+for _entry in (*_builtins(), *_core()):
     if _entry.name in _ENTRIES:  # pragma: no cover - a mistake in the tables above
         raise ValueError(f"two operations are registered as {_entry.name!r}")
     _ENTRIES[_entry.name] = _entry
 
-#: Every operation, by its name: the builtins, in the order the language lists them.
+#: Every operation, by its name: the builtins first, in the order the language lists
+#: them, then what the compiler emits for notation.
 REGISTRY = MappingProxyType(_ENTRIES)

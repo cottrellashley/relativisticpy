@@ -31,7 +31,6 @@ import difflib
 import inspect
 import itertools
 import math
-import operator
 import re
 from collections import Counter
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
@@ -70,7 +69,7 @@ from relativisticpy.compiler.session import (
     Session,
     describe,
 )
-from relativisticpy.diffgeom import Metric, differential, geodesic_equations
+from relativisticpy.diffgeom import Metric, differential
 from relativisticpy.errors import (
     CompileError,
     EvaluationError,
@@ -93,8 +92,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK, UNICODE_LETTERS
-from relativisticpy.tensors import Index, Indices, Tensor, arrays, linalg
-from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors import Index, Indices, arrays
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.spaces import Space, spacetime
 
@@ -124,12 +122,12 @@ _ROLE_TENSORS = {
     "weyl": {4: "weyl"},
 }
 _COMPARE = {
-    "<": sympy.Lt,
-    ">": sympy.Gt,
-    "<=": sympy.Le,
-    ">=": sympy.Ge,
-    "==": sympy.Eq,
-    "!=": sympy.Ne,
+    "<": "core.lt",
+    ">": "core.gt",
+    "<=": "core.le",
+    ">=": "core.ge",
+    "==": "core.eq",
+    "!=": "core.ne",
 }
 _INTEGER = re.compile(r"\d+")
 
@@ -571,7 +569,7 @@ class Compiler:
                     scope.bind(base, TensorBinding(node, indices))
                     return
                 if late and value_node.type == SCALAR:
-                    where = ops.Call(_where, "where")
+                    where = ops.Call("core.where")
                     self._rewrite_metric(where, (self.graph.const(name, VALUE), value_node))
                     self._note(_late_note(target.span.text, self.session.metric))
                 scope.bind(name, VariableBinding(value_node))
@@ -612,7 +610,7 @@ class Compiler:
                 parameters = [self.graph.const(symbol, SCALAR) for symbol in symbols]
                 body = self._inline(binding, parameters, definition.span, ctx)
                 if body.type == SCALAR:
-                    where = ops.Call(_where_function, "where")
+                    where = ops.Call("core.where_function")
                     name_node = self.graph.const((name, symbols), VALUE)
                     self._rewrite_metric(where, (name_node, body))
                     params = ", ".join(_shown(p, definition.latex) for p in definition.params)
@@ -713,9 +711,7 @@ class Compiler:
             if not isinstance(target, ast.Name):
                 raise CompileError("only names can be defined together", span=target.span)
             index = self.graph.const(position, VALUE)
-            item = self.graph.add(
-                ops.Call(operator.getitem, "item"), (values, index), VALUE, target.span
-            )
+            item = self.graph.add(ops.Call("core.item"), (values, index), VALUE, target.span)
             scope.bind(target.id, VariableBinding(item))
 
     def _bind_part(self, target: ast.Expr, part: Node, scope: Scope) -> None:
@@ -963,7 +959,7 @@ class Compiler:
         lower = Indices([Index("a"), Index("b")])
         complex_space = self.graph.const(space.field == "complex", VALUE)
         self.session.space_metrics[space] = self.graph.add(
-            ops.Call(_space_metric, "metric"),
+            ops.Call("core.space_metric"),
             (node, complex_space),
             node.type.with_indices(lower),
             target.span.to(value.span),
@@ -1104,7 +1100,7 @@ class Compiler:
         :math:`g_{\\mu\\nu} dx^\\mu dx^\\nu`, in the differentials of the coordinates."""
         metric = self.session.require_metric(span, "the line element").node
         coordinates = self.graph.const(self.session.coordinates, VALUE)
-        return self._call(_line_element, "line element", [metric, coordinates], SCALAR, span)
+        return self._call("core.line_element", [metric, coordinates], SCALAR, span)
 
     def _define_tensor(
         self,
@@ -1270,7 +1266,7 @@ class Compiler:
             return self.graph.const(CONSTANTS[name], SCALAR, node.span)
         if (arguments := session.functions.get(name)) is not None:  # \alpha is \alpha(t, r)
             args = [self.graph.const(argument, SCALAR) for argument in arguments]
-            return self._call(sympy.Function(name), name, args, SCALAR, node.span)
+            return self._call("core.function", args, SCALAR, node.span, (("name", name),))
         # In LaTeX a run of letters is a product, as typeset maths reads it: re^{x} is
         # r e^{x}. A builtin keeps its name when called, as in diff(f, x).
         if ctx.latex and _splittable(node):
@@ -1405,7 +1401,7 @@ class Compiler:
         if node.op == "-" and isinstance(operand.op, ops.Const) and operand.type == SCALAR:
             return self.graph.const(-operand.op.value, SCALAR, node.span)
         if node.op == "not":
-            return self._call(sympy.Not, "not", [operand], SCALAR, node.span)
+            return self._call("core.not", [operand], SCALAR, node.span)
         minus_one = self.graph.const(sympy.S.NegativeOne, SCALAR)
         return self._multiply([minus_one, operand], node.span)
 
@@ -1426,9 +1422,8 @@ class Compiler:
         if node.op == "*":
             return self._product(node, scope, ctx)
         if node.op in ("and", "or"):
-            func = sympy.And if node.op == "and" else sympy.Or
             args = [self.value(node.left, scope, ctx), self.value(node.right, scope, ctx)]
-            return self._call(func, node.op, args, SCALAR, node.span)
+            return self._call(f"core.{node.op}", args, SCALAR, node.span)
         left = self.value(_operand(node.left), scope, ctx)
         right = self.value(_operand(node.right), scope, ctx)
         if node.op == "/":
@@ -1467,14 +1462,12 @@ class Compiler:
         if VALUE in (left.type, right.type) and not any(
             isinstance(value.type, TensorType) for value in (left, right)
         ):
-            call = ops.Call(_elementwise_product, "hadamard")
+            call = ops.Call("core.hadamard")
             return self.graph.add(call, (left, right), VALUE, node.span)
         if not (isinstance(left.type, TensorType) and isinstance(right.type, TensorType)):
             return self._multiply([left, right], node.span)
         right = self._align(right, left.type.indices, node.span, what="an elementwise product")
-        return self.graph.add(
-            ops.Call(linalg.hadamard, "hadamard"), (left, right), left.type, node.span
-        )
+        return self.graph.add(ops.Call("linalg.hadamard"), (left, right), left.type, node.span)
 
     def _wedge(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
         """The wedge product of forms written with indices:
@@ -1775,7 +1768,7 @@ class Compiler:
             assert isinstance(centered[0].type, TensorType)
             complex_space = self.graph.const(_complex(centered[0].type), VALUE)
             square = self.graph.add(
-                ops.Call(_squared_modulus, "squared modulus"),
+                ops.Call("core.squared_modulus"),
                 (centered[0], complex_space),
                 centered[0].type,
                 span,
@@ -1869,7 +1862,7 @@ class Compiler:
         if declared is not None:
             return self.graph.retype(declared, kind)
         return self.graph.add(
-            ops.Call(_uniform, "uniform"), (self.graph.const(space.dim, VALUE),), kind, span
+            ops.Call("core.uniform"), (self.graph.const(space.dim, VALUE),), kind, span
         )
 
     def _ledoit_wolf(self, node: Node, label: str, span: Span) -> Node:
@@ -1896,7 +1889,7 @@ class Compiler:
         assert isinstance(node.type, TensorType)
         space = node.type.spaces[1]
         kind = TensorType(Indices([Index("#a"), Index("#b")]), (space, space))
-        return self.graph.add(ops.Call(_ledoit_wolf, "ledoit-wolf"), (node,), kind, span)
+        return self.graph.add(ops.Call("stats.ledoit_wolf"), (node,), kind, span)
 
     @contextlib.contextmanager
     def _binding(self, label: str) -> Iterator[None]:
@@ -2047,7 +2040,7 @@ class Compiler:
             indices = Indices([kept, *rhs.type.indices[1:]])
             kind = TensorType(indices, (space, *rhs.type.spaces[1:]))
             solution = self.graph.add(
-                ops.Call(linalg.solve, "solve"),
+                ops.Call("linalg.solve"),
                 (inverse.args[0], rhs, self.graph.const(transpose, VALUE)),
                 kind,
                 span,
@@ -2096,7 +2089,7 @@ class Compiler:
             args = [self.value(arg, scope, ctx) for arg in node.args]
             if not isinstance(args[0].type, TensorType):
                 return None
-            return self.graph.add(ops.Map(sympy.log, "log"), args, args[0].type, node.span)
+            return self.graph.add(ops.Map("log"), args, args[0].type, node.span)
         if name not in ("eig", "spec", "svd", "tr") and not self._names_tensor(argument, scope):
             return None  # a builtin of plain matrices and numbers, as diag(1, x^2)
         tensor = self.value(argument, scope, ctx)
@@ -2110,7 +2103,7 @@ class Compiler:
             indices = Indices([Index("#r", index.upper), Index("#c", index.upper)])
             space = tensor.type.spaces[0]
             kind = TensorType(indices, (space, space))
-            return self.graph.add(ops.Call(linalg.diag, "diag"), (tensor,), kind, span)
+            return self.graph.add(ops.Call("linalg.diag"), (tensor,), kind, span)
         if name == "inv":
             if tensor.type.rank != 2:
                 raise IndexNotationError("only a tensor with two indices has an inverse", span=span)
@@ -2118,19 +2111,18 @@ class Compiler:
         if name in ("eig", "svd"):
             parts = self._decomposition(node, scope, ctx)
             assert parts is not None
-            return self.graph.add(ops.Call(_tuple, name), parts, VALUE, span)
+            return self.graph.add(ops.Call("core.tuple"), parts, VALUE, span)
         operator, rows, metric = self._as_map(tensor, span, form=name == "spec")
         if name in ("det", "tr", "trace"):
-            func = linalg.det if name == "det" else linalg.trace
             return self.graph.add(
-                ops.Call(_matrix_call(func), name),
+                ops.Call("linalg.det" if name == "det" else "linalg.trace"),
                 (operator, self.graph.const(rows, VALUE)),
                 SCALAR,
                 span,
             )
         if name in ("exp", "sqrt", "log"):
             return self.graph.add(
-                ops.Call(_matrix_function, name),
+                ops.Call("linalg.function"),
                 (self.graph.const(name, VALUE), operator, self.graph.const(rows, VALUE)),
                 operator.type,
                 span,
@@ -2238,7 +2230,7 @@ class Compiler:
         modes = Space(f"eigenvectors of {call.args[0].span.text}", abs(count) if count else size)
         args = [operator, self.graph.const(rows, VALUE), metric or self.graph.const(None, VALUE)]
         args.append(self.graph.const(count, VALUE))
-        both = self.graph.add(ops.Call(linalg.eig, "eig"), args, VALUE, call.span)
+        both = self.graph.add(ops.Call("linalg.eig"), args, VALUE, call.span)
         values = self._part(both, 0, TensorType(Indices([Index("#k")]), (modes,)), call.span)
         if values_only:
             return [values]
@@ -2258,7 +2250,7 @@ class Compiler:
         rows, columns = tensor.type.spaces
         modes = Space(f"singular vectors of {call.args[0].span.text}", min(rows.dim, columns.dim))
         both = self.graph.add(
-            ops.Call(linalg.svd, "svd"), (tensor, self.graph.const(1, VALUE)), VALUE, call.span
+            ops.Call("linalg.svd"), (tensor, self.graph.const(1, VALUE)), VALUE, call.span
         )
         mode = Index("#k")
         return [
@@ -2279,7 +2271,7 @@ class Compiler:
 
     def _part(self, whole: Node, position: int, kind: Type, span: Span) -> Node:
         index = self.graph.const(position, VALUE)
-        return self.graph.add(ops.Call(operator.getitem, "item"), (whole, index), kind, span)
+        return self.graph.add(ops.Call("core.part"), (whole, index), kind, span)
 
     def _divide(self, numerator: Node, denominator: Node, span: Span) -> Node:
         if isinstance(denominator.type, TensorType):
@@ -2378,12 +2370,12 @@ class Compiler:
     def _Comparison(self, node: ast.Comparison, scope: Scope, ctx: Context) -> Node:
         operands = [self.value(o, scope, ctx) for o in node.operands]
         relations = [
-            self._call(_COMPARE[op], op, [a, b], SCALAR, node.span)
+            self._call(_COMPARE[op], [a, b], SCALAR, node.span)
             for op, a, b in zip(node.ops, operands, operands[1:], strict=False)
         ]
         if len(relations) == 1:
             return relations[0]
-        return self._call(sympy.And, "and", relations, SCALAR, node.span)
+        return self._call("core.and", relations, SCALAR, node.span)
 
     # -- functions -----------------------------------------------------------
 
@@ -2467,8 +2459,7 @@ class Compiler:
         # Later, a bare name means this; but a coordinate, as r in r(t), stays a coordinate.
         if values and all(value in coordinates for value in values) and name not in names:
             self.session.functions[name] = tuple(values)
-        function = sympy.Function(name)
-        return self._call(function, name, args, SCALAR, node.span)
+        return self._call("core.function", args, SCALAR, node.span, (("name", name),))
 
     def _check_unknown_function(self, func: ast.Name, node: ast.Call) -> None:
         """A call of a function no one defined, which stays an unknown function: refused
@@ -2614,20 +2605,20 @@ class Compiler:
             raise CompileError(message, span=span)
         first = args[0] if args else None
         if builtin.componentwise and first is not None and isinstance(first.type, TensorType):
-            op = ops.Map(builtin.func, builtin.name)
+            op = ops.Map(builtin.name)
             return self.graph.add(op, args, first.type, span)
         args = [self._as_object(arg) for arg in args]
         kind = SCALAR if builtin.scalar and all(a.type == SCALAR for a in args) else VALUE
-        return self._call(builtin.func, builtin.name, args, kind, span)
+        return self._call(builtin.name, args, kind, span)
 
     def _as_object(self, node: Node) -> Node:
         """Wrap tensor components in a :class:`Tensor` for a function that wants one."""
         if isinstance(node.type, TensorType):
-            make = _TensorFactory(node.type.indices, self.session.coordinates or ())
-            return self.graph.add(ops.Call(make, "tensor"), (node,), VALUE, node.span)
+            wrap = ops.Call("core.tensor", self._wrapped(node.type.indices))
+            return self.graph.add(wrap, (node,), VALUE, node.span)
         if isinstance(node.type, EquationType) and isinstance(node.type.of, TensorType):
-            make_eq = _EquationFactory(node.type.of.indices, self.session.coordinates or ())
-            return self.graph.add(ops.Call(make_eq, "equation"), (node,), VALUE, node.span)
+            wrap = ops.Call("core.tensor_equation", self._wrapped(node.type.of.indices))
+            return self.graph.add(wrap, (node,), VALUE, node.span)
         return node
 
     def _inline(self, binding: FunctionBinding, args: list[Node], span: Span, ctx: Context) -> Node:
@@ -2679,9 +2670,9 @@ class Compiler:
         elif _names_builtin(prime.func, latex=ctx.latex):
             body = self._builtin(BUILTINS[name], [dummy], span)
         else:
-            body = self._call(sympy.Function(name), name, [dummy], SCALAR, span)
+            body = self._call("core.function", [dummy], SCALAR, span, (("name", name),))
         order = self.graph.const(prime.order, VALUE)
-        return self._call(_derivative_at, "derivative", [body, dummy, order, point], SCALAR, span)
+        return self._call("core.derivative_at", [body, dummy, order, point], SCALAR, span)
 
     def _geodesic_equations(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
         if len(node.args) > 1:
@@ -2697,11 +2688,7 @@ class Compiler:
         christoffel = self._geometry("christoffel", node.span)
         coordinates = self.graph.const(self.session.coordinates, VALUE)
         return self._call(
-            geodesic_equations,
-            "geodesic_equations",
-            [christoffel, coordinates, parameter],
-            VALUE,
-            node.span,
+            "core.geodesic_equations", [christoffel, coordinates, parameter], VALUE, node.span
         )
 
     def _require_whole(self, operand: Node, selections: Sequence[Node], span: Span) -> None:
@@ -2804,12 +2791,12 @@ class Compiler:
                 )
             index = vector.type.indices[0].flip()
             kind = TensorType(Indices([index]), vector.type.spaces)
-            return self.graph.add(ops.Call(_gradient, "gradient"), (expr, vector), kind, span)
+            return self.graph.add(ops.Call("core.gradient"), (expr, vector), kind, span)
         orders = self.graph.const(tuple(order for _, order in variables), VALUE)
         args = [expr, orders, *(v for v, _ in variables)]
         if isinstance(expr.type, TensorType):
-            return self.graph.add(ops.Map(_differentiate, "diff"), args, expr.type, span)
-        return self._call(_differentiate, "diff", args, expr.type, span)
+            return self.graph.add(ops.Map("core.diff"), args, expr.type, span)
+        return self._call("core.diff", args, expr.type, span)
 
     def _Differential(self, node: ast.Differential, scope: Scope, ctx: Context) -> Node:
         raise CompileError(
@@ -2833,18 +2820,13 @@ class Compiler:
                 raise CompileError("give both limits of a definite integral", span=bound.span)
             lower = self.value(bound.lower, scope, ctx)
             upper = self.value(bound.upper, scope, ctx)
-            limits.append(self._call(_limits, "limits", [symbol, lower, upper], VALUE, bound.span))
+            limits.append(self._call("core.limits", [symbol, lower, upper], VALUE, bound.span))
         integrand = self.value(node.integrand, inner, ctx)
         if isinstance(integrand.type, TensorType):
             return self.graph.add(
-                ops.Map(sympy.integrate, "integrate"),
-                [integrand, *limits],
-                integrand.type,
-                node.span,
+                ops.Map("integrate"), [integrand, *limits], integrand.type, node.span
             )
-        return self._call(
-            sympy.integrate, "integrate", [integrand, *limits], integrand.type, node.span
-        )
+        return self._call("integrate", [integrand, *limits], integrand.type, node.span)
 
     def _BigOperator(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node:
         if node.lower is None or node.upper is None:
@@ -2873,11 +2855,11 @@ class Compiler:
         lower = self.value(node.lower, scope, ctx)
         upper = self.value(node.upper, scope, ctx)
         body = self.value(node.body, inner, ctx)
-        func = _summation if node.op == "sum" else _product
+        name = "core.sum" if node.op == "sum" else "core.prod"
         args = [body, variable, lower, upper]
         if isinstance(body.type, TensorType):  # component by component, as an integral is
-            return self.graph.add(ops.Map(func, node.op), args, body.type, node.span)
-        return self._call(func, node.op, args, body.type, node.span)
+            return self.graph.add(ops.Map(name), args, body.type, node.span)
+        return self._call(name, args, body.type, node.span)
 
     def _Limit(self, node: ast.Limit, scope: Scope, ctx: Context) -> Node:
         inner = scope.child()
@@ -2887,9 +2869,9 @@ class Compiler:
         direction = self.graph.const(node.direction or "+-", VALUE)
         if isinstance(body.type, TensorType):
             return self.graph.add(
-                ops.Map(_limit, "limit"), [body, variable, point, direction], body.type, node.span
+                ops.Map("core.limit"), [body, variable, point, direction], body.type, node.span
             )
-        return self._call(_limit, "limit", [body, variable, point, direction], SCALAR, node.span)
+        return self._call("core.limit", [body, variable, point, direction], SCALAR, node.span)
 
     def _bound_variable(self, variable: ast.Expr, scope: Scope) -> Node:
         """Bind a summation, integration or limit variable as a plain symbol."""
@@ -2930,7 +2912,7 @@ class Compiler:
         twin = Indices([Index(index.name, not index.upper)])
         conjugate = self._conjugate(vector, span)
         square = self._contract([(conjugate, vector.type.indices), (lowered, twin)], span)
-        square = self.graph.add(ops.Call(_real, "real"), (square,), SCALAR, span)
+        square = self.graph.add(ops.Call("core.real"), (square,), SCALAR, span)
         half = self.graph.const(sympy.Rational(1, 2), SCALAR)
         return self.graph.add(ops.Pow(), (square, half), SCALAR, span)
 
@@ -2939,7 +2921,7 @@ class Compiler:
         of SymPy's over a complex space, where a symbol need not be real."""
         assert isinstance(tensor.type, TensorType)
         complex_space = self.graph.const(_complex(tensor.type), VALUE)
-        call = ops.Call(_conjugated, "conjugate")
+        call = ops.Call("core.conjugate")
         return self.graph.add(call, (tensor, complex_space), tensor.type, span)
 
     def _Substitution(self, node: ast.Substitution, scope: Scope, ctx: Context) -> Node:
@@ -2956,8 +2938,8 @@ class Compiler:
             sides = [self._substituted(side, pairs, span) for side in expr.args]
             return self.graph.add(ops.Equation(), sides, expr.type, span)
         if isinstance(expr.type, TensorType):
-            return self.graph.add(ops.Map(_substitute, "subs"), [expr, *pairs], expr.type, span)
-        return self._call(_substitute, "subs", [expr, *pairs], expr.type, span)
+            return self.graph.add(ops.Map("core.subs"), [expr, *pairs], expr.type, span)
+        return self._call("core.subs", [expr, *pairs], expr.type, span)
 
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         if node.accent in ("dot", "ddot"):
@@ -2971,20 +2953,18 @@ class Compiler:
     def _time_derivative(self, value: Node, accent: str, span: Span) -> Node:
         order = self.graph.const(1 if accent == "dot" else 2, VALUE)
         if isinstance(value.type, TensorType):
-            return self.graph.add(
-                ops.Map(_time_derivative, accent), (value, order), value.type, span
-            )
-        return self._call(_time_derivative, accent, [value, order], value.type, span)
+            return self.graph.add(ops.Map("core.time_derivative"), (value, order), value.type, span)
+        return self._call("core.time_derivative", [value, order], value.type, span)
 
     # -- collections -----------------------------------------------------------
 
     def _List(self, node: ast.List, scope: Scope, ctx: Context) -> Node:
         items = [self.value(item, scope, ctx) for item in node.items]
-        return self._call(_list, "list", items, VALUE, node.span)
+        return self._call("core.list", items, VALUE, node.span)
 
     def _Tuple(self, node: ast.Tuple, scope: Scope, ctx: Context) -> Node:
         items = [self.value(item, scope, ctx) for item in node.items]
-        return self._call(_tuple, "tuple", items, VALUE, node.span)
+        return self._call("core.tuple", items, VALUE, node.span)
 
     def _Matrix(self, node: ast.Matrix, scope: Scope, ctx: Context) -> Node:
         cells = [self.value(cell, scope, ctx) for row in node.rows for cell in row]
@@ -3003,7 +2983,7 @@ class Compiler:
                 if condition is not None
                 else self.graph.const(sympy.true, SCALAR)
             )
-        return self._call(_piecewise, "piecewise", args, SCALAR, node.span)
+        return self._call("core.piecewise", args, SCALAR, node.span)
 
     def _Prime(self, node: ast.Prime, scope: Scope, ctx: Context) -> Node:
         """A primed name written alone. Of a function written once with its one argument,
@@ -3243,7 +3223,7 @@ class Compiler:
         upper = quantity == "kronecker"
         indices = Indices([Index("a", upper), Index("b")])
         node = self.graph.add(
-            ops.Call(_identity, "identity"),
+            ops.Call("core.identity"),
             (self.graph.const(space.dim, VALUE),),
             TensorType(indices, (space, space)),
             span,
@@ -3262,7 +3242,7 @@ class Compiler:
         space = space or self._space_of(name, span)
         kind = TensorType(Indices([Index(name, upper)]), (space,))
         return self.graph.add(
-            ops.Call(_ones, "ones"), (self.graph.const(space.dim, VALUE),), kind, span
+            ops.Call("core.ones"), (self.graph.const(space.dim, VALUE),), kind, span
         )
 
     def _builtin_tensor(self, name: str, rank: int | None) -> str | None:
@@ -4790,157 +4770,22 @@ class Compiler:
     # -- helpers -------------------------------------------------------------
 
     def _call(
-        self, func: Callable[..., Any], name: str, args: Sequence[Node], kind: Type, span: Span
+        self,
+        name: str,
+        args: Sequence[Node],
+        kind: Type,
+        span: Span,
+        attributes: ops.Attributes = (),
     ) -> Node:
-        return self.graph.add(ops.Call(func, name), list(args), kind, span)
+        """The operation registered as ``name`` (see :mod:`relativisticpy.runtime.registry`)
+        applied to ``args``, with ``attributes``."""
+        return self.graph.add(ops.Call(name, attributes), list(args), kind, span)
 
-
-# ---------------------------------------------------------------------------
-# Kernels used by Call and Map nodes (module-level, so worker processes can use them)
-# ---------------------------------------------------------------------------
-
-
-def _list(*items: Any) -> list[Any]:
-    return list(items)
-
-
-def _tuple(*items: Any) -> tuple[Any, ...]:
-    return tuple(items)
-
-
-def _limits(variable: Any, lower: Any, upper: Any) -> tuple[Any, Any, Any]:
-    return (variable, lower, upper)
-
-
-def _summation(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
-    """A sum: carried out where it has a whole number of terms, as \\sum_{n=0}^{2} has;
-    an infinite one, or one to n, is kept as it is written, for doit to carry out."""
-    return _finite(sympy.Sum(body, (variable, lower, upper)), lower, upper)
-
-
-def _product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
-    """A product, carried out as a sum is: see :func:`_summation`."""
-    return _finite(sympy.Product(body, (variable, lower, upper)), lower, upper)
-
-
-def _finite(written: Any, lower: Any, upper: Any) -> Any:
-    bounds = [sympy.sympify(bound) for bound in (lower, upper)]
-    if all(bound.is_Integer for bound in bounds) and bounds[1] - bounds[0] < 10_000:
-        return written.doit()
-    return written
-
-
-def _limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
-    if direction == "+-" and point in (sympy.oo, -sympy.oo):
-        direction = "-" if point == sympy.oo else "+"
-    return sympy.limit(body, variable, point, direction)
-
-
-def _differentiate(expr: Any, orders: tuple[int, ...], *variables: Any) -> Any:
-    return sympy.diff(expr, *((v, n) for v, n in zip(variables, orders, strict=True)))
-
-
-def _derivative_at(body: Any, dummy: Any, order: int, point: Any) -> Any:
-    return sympy.diff(body, dummy, order).subs(dummy, point)
-
-
-def _gradient(expr: Any, vector: Any) -> Any:
-    return sympy.ImmutableDenseNDimArray([sympy.diff(expr, component) for component in vector])
-
-
-def _substitute(expr: Any, *pairs: Any) -> Any:
-    """An evaluation bar, ``x - y |_{x=y, y=x}``: every substitution at once, as a
-    change of variables is, rather than one after another."""
-    rules = list(zip(pairs[::2], pairs[1::2], strict=True))
-    return sympy.sympify(expr).subs(rules, simultaneous=True)
-
-
-def _where(components: Any, name: str, value: Any) -> Any:
-    """A metric's components with a name it is written with given its value, as where
-    \\Delta = r^2 - 2Mr + a^2 follows a line element: the symbol, or a function of the
-    coordinates the name stands for, as \\alpha does for \\alpha(t, r)."""
-    value = sympy.sympify(value)
-
-    def put(component: Any) -> Any:
-        component = sympy.sympify(component).replace(
-            lambda e: isinstance(e, AppliedUndef) and e.func.__name__ == name, lambda e: value
-        )
-        return component.xreplace({s: value for s in component.free_symbols if s.name == name})
-
-    return arrays.apply(arrays.to_array(components), put)
-
-
-def _where_function(components: Any, function: tuple[str, tuple[Any, ...]], body: Any) -> Any:
-    """A metric's components with a function it is written with, as f is in
-    -f(r) dt^2, given its definition: ``body`` in its ``parameters``. Where the function
-    is written with other arguments than it is defined with, the definition says what it
-    is in terms of the parameters' names, as \\alpha(r) := ... does of \\alpha(t, r)."""
-    name, parameters = function
-    body = sympy.sympify(body)
-
-    def at(applied: Any) -> Any:
-        if len(applied.args) == len(parameters):
-            return body.xreplace(dict(zip(parameters, applied.args, strict=True)))
-        return body
-
-    def put(component: Any) -> Any:
-        return sympy.sympify(component).replace(
-            lambda e: isinstance(e, AppliedUndef) and e.func.__name__ == name, at
-        )
-
-    return arrays.apply(arrays.to_array(components), put)
-
-
-def _line_element(metric: Any, coordinates: Sequence[Symbol]) -> Any:
-    """:math:`g_{\\mu\\nu} dx^\\mu dx^\\nu`, in the differentials of the coordinates."""
-    differentials = [differential(c) for c in coordinates]
-    count = len(coordinates)
-    return sympy.Add(
-        *(
-            metric[i, j] * differentials[i] * differentials[j]
-            for i in range(count)
-            for j in range(count)
-        )
-    )
-
-
-def _piecewise(*args: Any) -> Any:
-    return sympy.Piecewise(*zip(args[::2], args[1::2], strict=True))
-
-
-def _time_derivative(expr: Any, order: int) -> Any:
-    r"""``\dot{x}``: the derivative with respect to the single variable that the
-    functions in ``x`` depend on; a plain symbol ``a`` gives the symbol ``adot``."""
-    expr = sympy.sympify(expr)
-    applied = expr.atoms(sympy.core.function.AppliedUndef)
-    parameters = {argument for function in applied for argument in function.args}
-    if len(parameters) == 1:
-        return sympy.diff(expr, parameters.pop(), order)
-    if isinstance(expr, Symbol):
-        return sympy.Symbol(expr.name + ("dot" if order == 1 else "ddot"))
-    raise ValueError(
-        f"cannot tell what {expr} changes with: write it as a function of one variable, e.g. a(t)"
-    )
-
-
-@dataclass(frozen=True)
-class _TensorFactory:
-    """Wraps components in a Tensor (picklable, for worker processes)."""
-
-    indices: Indices
-    coordinates: tuple[Symbol, ...]
-
-    def __call__(self, components: Any) -> Tensor:
-        return Tensor(components, _public(self.indices), self.coordinates)
-
-
-@dataclass(frozen=True)
-class _EquationFactory:
-    indices: Indices
-    coordinates: tuple[Symbol, ...]
-
-    def __call__(self, equation: TensorEquation) -> TensorEquation:
-        return TensorEquation(equation.lhs, equation.rhs, _public(self.indices), self.coordinates)
+    def _wrapped(self, indices: Indices) -> ops.Attributes:
+        """The attributes of an operation that gives tensor components to a function that
+        wants a :class:`~relativisticpy.tensors.Tensor`: its indices, as they are shown,
+        and the coordinates."""
+        return (("indices", _public(indices)), ("coordinates", self.session.coordinates or ()))
 
 
 # ---------------------------------------------------------------------------
@@ -5194,20 +5039,6 @@ _LINEAR_ALGEBRA = frozenset(
 )
 
 
-@dataclass(frozen=True)
-class _matrix_call:
-    """``func(components, rows)``: picklable, for worker processes."""
-
-    func: Callable[..., Any]
-
-    def __call__(self, components: Any, rows: int) -> Any:
-        return self.func(components, rows)
-
-
-def _matrix_function(name: str, components: Any, rows: int) -> Any:
-    return linalg.function(name, components, rows)
-
-
 def _is_minus_one(node: ast.Expr | None) -> bool:
     return (
         isinstance(node, ast.Unary)
@@ -5222,126 +5053,9 @@ def _shares(one: Node, other: Node) -> bool:
     return bool(set(_indices(one).names) & set(_indices(other).names))
 
 
-def _identity(dim: int) -> Any:
-    """The identity matrix: SymPy's for a few dimensions, NumPy's for many."""
-    if dim <= _SMALL:
-        return sympy.ImmutableDenseNDimArray(sympy.eye(dim).tolist())
-    from relativisticpy.tensors import numerical
-
-    return numerical.numpy().eye(dim)
-
-
-def _ones(dim: int) -> Any:
-    if dim <= _SMALL:
-        return sympy.ImmutableDenseNDimArray([1] * dim)
-    from relativisticpy.tensors import numerical
-
-    return numerical.numpy().ones(dim)
-
-
-def _uniform(dim: int) -> Any:
-    """The uniform measure: weight 1/n on each of n elements."""
-    if dim <= _SMALL:
-        return sympy.ImmutableDenseNDimArray([sympy.Rational(1, dim)] * dim)
-    from relativisticpy.tensors import numerical
-
-    return numerical.numpy().full(dim, 1.0 / dim)
-
-
-def _space_metric(components: Any, complex_space: bool) -> Any:
-    """The components of a space's metric, once found to be one: symmetric (Hermitian, over
-    a complex space) and, where they are numbers, positive definite."""
-    from relativisticpy.errors import EvaluationError
-    from relativisticpy.tensors import numerical
-    from relativisticpy.tensors.simplification import is_zero
-
-    asymmetric = EvaluationError(
-        f"a metric is {'Hermitian' if complex_space else 'symmetric'}, but this one is not"
-    )
-    indefinite = EvaluationError(
-        "a metric of a space is positive definite, but this one is not",
-        hint="a covariance is, unless some combination of the data never varies",
-    )
-    if numerical.is_numerical(components):
-        np = numerical.numpy()
-        try:
-            matrix = np.asarray(numerical.dense(components))
-        except TypeError:  # numbers JAX is differentiating, not known yet
-            return components
-        if not linalg.hermitian(matrix):
-            raise asymmetric
-        try:
-            np.linalg.cholesky(matrix)
-        except np.linalg.LinAlgError:
-            raise indefinite from None
-        return components
-    entries = sympy.Matrix(components.tolist())
-    if not all(is_zero(entry) for entry in entries - (entries.H if complex_space else entries.T)):
-        raise asymmetric
-    if all(entry.is_number for entry in entries) and entries.is_positive_definite is False:
-        raise indefinite
-    return components
-
-
-def _elementwise_product(left: Any, right: Any) -> Any:
-    """The elementwise product of lists or matrices of one shape, ``[1, 2] \\odot [3, 4]``,
-    which is ``[3, 8]``; a number multiplies every element."""
-    from relativisticpy.errors import EvaluationError
-    from relativisticpy.tensors import arrays
-
-    def array(value: Any) -> Any:
-        listed = isinstance(value, list | tuple | sympy.MatrixBase)
-        return arrays.to_array(value) if listed else value
-
-    left, right = array(left), array(right)
-    shapes = [tuple(getattr(value, "shape", ())) for value in (left, right)]
-    if () in shapes:
-        return left * right
-    if shapes[0] != shapes[1]:
-        raise EvaluationError(
-            f"an elementwise product is of arrays of one shape, not {shapes[0]} and {shapes[1]}"
-        )
-    return linalg.hadamard(left, right)
-
-
 def _complex(kind: TensorType) -> bool:
     """Whether a tensor has an axis over a complex space."""
     return any(space.field == "complex" for space in kind.spaces)
-
-
-def _conjugated(components: Any, complex_space: bool) -> Any:
-    """The complex conjugate of components: of numbers, always (real ones are their own),
-    and of SymPy's where they are over a complex space."""
-    from relativisticpy.tensors import arrays, numerical
-
-    if numerical.is_numerical(components):
-        complex_data = numerical.xp(components).iscomplexobj(components)
-        return components.conj() if complex_data else components
-    return arrays.apply(components, sympy.conjugate) if complex_space else components
-
-
-def _squared_modulus(components: Any, complex_space: bool) -> Any:
-    """:math:`|x|^2` of each component, which is real: :math:`x \\bar x` of complex numbers,
-    and of SymPy's over a complex space; :math:`x^2` otherwise."""
-    from relativisticpy.tensors import arrays, numerical
-
-    if numerical.is_numerical(components):
-        if not numerical.xp(components).iscomplexobj(components):
-            return linalg.hadamard(components, components)
-        return linalg.hadamard(components, components.conj()).real
-    if complex_space:
-        return arrays.apply(components, lambda c: sympy.expand(c * sympy.conjugate(c)))
-    return linalg.hadamard(components, components)
-
-
-def _real(value: Any) -> Any:
-    """The real part of numbers that are real but for rounding, such as the square of a
-    complex vector's length; SymPy values as they are."""
-    from relativisticpy.tensors import numerical
-
-    if numerical.is_numerical(value) and numerical.xp(value).iscomplexobj(value):
-        return value.real
-    return value
 
 
 def _uniform_weights(measure: Node) -> bool:
@@ -5352,20 +5066,6 @@ def _uniform_weights(measure: Node) -> bool:
         return False
     weights = numerical.numpy().asarray(measure.op.value, dtype=float)
     return bool(numerical.numpy().allclose(weights, weights.mean(), rtol=1e-12, atol=0.0))
-
-
-def _ledoit_wolf(samples: Any) -> Any:
-    """The Ledoit–Wolf covariance of samples in rows, from scikit-learn."""
-    from relativisticpy.tensors import numerical
-
-    try:
-        from sklearn.covariance import LedoitWolf
-    except ImportError as error:  # pragma: no cover - depends on the environment
-        raise ImportError(
-            'the Ledoit–Wolf covariance needs scikit-learn: pip install "relativisticpy[data]"'
-        ) from error
-    data = numerical.dense(numerical.as_array(samples))
-    return LedoitWolf(assume_centered=False).fit(data).covariance_
 
 
 #: Names of statistics written as operators, for the statistic they mean.
@@ -5403,10 +5103,6 @@ def _statistic(node: ast.Expr) -> tuple[str, str] | None:
     ):
         return None
     return _STATISTICS[node.base.id], str(node.scripts[0].indices.items[0].label)
-
-
-# Spaces up to this size get SymPy's identity and ones, which stay exact with symbols.
-_SMALL = 16
 
 
 def _tensor_pattern_of_one(node: ast.Scripted) -> tuple[str, bool] | None:

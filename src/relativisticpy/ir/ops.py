@@ -5,6 +5,12 @@ and hashable, so the graph can recognise two requests for the same
 computation. The executor's kernels (:mod:`relativisticpy.runtime.kernels`)
 give each one its meaning.
 
+No operation holds a Python function. One that calls a function, :class:`Call` or
+:class:`Map`, holds its name, which the registry of implementations
+(:mod:`relativisticpy.runtime.registry`) maps to what computes it, and its attributes:
+values known when compiling, by name. So the whole program can be read, printed and
+compared before anything is computed.
+
 The tensor operations form a small core. Raising and lowering indices,
 covariant derivatives and traces all lower to :class:`Contract`,
 :class:`Partial`, :class:`Permute` and :class:`Add`, so a backend needs to
@@ -13,8 +19,8 @@ implement only these.
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, field
+from collections.abc import Hashable
+from dataclasses import dataclass
 from typing import Any
 
 from sympy import Symbol
@@ -45,15 +51,21 @@ class Const(Op):
 # -- scalars and values -------------------------------------------------------
 
 
+#: Values known when compiling, by name, that an operation calling a function is given
+#: besides its arguments, such as the name of a function no one defined.
+Attributes = tuple[tuple[str, Hashable], ...]
+
+
 @dataclass(frozen=True)
 class Call(Op):
-    """Apply a Python function, usually a SymPy one, to the argument values."""
+    """Apply the operation registered as ``name``, such as ``sin`` or ``core.sum``, to the
+    argument values, with its ``attributes``."""
 
-    func: Callable[..., Any] = field(compare=True)
-    name: str = ""
+    name: str
+    attributes: Attributes = ()
 
     def label(self) -> str:
-        return f"call {self.name or getattr(self.func, '__name__', '?')}"
+        return f"call {self.name}{_shown(self.attributes)}"
 
 
 @dataclass(frozen=True)
@@ -145,15 +157,24 @@ class Symmetrize(Op):
 
 @dataclass(frozen=True)
 class Map(Op):
-    """Apply a function to every component of the first argument, passing the
-    remaining argument values after the component. Run in parallel when the
-    executor has workers."""
+    """Apply the operation registered as ``name`` to every component of the first
+    argument, passing the remaining argument values after the component, then its
+    ``attributes``. Run in parallel when the executor has workers."""
 
-    func: Callable[..., Any]
-    name: str = ""
+    name: str
+    attributes: Attributes = ()
 
     def label(self) -> str:
-        return f"map {self.name or getattr(self.func, '__name__', '?')}"
+        return f"map {self.name}{_shown(self.attributes)}"
+
+
+def _shown(attributes: Attributes) -> str:
+    """Attributes as the IR listing shows them: `` name=alpha``."""
+    shown = []
+    for key, value in attributes:
+        text = str(value)
+        shown.append(f" {key}={text if len(text) <= 40 else text[:37] + '...'}")
+    return "".join(shown)
 
 
 @dataclass(frozen=True)
