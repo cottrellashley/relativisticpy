@@ -32,6 +32,7 @@ holds, and how results are shown. Write LaTeX in raw strings, `r"..."`, and see
 | `wb.space(name, dim, basis=, labels=, field=, measure=)` | declare a space for indices to range over, with its basis, labels, field (`"real"` or `"complex"`) and the weights of its expectations; returns the `Space` |
 | `wb.grad(source, wrt)` | the gradient of a scalar with respect to bound data, by automatic differentiation with JAX |
 | `wb.metric`, `wb.coordinates` | the metric in force (a `Metric`) and the coordinates |
+| `wb.copy()` | a workbook in the same state, whose definitions are its own from then on; it shares what has been computed |
 | `wb.ir(source)` | the IR a program compiles to, as text |
 | `wb.explain(source)` | how each statement is read, and why: see [How a statement is read](#how-a-statement-is-read) |
 | `wb.tokens(source)`, `wb.parse(source)` | the tokens and syntax tree |
