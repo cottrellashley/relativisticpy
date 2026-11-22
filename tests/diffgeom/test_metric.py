@@ -27,7 +27,7 @@ def test_construction_checks_the_components():
 def test_a_metric_is_a_tensor():
     g = Metric(diag(-1, 1), "tx")
     assert isinstance(g, Tensor)
-    assert str(g.indices) == "_{mu}_{nu}"
+    assert str(g.indices) == r"_{\mu\nu}"
     assert repr(g) == "Metric([[-1, 0], [0, 1]])"
     assert g.inverse.components == Array([[-1, 0], [0, 1]])
 

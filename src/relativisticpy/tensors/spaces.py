@@ -20,23 +20,25 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from sympy import Symbol
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Space:
     """What an index ranges over: its ``name``, its dimension ``dim``, optionally the
     names of its ``basis`` and whether its components are ``real`` or ``complex``.
     Spacetime, the space of the coordinates, is marked as such: its metric is the
-    metric in force."""
+    metric in force. A space ``inferred`` from the shape of data, rather than declared,
+    says so."""
 
     name: str
     dim: int
     basis: tuple[str, ...] | None = None
     field: Literal["real", "complex"] = "real"
     spacetime: bool = False
+    inferred: bool = False
 
     def __post_init__(self) -> None:
         if self.dim < 0:
@@ -46,8 +48,55 @@ class Space:
                 f"the space {self.name} has dimension {self.dim} but {len(self.basis)} names"
             )
 
+    @classmethod
+    def from_data(
+        cls,
+        name: str,
+        dim: int,
+        *,
+        basis: Sequence[str] | None = None,
+        field: Literal["real", "complex"] = "real",
+    ) -> Space:
+        """A space inferred from data bound without one, named after what it was inferred
+        from, as ``"A: i, j"`` for the rows and columns of a matrix ``A_{ij}``."""
+        names = tuple(basis) if basis is not None else None
+        return cls(name, dim, names, field, inferred=True)
+
     def __str__(self) -> str:
         return self.name
+
+    def __repr__(self) -> str:
+        inferred = ", inferred=True" if self.inferred else ""
+        return (
+            f"Space(name={self.name!r}, dim={self.dim}, basis={self.basis!r}, "
+            f"field={self.field!r}, spacetime={self.spacetime}{inferred})"
+        )
+
+    def describe(self) -> str:
+        """The space in words: ``space assets: ℝ³, basis (AAPL, MSFT, NVDA)``."""
+        from relativisticpy import display
+
+        return display.unicode(self)
+
+    def _display_unicode(self) -> str:
+        from relativisticpy import display
+
+        return display.space_form(self, "unicode")
+
+    def _display_text(self) -> str:
+        from relativisticpy import display
+
+        return display.space_form(self, "text")
+
+    def _display_latex(self) -> str:
+        from relativisticpy import display
+
+        return display.space_form(self, "latex")
+
+    def _display_data(self) -> dict[str, Any]:
+        from relativisticpy import display
+
+        return display.space_data(self)
 
     def position(self, name: str) -> int | None:
         """The number of the basis element called ``name``, if there is one."""

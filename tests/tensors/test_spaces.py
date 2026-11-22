@@ -36,3 +36,16 @@ def test_spacetime_is_the_space_of_the_coordinates():
 def test_what_is_not_a_space(dim, basis, message):
     with pytest.raises(ValueError, match=message):
         Space("bad", dim, basis=basis)
+
+
+def test_a_space_inferred_from_data_says_so():  # API-36
+    inferred = Space.from_data("A: i, j", 500)
+    assert inferred.inferred
+    assert repr(inferred) == (
+        "Space(name='A: i, j', dim=500, basis=None, field='real', spacetime=False, inferred=True)"
+    )
+    assert inferred.describe() == "space A: i, j: ℝ⁵⁰⁰, inferred from data"
+    assert repr(Space("assets", 2, basis=("AAPL", "MSFT"))) == (
+        "Space(name='assets', dim=2, basis=('AAPL', 'MSFT'), field='real', spacetime=False)"
+    )
+    assert Space("qubit", 2, field="complex").describe() == "space qubit: ℂ²"

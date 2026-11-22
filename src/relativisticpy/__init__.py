@@ -11,12 +11,31 @@ compute them::
     ...     R_{abcd} R^{abcd}
     ... ''')
     48*M**2/r**6
+
+The API at a glance:
+
+- :class:`Workbook` runs programs: ``wb.expr(source)`` gives the value of the last
+  expression, ``wb.exe(source)`` every value, ``wb.check(document)`` checks a paper.
+- Results are SymPy values, or :class:`Tensor` (and :class:`Metric`),
+  :class:`TensorEquation`, :class:`IndexEquation` and :class:`IndexExpression`;
+  a check gives a :class:`Report` of :class:`Finding` values, each with a
+  :class:`Verdict`.
+- :func:`holds` says whether any claim holds; :mod:`relativisticpy.display` shows any
+  result in Unicode, text, LaTeX or as data; :func:`latex` typesets one.
+- :mod:`relativisticpy.spacetimes` builds the known metrics, and
+  :mod:`relativisticpy.numeric` turns symbols into numbers and integrates geodesics.
+- Every error a user can cause is a :class:`RelativisticPyError`.
 """
 
-from importlib.metadata import PackageNotFoundError, version
+from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+from importlib.metadata import version as _version
 
-from relativisticpy import spacetimes
+from relativisticpy import display, spacetimes
+from relativisticpy.abstract import IndexEquation, IndexExpression
+from relativisticpy.checking import Finding, Report, Verdict
 from relativisticpy.diffgeom import Metric
+from relativisticpy.display import latex
+from relativisticpy.documents import Document
 from relativisticpy.errors import (
     CompileError,
     EvaluationError,
@@ -24,28 +43,39 @@ from relativisticpy.errors import (
     ParseError,
     RelativisticPyError,
 )
-from relativisticpy.tensors import Index, Indices, Tensor
-from relativisticpy.tensors.equation import TensorEquation
-from relativisticpy.workbook import Workbook, latex
+from relativisticpy.tensors import Index, Indices, Space, Tensor
+from relativisticpy.tensors.equation import TensorEquation, UndecidedError, holds
+from relativisticpy.workbook import Step, Workbook
 
 try:
-    __version__ = version("relativisticpy")
-except PackageNotFoundError:  # pragma: no cover - running from a source tree
+    __version__ = _version("relativisticpy")
+except _PackageNotFoundError:  # pragma: no cover - running from a source tree
     __version__ = "0+unknown"
 
 __all__ = [
     "CompileError",
+    "Document",
     "EvaluationError",
+    "Finding",
     "Index",
+    "IndexEquation",
+    "IndexExpression",
     "IndexNotationError",
     "Indices",
     "Metric",
     "ParseError",
     "RelativisticPyError",
+    "Report",
+    "Space",
+    "Step",
     "Tensor",
     "TensorEquation",
+    "UndecidedError",
+    "Verdict",
     "Workbook",
     "__version__",
+    "display",
+    "holds",
     "latex",
     "spacetimes",
 ]
