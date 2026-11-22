@@ -1,6 +1,7 @@
 # Cases that pass. Written by benchmarks/curriculum.py --update.
 analysis.derivatives.chain-rule
 analysis.derivatives.continuity
+analysis.derivatives.dot-squared
 analysis.integrals.gaussian-polar
 analysis.integrals.substitution
 analysis.limits.lhopital
@@ -81,6 +82,7 @@ em.maxwell.dispersion
 em.maxwell.gauge-invariance
 em.maxwell.mismatched-indices
 em.sources.coulomb
+em.sources.loop-moment
 em.waves.speed-of-light
 em.waves.stress-energy-traceless
 fa.series.coefficient

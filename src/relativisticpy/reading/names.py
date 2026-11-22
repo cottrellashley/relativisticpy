@@ -708,7 +708,7 @@ def _with_arguments(target: ast.Expr) -> tuple[ast.Expr, ast.Expr] | None:
         return None
     func, group = target.left, target.right
     named = isinstance(func, ast.Name) or (
-        isinstance(func, ast.Scripted) and isinstance(func.base, ast.Name)
+        isinstance(func, ast.Scripted | ast.Accent) and isinstance(func.base, ast.Name)
     )
     items = group.items if isinstance(group, ast.Tuple) else (group,)
     if not named or not all(isinstance(item, ast.Name) for item in items):
@@ -753,6 +753,102 @@ def _a_name(node: ast.Expr) -> bool:
     if isinstance(node, ast.Scripted):
         return isinstance(node.base, ast.Name) and all(s.kind == "_" for s in node.scripts)
     return isinstance(node, ast.Name)
+
+
+def _a_pair(node: Node) -> bool:
+    """Whether a value is a pair or a list written in brackets, of two items or more, as
+    ``(a, b)``, ``[a, b]``, ``\\{a, b\\}`` and ``\\langle a, b \\rangle`` are read."""
+    names = ("core.tuple", "core.list")
+    return isinstance(node.op, ops.Call) and node.op.name in names and len(node.args) >= 2
+
+
+def _may_be_a_pair(node: Node) -> bool:
+    """Whether a scalar may stand for a pair: an unknown function's value, as the chart map
+    ``\\phi_1(x^1, x^2, x^3)`` is, or a symbol nothing defines."""
+    if isinstance(node.op, ops.Call) and node.op.name == "core.function":
+        return True
+    return isinstance(node.op, ops.Const) and isinstance(node.op.value, Symbol)
+
+
+#: The inner product, as it is written today, for hints.
+INNER_PRODUCT = (
+    "for the inner product of vectors, write them with an index over a space and contract "
+    "it: \\mathcal{V} := \\mathbb{R}^{2}, a \\in \\mathcal{V}, then p^a q_a"
+)
+
+#: What two items in brackets often are in books, by the brackets they are written in, and
+#: how to write it today, with {0} and {1} for the two items. Numbers in brackets are
+#: none of them: [4, 9] is a list.
+_BRACKETS = (
+    (("\\langle", "⟨"), "an inner product", INNER_PRODUCT),
+    (
+        ("\\{", "\\left\\{", "\\lbrace", "\\left\\lbrace"),
+        "a Poisson bracket",
+        "for the Poisson bracket, write it out, as in \\frac{{\\partial {0}}}{{\\partial q}} "
+        "\\frac{{\\partial {1}}}{{\\partial p}} - \\frac{{\\partial {0}}}{{\\partial p}} "
+        "\\frac{{\\partial {1}}}{{\\partial q}}, summed over the canonical pairs (q, p)",
+    ),
+    (
+        ("[", "\\left[", "\\big[", "\\Big[", "\\lbrack"),
+        "a commutator",
+        "for the commutator, write {0} {1} - {1} {0}",
+    ),
+)
+
+
+def _bracket_meaning(written: str) -> tuple[str, str] | None:
+    """What two items in the brackets ``written`` starts with are often in books, as a
+    Poisson bracket is in ``\\{L_x, L_y\\}``, and the hint that says how to write it;
+    ``None`` for other brackets, and for numbers in brackets."""
+    items = _items_written(written)
+    if items is None or all(_NUMBER.fullmatch(item) for item in items):
+        return None
+    for openers, meaning, hint in _BRACKETS:
+        if written.startswith(openers):
+            return meaning, hint
+    return None
+
+
+def _in_angle_brackets(node: ast.Expr) -> bool:
+    """Whether an expression is written in angle brackets, as ``\\langle u, v \\rangle`` and
+    ``\\langle 0 | T | 0 \\rangle`` are, which the parser reads as brackets."""
+    written = node.span.text.strip()
+    return written.startswith(("\\langle", "⟨")) and written.endswith(("\\rangle", "⟩"))
+
+
+def _often(meant: tuple[str, str] | None) -> list[str]:
+    """The note on what brackets often are in books, as a Poisson bracket, where they are."""
+    if meant is None:
+        return []
+    return [f"in these brackets, two items are often {meant[0]}, which is not supported yet"]
+
+
+_OPENED = re.compile(
+    r"^(?:\\left|\\big|\\Big)?(?:\\langle|⟨|\\\{|\\lbrace|\[|\\lbrack|\()(?P<inside>.*?)"
+    r"(?:\\right|\\big|\\Big)?(?:\\rangle|⟩|\\\}|\\rbrace|\]|\\rbrack|\))$",
+    re.DOTALL,
+)
+_NUMBER = re.compile(r"-?\d+(?:\.\d*)?")
+
+
+def _items_written(written: str) -> list[str] | None:
+    """The items of brackets as they are written: ``p`` and ``q`` of
+    ``\\langle p, q \\rangle``; ``None`` where ``written`` is no bracketed list."""
+    match = _OPENED.match(written.strip())
+    if match is None:
+        return None
+    items, depth, start = [], 0, 0
+    inside = match["inside"]
+    for position, character in enumerate(inside):
+        if character in "([{":
+            depth += 1
+        elif character in ")]}":
+            depth -= 1
+        elif character == "," and depth == 0 and not inside[:position].endswith("\\"):
+            items.append(inside[start:position].strip())
+            start = position + 1
+    items.append(inside[start:].strip())
+    return items
 
 
 def _subscripted_symbol(target: ast.Scripted) -> bool:

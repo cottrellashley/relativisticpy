@@ -57,6 +57,10 @@ from relativisticpy.typing.syntax import (
 )
 from relativisticpy.typing.typer import _KNOWN_FIRST, _is_zero, _listed
 
+#: What := cannot define, which the reader says how it read: a product, as \psi_n(x) or
+#: \Delta\phi, a time derivative, a call of what is not a name, brackets and numbers.
+_UNDEFINABLE = (ast.Binary, ast.Accent, ast.Call, ast.Tuple, ast.List, ast.Number)
+
 
 class Definitions(Expressions):
     """The lowering of definitions."""
@@ -100,7 +104,7 @@ class Definitions(Expressions):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
             return
         target = _unprimed(target)
-        if isinstance(target, ast.Binary | ast.Accent | ast.Call):  # \psi_n(x), \Delta\phi
+        if isinstance(target, _UNDEFINABLE):  # \psi_n(x), \Delta\phi, \langle p, q \rangle
             raise self._cannot_define(target, value)
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
             raise CompileError("cannot define this", span=target.span)

@@ -131,8 +131,12 @@ a subscript is a name of its own, so `\psi_1(x)` and `R_{21}(r)` are called as
 
 **Definitions.** `\equiv`, `\coloneqq` and `≔` all mean `:=`. A primed or accented
 name is a name of its own, which a definition gives a value, as in
-`x' := \gamma (x - v t)` or `\hat{p} := 2`; a dot is a time derivative, so
-`\dot{x} := v` states an identity instead.
+`x' := \gamma (x - v t)` or `\hat{p} := 2`. A name written as an operator, with its
+argument after it, defines a function, as `\operatorname{sinc} x := \frac{\sin \pi x}{\pi x}`
+does. What `:=` cannot define is refused, saying how it was read: a dot is a time
+derivative, so `\dot{x} := v` is refused, and so is `\psi_n(x) := \sin(n x)`, which is
+read as ψ_n times x. Only `\equiv` states an identity where its left side cannot be
+defined.
 
 ## Environments
 

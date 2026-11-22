@@ -6,7 +6,7 @@ read, why, and what to write instead; and the hint works."""
 import pytest
 import sympy
 
-from relativisticpy.errors import CompileError
+from relativisticpy.errors import CompileError, EvaluationError
 
 x, theta = sympy.symbols("x theta")
 
@@ -31,8 +31,8 @@ class TestColonEqualsDefinesOrRefuses:
         found = error(wb, r"\psi_n(x) := \sin(n x)")
         assert found.message == r"cannot define \psi_n(x), which is read as \psi_n times x"
         assert found.notes[0] == (
-            r"a name with a subscript or a superscript, as \psi_n, is not yet the name of a "
-            "function, nor of a family of them"
+            r"a name with a subscript, a superscript or an accent, as \psi_n, is not yet the "
+            "name of a function, nor of a family of them"
         )
         assert found.hint == (
             r"define a function of n too, as in \psi(n, x) := ..., and write \psi(1, x) for "
@@ -45,7 +45,7 @@ class TestColonEqualsDefinesOrRefuses:
         assert found.message == (
             r"cannot define Y_2^1(\theta, \phi), which is read as Y_2^1 times (\theta, \phi)"
         )
-        hint = r"give the function a name without scripts, as in Y(\theta, \phi) := ..."
+        hint = r"give the function a plain name, as in Y(\theta, \phi) := ..."
         assert found.hint == hint
         assert wb.expr(r"Y(\theta, \phi) := \sin\theta" "\n" r"Y(\theta, 0)") == sympy.sin(theta)
 
@@ -124,6 +124,24 @@ class TestColonEqualsDefinesOrRefuses:
         found = error(wb, r"\operatorname{sinc} x y := 2")
         assert found.message.startswith(r"cannot define \operatorname{sinc} x y")
 
+    def test_brackets_and_numbers_say_how_they_were_read(self, wb):
+        found = error(wb, r"\langle p, q \rangle := \int_{-1}^{1} p(x) q(x) \, dx")
+        assert found.message == (
+            r"cannot define \langle p, q \rangle, which is read as the pair (p, q)"
+        )
+        assert found.hint == "for a function of p, q, define one, as in f(p, q) := ..."
+        found = error(wb, r"\mathbf{1} := \begin{pmatrix} 1 \\ 1 \end{pmatrix}")
+        assert found.message == r"cannot define \mathbf{1}, which is read as the number 1"
+
+    def test_a_primed_function_name(self, wb):
+        found = error(wb, r"\rho'(x, t) := R e^{i(k x - \omega t)}")
+        assert found.message == (
+            r"cannot define \rho'(x, t): a function is named with a plain name, and \rho' is "
+            "not one"
+        )
+        assert found.notes == [r"a prime on a name, as on \rho', is a derivative"]
+        assert found.hint == "give the function a plain name, as in f(x, t) := ..."
+
 
 class TestEqualsDefinesAFunctionOrRefuses:
     """Guard 1: ``=`` whose left side is a name with arguments defines that function, or is
@@ -136,7 +154,7 @@ class TestEqualsDefinesAFunctionOrRefuses:
             r"U_{\text{eff}}(r) is read as U_{\text{eff}} times r, so = neither defines nor "
             "compares it"
         )
-        assert found.hint == "give the function a name without scripts, as in U(r) := ..."
+        assert found.hint == "give the function a plain name, as in U(r) := ..."
         wb.exe(r"U(r) := -\frac{k}{r} + \frac{\ell^2}{2 \mu r^2}")
         k, ell, mu = sympy.symbols("k ell mu")
         assert wb.expr(r"solve\left(\frac{d U(r)}{d r} = 0, r\right)") == [ell**2 / (k * mu)]
@@ -144,3 +162,111 @@ class TestEqualsDefinesAFunctionOrRefuses:
     def test_a_function_that_is_defined_is_compared(self, wb):
         wb.exe("f(x) := x^2")
         assert next(iter(wb.each("f(x) = x^3"))).error is None
+
+
+class TestDotsKeepTheirPowers:
+    """``\\dot{a}^2`` is (da/dt)^2: a power stays outside the time derivative, and only an
+    index or a subscript moves inside, as in ``\\dot{x}^\\mu``. It was d(a^2)/dt."""
+
+    def test_a_power_of_a_dotted_function(self, wb):
+        t = sympy.Symbol("t")
+        assert wb.expr("a(t) := t^3\n" r"\dot{a}^2") == 9 * t**4  # never 6 t^5
+        assert wb.expr(r"\ddot{a}") == 6 * t
+        assert (r"\dot{a}^2", r"a power of \dot{a}", "2 is no index of a") in decisions(
+            wb, r"\dot{a}^2", "index or power"
+        )
+
+    def test_a_power_of_a_dotted_call(self, wb):
+        a, t = sympy.Function("a"), sympy.Symbol("t")
+        assert wb.expr(r"\dot{a(t)}^2") == sympy.Derivative(a(t), t) ** 2
+
+    def test_a_dotted_symbol_nothing_defines_is_refused_as_before(self, wb):
+        # \dot\theta alone is a symbol of its own, which d/dt would take for a constant: its
+        # square stays refused until a Lagrangian's velocities are read, never computed wrong
+        error(wb, r"\dot\theta^2", EvaluationError)
+
+
+class TestDIsAVariableWithoutAnIndex:
+    """Decision 18 of design/notation.md: d, the partial derivative's name, is a variable
+    where it has no index and no differential below it, as the diameter in
+    ``\\frac{\\pi d^2}{4}``. It was \\partial^2."""
+
+    def test_a_diameter_squared(self, wb):
+        d = sympy.Symbol("d")
+        assert wb.expr(r"\frac{\pi d^2}{4}") == sympy.pi * d**2 / 4
+        moment = wb.expr(r"\left. I \frac{\pi d^2}{4} \right|_{I = 2,\ d = 0.1}")
+        assert abs(float(moment) - 0.005 * float(sympy.pi)) < 1e-15
+        assert ("d^2", "d to a power", "d is a derivative only with an index") in decisions(
+            wb, r"\frac{\pi d^2}{4}", "index or power"
+        )
+
+    def test_an_index_or_a_differential_below_makes_it_the_derivative(self, wb):
+        t, x = sympy.symbols("t x")
+        wb.exe("Coordinates := [t, x]")
+        assert wb.expr("d_{a} (t^2 x)").components == sympy.Array([2 * t * x, t**2])
+        assert decisions(wb, r"\frac{D^2}{d\tau^2} S", "index or power") == []
+
+
+class TestPairsAreNotScalars:
+    """Guard 4, in part: brackets of two items are read as a pair, so a pair equated to a
+    scalar, a function of a pair and ``\\langle u, v \\rangle`` are refused, saying what
+    the brackets often are in books. ``\\{L_x, L_y\\} = L_z`` was a silent False."""
+
+    ANGULAR = r"L_x = y p_z - z p_y, \quad L_y = z p_x - x p_z, \quad L_z = x p_y - y p_x"
+
+    def test_a_poisson_bracket_read_as_a_pair(self, wb):
+        wb.exe(self.ANGULAR)
+        found = error(wb, r"\{L_x, L_y\} = L_z")
+        assert found.message == r"\{L_x, L_y\} = L_z compares the pair (L_x, L_y) with a scalar"
+        assert found.notes == [
+            "L_z is a scalar, and the pair (L_x, L_y) never equals one",
+            "in these brackets, two items are often a Poisson bracket, which is not supported yet",
+        ]
+        assert found.hint == (
+            r"for the Poisson bracket, write it out, as in \frac{\partial L_x}{\partial q} "
+            r"\frac{\partial L_y}{\partial p} - \frac{\partial L_x}{\partial p} "
+            r"\frac{\partial L_y}{\partial q}, summed over the canonical pairs (q, p)"
+        )
+        written_out = " + ".join(
+            rf"\frac{{\partial L_x}}{{\partial {q}}} \frac{{\partial L_y}}{{\partial {p}}} "
+            rf"- \frac{{\partial L_x}}{{\partial {p}}} \frac{{\partial L_y}}{{\partial {q}}}"
+            for q, p in (("x", "p_x"), ("y", "p_y"), ("z", "p_z"))
+        )
+        assert wb.expr(f"{written_out} = L_z") is sympy.true  # the hint works
+
+    def test_a_commutator_read_as_a_list(self, wb):
+        wb.exe("a := 2\nb := 3")
+        assert error(wb, "[a, b] = 0").hint == "for the commutator, write a b - b a"
+
+    def test_a_chart_map_is_not_refused(self, wb):
+        # Carroll's \phi_1(x^1, x^2, x^3) \equiv (y^1, y^2): a function may take its values
+        # in pairs, so the equation stays, and a check says it relates
+        (step,) = list(wb.each(r"\phi_1(x^1,x^2,x^3) \equiv (y^1,y^2)"))
+        assert step.error is None
+
+    def test_a_function_of_a_pair(self, wb):
+        found = error(wb, r"\sin((1, 2))")
+        assert found.message == "sin is applied to (1, 2), which is read as the pair (1, 2)"
+        assert found.notes == ["sin applies to a number or an expression, not to a pair or a list"]
+        assert found.hint == "apply it to each item, as in sin(1)"
+
+    def test_an_inner_product_in_angle_brackets(self, wb):
+        for written in (r"\langle (1, 2), (3, 4) \rangle", r"\sqrt{\langle p, p \rangle}"):
+            assert "not as an inner product" in error(wb, written).message
+        found = error(wb, r"\sqrt{\langle p, p \rangle}")
+        assert found.message == (
+            r"\langle p, p \rangle is read as the pair (p, p), not as an inner product"
+        )
+        assert found.hint == (
+            r"for the inner product of vectors, write them with an index over a space and "
+            r"contract it: \mathcal{V} := \mathbb{R}^{2}, a \in \mathcal{V}, then p^a q_a"
+        )
+        space = "\\mathcal{V} := \\mathbb{R}^{2}\na \\in \\mathcal{V}\n"
+        assert wb.expr(space + "p^a := [1, 2]\nq^a := [3, 4]\np^a q_a") == 11  # the hint works
+
+    def test_dirac_notation(self, wb):
+        found = error(wb, r"\langle 0 | T\{\phi(x_1)\phi(x_2)\} | 0 \rangle = 2")
+        assert found.message == (
+            r"\langle 0 | T\{\phi(x_1)\phi(x_2)\} | 0 \rangle is read as a product with absolute "
+            "values, not as Dirac's notation"
+        )

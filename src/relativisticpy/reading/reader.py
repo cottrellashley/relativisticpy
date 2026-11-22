@@ -51,8 +51,11 @@ from relativisticpy.reading.names import (
     _STATISTIC_ALIASES,
     _STATISTICS,
     _TRANSPOSES,
+    INNER_PRODUCT,
     _a_name,
+    _a_pair,
     _a_word,
+    _bracket_meaning,
     _built_in,
     _close,
     _decoration,
@@ -60,12 +63,15 @@ from relativisticpy.reading.names import (
     _greek_labels,
     _has_a_value,
     _is_line_element,
+    _items_written,
     _letter,
     _mark,
+    _may_be_a_pair,
     _mentions_symbol,
     _named,
     _names_builtin,
     _names_inside,
+    _often,
     _other_names,
     _splittable,
     _styled,
@@ -105,6 +111,13 @@ class BookCall:
     capability: Capability
     arguments: tuple[ast.Expr, ...]
     keywords: ops.Attributes = ()
+
+
+#: What follows a numerator over a differential, as D^2 is in \frac{D^2}{d\tau^2} and
+#: {{D^2}\over{d\tau^2}}: a derivative's.
+_OVER_A_DIFFERENTIAL = re.compile(
+    r"\s*\}*\s*(?:\\over\s*|\{)\s*\{?\s*(?:d|\\mathrm\{d\}|\{\\rm\s*d\})[A-Za-z\\]"
+)
 
 
 class Reader(Typer):
@@ -883,6 +896,27 @@ class Reader(Typer):
             hint=f"define it first, for example {name}{written} := [...]",
         )
 
+    def _differentiates(self, node: ast.Scripted) -> bool:
+        """Whether the name of the partial or the covariant derivative, d or D, with scripts
+        is the derivative: with an index, as in ``d_{a}`` or ``D^{\\mu}``, or over a
+        differential, as in ``\\frac{D^2}{d\\tau^2}``; but a number raised on it elsewhere,
+        as in ``\\frac{\\pi d^2}{4}``, makes it a variable to a power, as decision 18 of
+        design/notation.md reads it."""
+        raised = [
+            item
+            for script in node.scripts
+            if script.kind == "^" and script.indices is not None
+            for item in script.indices.items
+        ]
+        if not any(isinstance(item.value, ast.Number) for item in raised):
+            return True
+        if _OVER_A_DIFFERENTIAL.match(node.span.source.text, node.span.end):
+            return True
+        assert isinstance(node.base, ast.Name)
+        why = f"{node.base.span.text} is a derivative only with an index"
+        self._decide("index or power", node.span, f"{node.base.span.text} to a power", why)
+        return False
+
     def _names_nothing(self, func: ast.Expr, scope: Scope) -> bool:
         """Whether a name with subscripts, as ``U_{\\text{eff}}``, means nothing yet, so that
         brackets after it, as in ``U_{\\text{eff}}(r) = ...``, can only make a function of it:
@@ -909,6 +943,20 @@ class Reader(Typer):
         written = target.span.text
         if isinstance(target, ast.Call) and isinstance(target.func, ast.Name):  # H(e^{j\omega})
             return self._parameters_not_names(target)
+        if isinstance(target, ast.Call):  # \rho'(x, t), f^{(1)}(k)
+            arguments = ", ".join(arg.span.text for arg in target.args)
+            notes = []
+            if isinstance(target.func, ast.Prime):
+                notes.append(f"a prime on a name, as on {target.func.span.text}, is a derivative")
+            return CompileError(
+                f"cannot define {written}: a function is named with a plain name, and "
+                f"{target.func.span.text} is not one",
+                span=target.span,
+                notes=notes,
+                hint=f"give the function a plain name, as in f({arguments}) := ...",
+            )
+        if isinstance(target, ast.Tuple | ast.List | ast.Number):  # \langle p, q \rangle
+            return self._not_a_name(target)
         if isinstance(target, ast.Accent) and target.accent in ("dot", "ddot"):
             name = target.base.span.text
             why = f"a dot is the time derivative of {name}"
@@ -956,11 +1004,11 @@ class Reader(Typer):
         reading = f"{func.span.text} times {factor}"
         why = f"{func.span.text} is not a function: a name with scripts is a symbol"
         self._decide("product or call", target.span, reading, why)
-        base = func.base if isinstance(func, ast.Scripted) else func
+        base = func.base if isinstance(func, ast.Scripted | ast.Accent) else func
         assert isinstance(base, ast.Name)
         short = base.span.text.partition("_")[0]  # Y of Y_2
         family = _family_label(func, value)
-        hint = f"give the function a name without scripts, as in {short}({arguments}) := ..."
+        hint = f"give the function a plain name, as in {short}({arguments}) := ..."
         if family is not None:
             hint = (
                 f"define a function of {family} too, as in {short}({family}, {arguments}) := "
@@ -973,9 +1021,33 @@ class Reader(Typer):
             headline,
             span=target.span,
             notes=[
-                f"a name with a subscript or a superscript, as {func.span.text}, is not yet the "
-                "name of a function, nor of a family of them"
+                f"a name with a subscript, a superscript or an accent, as {func.span.text}, is "
+                "not yet the name of a function, nor of a family of them"
             ],
+            hint=hint,
+        )
+
+    def _not_a_name(self, target: ast.Tuple | ast.List | ast.Number) -> CompileError:
+        """``\\langle p, q \\rangle := ...``, ``[\\mathrm{ES}] := ...`` or ``\\mathbf{1} := ...``:
+        a pair, a list or a number, which := cannot give a value."""
+        written = target.span.text
+        one = "to name one quantity, give it one name, and write that name where it is used"
+        if isinstance(target, ast.Number):
+            reading, hint, notes = f"the number {target.text}", one, []
+        else:
+            items = ", ".join(item.span.text for item in target.items)
+            kind = "list" if isinstance(target, ast.List) else "tuple"
+            reading = f"{items} in brackets"
+            hint = one
+            if len(target.items) > 1:
+                reading = f"the {'pair' if len(target.items) == 2 else kind} ({items})"
+                hint = f"for a function of {items}, define one, as in f({items}) := ..."
+            notes = ["brackets of one's own, as an inner product, are not supported yet"]
+        self._decide("product or call", target.span, reading, "of the brackets written")
+        return CompileError(
+            f"cannot define {written}, which is read as {reading}",
+            span=target.span,
+            notes=[":= gives a value to a name, a tensor or a function", *notes],
             hint=hint,
         )
 
@@ -993,6 +1065,72 @@ class Reader(Typer):
             span=target.span,
             hint=f"define it with names as its parameters, as in {target.func.span.text}"
             f"({', '.join(parameters)}) := ..., and then write {written}",
+        )
+
+    def _check_pair_and_scalar(self, equation: ast.Equation, lhs: Node, rhs: Node) -> None:
+        """Refuse a pair in brackets equated to a scalar, as ``\\{L_x, L_y\\} = L_z``: SymPy
+        decides that False, where the book means a Poisson bracket. A scalar that may stand
+        for a pair, an unknown function's value as in a chart map
+        ``\\phi_1(x^1, x^2, x^3) \\equiv (y^1, y^2)``, or a name nothing defines, is
+        compared as before."""
+        sides = ((lhs, rhs, equation.lhs, equation.rhs), (rhs, lhs, equation.rhs, equation.lhs))
+        for pair, other, written, scalar in sides:
+            if not _a_pair(pair) or other.type != SCALAR or _may_be_a_pair(other):
+                continue
+            reading, items, meant = self._pair_read(written.span.text, pair)
+            self._decide("product or call", written.span, reading, "items in brackets are a pair")
+            notes = [f"{scalar.span.text} is a scalar, and {reading} never equals one"]
+            raise CompileError(
+                f"{written.span.text} = {scalar.span.text} compares {reading} with a scalar",
+                span=equation.span,
+                notes=[*notes, *_often(meant)],
+                hint=meant[1].format(*items) if meant is not None else None,
+            )
+
+    def _function_of_a_pair(self, name: str, pair: Node, span: Span) -> CompileError:
+        """``\\sqrt{(a, b)}``: a function of a number, given what is read as a pair; SymPy
+        would take the root of a tuple."""
+        written = pair.span.text if pair.span is not None else "this"
+        reading, items, meant = self._pair_read(written, pair)
+        notes = [f"{name} applies to a number or an expression, not to a pair or a list"]
+        hint = f"apply it to each item, as in {name}({items[0]})" if items else None
+        if meant is not None:
+            hint = meant[1].format(*items)
+        return CompileError(
+            f"{name} is applied to {written}, which is read as {reading}",
+            span=span,
+            notes=[*notes, *_often(meant)],
+            hint=hint,
+        )
+
+    def _pair_read(self, written: str, pair: Node) -> tuple[str, list[str], tuple[str, str] | None]:
+        """How a pair or a list written in brackets is read: as the pair (a, b), its items
+        as written, and what such brackets often are in books, if anything."""
+        items = _items_written(written) or [arg.span.text for arg in pair.args if arg.span]
+        kind = "pair" if len(items) == 2 else "list"
+        return f"the {kind} ({', '.join(items)})", items, _bracket_meaning(written)
+
+    def _inner_product(self, node: ast.Tuple) -> CompileError:
+        """``\\langle u, v \\rangle``, read as the pair (u, v): never what is meant."""
+        items = ", ".join(item.span.text for item in node.items)
+        why = "angle brackets around items separated by commas are read as brackets"
+        self._decide("product or call", node.span, f"the pair ({items})", why)
+        return CompileError(
+            f"{node.span.text} is read as the pair ({items}), not as an inner product",
+            span=node.span,
+            notes=["an inner product written in angle brackets is not supported yet"],
+            hint=INNER_PRODUCT,
+        )
+
+    def _bra_ket(self, node: ast.Expr) -> CompileError:
+        """``\\langle 0 | T\\{\\ldots\\} | 0 \\rangle``, read as 0 times |...| times 0:
+        Dirac's notation, which is not supported yet."""
+        return CompileError(
+            f"{node.span.text} is read as a product with absolute values, not as Dirac's notation",
+            span=node.span,
+            notes=["bras and kets, \\langle a | and | b \\rangle, are not supported yet"],
+            hint="write a state as a list of its components, and an expectation as a product "
+            "of matrices",
         )
 
     def _note_power(self, base: ast.Name, script: ast.Script) -> None:

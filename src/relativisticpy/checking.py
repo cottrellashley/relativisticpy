@@ -697,6 +697,12 @@ def _judge(value: Any, session: Workbook, state: _State) -> tuple[Verdict, str, 
     if isinstance(value, sympy.Equality):
         lhs, rhs = value.lhs, value.rhs
         if not (isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr)):
+            # a pair, as a chart map \phi_1(x^1, x^2, x^3) \equiv (y^1, y^2) gives one: it
+            # relates what nothing defines, and differs only where everything is known
+            unknown = _unknowns(sympy.Tuple(lhs, rhs), session, state)
+            if unknown:
+                relation = f"{_shown(lhs)} and {_shown(rhs)} are related, not shown equal"
+                return Verdict.RELATES, f"nothing defines {_listed(unknown)}: {relation}", None
             return Verdict.DIFFERS, f"{_shown(lhs)} is not {_shown(rhs)}", None
         # Not proven equal. Numbers tell an equation that is false from one that is not
         # proven: the first differs wherever it is tried, the second agrees somewhere.

@@ -169,6 +169,23 @@ class TestScalarEquations:
         listed = ", ".join(names[:-1]) + " and " + names[-1]
         assert detail.startswith(f"nothing defines {listed}: the left side minus the right is ")
 
+    def test_a_map_into_pairs_relates(self):
+        # Carroll's chart of the sphere (2.4): an unknown function's value compared with a
+        # pair, and the pair with its value, relate what nothing defines; neither is a mistake
+        report = Workbook().check(
+            Document(r"""\begin{equation}
+            \phi_1(x^1,x^2,x^3) \equiv (y^1,y^2) = \left( {{2x^1}\over{1-x^3}}\ ,\
+            {{2x^2}\over{1-x^3}}\right)
+            \end{equation}""")
+        )
+        assert [finding.verdict for finding in report] == ["relates", "relates"]
+        first = report.findings[0].detail
+        assert first == (
+            "nothing defines x, y and φ₁(x, x², x³): φ₁(x, x², x³) and (y, y²) are related, "
+            "not shown equal"
+        )
+        assert judged("(1, 2) = (1, 3)") == (Verdict.DIFFERS, "the two sides are not equal")
+
     def test_quantities_the_metric_is_written_with_are_known(self):
         # Carroll's Kretschmann scalar (7.30) and the sphere's curvature are mistakes
         report = Workbook().check(

@@ -13,6 +13,7 @@ from typing import Any
 import sympy
 from sympy import Symbol
 
+from relativisticpy import integrations
 from relativisticpy.compiler.builtins import BUILTINS, Builtin
 from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import (
@@ -44,11 +45,14 @@ from relativisticpy.ir import (
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
+from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.linalg import LinearAlgebra
 from relativisticpy.reading.names import (
     _LINEAR_ALGEBRA,
+    _a_pair,
     _an_index,
     _bracketed_order,
+    _in_angle_brackets,
     _letter,
     _mentions_symbol,
     _named,
@@ -270,6 +274,8 @@ class Expressions(LinearAlgebra):
         return self.graph.add(ops.Add(signs), [value for _, value in kept], reference, node.span)
 
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
+        if _in_angle_brackets(node) and "|" in node.span.text:  # \langle 0 | T\{...\} | 0 \rangle
+            raise self._bra_ket(node)
         factors: list[ast.Expr] = []
         left: ast.Expr = node
         while isinstance(left, ast.Binary) and left.op == "*":
@@ -385,6 +391,7 @@ class Expressions(LinearAlgebra):
     def _Equation(self, node: ast.Equation, scope: Scope, ctx: Context) -> Node:
         lhs = self._components_of(self.value(node.lhs, scope, ctx), scope, ctx, node.lhs.span)
         rhs = self._components_of(self.value(node.rhs, scope, ctx), scope, ctx, node.rhs.span)
+        self._check_pair_and_scalar(node, lhs, rhs)
         tensor = next((v.type for v in (lhs, rhs) if isinstance(v.type, TensorType)), None)
         if tensor is not None:
             assert isinstance(tensor, TensorType)
@@ -549,6 +556,9 @@ class Expressions(LinearAlgebra):
     ) -> Node:
         if message := builtin.check_arity(len(args)):
             raise CompileError(message, span=span)
+        pair = next((arg for arg in args if _a_pair(arg)), None)
+        if pair is not None and builtin.name in _of_numbers():  # \sqrt{(a, b)}
+            raise self._function_of_a_pair(builtin.name, pair, span)
         if builtin.componentwise:  # each component of the first tensor among the arguments
             lifted = next((k for k, a in enumerate(args) if isinstance(a.type, TensorType)), None)
             if lifted is not None:
@@ -870,12 +880,66 @@ class Expressions(LinearAlgebra):
 
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         if node.accent in ("dot", "ddot"):
-            return self._time_derivative(self.value(node.base, scope, ctx), node.accent, node.span)
+            return self._dotted(node.base, node.accent, node.span, scope, ctx)
         if not isinstance(node.base, ast.Name):
             raise CompileError(f"\\{node.accent} needs a single symbol", span=node.base.span)
         return self.value(
             ast.Name(node.base.id + node.accent, verbatim=True, span=node.span), scope, ctx
         )
+
+    def _dotted(
+        self, dotted: ast.Expr, accent: str, span: Span, scope: Scope, ctx: Context
+    ) -> Node:
+        """``\\dot{x}``: the time derivative of x. Of a function the program defined of one
+        variable, as ``a(t) := t^3``, it is the function's derivative by that variable."""
+        binding = scope.lookup(dotted.id) if isinstance(dotted, ast.Name) else None
+        if isinstance(binding, FunctionBinding) and len(binding.definition.params) == 1:
+            (param,) = binding.definition.params
+            why = f"{dotted.span.text} is a function of {param}, defined on line "
+            why += str(binding.definition.span.line)
+            reading = f"the derivative of {dotted.span.text}({param}) by {param}"
+            self._decide("function named alone", span, reading, why)
+            variable = self.graph.const(self.session.symbol(param), SCALAR, dotted.span)
+            body = self._inline(binding, [variable], span, ctx)
+            return self._differentiate(body, ((variable, 1 if accent == "dot" else 2),), span)
+        return self._time_derivative(self.value(dotted, scope, ctx), accent, span)
+
+    def _dotted_scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node:
+        """``\\dot{x}^\\mu`` or ``\\dot{a}^2``: an index or a subscript belongs to the dotted
+        name, inside the derivative, and a power to the derivative, outside it, as in books:
+        \\dot{a}^2 is (da/dt)^2, never d(a^2)/dt."""
+        accent = node.base
+        assert isinstance(accent, ast.Accent)
+        name = accent.base
+        inside = [s for s in node.scripts if self._scripts_the_dotted(s, name, scope)]
+        powers = [s for s in node.scripts if s not in inside]
+        inner = ast.Scripted(name, tuple(inside), span=node.span) if inside else name
+        result = self._dotted(
+            inner, accent.accent, node.span if inside else accent.span, scope, ctx
+        )
+        for script in powers:
+            if script.body is None:
+                raise CompileError("empty superscript", span=script.span)
+            why = f"{script.body.span.text} is no index of {name.span.text}"
+            reading = f"a power of {accent.span.text}"
+            self._decide("index or power", node.span, reading, why)
+            result = self._power(result, self.value(script.body, scope, ctx), node.span)
+        return result
+
+    def _scripts_the_dotted(self, script: ast.Script, name: ast.Expr, scope: Scope) -> bool:
+        """Whether a script after a dotted name is the name's, as a subscript, or an index
+        of a tensor, as \\mu in ``\\dot{x}^\\mu``, is; a power is the derivative's. A Greek
+        label, or one the statement shows to be an index, stays an index, as before. So does
+        everything on a symbol nothing defines, which is refused as before: its dot alone,
+        \\dot\\theta, is a symbol of its own, which d/dt would take for a constant, as a
+        Lagrangian's velocity is not yet (see curriculum/ROADMAP.md, wave 4)."""
+        if script.kind == "_" or self._undefined(name, scope) or self._names_tensor(name, scope):
+            return True
+        items = script.indices.items if script.indices is not None else ()
+        if not items or not all(_plain_label(item) for item in items):
+            return False
+        greek = any(str(item.label) in GREEK for item in items)
+        return greek or self._index_written(script) is not None
 
     def _time_derivative(self, value: Node, accent: str, span: Span) -> Node:
         order = self.graph.const(1 if accent == "dot" else 2, VALUE)
@@ -888,6 +952,8 @@ class Expressions(LinearAlgebra):
         return self._call("core.list", items, VALUE, node.span)
 
     def _Tuple(self, node: ast.Tuple, scope: Scope, ctx: Context) -> Node:
+        if _in_angle_brackets(node) and len(node.items) > 1:  # \langle u, v \rangle
+            raise self._inner_product(node)
         items = [self.value(item, scope, ctx) for item in node.items]
         return self._call("core.tuple", items, VALUE, node.span)
 
@@ -945,8 +1011,7 @@ class Expressions(LinearAlgebra):
         if isinstance(base, ast.Operator):
             return self._derivative_operator(node, covariant=base.kind == "nabla")
         if isinstance(base, ast.Accent) and base.accent in ("dot", "ddot"):
-            inner = ast.Scripted(base.base, node.scripts, span=node.span)
-            return self._time_derivative(self.value(inner, scope, ctx), base.accent, node.span)
+            return self._dotted_scripted(node, scope, ctx)
         if (inverse := self._inverse_access(node, scope, ctx)) is not None:
             return inverse
         if (result := self._indexed_result(node, scope, ctx)) is not None:
@@ -959,6 +1024,7 @@ class Expressions(LinearAlgebra):
                 binding is None
                 and name in (names["partial"], names["covariant"])
                 and all(s.indices is not None and s.indices.items for s in node.scripts)
+                and self._differentiates(node)
             ):
                 return self._derivative_operator(node, covariant=name == names["covariant"])
             rank = _rank(node)
@@ -1076,6 +1142,20 @@ _COMPARE = {
 
 
 _INTEGER = re.compile(r"\d+")
+
+
+#: The elementary functions, which take a number and are refused a pair, as
+#: \sqrt{(a, b)}; the absolute value says of a list what to write instead itself.
+def _of_numbers() -> frozenset[str]:
+    """The names of the elementary functions, which take numbers: a pair given to one, as
+    to the square root in \\sqrt{(a, b)}, is a pair where none was meant. The modulus is
+    not one of them, as |v| of a vector is its length."""
+    return frozenset(
+        name
+        for capability in integrations.capabilities()
+        if capability.module.endswith(".elementary")
+        for name in capability.names
+    ) - {"abs", "Abs"}
 
 
 def _unsigned(factor: ast.Expr) -> list[ast.Expr]:
