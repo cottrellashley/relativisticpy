@@ -20,6 +20,7 @@ every integer.
 from __future__ import annotations
 
 import functools
+import itertools
 from typing import Any
 
 import sympy
@@ -64,12 +65,53 @@ def summation(
             if found is None:
                 return core.summation(body, variable, lower, upper, assuming=assuming)
             total = sympy.S.Zero
-            for term, first, last in found:
+            for term, first, last in _merged(found):
                 value = assumptions.summed(term, [(index, first, last)], assuming)
                 total += sequences.emptied(value, first, last)
     except _OverBudget:
+        core._past_the_budget("sum")
+        return sympy.Sum(body, (variable, lower, upper))
+    if total.has(sympy.nan) and not written.has(sympy.nan):
+        assumptions.remark(
+            "the sum of its parts has no value where its terms have one, so the sum is kept "
+            "as written"
+        )
         return sympy.Sum(body, (variable, lower, upper))
     return _general(assumptions.settled(total, assuming), written)
+
+
+def _merged(pieces: list[tuple[Any, Any, Any]]) -> list[tuple[Any, Any, Any]]:
+    """The parts of a sum (see :func:`relativisticpy.integrations.sequences.pieces`), with
+    each two of opposite terms over ranges that share an end taken together, as the range
+    one has and the other has not: u[n] - u[n - 4] is 1 from 0 to 3, not 1 from 0 on less 1
+    from 4 on, two sums without end whose difference has no value."""
+    kept = list(pieces)
+    joined = True
+    while joined:
+        joined = False
+        for one, other in itertools.combinations(kept, 2):
+            together = _together(one, other)
+            if together is not None:
+                kept = [each for each in kept if each is not one and each is not other]
+                kept.append(together)
+                joined = True
+                break
+    return kept
+
+
+def _together(
+    one: tuple[Any, Any, Any], other: tuple[Any, Any, Any]
+) -> tuple[Any, Any, Any] | None:
+    """Two parts of opposite terms over ranges that share an end, as one part over the
+    range one has and the other has not; ``None`` of any others."""
+    (term, first, last), (opposite, start, end) = one, other
+    if sympy.expand(term + opposite) != 0:
+        return None
+    if last == end and (first - start).is_number:  # from a on, less from b on
+        return (term, first, start - 1) if first <= start else (opposite, start, first - 1)
+    if first == start and (last - end).is_number:  # up to a, less up to b
+        return (term, end + 1, last) if end <= last else (opposite, last + 1, end)
+    return None
 
 
 def _general(value: Any, body: Any) -> Any:

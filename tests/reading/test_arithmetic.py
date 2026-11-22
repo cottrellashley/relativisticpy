@@ -181,6 +181,23 @@ class TestIndexSets:
         with pytest.raises(EvaluationError, match="diverges where s is 1"):
             wb.expr(r"\prod_{p \text{ prime}} \frac{1}{1 - 1/p}")
 
+    def test_a_value_left_out_that_is_a_symbol_is_a_condition_of_each_term(self, wb):
+        found = wb.expr(r"\sum_{\substack{0 \le m \le 3 \\ m \neq n}} m")
+        assert [found.subs(sympy.Symbol("n"), value) for value in (2, 7)] == [4, 6]
+        wb.exe(r"n \in \mathbb{N}")
+        source = r"T := \sum_{\substack{1 \le m \le 4 \\ m \neq n}} \frac{1}{n^2 - m^2}"
+        wb.exe(source)
+        assert wb.expr(r"T |_{n=2}") == sympy.Rational(1, 20)
+
+    def test_over_every_integer_the_term_left_out_is_never_taken(self, wb):
+        step = list(wb.each(r"\sum_{k \neq n} \frac{1}{(k - n)^2}"))[-1]
+        assert step.values == [sympy.pi**2 / 3]
+        assert step.assuming == ["n is an integer"]
+
+    def test_over_a_half_line_a_value_left_out_that_is_a_symbol_is_refused(self, wb):
+        with pytest.raises(EvaluationError, match="leaves out n, which is not a number"):
+            wb.expr(r"\sum_{\substack{k \geq 1 \\ k \neq n}} \frac{1}{k^2}")
+
     def test_the_primes_up_to_a_large_number_are_counted_at_once(self, wb):
         started = time.monotonic()
         assert wb.expr(r"\sum_{p \le 10^7} 1") == 664579

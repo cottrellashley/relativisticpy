@@ -179,6 +179,20 @@ class TestSums:
             "sequence"
         ]
 
+    def test_a_pulse_of_steps_sums_to_its_length(self, wb):
+        # u[n] - u[n - 4] is 1 from 0 to 3: not a sum from 0 on less one from 4 on, two
+        # sums without end whose difference has no value
+        latex(wb, r"x[n] := u[n] - u[n-4]")
+        assert latex(wb, r"\sum_n x[n]") == [4]
+        assert latex(wb, r"\sum_{n=-\infty}^{\infty} x[n]") == [4]
+        latex(wb, r"X(e^{j\omega}) := \sum_n x[n] e^{-j\omega n}")
+        assert latex(wb, r"X(e^{j 0})") == [4]
+
+    def test_a_sum_without_a_value_is_kept_as_written(self, wb):
+        latex(wb, r"x[n] := 2 u[n] - u[n-4]")
+        (found,) = latex(wb, r"\sum_n x[n]")
+        assert isinstance(found, sympy.Sum)
+
     def test_a_finite_sum_of_exponentials_is_its_value(self, wb):
         program = (
             "j := \\sqrt{-1}\nN := 8\nx[n] := \\cos\\left(\\frac{2\\pi n}{N}\\right)\n"

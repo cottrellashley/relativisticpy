@@ -383,15 +383,72 @@ def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:
     under conditions on its parameters (design/notation.md, decisions 1 and 4). A sum in
     an exponential of the index, as of e^{-a n}, is summed as a geometric series. A sum of
     finitely many terms, from an integer to an integer, as the binomial theorem's is, has
-    the value SymPy finds without the conditions an infinite series would converge under."""
+    the value SymPy finds without the conditions an infinite series would converge under.
+    A closed form that is not defined where the terms are is none (see :func:`_defined`)."""
     ((index, lower, upper),) = limits
     whole = Symbol(index.name, **{**dict(getattr(index, "_assumptions_orig", {})), "integer": True})
     body = sympy.sympify(body).xreplace({index: whole})
     if _finitely_many(lower, upper):
         found = _converged(_sum(body, (whole, lower, upper)))
         if not _undone(found):
-            return found
-    return _computed(_sum, body, [(whole, lower, upper)], bounds)
+            return _defined(found, body, (whole, lower, upper))
+    found = _computed(_sum, body, [(whole, lower, upper)], bounds)
+    return _defined(found, body, (whole, lower, upper))
+
+
+def _defined(found: Any, body: Any, limits: tuple[Any, Any, Any]) -> Any:
+    """The closed form SymPy gives a sum, where it is one: not where it holds nan or zoo,
+    which the terms do not, as SymPy's of Σ 1/(n(2n + 1)) does, which converges. Of a
+    rational function of the index summed to infinity, the closed form by its partial
+    fractions then; else the sum as written, which a remark says."""
+    undefined = (sympy.nan, sympy.zoo)
+    if not isinstance(found, sympy.Basic) or not found.has(*undefined) or body.has(*undefined):
+        return found
+    index, lower, upper = limits
+    if upper == sympy.oo and sympy.sympify(lower).is_finite:
+        by_parts = _by_partial_fractions(body, index, lower)
+        if by_parts is not None and not by_parts.has(*undefined):
+            return by_parts
+    remark(
+        "SymPy's closed form of the sum has no value where its terms have one, so the sum is "
+        "kept as written"
+    )
+    return sympy.Sum(body, limits)
+
+
+def _by_partial_fractions(body: Any, index: Any, lower: Any) -> Any:
+    """The sum from ``lower`` to infinity of a rational function of the index that falls
+    as 1/n² or faster, by its partial fractions: of the c/(n + r), whose c's add up to 0
+    where the sum converges, -Σ c ψ(lower + r), by the series of the digamma function ψ;
+    and of c/(n + r)^k, c ζ(k, lower + r), Hurwitz's zeta function. ``None`` of anything
+    else, or where a term of the range is not defined."""
+    if not body.is_rational_function(index):
+        return None
+    numerator, denominator = sympy.fraction(sympy.together(body))
+    top, bottom = sympy.Poly(numerator, index), sympy.Poly(denominator, index)
+    if bottom.degree() - top.degree() < 2:
+        return None
+    total, simple = sympy.S.Zero, sympy.S.Zero
+    for term in sympy.Add.make_args(sympy.apart(body, index, full=True).doit()):
+        coefficient, rest = term.as_independent(index, as_Add=False)
+        base, power = rest.as_base_exp()
+        linear = sympy.Poly(base, index)
+        if not (power.is_Integer and power < 0) or linear.degree() != 1:
+            return None
+        slope, shift = linear.all_coeffs()
+        order, root = -power, shift / slope  # c/(slope n + shift)^k is c'/(n + root)^k
+        start = sympy.simplify(lower + root)
+        if start.is_integer and start.is_nonpositive:
+            return None  # the term at n = -root is not defined
+        weight = coefficient / slope**order
+        if order == 1:
+            total -= weight * sympy.polygamma(0, start)
+            simple += weight
+        else:
+            total += weight * sympy.zeta(order, start)
+    if sympy.simplify(simple) != 0:
+        return None
+    return sympy.simplify(sympy.expand_func(total.rewrite(sympy.harmonic)))
 
 
 def _finitely_many(lower: Any, upper: Any) -> bool:

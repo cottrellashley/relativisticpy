@@ -86,8 +86,26 @@ def summation(
         with _budget(_CLOSED_FORM_BUDGET):
             found = assumptions.summed(body, [(variable, lower, upper)], assuming)
     except _OverBudget:
+        _past_the_budget("sum")
         return written
-    return written if isinstance(found, sympy.Basic) and found.has(sympy.Sum) else found
+    if isinstance(found, sympy.Basic) and found.has(sympy.Sum):
+        _say_if_it_diverges(written)
+        return written
+    return found
+
+
+def _say_if_it_diverges(written: Any) -> None:
+    """Say so of a series kept as written that SymPy's tests of convergence show to
+    diverge, as Σ 1/(n ln n) does, whose closed form was not missed for want of time."""
+    if not any(end.is_infinite for end in sympy.sympify(written.limits[0][1:])):
+        return
+    try:
+        with _budget(1.0):
+            verdict = written.is_convergent()
+    except (Exception, _OverBudget):  # what SymPy cannot test says nothing
+        return
+    if verdict in (False, sympy.false):
+        assumptions.remark("the sum diverges, as SymPy's tests of convergence show")
 
 
 def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
@@ -101,8 +119,16 @@ def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
         with _budget(_CLOSED_FORM_BUDGET):
             found = written.doit()
     except _OverBudget:
+        _past_the_budget("product")
         return written
     return written if isinstance(found, sympy.Basic) and found.has(sympy.Product) else found
+
+
+def _past_the_budget(what: str) -> None:
+    """Say that a closed form was looked for as long as it is given, and not found."""
+    assumptions.remark(
+        f"SymPy found no closed form of the {what} in the {_CLOSED_FORM_BUDGET:g} s it is given"
+    )
 
 
 #: How soon, in seconds, a budget's exception is raised again, where it ran out in a

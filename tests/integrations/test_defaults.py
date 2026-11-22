@@ -9,6 +9,7 @@ program says of a name decides, and nothing is assumed of it.
 
 import json
 
+import pytest
 import sympy
 
 from relativisticpy.cli import main
@@ -157,6 +158,29 @@ class TestSums:
         positive = sympy.Symbol("r", positive=True)
         assert sympy.simplify(step.values[0] - sympy.Symbol("C") / positive) == 0
         assert (step.notes, step.assuming) == ([], [])
+
+    @pytest.mark.parametrize(
+        ("source", "value"),
+        [
+            (r"\sum_{n=1}^{\infty} \frac{1}{n (2n + 1)}", 2 - 2 * sympy.log(2)),
+            (r"\sum_{n=1}^{\infty} \frac{1}{n (n + 1/2)}", 4 - 4 * sympy.log(2)),
+            (r"\sum_{n=1}^{\infty} \frac{1}{n (n + 3/2)}",
+             sympy.Rational(16, 9) - 4 * sympy.log(2) / 3),
+            (r"\sum_{n=0}^{\infty} \frac{1}{(n + 1/2)(n + 1)}", 4 * sympy.log(2)),
+            (r"\sum_{n=1}^{\infty} \frac{1}{n (n + 1/2)(n + 1)}", 6 - 8 * sympy.log(2)),
+            (r"\sum_{n=1}^{\infty} \frac{1}{n (n + a)}", sympy.harmonic(a) / a),
+        ],
+    )  # fmt: skip
+    def test_a_closed_form_that_is_undefined_is_none(self, wb, source, value):
+        # SymPy gives nan, or zoo - lerchphi(1, 1, a + 1), of sums that converge
+        found = wb.expr(source)
+        assert not found.has(sympy.nan, sympy.zoo)
+        assert sympy.simplify(found - value) == 0
+
+    def test_a_series_that_diverges_says_so(self, wb):
+        step = last(wb, r"\sum_{n=2}^{\infty} \frac{1}{n \ln n}")
+        assert isinstance(step.values[0], sympy.Sum)
+        assert "the sum diverges, as SymPy's tests of convergence show" in step.notes
 
     def test_one_with_no_closed_form_is_kept_as_written(self, wb):
         step = last(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}")

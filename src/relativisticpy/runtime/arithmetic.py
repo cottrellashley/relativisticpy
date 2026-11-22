@@ -135,9 +135,9 @@ def over(
         if counted is not None:
             return counted
     values = _divisors(of, primes, low, high) if divisors else _range(low, high, primes)
-    if values is not None:
-        kept = [v for v in values if not any(sympy.Eq(v, out) is sympy.true for out in left_out)]
-        return _term_by_term(body, index, kept, conditions, op)
+    if values is not None:  # each value left out a condition, decided where it is a number
+        apart = [sympy.Ne(index, out) for out in left_out]
+        return _term_by_term(body, index, values, [*apart, *conditions], op)
     if divisors:
         raise EvaluationError(
             f"a {_kind(op)} over the divisors of {of} is computed where {of} is a number",
@@ -339,6 +339,9 @@ def _over_integers(
         held = sympy.And(*(sympy.sympify(condition) for condition in conditions))
         otherwise = sympy.S.Zero if op == "sum" else sympy.S.One
         whole = sympy.Piecewise((whole, held), (otherwise, True))
+    symbolic = [out for out in map(sympy.sympify, left_out) if not out.is_Integer]
+    if symbolic:
+        whole, left_out = _shifted(whole, index, low, high, symbolic, left_out, op)
     pieces = [(low, high)]
     for out in sorted((sympy.sympify(v) for v in left_out if sympy.sympify(v).is_Integer), key=int):
         pieces = [
@@ -350,3 +353,34 @@ def _over_integers(
     combine = core.summation if op == "sum" else core.product
     values = [combine(whole, index, start, end) for start, end in pieces]
     return sympy.Add(*values) if op == "sum" else sympy.Mul(*values)
+
+
+def _shifted(
+    body: Any,
+    index: Any,
+    low: Any,
+    high: Any,
+    symbolic: Sequence[Any],
+    left_out: Sequence[Any],
+    op: str,
+) -> tuple[Any, list[Any]]:
+    """A sum or a product over every integer that leaves out one, written with symbols, as
+    ``\\sum_{k \\neq n}`` does: over the integers counted from it, k = n + j, which leaves
+    out j = 0, so that the term it leaves out, which may have no value, is never taken.
+    That value is an integer, as one the sum runs over, which a remark says where nothing
+    else does. Refused, saying why, for any other range or more values left out."""
+    (out, *rest) = symbolic
+    shown = display.unicode(out)
+    if rest or len(left_out) > 1 or low.is_finite or high.is_finite:
+        raise EvaluationError(
+            f"a {_kind(op)} over infinitely many integers that leaves out {shown}, which is "
+            "not a number, is computed only over every integer, with that one left out",
+            hint=f"give {shown} a value first",
+        )
+    if out.is_integer is not True:
+        assumptions.remark(
+            f"assuming {shown} is an integer, as the {_kind(op)} leaves out the term "
+            f"{display.unicode(index)} = {shown}",
+            assuming=[f"{shown} is an integer"],
+        )
+    return sympy.sympify(body).xreplace({index: index + out}), [sympy.S.Zero]
