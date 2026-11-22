@@ -87,6 +87,17 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   served as resources, and prompts to verify a derivation and check a paper.
   Programs run in worker processes with limits of time and memory, and files are
   read only where `--allow-files` allows (`pip install "relativisticpy[mcp]"`).
+- Live mathematics in notebooks, `relativisticpy.live`. Tensors, metrics, equations,
+  index notation and geodesics show themselves typeset in marimo and Jupyter, through
+  `relativisticpy.display`. `show(source)` runs a program and shows each statement
+  typeset with its results, its notes and its errors, in place, as `--render` does, but
+  as HTML. `Editor` is a widget for marimo, Jupyter and VS Code that computes a program
+  as it is typed, from its first changed statement, in a worker process with a time
+  limit, in a copy of the workbook it is given; it underlines each error where it is,
+  computes a part of a statement selected, from a menu, and typesets offline with Temml
+  (`pip install "relativisticpy[live]"`).
+- `Workbook.copy`, a workbook in the same state whose definitions are its own from then
+  on.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

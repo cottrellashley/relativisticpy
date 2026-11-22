@@ -20,6 +20,7 @@ add what numerical work needs:
 | `numeric` | NumPy and SciPy | numbers, NumPy functions and geodesics: [Numerics](numerics.md) |
 | `data` | NumPy, SciPy, pandas and scikit-learn | data in index notation: [Beyond spacetime](spaces.md) |
 | `jax` | NumPy, SciPy and JAX | computing with JAX, on a GPU, and gradients |
+| `live` | anywidget | the editor, which computes as you type: [Live mathematics in notebooks](live.md) |
 
 ```bash
 pip install "relativisticpy[data] @ git+https://github.com/cottrellashley/relativisticpy@v2"

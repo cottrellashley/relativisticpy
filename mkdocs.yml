@@ -31,6 +31,7 @@ nav:
       - Other tools: coming-from.md
       - RelativisticPy 1.x: upgrading.md
   - Jupyter and notebooks: jupyter.md
+  - Live mathematics in notebooks: live.md
   - Examples: examples.md
   - How it works: architecture.md
   - Roadmap: roadmap.md

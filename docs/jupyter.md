@@ -4,6 +4,9 @@
 > learn:** how results display in Jupyter, a first cell to start from, and how a Markdown
 > file becomes a notebook that RelativisticPy runs and typesets.
 
+To see a whole program typeset with its results, or to compute mathematics as you type
+it, in Jupyter or marimo, see [Live mathematics in notebooks](live.md).
+
 ## Jupyter
 
 Install RelativisticPy where Jupyter runs, with the extras your work needs (see
@@ -94,5 +97,5 @@ marked `relativisticpy` (or `relpy`) is a program, run as it is written; other c
 blocks, code spans and inline maths are text. The [examples](examples.md) are notebooks
 of this kind, shown with their results.
 
-**Next:** [Examples](examples.md), or [the Python API](python.md) for every method of a
-workbook.
+**Next:** [Live mathematics in notebooks](live.md), for `show` and the editor,
+[Examples](examples.md), or [the Python API](python.md) for every method of a workbook.

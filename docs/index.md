@@ -46,7 +46,7 @@ by what you want to do:
 | check a paper | [LaTeX](latex.md), [Checking papers](checking.md) |
 | compute with data | [Beyond spacetime](spaces.md), [Python API](python.md) |
 | know the language | [The language](language.md), [the language reference](reference.md), [Glossary](glossary.md) |
-| work in Jupyter | [Jupyter and notebooks](jupyter.md), [Examples](examples.md) |
+| work in Jupyter or marimo | [Jupyter and notebooks](jupyter.md), [Live mathematics in notebooks](live.md), [Examples](examples.md) |
 | move from another tool | [Coming from other tools](coming-from.md), [Upgrading from 1.x](upgrading.md) |
 | know how it works | [How it works](architecture.md), [Roadmap](roadmap.md) |
 
