@@ -185,6 +185,7 @@ qm.spin.spin-one
 sig.filters.bilinear
 sig.filters.half-power
 sig.frequency.moving-average-null
+sig.notation.sinc
 sig.windows.coherent-gain
 special.bessel.equation
 special.bessel.value
