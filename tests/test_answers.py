@@ -98,9 +98,9 @@ class TestUndoneResultsAreNoted:
         assert wb.expr(r"doit(\sum_{n=1}^{\infty} \frac{1}{n^2})") == sympy.pi**2 / 6
 
     def test_an_integral(self, wb):
-        assert notes(wb, r"\int_0^\infty \frac{x^3}{e^x - 1} \, dx") == [
-            "an integral is left as written: SymPy could not compute it"
-        ]
+        undone = ["an integral is left as written: SymPy could not compute it"]
+        assert notes(wb, r"\int_0^\infty \frac{x^3}{e^x - 1} \, dx") == undone
+        assert notes(wb, r"[1, \int_0^\infty \frac{x^3}{e^x - 1} \, dx]") == undone  # in a list
 
     def test_conditions_on_the_parameters(self, wb):
         found = notes(wb, r"\int_{-\infty}^{\infty} e^{-a x^2 + b x} \, dx")

@@ -1526,6 +1526,8 @@ def _left_undone(value: Any) -> list[str]:
     """The notes on what a value leaves undone, which shown as it is would read as an
     answer (guard 7 of wave 0): an integral, a sum or a limit SymPy did not carry out, a
     derivative of what is no function, and the conditions SymPy puts on its parameters."""
+    if isinstance(value, list | tuple):  # the solutions of a solve
+        return list(dict.fromkeys(note for item in value for note in _left_undone(item)))
     if not isinstance(value, sympy.Basic):
         return []
     notes = []

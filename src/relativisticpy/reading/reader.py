@@ -1127,6 +1127,37 @@ class Reader(Typer):
                 "\\right)",
             )
 
+    def _check_coefficient(self, factors: Sequence[ast.Expr]) -> None:
+        """Refuse ``[x^{10}] f``, the coefficient of x^{10} in f, as combinatorics writes
+        it: read as brackets that group, it is x^{10} times f."""
+        first = factors[0] if len(factors) > 1 else None
+        if not (isinstance(first, ast.List) and len(first.items) == 1):
+            return
+        power = first.items[0]
+        if not (
+            isinstance(power, ast.Scripted)
+            and isinstance(power.base, ast.Name)
+            and len(power.scripts) == 1
+            and power.scripts[0].kind == "^"
+            and isinstance(power.scripts[0].body, ast.Number)
+            and power.scripts[0].body.text.isdigit()
+        ):
+            return
+        variable, order = power.base.span.text, int(power.scripts[0].body.text)
+        self._decide(
+            "product or call",
+            first.span,
+            f"the factor {power.span.text}",
+            "brackets around one item group it",
+        )
+        raise CompileError(
+            f"{first.span.text} is read as the factor {power.span.text}, not as the coefficient "
+            f"of {power.span.text} in what follows",
+            span=first.span,
+            notes=["extracting a coefficient, as [x^n] f, is not supported yet"],
+            hint=f"read it from the series, series(f, {variable}, 0, {order + 1})",
+        )
+
     def _check_free_indices(self, target: ast.Name, value: Node, span: Span) -> None:
         """Refuse ``L_i = I_{ij} \\omega_i``: a name written with index labels, defined as a
         tensor whose free indices are others, which it would carry under the name L_i,
