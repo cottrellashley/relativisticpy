@@ -130,11 +130,14 @@ def over(
     low, high = _whole(lower, upper, strict)
     if not (divisors or primes):
         low, high = _support(body, index, low, high)
+    if primes and not divisors and not left_out and not conditions:
+        counted = _of_a_count(body, index, low, high, op)
+        if counted is not None:
+            return counted
     values = _divisors(of, primes, low, high) if divisors else _range(low, high, primes)
     if values is not None:
         kept = [v for v in values if not any(sympy.Eq(v, out) is sympy.true for out in left_out)]
-        terms = [_term(body, index, value, conditions, op) for value in kept]
-        return sympy.Add(*terms) if op == "sum" else sympy.Mul(*terms)
+        return _term_by_term(body, index, kept, conditions, op)
     if divisors:
         raise EvaluationError(
             f"a {_kind(op)} over the divisors of {of} is computed where {of} is a number",
@@ -203,15 +206,56 @@ def _between(value: int, low: Any, high: Any) -> bool:
 
 def _range(low: Any, high: Any, primes: bool) -> list[Any] | None:
     """The integers between two whole numbers, or the primes; ``None`` where one is no
-    number or has no end, or there are too many to sum one by one."""
+    number or has no end. An error that says so where there are too many to sum one by
+    one, as the primes up to 10^9 are."""
     start = sympy.Integer(2) if primes and not low.is_finite else low
     if not (start.is_Integer and high.is_Integer):
         return None
     if primes:
-        return [sympy.Integer(p) for p in sympy.primerange(max(int(start), 2), int(high) + 1)]
+        first = max(int(start), 2)
+        count = int(sympy.primepi(high)) - int(sympy.primepi(first - 1))
+        if count > _MOST:
+            raise EvaluationError(
+                f"there are {count} primes from {first} to {high}, more than the {_MOST} a sum "
+                "or a product is carried out over one by one",
+                hint="take fewer of them, or the sum of a constant, which counts them",
+            )
+        return [sympy.Integer(p) for p in sympy.primerange(first, int(high) + 1)]
     if high - start > _MOST:
         return None
     return [sympy.Integer(k) for k in range(int(start), int(high) + 1)]
+
+
+def _of_a_count(body: Any, index: Any, low: Any, high: Any, op: str) -> Any:
+    """A sum or a product over the primes between two numbers of what does not depend on
+    the prime: as many times it as there are primes, which π counts at once, as
+    \\sum_{p \\le 10^9} 1 is π(10^9); ``None`` of anything else."""
+    first = sympy.Integer(2) if not low.is_finite else low
+    term = sympy.sympify(body)
+    if term.has(index) or not (first.is_Integer and high.is_Integer):
+        return None
+    count = max(int(sympy.primepi(high)) - int(sympy.primepi(max(int(first), 2) - 1)), 0)
+    return term * count if op == "sum" else term**count
+
+
+def _term_by_term(
+    body: Any, index: Any, values: Sequence[Any], conditions: Sequence[Any], op: str
+) -> Any:
+    """A sum or a product over finitely many values, a term at a time, within the time a
+    closed form is given: exact fractions of many primes have denominators of many digits,
+    which take long to add. An error that says so where it runs out."""
+    from relativisticpy.runtime import core
+
+    try:
+        with core._budget(core._CLOSED_FORM_BUDGET):
+            terms = [_term(body, index, value, conditions, op) for value in values]
+            return sympy.Add(*terms) if op == "sum" else sympy.Mul(*terms)
+    except core._OverBudget:
+        raise EvaluationError(
+            f"the {_kind(op)} of {len(values)} terms, exactly, takes longer than the "
+            f"{core._CLOSED_FORM_BUDGET:g} s it is given",
+            hint="write a number in it as a decimal, as 1.0, to compute it numerically",
+        ) from None
 
 
 def _term(body: Any, index: Any, value: Any, conditions: Sequence[Any], op: str) -> Any:

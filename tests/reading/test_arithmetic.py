@@ -5,6 +5,8 @@ index; congruences and remainders; and the coefficients of a generating function
 
 from __future__ import annotations
 
+import time
+
 import pytest
 import sympy
 
@@ -178,6 +180,18 @@ class TestIndexSets:
         assert wb.expr(r"\prod_{p \text{ prime}} \frac{1}{1 - p^{-2}} = \frac{\pi^2}{6}")
         with pytest.raises(EvaluationError, match="diverges where s is 1"):
             wb.expr(r"\prod_{p \text{ prime}} \frac{1}{1 - 1/p}")
+
+    def test_the_primes_up_to_a_large_number_are_counted_at_once(self, wb):
+        started = time.monotonic()
+        assert wb.expr(r"\sum_{p \le 10^7} 1") == 664579
+        assert wb.expr(r"\sum_{p \le 10^9} 1") == 50847534
+        assert time.monotonic() - started < 5
+
+    def test_too_many_primes_to_sum_one_by_one_are_refused(self, wb):
+        started = time.monotonic()
+        with pytest.raises(EvaluationError, match="there are 50847534 primes from 2 to"):
+            wb.expr(r"\sum_{p \le 10^9} p")
+        assert time.monotonic() - started < 5
 
     def test_the_divisors_of_a_symbol_are_refused(self, wb):
         wb.exe(r"n \in \mathbb{N}")

@@ -179,11 +179,23 @@ def tidy(expr: object) -> Expr:
     Used on results the user did not ask to simplify: a component that
     vanishes becomes ``0``, one that is constant becomes the constant
     (``g_{ab} g^{ab}`` is ``4``), and a small expression is cancelled when that
-    makes it shorter.
+    makes it shorter. Within the time a closed form is given, past which it is
+    kept as written: a sum of a hundred fractions, as :math:`\\sum 1/(x + n)`
+    is, would take minutes to put over one denominator.
     """
+    from relativisticpy.runtime import core
+
     expr = sympy.sympify(expr)
     if not isinstance(expr, sympy.Expr) or expr.is_Atom or expr.is_number:
         return expr
+    try:
+        with core._budget(core._CLOSED_FORM_BUDGET):
+            return _tidied(expr)
+    except core._OverBudget:
+        return expr
+
+
+def _tidied(expr: Expr) -> Expr:
     if is_zero(expr):
         return sympy.S.Zero
     if sympy.count_ops(expr) > LARGE:

@@ -360,8 +360,20 @@ def integrated(f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any
     conditions on its parameters, or a modulus of one, or be left undone for one, it is the
     value under the assumption books make, which a remark says: the variable of an integral
     over real limits is real, and a parameter a scale, positive (design/notation.md,
-    decision 1). Nothing is assumed of a symbol the program said something of."""
-    return _computed(sympy.integrate, sympy.sympify(f), limits, bounds)
+    decision 1). Nothing is assumed of a symbol the program said something of. Where SymPy
+    finds no closed form in the time an integral is given, it is kept as written, as a
+    remark says (decision 4)."""
+    from relativisticpy.runtime import core
+
+    try:
+        with core._budget(core._INTEGRAL_BUDGET):
+            return _computed(sympy.integrate, sympy.sympify(f), limits, bounds)
+    except core._OverBudget:
+        remark(
+            f"SymPy found no closed form of the integral in the {core._INTEGRAL_BUDGET:g} s it "
+            "is given"
+        )
+        return sympy.Integral(f, *limits)
 
 
 def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:

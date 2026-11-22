@@ -1,5 +1,6 @@
-"""The time budget a closed form is looked for in: past it, a sum or a product is kept as
-written, and a time limit in force around it keeps what remains of it."""
+"""The time budget a closed form is looked for in: past it, a sum, a product or an integral
+is kept as written, and a value is presented as it is; a budget inside another has a token
+of its own, and a time limit in force around it keeps what remains of it."""
 
 import gc
 import signal
@@ -8,6 +9,7 @@ import time
 import pytest
 import sympy
 
+from relativisticpy import Workbook
 from relativisticpy.checking import _time_limit
 from relativisticpy.runtime import core
 
@@ -113,6 +115,28 @@ def test_an_inner_budget_that_runs_out_first_is_its_own():
         started = time.monotonic()
         time.sleep(0.2)  # the outer budget goes on, untouched
     assert time.monotonic() - started >= 0.2
+
+
+def test_an_integral_past_its_budget_is_kept_as_written(monkeypatch):
+    # SymPy's heuristics take fourteen minutes to give it up; the budget, of 25 s, is made
+    # shorter here, for the suite's sake
+    assert core._INTEGRAL_BUDGET == 25
+    monkeypatch.setattr(core, "_INTEGRAL_BUDGET", 2.0)
+    started = time.monotonic()
+    with Workbook() as wb:
+        (step,) = wb.each(r"\int_0^1 \frac{\ln(1 + x)}{1 + x^2} dx")
+    assert isinstance(step.values[0], sympy.Integral)
+    assert time.monotonic() - started < 10
+    assert "SymPy found no closed form of the integral in the 2 s it is given" in step.notes
+
+
+def test_presenting_a_sum_of_many_fractions_keeps_to_the_budget():
+    # put over one denominator, the sum takes minutes; computing it takes a moment
+    started = time.monotonic()
+    with Workbook() as wb:
+        value = wb.expr(r"\sum_{n=1}^{100} \frac{1}{x + n}")
+    assert len(value.args) == 100
+    assert time.monotonic() - started < 15
 
 
 def test_after_the_block_nothing_of_the_budget_remains():
