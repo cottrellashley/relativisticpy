@@ -16,7 +16,6 @@ from sympy import Symbol
 
 from relativisticpy import checking, display
 from relativisticpy.compiler import Compiler, Session
-from relativisticpy.compiler.compiler import _public
 from relativisticpy.compiler.scope import (
     Check,
     Context,
@@ -55,6 +54,7 @@ from relativisticpy.tensors import Index, Indices, Space, Tensor, arrays, numeri
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import is_zero, tidy
+from relativisticpy.typing.typer import _public
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 _T = TypeVar("_T")
