@@ -277,6 +277,37 @@ class TestBuiltinsSayWhatTheyTake:
         )
         assert len(wb.expr(r"geodesic_equations(\tau)")) == 4  # the hint works
 
+    @pytest.mark.parametrize(
+        ("source", "message"),
+        [
+            (r"\det([1, 2])", "a determinant needs a square matrix, but this is a list of 2"),
+            (
+                r"\det([[1, 2, 3], [4, 5, 6]])",
+                "a determinant needs a square matrix, but this is a 2×3 matrix",
+            ),
+            (
+                r"\mathrm{inv}([[1, 2, 3], [4, 5, 6]])",
+                "an inverse needs a square matrix, but this is a 2×3 matrix",
+            ),
+            (
+                r"\mathrm{inv}([[1, 2], [2, 4]])",
+                "this matrix has no inverse: its determinant is zero",
+            ),
+        ],
+    )
+    def test_a_matrix_that_has_no_determinant_or_inverse(self, wb, source, message):
+        assert error(wb, source, EvaluationError).message == message
+        assert wb.expr(r"\det([[1, 2], [3, 4]])") == -2
+
+    def test_dsolve_solves_for_a_function(self, wb):
+        assert error(wb, "dsolve(y'' + y, y)", EvaluationError).message == (
+            "dsolve solves for a function written with its variable, "
+            "as in dsolve(f''(x) + f(x) = 0, f(x)), not for y"
+        )
+        found = wb.expr("dsolve(f''(x) + f(x) = 0, f(x))")  # the example works
+        assert "sin(x)" in str(found)
+        assert "cos(x)" in str(found)
+
 
 class TestPowersOfTensors:
     def test_the_inverse_metric(self, wb):

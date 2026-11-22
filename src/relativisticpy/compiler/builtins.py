@@ -87,6 +87,11 @@ def dsolve(*args: Any) -> Any:
     if isinstance(first, TensorEquation | list | tuple):
         equations = _equations([first])
         first = equations[0] if len(equations) == 1 else equations
+    if rest and isinstance(rest[0], sympy.Symbol):  # dsolve(y'' + y, y): y has no variable
+        raise EvaluationError(
+            f"dsolve solves for a function written with its variable, as in "
+            f"dsolve(f''(x) + f(x) = 0, f(x)), not for {display.text(rest[0])}"
+        )
     return sympy.dsolve(first, *rest)
 
 
@@ -151,15 +156,32 @@ def _matrix(value: Any) -> sympy.Matrix:
     return sympy.Matrix(value)
 
 
+def _square(value: Any, what: str) -> sympy.Matrix:
+    """``value`` as a square matrix, for ``what`` needs one; an error otherwise."""
+    matrix = _matrix(value)
+    rows, columns = matrix.shape
+    if rows != columns:
+        flat = isinstance(value, list) and not any(isinstance(row, list) for row in value)
+        flat = flat or (isinstance(value, sympy.NDimArray) and value.rank() == 1)
+        written = f"a list of {len(matrix)}" if flat else f"a {rows}×{columns} matrix"
+        raise EvaluationError(f"{what} needs a square matrix, but this is {written}")
+    return matrix
+
+
 def det(value: Any) -> Any:
     """The determinant of a matrix; a scalar is its own determinant."""
     if isinstance(value, sympy.NDimArray | sympy.MatrixBase | list | Tensor):
-        return sympy.simplify(_matrix(value).det())
+        return sympy.simplify(_square(value, "a determinant").det())
     return value
 
 
 def inverse(value: Any) -> Any:
-    return sympy.ImmutableDenseNDimArray(_matrix(value).inv().tolist())
+    matrix = _square(value, "an inverse")
+    try:
+        inverted = matrix.inv()
+    except sympy.matrices.exceptions.NonInvertibleMatrixError:
+        raise EvaluationError("this matrix has no inverse: its determinant is zero") from None
+    return sympy.ImmutableDenseNDimArray(inverted.tolist())
 
 
 def transpose(value: Any) -> Any:
