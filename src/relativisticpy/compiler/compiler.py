@@ -2482,7 +2482,15 @@ class Compiler:
                 span=func.span,
                 hint=f"write {arguments}" if arguments else None,
             )
-        if name in GREEK or name in BUILTINS:  # \gamma(r), a function no builtin is
+        if name in GREEK or name in BUILTINS or len(name) == 1:  # \gamma(r), f(x)
+            letter = name in GREEK or len(name) == 1  # not a builtin here, as \gamma is not
+            if letter and not all(isinstance(a, ast.Name) for a in node.args):
+                # \gamma(t - vx): a function of t - vx, or \gamma times it, as typeset?
+                inside = ", ".join(arg.span.text for arg in node.args)
+                self._note(
+                    f"{written} is not defined, so {node.span.text} is an unknown function "
+                    f"applied to {inside}; for a product, write {written} \\cdot ({inside})"
+                )
             return
         concept = _CONCEPTS.get(name.lower())
         close = _close(name, [*BUILTINS, *_SPACETIME_NAMES]) if concept is None else None

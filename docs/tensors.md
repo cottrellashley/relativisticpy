@@ -287,6 +287,23 @@ the two rather than overwriting the first; an equation about a component, such a
 component; and `R = 0` written before any metric is the equation \(R = 0\) of
 [index notation](notation.md), not a new meaning for \(R\).
 
+A letter followed by brackets could be a function or a product. A constant, or a
+name the statement also writes as a factor, as \(G\) is in
+`\frac{2GM}{r} + G(p^2 + q^2)`, where in LaTeX \(2GM\) is \(2 \cdot G \cdot M\),
+multiplies what is in the brackets; so does a name written as a factor before, where
+the brackets hold more than names, as \(\rho\) does in `\rho(1 + 3w)` after
+`p = w\rho`. Otherwise a letter that means nothing is an unknown function: of
+names, as `\alpha(t, r)`, without a word; of anything else, with a note saying how
+to write the product:
+
+```python
+>>> claims.expr(r"\frac{2GM}{r} + G(p^2 + q^2)")
+2*G*M/r + G*(p**2 + q**2)
+>>> [step.notes for step in claims.each(r"\gamma(t - v x)")]
+[['\\gamma is not defined, so \\gamma(t - v x) is an unknown function applied to t - v x; for a product, write \\gamma \\cdot (t - v x)']]
+
+```
+
 ## Derivatives
 
 `\partial_\mu` (or `d_{\mu}`) is the partial derivative and `\nabla_\mu` (or

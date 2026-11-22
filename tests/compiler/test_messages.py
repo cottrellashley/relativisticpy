@@ -462,6 +462,16 @@ class TestSilentReadingsAreSaid:
         )
         assert notes(wb, "x^n y^n") == []  # a Latin exponent is a power, as written
 
+    def test_a_letter_followed_by_brackets_is_a_function_and_says_so(self, wb):
+        assert notes(wb, r"\gamma(t - v x)") == [
+            r"\gamma is not defined, so \gamma(t - v x) is an unknown function applied to "
+            r"t - v x; for a product, write \gamma \cdot (t - v x)"
+        ]
+        assert str(wb.expr(r"\gamma \cdot (t - v x)")) == "gamma*(t - v*x)"  # the hint works
+        assert notes(wb, r"\alpha(t, r)") == []  # a function of names, as meant
+        wb.exe("f(x) := x^2")
+        assert notes(wb, "f(x + 1)") == []  # a function defined
+
     def test_a_label_written_up_and_down_on_a_name_that_means_nothing(self, wb):
         assert notes(wb, "u^a u_a = -1") == [
             "u is not defined, so u^a is a power and u_a one symbol; to use a tensor, define "
