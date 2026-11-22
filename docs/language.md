@@ -280,3 +280,36 @@ adding a number to a list, is an error.
 [[2, 5], [[u + 2*v], [3*u + 4*v]], [[-2, 1], [3/2, -1/2]]]
 
 ```
+
+## Coming from Python
+
+The language looks like Python in places, `:=`, `**` and calls such as
+`diff(f, x)`, but it is not Python. What Python would mean by something the
+language reads otherwise is an error rather than a different computation, with
+what to write instead:
+
+| Python | What the language says |
+|---|---|
+| `x[1]` | it indexes as Python does, which the language does not: a component is written with indices, `V^{0}` |
+| `[i^2 for i in range(3)]` | a list comprehension: write the list out, or a sum, `\sum_{i=0}^{2} i^2` |
+| `import sympy` | the functions are built in: there is nothing to import |
+| `series(sin(x), x, 0, n=5)` | a keyword argument: give the value in its place, `series(sin(x), x, 0, 5)` |
+| `x % 2` | `%` starts a comment, as in LaTeX, so this would be `x` |
+| `"\frac{1}{2}"` | Python turned `\f` into a form feed: write LaTeX in a raw string, `r"\frac{1}{2}"` |
+
+```python
+>>> wb.expr("x := [1, 2, 3]\nx[1]")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.ParseError: x[1] indexes as Python does, which the language does not
+ --> <input>:2:1
+  |
+2 | x[1]
+  | ^^^^
+hint: a component is written with indices, as in V^{0}; for a product, put a space before the bracket
+
+```
+
+An equation in a call is an equation, as in `subs(x^2, x = 2)` or
+`solve(x^2 = 4, x)`: a name set to a value with no space around `=`, and used
+by no other argument, is taken for a keyword argument.
