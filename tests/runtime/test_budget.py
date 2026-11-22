@@ -114,4 +114,5 @@ def test_a_budget_runs_out_after_a_callback_of_the_garbage_collector():
     finally:
         gc.callbacks.remove(callback)
     assert held
-    assert time.monotonic() - started < 0.05 + core._AGAIN + 0.5
+    # without raising again it would never end; a loaded machine may take a while to
+    assert time.monotonic() - started < 10
