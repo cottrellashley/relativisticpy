@@ -430,7 +430,9 @@ class Compiler:
             isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
             for node in _walk(value)
         ):
-            note = f"{name} appears on both sides, so this is an equation, not a definition"
+            note = (
+                f"{func.span.text} appears on both sides, so this is an equation, not a definition"
+            )
             return "claim", note
         return "function", None
 
@@ -591,13 +593,13 @@ class Compiler:
         """``f(x) := x^2``. A function that calls itself is refused here, where it is
         written, rather than when it is called. One the metric in force is written with,
         as f is in ``ds^2 = -f(r) dt^2 + ...``, takes this definition there from now on."""
-        name = definition.name
+        name, shown = definition.name, _shown(definition.name, definition.latex)
         if isinstance(definition.body, ast.Expr) and any(
             isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
             for node in _walk(definition.body)
         ):
             raise CompileError(
-                f"{name} calls itself, and recursive functions are not supported",
+                f"{shown} calls itself, and recursive functions are not supported",
                 span=definition.span,
             )
         binding = FunctionBinding(definition, scope)
@@ -612,13 +614,8 @@ class Compiler:
                     where = ops.Call(_where_function, "where")
                     name_node = self.graph.const((name, symbols), VALUE)
                     self._rewrite_metric(where, (name_node, body))
-                    shown = (
-                        _shown(name, definition.latex)
-                        + "("
-                        + ", ".join(_shown(param, definition.latex) for param in definition.params)
-                        + ")"
-                    )
-                    self._note(_late_note(shown, self.session.metric))
+                    params = ", ".join(_shown(p, definition.latex) for p in definition.params)
+                    self._note(_late_note(f"{shown}({params})", self.session.metric))
             scope.bind(name, binding)
 
     def _fails_as_function(
@@ -4149,8 +4146,8 @@ class Compiler:
                     f"{node.span.text} is read as {written_base} to the power "
                     f"{script.body.span.text}",
                     span=node.span,
-                    hint=f"for the transpose, write transpose({written_base}), or, with "
-                    "indices, swap them, as A_{ba} is the transpose of A_{ab}",
+                    notes=["with indices, the transpose of A_{ab} is A_{ba}"],
+                    hint=f"for the transpose, write transpose({written_base})",
                 )
             if (
                 isinstance(base, ast.Name)
