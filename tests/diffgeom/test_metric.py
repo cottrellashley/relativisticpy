@@ -130,6 +130,42 @@ def test_minkowski():
         spacetimes.minkowski("cylindrical")
 
 
+SPACETIMES = [
+    spacetimes.minkowski,
+    spacetimes.schwarzschild,
+    spacetimes.reissner_nordstrom,
+    spacetimes.kerr,
+    spacetimes.kerr_newman,
+    spacetimes.flrw,
+    spacetimes.de_sitter,
+    spacetimes.anti_de_sitter,
+]
+
+
+@pytest.mark.parametrize("factory", SPACETIMES, ids=lambda factory: factory.__name__)
+def test_each_spacetime_declares_its_coordinates_and_what_it_is_not_written_with(factory):
+    # read without computing the metric, as the compiler does: they are the metric's own
+    assert spacetimes.coordinates_of(factory) == factory().coordinates
+    for choice in spacetimes.choices(factory):
+        assert spacetimes.coordinates_of(factory, choice) == factory(choice).coordinates
+    names = list(inspect.signature(factory).parameters)
+    assert spacetimes.absent_from(factory) <= set(names)
+    first = list(spacetimes.choices(factory)[:1])  # the coordinates, where it is chosen
+    for position, name in enumerate(names[len(first) :], start=len(first)):
+        arguments = [*first, *(1 for _ in range(position - len(first))), Symbol("p")]
+        components = factory(*arguments).components  # p is this parameter alone
+        written = {s.name for s in components.free_symbols}
+        written |= {f.func.__name__ for f in components.atoms(AppliedUndef)}  # FLRW's a(t)
+        assert ("p" in written) != (name in spacetimes.absent_from(factory)), name
+
+
+def test_minkowski_declares_the_coordinates_each_choice_names():
+    assert spacetimes.choices(spacetimes.minkowski) == ("cartesian", "spherical")
+    assert spacetimes.coordinates_of(spacetimes.minkowski, Symbol("spherical"))[1] == r
+    with pytest.raises(ValueError, match="unknown coordinates 3: use 'cartesian' or 'spherical'"):
+        spacetimes.coordinates_of(spacetimes.minkowski, 3)
+
+
 def test_parameters_in_any_units():
     G, c = symbols("G c")
     g = spacetimes.schwarzschild("M", G="G", c="c")

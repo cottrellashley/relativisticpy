@@ -14,11 +14,21 @@ after its own parameters::
 
 In the language each is a function: ``g_{\mu\nu} := Schwarzschild(M)``, or
 ``Schwarzschild(M, G, c)`` in other units.
+
+Each declares the coordinates its metric is in, which :func:`coordinates_of` reads
+without computing the metric, as the compiler does before anything is computed::
+
+    >>> coordinates_of(schwarzschild)
+    (t, r, theta, phi)
+    >>> coordinates_of(minkowski, "spherical")
+    (t, r, theta, phi)
 """
 
 from __future__ import annotations
 
-from typing import Any
+import inspect
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import sympy
 from sympy import Expr, Function, Symbol, cos, sin
@@ -40,6 +50,54 @@ __all__ = [
 t, r, theta, phi = sympy.symbols("t r theta phi")
 x, y, z = sympy.symbols("x y z")
 
+_F = TypeVar("_F", bound=Callable[..., Metric])
+
+
+def _declared(
+    coordinates: tuple[Symbol, ...] | dict[str, tuple[Symbol, ...]], *, absent: tuple[str, ...] = ()
+) -> Callable[[_F], _F]:
+    """Declare what a spacetime's metric is written in, so that it is known without
+    computing the metric: its ``coordinates`` or, where its first parameter chooses them,
+    those of each name the parameter takes; and the parameters ``absent`` from it, as G is
+    from flat space. :func:`coordinates_of` and :func:`absent_from` read them."""
+
+    def declare(factory: _F) -> _F:
+        factory.coordinates = coordinates  # type: ignore[attr-defined]
+        factory.absent = frozenset(absent)  # type: ignore[attr-defined]
+        return factory
+
+    return declare
+
+
+def coordinates_of(factory: Callable[..., Metric], choice: Any = None) -> tuple[Symbol, ...]:
+    """The coordinates of the metric the spacetime ``factory`` gives, as it declares them,
+    without computing the metric; of one whose first parameter chooses its coordinates, as
+    minkowski's does, those that ``choice`` names, or its default."""
+    declared = factory.coordinates  # type: ignore[attr-defined]
+    if not isinstance(declared, dict):
+        return tuple(declared)
+    if choice is None:
+        choice = next(iter(inspect.signature(factory).parameters.values())).default
+    if str(choice) not in declared:
+        choices = " or ".join(repr(name) for name in declared)
+        raise ValueError(f"unknown coordinates {choice!r}: use {choices}")
+    return tuple(declared[str(choice)])
+
+
+def choices(factory: Callable[..., Metric]) -> tuple[str, ...]:
+    """The names of the coordinates a spacetime's first parameter chooses between, as
+    minkowski's does: ``("cartesian", "spherical")``; none for a spacetime in coordinates
+    of its own."""
+    declared = factory.coordinates  # type: ignore[attr-defined]
+    return tuple(declared) if isinstance(declared, dict) else ()
+
+
+def absent_from(factory: Callable[..., Metric]) -> frozenset[str]:
+    """The parameters of a spacetime its metric is not written with, as it declares them:
+    G, which flat space does not depend on, nor de Sitter space, nor the metric of an
+    expanding universe, whose expansion it governs only through the field equations."""
+    return frozenset(factory.absent)  # type: ignore[attr-defined]
+
 
 def _value(value: Any) -> Expr:
     """A parameter as SymPy: a name becomes a symbol, and a decimal the exact fraction
@@ -54,6 +112,9 @@ def _spherical(f: Expr, *, c: Expr = sympy.S.One) -> Metric:
     )
 
 
+@_declared(
+    {"cartesian": (t, x, y, z), "spherical": (t, r, theta, phi)}, absent=("coordinates", "G")
+)
 def minkowski(coordinates: str | Symbol = "cartesian", G: Any = 1, c: Any = 1) -> Metric:
     r"""Flat spacetime, in ``"cartesian"`` :math:`(t, x, y, z)` or ``"spherical"`` coordinates.
 
@@ -67,6 +128,7 @@ def minkowski(coordinates: str | Symbol = "cartesian", G: Any = 1, c: Any = 1) -
     raise ValueError(f"unknown coordinates {coordinates!r}: use 'cartesian' or 'spherical'")
 
 
+@_declared((t, r, theta, phi))
 def schwarzschild(M: Any = "M", G: Any = 1, c: Any = 1) -> Metric:
     r"""The exterior of a static, spherically symmetric mass :math:`M`.
 
@@ -79,6 +141,7 @@ def schwarzschild(M: Any = "M", G: Any = 1, c: Any = 1) -> Metric:
     return _spherical(1 - 2 * gravity * mass / (speed**2 * r), c=speed)
 
 
+@_declared((t, r, theta, phi))
 def reissner_nordstrom(M: Any = "M", Q: Any = "Q", G: Any = 1, c: Any = 1) -> Metric:
     r"""A static, spherically symmetric mass :math:`M` with charge :math:`Q` (Gaussian units)."""
     mass, charge, gravity, speed = _value(M), _value(Q), _value(G), _value(c)
@@ -86,12 +149,14 @@ def reissner_nordstrom(M: Any = "M", Q: Any = "Q", G: Any = 1, c: Any = 1) -> Me
     return _spherical(f, c=speed)
 
 
+@_declared((t, r, theta, phi))
 def kerr(M: Any = "M", a: Any = "a", G: Any = 1, c: Any = 1) -> Metric:
     r"""A rotating black hole of mass :math:`M` and spin :math:`a = J/Mc`, in Boyer-Lindquist
     coordinates."""
     return kerr_newman(M, a, 0, G, c)
 
 
+@_declared((t, r, theta, phi))
 def kerr_newman(M: Any = "M", a: Any = "a", Q: Any = "Q", G: Any = 1, c: Any = 1) -> Metric:
     r"""A rotating black hole of mass :math:`M`, spin :math:`a = J/Mc` and charge :math:`Q`
     (Gaussian units), in Boyer-Lindquist coordinates."""
@@ -110,6 +175,7 @@ def kerr_newman(M: Any = "M", a: Any = "a", Q: Any = "Q", G: Any = 1, c: Any = 1
     return Metric(g, (t, r, theta, phi), check=False)
 
 
+@_declared((t, r, theta, phi), absent=("G",))
 def flrw(k: Any = "k", a: Any = "a", G: Any = 1, c: Any = 1) -> Metric:
     r"""A homogeneous, isotropic universe with spatial curvature :math:`k` and scale
     factor :math:`a(t)`.
@@ -139,12 +205,14 @@ def flrw(k: Any = "k", a: Any = "a", G: Any = 1, c: Any = 1) -> Metric:
     )
 
 
+@_declared((t, r, theta, phi), absent=("G",))
 def de_sitter(L: Any = "L", G: Any = 1, c: Any = 1) -> Metric:
     r"""The static patch of de Sitter space with curvature radius :math:`L`:
     :math:`f = 1 - r^2/L^2`. ``G`` does not appear, as in :func:`flrw`."""
     return _spherical(1 - r**2 / _value(L) ** 2, c=_value(c))
 
 
+@_declared((t, r, theta, phi), absent=("G",))
 def anti_de_sitter(L: Any = "L", G: Any = 1, c: Any = 1) -> Metric:
     r"""Global anti-de Sitter space with curvature radius :math:`L`: :math:`f = 1 + r^2/L^2`.
     ``G`` does not appear, as in :func:`flrw`."""

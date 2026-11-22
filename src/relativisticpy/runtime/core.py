@@ -194,6 +194,15 @@ def where_function(components: Any, function: tuple[str, tuple[Any, ...]], body:
     return arrays.apply(arrays.to_array(components), put)
 
 
+def components(metric: Any, *, coordinates: tuple[Symbol, ...]) -> Any:
+    """The components of a spacetime's metric in ``coordinates``, the symbols declared for
+    the names of its own: a coordinate declared with assumptions, as by Positive := [r],
+    takes the place of its namesake."""
+    declared = {coordinate.name: coordinate for coordinate in coordinates}
+    own = {c: declared.get(c.name, c) for c in metric.coordinates}
+    return metric.components.xreplace(own)
+
+
 def line_element(metric: Any, coordinates: Sequence[Symbol]) -> Any:
     """:math:`g_{\\mu\\nu} dx^\\mu dx^\\nu`, in the differentials of the coordinates."""
     differentials = [differential(c) for c in coordinates]

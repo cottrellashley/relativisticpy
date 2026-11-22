@@ -194,8 +194,9 @@ rather than tens of minutes.
   whether it works component-wise on tensors.
 - **A LaTeX command or symbol**: add it to `relativisticpy/language/vocabulary.py`;
   structural commands need a case in the parser's `_command`.
-- **A spacetime**: add a function to `relativisticpy/spacetimes.py` and list it with
-  the spacetimes in `relativisticpy/runtime/functions.py`.
+- **A spacetime**: add a function to `relativisticpy/spacetimes.py`, declaring the
+  coordinates its metric is in, which the compiler reads without computing it, and list
+  it with the spacetimes in `relativisticpy/runtime/functions.py`.
 - **An operation**: register what computes it in `relativisticpy/runtime/registry.py`
   and have the compiler emit a `Call` of its name; one that is not a function of values,
   as a contraction is, is an op in `relativisticpy/ir/ops.py` with a kernel in

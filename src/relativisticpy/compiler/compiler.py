@@ -43,9 +43,9 @@ from sympy import Symbol
 from sympy.core.function import AppliedUndef
 from sympy.tensor import tensor as symbolic
 
-from relativisticpy import abstract, display
+from relativisticpy import abstract, display, spacetimes
 from relativisticpy.abstract import IndexEquation, IndexExpression
-from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, SPACETIMES, Builtin
+from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES, Builtin
 from relativisticpy.compiler.scope import (
     Context,
     Dalembertian,
@@ -69,7 +69,7 @@ from relativisticpy.compiler.session import (
     Session,
     describe,
 )
-from relativisticpy.diffgeom import Metric, differential
+from relativisticpy.diffgeom import differential
 from relativisticpy.errors import (
     CompileError,
     EvaluationError,
@@ -1007,13 +1007,13 @@ class Compiler:
 
     def _spacetime(self, value: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """Components of a spacetime such as ``Schwarzschild(M)``, which also brings its
-        coordinates; ``None`` for any other value."""
+        coordinates, as the spacetime declares them, without computing it; ``None`` for
+        any other value."""
         if not (
             isinstance(value, ast.Call)
             and isinstance(value.func, ast.Name)
             and scope.lookup(value.func.id) is None
-            and value.func.id[:1].isupper()
-            and value.func.id in BUILTINS
+            and value.func.id in SPACETIMES
         ):
             return None
         if value.func.id == "Minkowski" and value.args and isinstance(value.args[0], ast.Name):
@@ -1027,14 +1027,39 @@ class Compiler:
                 )
             named = ast.Name(kind.id, verbatim=True, span=kind.span)
             value = replace(value, args=(named, *value.args[1:]))
-        metric = self.session.evaluate(self.value(value, scope, ctx))
-        if not isinstance(metric, Metric):  # pragma: no cover - every capitalised builtin is one
-            return None
+        call = self.value(value, scope, ctx)
         # Its coordinates are plain symbols: one declared with assumptions, as by
         # Positive := [r], takes the place of its namesake.
-        declared = {c: self.session.symbol(c.name) for c in metric.coordinates}
-        self.session.set_coordinates(tuple(declared.values()), span=value.span)
-        return self.graph.const(metric.components.xreplace(declared), VALUE, value.span)
+        declared = self._spacetime_coordinates(value, call)
+        coordinates = tuple(self.session.symbol(c.name) for c in declared)
+        self.session.set_coordinates(coordinates, span=value.span)
+        components = ops.Call("core.components", (("coordinates", coordinates),))
+        return self.graph.add(components, (call,), VALUE, value.span)
+
+    def _spacetime_coordinates(self, value: ast.Call, call: Node) -> tuple[Symbol, ...]:
+        """The coordinates a spacetime declares: of Minkowski, those its first argument
+        names, which is known when compiling, as the name of the coordinates or a value
+        given one."""
+        assert isinstance(value.func, ast.Name)
+        name, factory = value.func.id, _SPACETIMES[value.func.id]
+        names = spacetimes.choices(factory)
+        if not names:
+            return spacetimes.coordinates_of(factory)
+        choice = None
+        if call.args:
+            first = call.args[0].op
+            if not isinstance(first, ops.Const):
+                written = value.args[0].span.text
+                raise CompileError(
+                    f"{name} takes {_listed(list(names), 'or')} coordinates, not {written}",
+                    span=value.args[0].span,
+                    hint=f"for example {name}({names[-1]})",
+                )
+            choice = first.value
+        try:
+            return spacetimes.coordinates_of(factory, choice)
+        except ValueError as error:  # the factory's own words, as when it is called
+            raise EvaluationError(str(error), span=value.span) from None
 
     def _define_line_element(self, value: ast.Expr, scope: Scope, ctx: Context, span: Span) -> None:
         # Without declared coordinates, the differentials name them: dt, dr and d\Omega
