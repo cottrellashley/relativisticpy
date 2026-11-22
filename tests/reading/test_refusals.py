@@ -63,14 +63,14 @@ class TestColonEqualsDefinesOrRefuses:
         assert found.hint.startswith("define x as a function of time, as in x(t) := ...")
 
     def test_a_function_of_what_is_not_a_name(self, wb):
-        found = error(wb, r"H(e^{j\omega}) := 1 + 2e^{-j\omega}")
+        found = error(wb, r"H(\sqrt{\omega}) := 1 + 2\omega")
         assert found.message == (
-            r"cannot define H(e^{j\omega}): the parameters of a function are names, and "
-            r"e^{j\omega} is not"
+            r"cannot define H(\sqrt{\omega}): the parameters of a function are names, and "
+            r"\sqrt{\omega} is not"
         )
         assert found.hint == (
             r"define it with names as its parameters, as in H(z) := ..., and then write "
-            r"H(e^{j\omega})"
+            r"H(\sqrt{\omega})"
         )
         wb.exe("H(z) := 1 + 2/z")
         assert wb.expr(r"H(e^{i\omega})") == 1 + 2 * sympy.exp(-sympy.I * sympy.Symbol("omega"))

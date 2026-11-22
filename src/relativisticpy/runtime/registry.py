@@ -32,7 +32,7 @@ from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.integrations import _optimizers as optima
-from relativisticpy.runtime import arithmetic, core, notation, quantum, recurrences
+from relativisticpy.runtime import arithmetic, core, notation, quantum, recurrences, sequences
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
@@ -264,6 +264,11 @@ def _core() -> Iterator[Implementation]:
     yield entry("quantum.conjugate", quantum.conjugate, "argument", 1)
     yield entry("quantum.modulus", quantum.modulus, "scalar", 1)
     yield entry("quantum.inner", quantum.inner, "scalar", 2, 2)
+    # sequences: sums over their index, difference equations at rest, and their transforms
+    yield entry("seq.sum", sequences.summation, "argument", 4, 4, componentwise=True)
+    yield entry("seq.recurrence", sequences.member, "argument", 3, 3)
+    yield entry("seq.solve", sequences.solved, "value", 2, 2)
+    yield entry("seq.transform", sequences.transformed, "scalar", 2, 2)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

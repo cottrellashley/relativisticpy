@@ -180,6 +180,27 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   star before a call's arguments, `\psi^*(x)`, conjugates the call, as `\psi(x)^*` does.
   These replace the refusals of the commutator of matrices, of angle brackets and of
   Dirac's notation.
+- Sequences written with square brackets, as Oppenheim and Schafer write discrete-time
+  signals (`design/notation.md`, 31). `x[n] := \ldots` defines a sequence of the integer n,
+  and `x[3]` and `x[n - 1]` are its values; where nothing defines δ or u, `\delta[n]` and
+  `u[n]` are the unit impulse and the unit step, capabilities of a new integration, with a
+  note, where the brackets hold an integer as books write a point, so that a variation
+  `\delta[(-g)^{-1/2}]` is read as before; brackets after a function of one variable are
+  its value; a list, a tensor or data is read as before. A sum over a sequence's index takes
+  each impulse at its point and cuts its terms' ranges to where their steps are 1, and runs
+  over every integer where no limits are written, as `\sum_k x[k] h[n - k]`; a closed form
+  that holds the case of two equal parameters apart is given for the others, with a note. A
+  sequence defined through its own members is a difference equation at initial rest,
+  computed one member after another, and in closed form by SymPy's `rsolve`, as `solve`
+  gives one. An equation between sequences nothing defines is a difference equation, whose
+  capital letters are their z-transforms, `H(z) := \frac{Y(z)}{X(z)}`, and `poles` and
+  `zeros` give the roots of a transfer function. `H(e^{j\omega}) := \ldots` defines the
+  frequency response as a function of ω, written at e^{jω}. A bound on a modulus standing
+  alone, as `|z| > \frac{1}{2}`, is an assumption, which decides where a series converges,
+  and a claim about samples, as `\cos(7\pi n/5) = \cos(3\pi n/5)` of an integer n, is
+  proven where it holds at the integers. An asterisk between two sequences, their
+  convolution in signal processing and a product elsewhere, and `\circledast` are refused,
+  saying how to write a convolution as its sum.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs
@@ -297,6 +318,13 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - An equation that is an identity, such as `e^{2a}(1 + b) = e^{2a} + b e^{2a}`,
   evaluates to `True`, decided exactly.
 - `\[ ... \]` and `$$ ... $$` hold one formula, however their lines break.
+- The z-transform of a sequence written with impulses and steps is taken over every n, and
+  the inverse z-transform gives a sequence back, with its step and its impulses,
+  `\left(\frac{1}{2}\right)^n u[n]`. A transform written without its point in the value
+  of a function or a sequence whose parameter is its variable is at that parameter, so
+  that `F(2)` of `F(s) := \mathcal{L}\{t^2\}` is 1/4. In plain text, brackets right
+  after a name are refused as Python's indexing by the reader, which knows whether the name
+  is a sequence, rather than by the parser.
 - Angle brackets no longer group as brackets do: `\langle x \rangle` is what a program
   defines, an expectation value or an inner product, and refused where it is none of
   them, rather than `x`.

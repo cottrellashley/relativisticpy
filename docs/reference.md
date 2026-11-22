@@ -292,6 +292,15 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `chebyshevu(n, x)` `U_n(x)` | 2 | the Chebyshev polynomial of the second kind, of degree n |
 | `Ynm(ell, m, theta, phi)` `Y_{\ell}^m(\theta, \phi)` | 4 | the spherical harmonic of degree `\ell` and order m, at polar angle `\theta` and azimuth `\phi` |
 
+### Sequences, as signal processing writes them
+
+| Function | Arguments | Meaning |
+|---|---|---|
+| `impulse(n)` `\delta[n]` | 1 | the unit impulse; 1 at n = 0 and 0 at every other integer |
+| `step(n)` `u[n]` | 1 | the unit step; 1 from n = 0 on and 0 before it |
+| `poles(H, z)` | 1 to 2 | the poles of a rational function, the roots of its denominator, each as often as its order |
+| `zeros(H, z)` | 1 to 2 | the zeros of a rational function, the roots of its numerator, each as often as its order |
+
 ### Special functions
 
 | Function | Arguments | Meaning |
@@ -321,8 +330,8 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `InverseLaplaceTransform(F, s, t)` `inverse_laplace_transform` `\mathcal{L}^{-1}\{F\}(t)` `\mathcal{L}^{-1}\{F\}` | 1 to 3 | the inverse Laplace transform; of F(s), the function of t it is the transform of, for t > 0 |
 | `FourierTransform(f, x, s)` `fourier_transform` `\mathcal{F}\{f\}(s)` `\mathcal{F}\{f\}` | 1 to 3 | the Fourier transform; of f(x), `\int f(x) e^{-2\pi i x s}\, dx`, Bracewell's, of f(t), `\int f(t) e^{-i\omega t}\, dt`, or as a program defines it by its integral |
 | `InverseFourierTransform(F, s, x)` `inverse_fourier_transform` `\mathcal{F}^{-1}\{F\}(x)` `\mathcal{F}^{-1}\{F\}` | 1 to 3 | the inverse Fourier transform; of s to x or of ω to t, in the convention of the Fourier transform |
-| `ZTransform(x, n, z)` `z_transform` `\mathcal{Z}\{x\}(z)` `\mathcal{Z}\{x\}` | 1 to 3 | the z-transform; of a sequence from n = 0, `\sum_{n=0}^{\infty} x_n z^{-n}`, where it converges |
-| `InverseZTransform(X, z, n)` `inverse_z_transform` `\mathcal{Z}^{-1}\{X\}(n)` `\mathcal{Z}^{-1}\{X\}` | 1 to 3 | the inverse z-transform; of a rational function of z, by partial fractions, the sequence from n = 0 |
+| `ZTransform(x, n, z)` `z_transform` `\mathcal{Z}\{x\}(z)` `\mathcal{Z}\{x\}` | 1 to 3 | the z-transform; of a sequence from n = 0, `\sum_{n=0}^{\infty} x_n z^{-n}`, where it converges, and of one written with impulses and steps over every n |
+| `InverseZTransform(X, z, n)` `inverse_z_transform` `\mathcal{Z}^{-1}\{X\}(n)` `\mathcal{Z}^{-1}\{X\}` | 1 to 3 | the inverse z-transform; of a rational function of z, by partial fractions, the sequence from n = 0, with its step and impulses |
 
 ### Rewrites
 
@@ -469,6 +478,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 These commands are LaTeX's, or a package's, but not the language's. Each is an error that says what to write instead:
 
 - `\abs`: the physics package's absolute value, is not supported; write `|x|`, or `\left| x \right|`.
+- `\circledast`: circular convolution, is not supported; write its sum, as `\sum_{m=0}^{N-1} x[m]\,h[(n - m) \bmod{N}]`.
 - `\dd`: the physics package's differential, is not supported; write `d x`, or `\mathrm{d} x`.
 - `\def \let \newcommand \providecommand \renewcommand`: defines a macro, which a program cannot; write what it stands for; relativisticpy check reads the macros of a document.
 - `\eval`: the physics package's evaluation bar, is not supported; write `\left. f \right|_{x=0}`.

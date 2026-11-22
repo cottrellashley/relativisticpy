@@ -1267,7 +1267,7 @@ class TestPythonHabits:
     @pytest.mark.parametrize(
         ("text", "message", "hint"),
         [
-            ("x := [1, 2, 3]\nx[1]", "x[1] indexes as Python does, which the language does not",
+            ("f(x)[1]", "f(x)[1] indexes as Python does, which the language does not",
              "put a space before the bracket"),
             ("[i^2 for i in range(3)]", "a list comprehension is not part of the language",
              r"or a sum, as in \sum_{i=0}^{2} i^2"),
@@ -1302,6 +1302,10 @@ class TestPythonHabits:
     )
     def test_what_only_looks_like_python_is_read(self, text):
         assert parse(text).statements
+
+    def test_brackets_after_a_name_are_left_to_the_reader(self):
+        # x[n] is a sequence where x is one (design/notation.md, 31): only the reader knows
+        assert to_sexpr(parse("x := [1, 2, 3]\nx[1]").statements[1]) == "(* x (list 1))"
 
 
 class TestWhereErrorsAre:

@@ -13,6 +13,7 @@ import sympy
 from relativisticpy import Workbook, integrations
 from relativisticpy.errors import CompileError
 from relativisticpy.integrations import Example, _transforms, rewrite, transform
+from relativisticpy.integrations.sequences import impulse, step
 
 t, s, x, z, n, a, p = sympy.symbols("t s x z n a p")
 omega, k = sympy.symbols("omega k")
@@ -131,12 +132,17 @@ class TestZTransform:
             (r"\mathcal{Z}\{(1/2)^n\}(z)", z / (z - sympy.Rational(1, 2))),
             (r"\mathcal{Z}\{n\}", z / (z - 1) ** 2),
             (r"\mathcal{Z}\{\cos an\}", z * (z - sympy.cos(a)) / (z**2 - 2 * z * sympy.cos(a) + 1)),
-            (r"\mathcal{Z}^{-1}\left\{\frac{z}{z - 1/2}\right\}", sympy.Rational(1, 2) ** n),
+            (
+                r"\mathcal{Z}^{-1}\left\{\frac{z}{z - 1/2}\right\}",
+                sympy.Rational(1, 2) ** n * step(n),
+            ),
             (
                 r"\mathcal{Z}^{-1}\left\{\frac{1}{\left(1 - \frac{1}{4}z^{-1}\right)"
                 r"\left(1 - \frac{1}{2}z^{-1}\right)}\right\}",
-                2 * sympy.Rational(1, 2) ** n - sympy.Rational(1, 4) ** n,
+                (2 * sympy.Rational(1, 2) ** n - sympy.Rational(1, 4) ** n) * step(n),
             ),
+            (r"\mathcal{Z}^{-1}\left\{1 + \frac{2}{z}\right\}", impulse(n) + 2 * impulse(n - 1)),
+            (r"\mathcal{Z}\{u[n - 2]\}(z)", 1 / (z * (z - 1))),
         ],
     )
     def test_the_transform_by_summation_and_its_inverse_by_partial_fractions(

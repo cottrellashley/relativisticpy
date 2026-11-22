@@ -597,8 +597,9 @@ class Parser:
             if equiv:  # A \equiv B, where A cannot be defined, states an identity
                 identity_node = _identity(targets[0], value, span, define.span.text)
                 return ast.Evaluate(identity_node, span=span)
-            if "\\" in targets[0].span.text or _scripted_call(targets[0]):
-                # := defines, as R_{nl}(r) := ...; the compiler says how, or why it cannot
+            if "\\" in targets[0].span.text or _scripted_call(targets[0]) or _sampled(targets[0]):
+                # := defines, as R_{nl}(r) := ... or x[n] := ...; the compiler says how, or
+                # why it cannot
                 return ast.Define(tuple(targets), value, span=span)
         if len(targets) == 1 and isinstance(call := targets[0], ast.Call):
             called = _parameter(call.func)  # H'(x) := ...: a prime is part of the name
@@ -2784,18 +2785,33 @@ def _python_habits(statement: ast.Statement) -> None:
             and node.implicit
             and isinstance(node.right, ast.List)
             and not isinstance(node.left, ast.Number)
+            and not isinstance(_factor_before(node), ast.Name)  # x[n]: the reader decides
             and node.left.span.end == node.right.span.start
             and node.right.span.text.startswith("[")
         ):
-            raise ParseError(
-                f"{node.left.span.text}{node.right.span.text} indexes as Python does, "
-                "which the language does not",
-                span=node.span,
-                hint="a component is written with indices, as in V^{0}; for a product, "
-                "put a space before the bracket",
-            )
+            raise python_indexing(f"{node.left.span.text}{node.right.span.text}", node.span)
         if isinstance(node, ast.Call):
             _keyword_arguments(node)
+
+
+def python_indexing(written: str, span: Span) -> ParseError:
+    """The error for brackets written right after what they would index, as Python indexes
+    a list, ``x[1]``, which the language does not. After a name, the reader says it, as
+    only it knows whether the name is a sequence (design/notation.md, 31)."""
+    return ParseError(
+        f"{written} indexes as Python does, which the language does not",
+        span=span,
+        hint="a component is written with indices, as in V^{0}; for a product, put a space "
+        "before the bracket",
+    )
+
+
+def _factor_before(node: ast.Binary) -> ast.Expr:
+    """The factor written right before the last of a product, h of ``x[k] h[n-k]``."""
+    left = node.left
+    while isinstance(left, ast.Binary) and left.op == "*":
+        left = left.right
+    return left
 
 
 def _keyword(name: ast.Name, statement: ast.Statement) -> ParseError:
@@ -3675,6 +3691,21 @@ def _parameter(node: ast.Expr) -> str | None:
     if isinstance(node, ast.Prime):
         return node.func.id + "'" * node.order
     return None
+
+
+def _sampled(target: ast.Expr) -> bool:
+    """``x[n]``: a name and, right after it, a point in square brackets, which the parser
+    reads as a product and the compiler as a sequence at its label (design/notation.md,
+    31)."""
+    return (
+        isinstance(target, ast.Binary)
+        and target.op == "*"
+        and isinstance(target.left, ast.Name)
+        and isinstance(target.right, ast.List)
+        and len(target.right.items) == 1
+        and target.right.span.text.startswith("[")
+        and target.right.span.start == target.left.span.end
+    )
 
 
 def _scripted_call(target: ast.Expr) -> bool:

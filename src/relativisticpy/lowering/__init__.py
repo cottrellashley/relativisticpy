@@ -18,5 +18,7 @@ lowering one kind of thing and using those below it:
 - :mod:`~relativisticpy.lowering.objects`: the Python objects a program names, as
   ``\\texttt{prices}``, read first of all;
 - :mod:`~relativisticpy.lowering.arithmetic`: number theory, the letters of arithmetic
-  functions, sums over a condition, congruences and the coefficients of a series.
+  functions, sums over a condition, congruences and the coefficients of a series;
+- :mod:`~relativisticpy.lowering.sequences`: sequences written with square brackets, the
+  impulse and the step, difference equations, and their transforms.
 """

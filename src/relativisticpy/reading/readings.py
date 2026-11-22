@@ -77,6 +77,7 @@ KINDS = (
     "constant or symbol",
     "function named alone",
     "book name",
+    "sequence or product",
     "matrix or number",
     "bracket or operator",
 )

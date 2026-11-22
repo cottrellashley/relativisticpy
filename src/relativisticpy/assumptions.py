@@ -50,7 +50,7 @@ _ORDERED = ("positive", "nonnegative", "negative", "nonpositive")
 #: bounds in force as their attribute ``assuming``.
 DECIDED = frozenset(
     {"solve", "integrate", "core.sum", "core.lt", "core.gt", "core.le", "core.ge",
-     "optimum.find", "optimum.point", "optimum.components"}
+     "optimum.find", "optimum.point", "optimum.components", "seq.sum"}
 )  # fmt: skip
 #: The relation each fact of a sign is, for a coordinate, whose symbol stays as it is.
 _SIGNS = {
@@ -234,8 +234,8 @@ def within(bounds: Sequence[Any]) -> dict[Any, Any]:
     x > 1 is 1 + p, a > r is r + p, and a positive x < 1 is 1/(1 + p). Where it cannot be,
     the values written for are more than are allowed, never fewer, so that what holds of
     them holds wherever the bounds do."""
-    lower: dict[Symbol, list[tuple[Any, bool]]] = {}
-    upper: dict[Symbol, list[tuple[Any, bool]]] = {}
+    lower: dict[Any, list[tuple[Any, bool]]] = {}
+    upper: dict[Any, list[tuple[Any, bool]]] = {}
     for bound in bounds:
         if not isinstance(bound, Relational) or isinstance(bound, sympy.Eq | sympy.Ne):
             continue
@@ -243,9 +243,9 @@ def within(bounds: Sequence[Any]) -> dict[Any, Any]:
             (bound.lhs, bound.rhs) if bound.rel_op in ("<", "<=") else (bound.rhs, bound.lhs)
         )
         strict = bound.rel_op in ("<", ">")
-        if isinstance(large, Symbol):
+        if _limited(large):
             lower.setdefault(large, []).append((small, strict))
-        if isinstance(small, Symbol) and not isinstance(large, Symbol):  # x < a is a > x
+        if _limited(small) and not _limited(large):  # x < a is a > x
             upper.setdefault(small, []).append((large, strict))
     for name in [*lower, *upper]:  # and the sign each is assumed to have
         if name.is_positive or name.is_nonnegative:
@@ -272,7 +272,15 @@ def within(bounds: Sequence[Any]) -> dict[Any, Any]:
     return {name: value for name, value in substitution.items() if value is not name}
 
 
-def _between(lower: list[tuple[Any, bool]], upper: list[tuple[Any, bool]], name: Symbol) -> Any:
+def _limited(value: Any) -> bool:
+    """Whether a bound limits a value, written for in :func:`within`: a symbol, or the
+    modulus of one, as |z| of |z| > 1/2."""
+    return isinstance(value, Symbol) or (
+        isinstance(value, sympy.Abs) and isinstance(value.args[0], Symbol)
+    )
+
+
+def _between(lower: list[tuple[Any, bool]], upper: list[tuple[Any, bool]], name: Any) -> Any:
     """A symbol between its first lower and upper bounds, each with whether it is strict,
     as an expression of a new symbol, positive or nonnegative; beside a bound, where it has
     one only. A closed interval is written for as the values from its lower end on."""
@@ -296,13 +304,11 @@ def _between(lower: list[tuple[Any, bool]], upper: list[tuple[Any, bool]], name:
     return name
 
 
-def _step(name: Symbol, *, strict: bool) -> Any:
-    """A new symbol, positive or else nonnegative, named after ``name``."""
-    return (
-        sympy.Dummy(name.name, positive=True)
-        if strict
-        else sympy.Dummy(name.name, nonnegative=True)
-    )
+def _step(name: Any, *, strict: bool) -> Any:
+    """A new symbol, positive or else nonnegative, named after ``name``, or after the
+    symbol whose modulus it is."""
+    named = str(name.args[0]) if isinstance(name, sympy.Abs) else name.name
+    return sympy.Dummy(named, positive=True) if strict else sympy.Dummy(named, nonnegative=True)
 
 
 # -- what is assumed of the unknowns of solve -------------------------------------------------

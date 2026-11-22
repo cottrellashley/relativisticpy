@@ -481,5 +481,7 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
         "forall": (r"the quantifier \forall is not supported", r"write \text{for all}"),
         "exists": (r"the quantifier \exists is not supported", r"write \text{there is}"),
         "not": (r"\not is not supported", r"write \neq for not equal, or \notin"),
+        "circledast": (r"\circledast, circular convolution, is not supported",
+                       r"write its sum, as \sum_{m=0}^{N-1} x[m]\,h[(n - m) \bmod{N}]"),
     }
 )  # fmt: skip

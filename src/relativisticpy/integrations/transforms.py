@@ -15,7 +15,8 @@ from typing import Any
 import sympy
 
 from relativisticpy.errors import EvaluationError
-from relativisticpy.integrations import Example, transform
+from relativisticpy.integrations import Example, sequences, transform
+from relativisticpy.integrations.sequences import impulse, step
 
 t, s, x, p, a, n, z = sympy.symbols("t s x p a n z")
 omega = sympy.Symbol("omega")
@@ -207,7 +208,11 @@ class InverseFourier:
 def _z(sequence: Any, n: Any, z: Any) -> Any:
     r""":math:`\sum_{n=0}^{\infty} x_n z^{-n}`, a term at a time: a geometric series
     :math:`c r^n` summed to c/(1 - r), where it converges, and any other by SymPy, which
-    gives each where it converges; unevaluated where it does not find one."""
+    gives each where it converges; unevaluated where it does not find one. A sequence
+    written with impulses and steps, as Oppenheim and Schafer write one, is summed over
+    every n, where they are not 0 (:func:`_two_sided`)."""
+    if sequences.of_sequences(sequence, n):
+        return _two_sided(sequence, n, z)
     step = sympy.Dummy("n", integer=True, nonnegative=True)
     written = sympy.sympify(sequence).subs(n, step)
     trigonometric = written.has(sympy.sin, sympy.cos)
@@ -224,6 +229,35 @@ def _z(sequence: Any, n: Any, z: Any) -> Any:
         total += summed
     if trigonometric:
         return sympy.simplify(total.rewrite(sympy.cos))
+    return sympy.simplify(total)
+
+
+def _two_sided(sequence: Any, n: Any, z: Any) -> Any:
+    r""":math:`\sum_{n=-\infty}^{\infty} x[n] z^{-n}` of a sequence written with impulses and
+    steps: each impulse a power of z, and each other part summed over the range its steps
+    leave it, as a series from its first n, or up to its last, which :func:`_z` sums from 0,
+    shifted there."""
+    index = sympy.Dummy("n", integer=True)
+    written = sympy.sympify(sequence).xreplace({n: index})
+    found = sequences.pieces(written, index, -sympy.oo, sympy.oo)
+    if found is None:
+        return sympy.Sum(sympy.sympify(sequence) * z ** (-n), (n, -sympy.oo, sympy.oo))
+    m = sympy.Dummy("m", integer=True, nonnegative=True)
+    total = sympy.Integer(0)
+    for term, first, last in found:
+        if first == last:  # an impulse's
+            total += term * z ** (-first)
+        elif first.is_infinite and last.is_infinite:
+            later = _z(term.xreplace({index: m}), m, z)
+            earlier = z * _z(term.xreplace({index: -1 - m}), m, 1 / z)
+            total += later + earlier
+        elif last.is_infinite:
+            total += z ** (-first) * _z(term.xreplace({index: first + m}), m, z)
+        elif first.is_infinite:
+            total += z ** (-last) * _z(term.xreplace({index: last - m}), m, 1 / z)
+        else:
+            summed = sympy.summation(term * z ** (-index), (index, first, last))
+            total += sequences.emptied(summed, first, last)
     return sympy.simplify(total)
 
 
@@ -253,7 +287,7 @@ def _converged(summed: Any) -> Any:
     aliases=["z_transform"],
     latex=[r"\mathcal{Z}\{x\}(z)", r"\mathcal{Z}\{x\}"],
     summary=r"the z-transform; of a sequence from n = 0, `\sum_{n=0}^{\infty} x_n z^{-n}`, "
-    "where it converges",
+    "where it converges, and of one written with impulses and steps over every n",
     variables=[("n", "z")],
     inverse="InverseZTransform",
     examples=[
@@ -277,14 +311,15 @@ class ZTransform:
 
 def _inverse_z(transformed: Any, z: Any, n: Any) -> Any:
     """The sequence from n = 0 whose z-transform a rational function of z is, by partial
-    fractions of X(z)/z: c/(z - p)^m is c C(n, m-1) p^{n-m+1}, and c/z^m a delayed impulse."""
+    fractions of X(z)/z: c/(z - p)^m is c C(n, m-1) p^{n-m+1} u[n], and c/z^m a delayed
+    impulse, c δ[n - m + 1]."""
     rational = sympy.together(sympy.sympify(transformed))
     if not rational.is_rational_function(z):
         raise EvaluationError(
             "the inverse z-transform is computed of a rational function of z, by partial "
             "fractions, and this is not one"
         )
-    total = sympy.Integer(0)
+    total, impulses = sympy.Integer(0), sympy.Integer(0)
     for term in sympy.Add.make_args(sympy.apart(rational / z, z, full=True).doit()):
         numerator, denominator = term.as_numer_denom()
         if not denominator.has(z):
@@ -298,10 +333,10 @@ def _inverse_z(transformed: Any, z: Any, n: Any) -> Any:
         ((pole, order),) = poles.items()
         coefficient = sympy.simplify(numerator / sympy.Poly(denominator, z).LC())
         if pole == 0:
-            total += coefficient * sympy.KroneckerDelta(n, order - 1)
+            impulses += coefficient * impulse(n - order + 1)
         else:
             total += coefficient * sympy.binomial(n, order - 1) * pole ** (n - order + 1)
-    return sympy.simplify(total)
+    return sympy.simplify(total) * step(n) + impulses
 
 
 @transform(
@@ -309,15 +344,15 @@ def _inverse_z(transformed: Any, z: Any, n: Any) -> Any:
     aliases=["inverse_z_transform"],
     latex=[r"\mathcal{Z}^{-1}\{X\}(n)", r"\mathcal{Z}^{-1}\{X\}"],
     summary="the inverse z-transform; of a rational function of z, by partial fractions, the "
-    "sequence from n = 0",
+    "sequence from n = 0, with its step and impulses",
     variables=[("z", "n")],
     inverse="ZTransform",
     examples=[
-        Example(r"\mathcal{Z}^{-1}\left\{\frac{z}{z - 1/2}\right\}", sympy.Rational(1, 2) ** n,
-                "Oppenheim and Schafer (2010), table 3.1"),
+        Example(r"\mathcal{Z}^{-1}\left\{\frac{z}{z - 1/2}\right\}",
+                sympy.Rational(1, 2) ** n * step(n), "Oppenheim and Schafer (2010), table 3.1"),
         Example(r"\mathcal{Z}^{-1}\left\{\frac{1}{\left(1 - \frac{1}{4}z^{-1}\right)"
                 r"\left(1 - \frac{1}{2}z^{-1}\right)}\right\}",
-                2 * sympy.Rational(1, 2) ** n - sympy.Rational(1, 4) ** n,
+                (2 * sympy.Rational(1, 2) ** n - sympy.Rational(1, 4) ** n) * step(n),
                 "Oppenheim and Schafer (2010), example 3.9"),
     ],
     points=[(z / (z - sympy.Rational(1, 2)),), (z / (z - 1) ** 2,), (z / (z - 1),)],

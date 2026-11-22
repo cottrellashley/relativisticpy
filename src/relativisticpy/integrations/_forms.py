@@ -184,11 +184,28 @@ def operator_shape(head: ast.Expr, operand: ast.Expr) -> Shape | None:
     return Shape("operator", name, style, written, before, below, above, (operand,))
 
 
+def sample_shape(head: ast.Expr, bracket: ast.Expr) -> Shape | None:
+    """``\\delta[n]`` or ``u[n]``: a letter and, right after it, its argument in square
+    brackets, as signal processing writes a sequence at a point; not an operator set
+    upright, as ``\\operatorname{Var}[X]``, which applies to what is in them."""
+    if not (isinstance(head, ast.Name) and isinstance(bracket, ast.List)):
+        return None
+    if len(bracket.items) != 1 or head.span.end != bracket.span.start:
+        return None
+    style = _style(head)
+    letter = len(head.id) == 1 and head.id.isascii() and head.id.isalpha()
+    if not bracket.span.text.startswith("[") or not (letter or style == "letter"):
+        return None
+    return Shape("call", head.id, style, head.span.text, arguments=bracket.items, bracket="[")
+
+
 def form_shape(expr: ast.Expr) -> Shape | None:
     """The shape of a written form, whichever it is."""
     if isinstance(expr, ast.Call):
         return call_shape(expr)
     if isinstance(expr, ast.Binary) and expr.op == "*" and expr.implicit:
+        if (sample := sample_shape(expr.left, expr.right)) is not None:
+            return sample
         return pair_shape(expr.left, expr.right) or operator_shape(expr.left, expr.right)
     if isinstance(expr, ast.Scripted):
         return scripted_shape(expr)
@@ -602,6 +619,8 @@ def _render(
     separator = f"{pattern.separator} "
     arguments = separator.join(parts[id(slot)] for slot in shape.arguments)
     opened, closed = ("\\left(", "\\right)") if latex else ("(", ")")
+    if shape.bracket == "[":  # \delta[n]
+        opened, closed = ("\\left[", "\\right]") if latex else ("[", "]")
     if not shape.head:  # (a)_n
         return f"{opened}{arguments}{closed}{scripts}"
     if shape.kind == "subscripted":  # B_n

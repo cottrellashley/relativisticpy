@@ -562,6 +562,95 @@ of congruences leave, and `[x^n] F(x)` is the coefficient of x^n in the power se
 
 ```
 
+## Sequences
+
+Square brackets right after a name are read by what the name is. `x[n] := \ldots` defines a
+sequence, a function of the integer n, as Oppenheim and Schafer write a discrete-time
+signal, and `x[3]` and `x[n - 1]` are its values. Where nothing defines δ or u, `\delta[n]`
+is the unit impulse, 1 at n = 0 and 0 elsewhere, and `u[n]` the unit step, 1 from n = 0 on,
+each with a note. That reading needs the brackets to hold an integer as books write a
+point, whole numbers and names in sums, differences and multiples, so that
+`\delta[(-g)^{-1/2}]` stays a variation. A list or a tensor is read as before, and in plain
+text, brackets after a name that is no sequence are refused, as Python's indexing.
+
+A sum over a sequence's index is taken a term at a time: an impulse leaves its term at the
+one point where it is 1, and a step cuts its term's range to where it is 1. What is left is
+summed in closed form where SymPy finds one, under what the program assumes, as `|z| > 1/2`.
+A sum without limits whose index is a sequence's point, as in `\sum_k x[k] h[n - k]`, runs
+over every integer, with a note:
+
+```python
+>>> signals = Workbook()
+>>> signals.exe(r"""
+...     x[n] := \delta[n] + 2\delta[n-1] + 3\delta[n-2]
+...     h[n] := \delta[n] + \delta[n-1]
+...     y[n] := \sum_k x[k] h[n-k]
+...     [y[0], y[1], y[2], y[3]]
+...     g[n] := \left(\frac{1}{2}\right)^n u[n]
+...     g[3] + g[-1]
+...     \sum_{n=-\infty}^{\infty} g[n]
+...     \mathcal{Z}\{g[n]\}(z)
+... """)
+[[1, 3, 5, 3], 1/8, 2, 2*z/(2*z - 1)]
+>>> print(signals.explain(r"u[n - 1]"))
+line 1: u[n - 1]
+  sequence or product: u[n - 1] is step, the unit step, since u[n] is how signal processing writes it, and nothing defines u
+  n: a symbol
+  note: u[n - 1] is read as the unit step, step; for a sequence of your own, define u[n] := ... first
+
+```
+
+A sequence defined through its own members, as `s[n] := \frac{1}{2} s[n-1] + u[n]`, is a
+difference equation, at initial rest, as books take one: the sequence is 0 before its input
+starts. Its values at whole numbers are computed one after another, and at a symbol in
+closed form, where SymPy's `rsolve` finds one. `solve` solves a difference equation for a
+sequence nothing defines, at rest too. An equation between sequences that nothing defines,
+as `y[n] - \frac{3}{4} y[n-1] = x[n]`, is a difference equation of its own, and their capital
+letters are their z-transforms, a delay of k samples \(z^{-k}\): so `Y(z)/X(z)` is the
+transfer function, whose `poles` and `zeros` are the roots of its denominator and
+numerator. The z-transform of a sequence written with impulses and steps is taken over every
+n, and the inverse gives a sequence back, with its step:
+
+```python
+>>> systems = Workbook()
+>>> systems.exe(r"""
+...     s[n] := \frac{1}{2} s[n-1] + u[n]
+...     s[2]
+...     s[n]
+...     solve(v[n] - \frac{1}{2} v[n-1] = \delta[n], v[n])
+...     y[n] - \frac{3}{4} y[n-1] + \frac{1}{8} y[n-2] = x[n]
+...     H(z) := \frac{Y(z)}{X(z)}
+...     H(z)
+...     poles(H(z))
+...     h[n] := \mathcal{Z}^{-1}\{H(z)\}
+...     h[n]
+... """)
+[7/4, (2 - 1/2**n)*step(n), [step(n)/2**n], Eq(y(n) + y(n - 2)/8 - 3*y(n - 1)/4, x(n)), 8*z**2/(8*z**2 - 6*z + 1), [1/4, 1/2], (2**(n + 1) - 1)*step(n)/4**n]
+
+```
+
+The frequency response is written at \(e^{j\omega}\): `H(e^{j\omega}) := \sum_n h[n]
+e^{-j\omega n}` defines H as a function of ω, and H at \(e^{j\theta}\) is its value at θ,
+whose modulus and phase are `|H(e^{j\omega})|` and `\arg H(e^{j\omega})`. j is the imaginary
+unit where a program says so, `j := \sqrt{-1}`, as engineering books do. An asterisk
+between two sequences, which signal processing writes for their convolution and is a
+product elsewhere, is refused, as `\circledast` is: a convolution is written as its sum.
+
+```python
+>>> dtft = Workbook()
+>>> dtft.exe(r"""
+...     j := \sqrt{-1}
+...     \omega \in \mathbb{R}
+...     |a| < 1
+...     h[n] := a^n u[n]
+...     H(e^{j\omega}) := \sum_n h[n] e^{-j\omega n}
+...     H(e^{j\omega})
+...     H(e^{j\pi})
+... """)
+[1/(-a*exp(-I*omega) + 1), 1/(a + 1)]
+
+```
+
 ## Matrices
 
 Matrices are written as LaTeX environments, or as lists of rows, and `vmatrix` is a
@@ -744,7 +833,7 @@ what to write instead:
 
 | Python | What the language says |
 |---|---|
-| `x[1]` | it indexes as Python does, which the language does not: a component is written with indices, `V^{0}` |
+| `x[1]` | of a list, it indexes as Python does, which the language does not: a component is written with indices, `V^{0}`; of a sequence, defined as `x[n] := ...`, it is its value at 1 |
 | `[i^2 for i in range(3)]` | a list comprehension: write the list out, or a sum, `\sum_{i=0}^{2} i^2` |
 | `import sympy` | the functions are built in: there is nothing to import |
 | `series(sin(x), x, 0, n=5)` | a keyword argument: give the value in its place, `series(sin(x), x, 0, 5)` |

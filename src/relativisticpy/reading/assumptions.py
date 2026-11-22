@@ -3,8 +3,9 @@ r"""Assumptions, read: a relation on names nothing defines, standing alone, as `
 the program, as books state the regime they work in (design/notation.md, decision 2).
 
 A relation is an assumption when it relates names nothing defines to constants, as
-``a > r > 0`` does. A relation between names alone, as ``k_B T > h c B``, or about a name
-that has a value, is a condition or a claim, as before. A list of names, ``a, b > 0``,
+``a > r > 0`` does, and so is a bound on the modulus of one, as the region of convergence
+``|z| > 1/2``. A relation between names alone, as ``k_B T > h c B``, or about a name that
+has a value, is a condition or a claim, as before. A list of names, ``a, b > 0``,
 shares the relation. So does a membership of a set of numbers, ``\mathbb{R}``,
 ``\mathbb{Z}``, ``\mathbb{N}``, ``\mathbb{Q}`` or ``\mathbb{C}``, maybe with a bound, as
 ``\mathbb{Z}_{>0}`` or ``\mathbb{R}^+``, or of an interval, as ``x \in (0, 1)``.
@@ -108,6 +109,8 @@ def _comparison(
     in a chain, at least one of each."""
     if "==" in relation.ops:
         return None
+    if (modulus := _modulus(relation, name_of)) is not None:  # |z| > 1/2
+        return modulus
     first, *rest = relation.operands
     listed = first.items if isinstance(first, ast.Tuple) else (first,)
     heads = [_term(item, name_of) for item in listed]
@@ -121,6 +124,25 @@ def _comparison(
     for chain in chains:
         found = _joined(found, _chain(chain, list(relation.ops)))
     return found
+
+
+def _modulus(
+    relation: ast.Comparison, name_of: Callable[[ast.Expr], str | None]
+) -> Assumption | None:
+    """A bound on the modulus of a name nothing defines, as ``|z| > 1/2``, a region of
+    convergence, or ``|a| < 1``: a bound, which puts no fact on the symbol."""
+    if len(relation.operands) != 2:
+        return None
+    left, right = relation.operands
+    op: str = relation.ops[0]
+    if isinstance(right, ast.Abs):
+        left, op, right = right, _FLIPPED[op], left
+    if not isinstance(left, ast.Abs):
+        return None
+    name, bound = name_of(left.operand), _constant(right)
+    if name is None or bound is None or bound.is_extended_real is not True:
+        return None
+    return Assumption({}, (_RELATIONS[op](sympy.Abs(Symbol(name)), bound),))
 
 
 def _all_names(terms: Sequence[Any]) -> bool:

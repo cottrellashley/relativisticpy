@@ -542,9 +542,18 @@ def _simplifies_to_zero(lhs: sympy.Expr, rhs: sympy.Expr) -> bool:
             return True
         if not _beyond_algebra(difference) or differs(lhs, rhs, samples=1):
             return False
+        if _periodic_in_integers(difference) and sympy.fu(difference) == 0:
+            return True  # cos(7πn/5) = cos(3πn/5): the products of fu give sin(πn) = 0
         return bool(sympy.simplify(difference) == 0)
     except Exception:  # SymPy fails on some expressions: then nothing is proven
         return False
+
+
+def _periodic_in_integers(expr: sympy.Expr) -> bool:
+    """Whether an expression has sines or cosines of symbols assumed integers, as samples
+    at the integers n are, whose sums and differences, as products, may vanish there."""
+    trigonometric = expr.atoms(sympy.sin, sympy.cos)
+    return any(s.is_integer for t in trigonometric for s in t.free_symbols)
 
 
 def _beyond_algebra(expr: sympy.Expr) -> bool:
