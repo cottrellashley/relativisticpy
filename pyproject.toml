@@ -71,8 +71,8 @@ packages = ["src/relativisticpy"]
 
 [tool.hatch.build.targets.sdist]
 # Anchored at the root, since a bare README.md would match examples/README.md too. The
-# examples, the pages of the docs, the design note and the corpus benchmark are there
-# for the tests, which read them.
+# examples, the pages of the docs, the design note, the benchmarks and the curriculum
+# are there for the tests, which read them.
 include = [
     "/src/relativisticpy",
     "/tests",
@@ -80,6 +80,7 @@ include = [
     "/docs/*.md",
     "/design/spaces.md",
     "/benchmarks",
+    "/curriculum",
     "/README.md",
     "/CHANGELOG.md",
     "/LICENSE",

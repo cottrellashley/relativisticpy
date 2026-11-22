@@ -56,7 +56,8 @@ def test_the_source_distribution_has_what_the_tests_read():
     include = config["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
     # Anchored, a pattern matches only where it says: README.md alone matches every one.
     assert all(pattern.startswith("/") for pattern in include)
-    for read in ("/tests", "/examples", "/docs/*.md", "/design/spaces.md", "/benchmarks"):
+    tested = ("/tests", "/examples", "/docs/*.md", "/design/spaces.md", "/benchmarks")
+    for read in (*tested, "/curriculum"):
         assert read in include
 
 
