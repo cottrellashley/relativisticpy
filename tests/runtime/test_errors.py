@@ -211,6 +211,18 @@ class TestTranslation:
             "Python says: AttributeError: 'list' object has no attribute 'is_Float'"
         ]
 
+    def test_a_library_that_fails_inside_itself_says_so(self):
+        # SymPy's solve can fail in its own checks, as when a NaN is compared
+        try:
+            _ = sympy.nan < 1
+        except TypeError as error:
+            failure = translate(error)
+        assert isinstance(failure, InternalError)
+        assert failure.message == "SymPy failed while computing this"
+        assert failure.notes == ["SymPy says: TypeError: Invalid NaN comparison"]
+        assert failure.hint is not None
+        assert "a failure inside SymPy, not a mistake in the input" in failure.hint
+
     def test_relativisticpys_own_errors_keep_their_words(self):
         # the metric's check raises its own error, a ValueError too, which stays as it is
         with pytest.raises(ValueError, match="symmetric") as error:

@@ -197,11 +197,16 @@ class InternalError(RelativisticPyError):
 
 
 def internal_error(
-    error: BaseException, *, span: Span | None = None, during: str | None = None
+    error: BaseException,
+    *,
+    span: Span | None = None,
+    during: str | None = None,
+    inside: str | None = None,
 ) -> InternalError:
     """An :class:`InternalError` for an exception RelativisticPy did not expect, raised
     while doing what ``during`` says (``"printing this result"``): the exception is
-    quoted in a note and kept as the error's ``cause``.
+    quoted in a note and kept as the error's ``cause``. One raised ``inside`` a library,
+    as ``"SymPy"``, says that it failed there, where the fault may be the library's.
 
     The command line and the interactive prompt use it so that a failure of their own
     ends neither the statement's neighbours nor the session::
@@ -214,13 +219,23 @@ def internal_error(
     if isinstance(error, InternalError):
         return error
     what = during or "computing this"
-    failure = InternalError(
-        f"RelativisticPy failed while {what}",
-        span=span,
-        notes=[f"Python says: {_quoted(error)}"],
-        hint=f"this is a bug in RelativisticPy, not a mistake in the input; please "
-        f"report it, with the input, at {ISSUES}",
-    )
+    if inside is not None:
+        failure = InternalError(
+            f"{inside} failed while {what}",
+            span=span,
+            notes=[f"{inside} says: {_quoted(error)}"],
+            hint=f"this is a failure inside {inside}, not a mistake in the input: a bug in "
+            f"{inside}, or in how RelativisticPy asked it; please report it, with the "
+            f"input, at {ISSUES}",
+        )
+    else:
+        failure = InternalError(
+            f"RelativisticPy failed while {what}",
+            span=span,
+            notes=[f"Python says: {_quoted(error)}"],
+            hint=f"this is a bug in RelativisticPy, not a mistake in the input; please "
+            f"report it, with the input, at {ISSUES}",
+        )
     failure.cause = error
     failure.__cause__ = error
     return failure
@@ -232,7 +247,8 @@ def translate(error: BaseException, *, span: Span | None = None) -> Relativistic
     other failure of a library on what it was given, as SymPy's or NumPy's, quoted in a
     note; a ``ValueError`` of RelativisticPy's own, which says what is wrong with the
     input, as an :class:`EvaluationError`; and anything else as an
-    :class:`InternalError`. The library's exception is kept as the error's ``cause``."""
+    :class:`InternalError`, which says where it failed: in a library, or in
+    RelativisticPy. The library's exception is kept as the error's ``cause``."""
     if isinstance(error, RelativisticPyError):
         if error.span is None:
             error.span = span
@@ -253,7 +269,7 @@ def translate(error: BaseException, *, span: Span | None = None) -> Relativistic
     elif isinstance(error, ValueError) and _raised_by_relativisticpy(error):
         failure = EvaluationError(str(error), span=span)  # its own words, about the input
     else:
-        return internal_error(error, span=span)
+        return internal_error(error, span=span, inside=library)
     failure.cause = error
     return failure
 
