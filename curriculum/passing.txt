@@ -3,6 +3,7 @@ analysis.derivatives.chain-rule
 analysis.derivatives.continuity
 analysis.derivatives.dot-squared
 analysis.derivatives.not-differentiable
+analysis.integrals.by-parts
 analysis.integrals.gaussian
 analysis.integrals.gaussian-polar
 analysis.integrals.substitution
@@ -156,6 +157,7 @@ em.maxwell.gauss
 em.maxwell.mismatched-indices
 em.sources.coulomb
 em.sources.current-loop
+em.sources.dipole
 em.sources.loop-moment
 em.waves.poynting
 em.waves.speed-of-light

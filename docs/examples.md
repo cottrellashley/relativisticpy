@@ -301,8 +301,10 @@ $$
 
 <!-- relativisticpy:result -->
 $$
-\text{equation}\ {}_{\mu} \tag*{holds in all 4 components}
+EL_{\mu} = \left. 2 g_{\mu\nu} \left( \ddot{x}^{\nu} + \Gamma^{\nu}_{\alpha\beta}\, \dot{x}^{\alpha} \dot{x}^{\beta} \right) \right|_{t = t(\tau),\; r = r(\tau),\; \theta= \theta(\tau),\; \phi= \phi(\tau)} \tag*{holds in all 4 components}
 $$
+
+> note: EL_{\mu} already has a value, so = compares it; to give EL_{\mu} a new value, write EL_{\mu} := ...
 <!-- /relativisticpy:result -->
 
 ## Light near a black hole

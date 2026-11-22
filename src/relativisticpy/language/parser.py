@@ -54,6 +54,7 @@ class Power(IntEnum):
     AND = 40
     NOT = 45
     COMPARISON = 50
+    EVALUATION = 55
     SUM = 60
     PRODUCT = 70
     SIGN = 80
@@ -120,6 +121,13 @@ _TEXT_COMMAND = re.compile(r"\\(?:text[a-z]*|mbox|hbox)(?![A-Za-z])")
 # The halves of old-style cases, \left\{ \begin{array} ... \end{array} \right.
 _LEFT_BRACE = re.compile(r"\\left\s*(?:\\\{|\\lbrace)")
 _RIGHT_DOT = re.compile(r"\\right\s*\.")
+# Square brackets around what an evaluation bracket evaluates: [F], \left[F\right], \big[F\big],
+# and \left. F \right].
+_SQUARE = re.compile(
+    r"(?:\\left\s*(?:\[|\\lbrack|\.)|\\[bB]igg?l?\s*(?:\[|\\lbrack)|\[|\\lbrack)"
+    r".*(?:\]|\\rbrack)",
+    re.DOTALL,
+)
 # A name that reads as a differential inside an integral or a derivative: dx, dtheta, dx1,
 # and dx_1, of a variable numbered as x_1 is.
 _DIFFERENTIAL = re.compile(
@@ -760,8 +768,8 @@ class Parser:
         if kind is K.BAR:
             if self._abs_depth:
                 return Power.NONE  # it closes the absolute value
-            if self.peek(1).kind is K.UNDERSCORE:
-                return Power.SUBSTITUTION
+            if self.peek(1).kind in (K.UNDERSCORE, K.CARET):  # x^3 \Big|_0^1: a side, or a sum
+                return Power.EVALUATION if self._bar_with_limits() else Power.SUBSTITUTION
             if _given_bar(token):  # \Pr(A \mid B), X \mid N \sim \operatorname{Bin}(N, p)
                 return Power.EQUATION
             return Power.PRODUCT  # 2|x|
@@ -791,8 +799,8 @@ class Parser:
         kind = token.kind
         if kind is K.COMMAND and token.value in _MODULI:
             return self._modulus(left)
-        if kind is K.BAR and power == Power.SUBSTITUTION:
-            return self._substitution(left)
+        if kind is K.BAR and power in (Power.SUBSTITUTION, Power.EVALUATION):
+            return self._bar(left)
         if self._hadamard(token):
             self.advance()
             right = self._elementwise_operand()
@@ -1112,10 +1120,16 @@ class Parser:
         while True:
             token = self.peek()
             kind = token.kind
-            if kind in (K.CARET, K.UNDERSCORE):
+            if kind in (K.CARET, K.UNDERSCORE) and (
+                (evaluated := self._evaluation_bracket(node)) is not None
+            ):  # \left[ x e^x \right]_0^1
+                node, grouped = evaluated, False
+            elif kind in (K.CARET, K.UNDERSCORE):
                 staggered = braced and _without_script(node, "^" if kind is K.CARET else "_")
                 node = self._attach_script(node, extend=not grouped or staggered)
                 grouped = False
+            elif kind is K.BAR and self._right_bar(token):  # \left. V \right|_{q = p/d}
+                node, grouped = self._bar(node, enclosed=True), False
             elif (
                 kind is K.LBRACE
                 and not token.space_before  # z \, {}_2F_1: a prescript of what follows
@@ -1403,21 +1417,153 @@ class Parser:
             self.expect(K.BAR, opener=opener)
         return ast.Abs(operand, span=self._span(opener))
 
-    def _substitution(self, expr: ast.Expr) -> ast.Substitution:
+    def _bar(self, expr: ast.Expr, *, enclosed: bool = False) -> ast.Expr:
+        """The evaluation bar after ``expr``: substitutions, ``|_{x = 2, y = 1}``, made at
+        once, or limits, ``|_0^1`` and ``|_{x=0}^{x=1}``. The bar ``\\right|`` writes,
+        ``enclosed``, evaluates what it and ``\\left.`` enclose, and one substitution for a
+        name is its value at that point, ``\\left. F \\right|_{x=a}``, as a point written
+        alone is, ``\\left. F \\right|_a``."""
         self.advance()  # the bar
-        self.expect(K.UNDERSCORE)
-        opener = self.expect(K.LBRACE, after="the evaluation bar '|_'")
-        bindings: list[tuple[ast.Expr, ast.Expr]] = []
-        with self._nested():
-            while True:
-                binding = self.expression()
+        lower, upper = self._bar_scripts()
+        point, *others = lower
+        if enclosed and upper is None and not others and not isinstance(point, ast.Equation):
+            return ast.Evaluation(expr, point, None, None, span=self._span(expr.span))
+        return self._evaluated(expr, lower, upper, enclosed=enclosed)
+
+    def _evaluated(
+        self,
+        expr: ast.Expr,
+        lower: tuple[ast.Expr, ...],
+        upper: ast.Expr | None,
+        *,
+        enclosed: bool,
+    ) -> ast.Substitution | ast.Evaluation:
+        """``expr`` evaluated as the scripts of a bar or a bracket say: between limits, each
+        written alone or with the variable, ``_{x=a}``; or, without a superscript, with
+        substitutions, each written with what it substitutes for."""
+        span = self._span(expr.span)
+        if upper is None:
+            bindings = []
+            for binding in lower:
                 if not isinstance(binding, ast.Equation):
                     raise ParseError("expected a substitution such as x = 2", span=binding.span)
                 bindings.append((binding.lhs, binding.rhs))
-                if not (self.accept(K.COMMA) or self.accept(K.ROW_SEP)):  # \substack rows
+            (target, point), *others = bindings
+            if enclosed and not others and isinstance(target, ast.Name):
+                return ast.Evaluation(expr, point, None, target, span=span)
+            return ast.Substitution(expr, tuple(bindings), span=span)
+        if len(lower) != 1:
+            raise ParseError(
+                "an evaluation between limits has one lower limit",
+                span=lower[1].span,
+                hint="write the limits alone, as in |_0^1, or with the variable: |_{x=0}^{x=1}",
+            )
+        bottom = lower[0]
+        variable: ast.Expr | None = None
+        if isinstance(bottom, ast.Equation):
+            variable, bottom = bottom.lhs, bottom.rhs
+        if isinstance(upper, ast.Equation):
+            if variable is not None and variable != upper.lhs:
+                raise ParseError(
+                    f"the limits of an evaluation are of one variable, not of "
+                    f"{variable.span.text} and {upper.lhs.span.text}",
+                    span=upper.lhs.span,
+                )
+            variable, upper = upper.lhs, upper.rhs
+        return ast.Evaluation(expr, bottom, upper, variable, span=span)
+
+    def _bar_scripts(self) -> tuple[tuple[ast.Expr, ...], ast.Expr | None]:
+        """The scripts of an evaluation bar or bracket, a subscript and maybe a superscript,
+        in either order: what the subscript holds, which may be several substitutions, as in
+        ``_{x = 1, y = 2}``, and what the superscript holds."""
+        lower: tuple[ast.Expr, ...] | None = None
+        upper: ast.Expr | None = None
+        while (marker := self.peek()).kind in (K.UNDERSCORE, K.CARET):
+            if marker.kind is K.UNDERSCORE and lower is None:
+                lower = self._bar_script(marker)
+            elif marker.kind is K.CARET and upper is None:
+                held = self._bar_script(marker)
+                if len(held) > 1:
+                    raise ParseError("an upper limit is one value", span=held[1].span)
+                upper = held[0]
+            else:
+                break
+        if lower is None:
+            raise ParseError(
+                "an evaluation bar needs a subscript: its point, or its lower limit",
+                span=self.previous.span,
+                hint="for example |_{x=2}, or |_0^1",
+            )
+        return lower, upper
+
+    def _bar_script(self, marker: Token) -> tuple[ast.Expr, ...]:
+        """What a script of an evaluation bar holds: in braces, one item or several, separated
+        by commas or by the rows of ``\\substack``; or what one token writes, as 0 of
+        ``|_0^1``."""
+        self.advance()  # the marker
+        if not self.check(K.LBRACE):
+            script = self._script("_" if marker.kind is K.UNDERSCORE else "^", marker)
+            if script.body is None:
+                raise ParseError("expected a value after the evaluation bar", span=script.span)
+            return (script.body,)
+        opener = self.advance()
+        items: list[ast.Expr] = []
+        with self._nested():
+            while True:
+                items.append(self.expression())
+                if not (self.accept(K.COMMA) or self.accept(K.ROW_SEP)):
                     break
             self.expect(K.RBRACE, opener=opener)
-        return ast.Substitution(expr, tuple(bindings), span=self._span(expr.span))
+        return tuple(items)
+
+    def _bar_with_limits(self) -> bool:
+        """Whether the bar at the cursor has limits, a superscript as well as a subscript, as
+        ``|_0^1`` and ``|^{x=1}_{x=0}`` do, rather than a point or substitutions."""
+        if self.peek(1).kind is K.CARET:
+            return True
+        offset = 2  # what the subscript holds
+        if self.peek(offset).kind is K.LBRACE:
+            depth = 0
+            while True:
+                kind = self.peek(offset).kind
+                if kind is K.EOF:
+                    return False
+                depth += (kind is K.LBRACE) - (kind is K.RBRACE)
+                offset += 1
+                if depth == 0:
+                    break
+        else:
+            offset += 1
+        return self.peek(offset).kind is K.CARET
+
+    def _right_bar(self, token: Token) -> bool:
+        """Whether a bar is the one ``\\right|`` writes, after the bracket it closes, with a
+        script after it: the evaluation bar of what ``\\left.`` and ``\\right|`` enclose."""
+        closer = self.previous
+        return (
+            closer.kind is K.RPAREN
+            and closer.span.start == token.span.start
+            and self.peek(1).kind in (K.UNDERSCORE, K.CARET)
+        )
+
+    def _evaluation_bracket(self, node: ast.Expr) -> ast.Evaluation | None:
+        """``\\left[F\\right]_a^b`` or ``[F]_{x=a}^{x=b}``: F(b) − F(a), where square
+        brackets around one expression have a subscript and a superscript; and ``[F]_{x=a}``,
+        F at a. ``None``, having read nothing, for any other script, and for brackets around
+        a name alone, as chemistry writes a concentration, ``[\\mathrm{A}]_0``."""
+        content = _square_bracketed(node)
+        if content is None or isinstance(content, ast.Name):
+            return None
+
+        def bracket() -> ast.Evaluation:
+            lower, upper = self._bar_scripts()
+            evaluated = self._evaluated(content, lower, upper, enclosed=True)
+            if not isinstance(evaluated, ast.Evaluation):
+                raise ParseError("substitutions after brackets are their scripts", span=node.span)
+            return replace(evaluated, span=self._span(node.span))
+
+        evaluated, _ = self._attempt(bracket)
+        return evaluated
 
     # -- scripts and indices ----------------------------------------------------
 
@@ -2091,7 +2237,7 @@ class Parser:
         if self._abs_depth or not (self.check(K.BAR) and self.peek(1).kind is K.UNDERSCORE):
             return None
         before = self.pos, self.previous
-        evaluated, _ = self._attempt(lambda: self._substitution(integrand))
+        evaluated, _ = self._attempt(lambda: self._bar(integrand))
         if evaluated is not None and self._at_differential():
             return evaluated
         self.pos, self.previous = before
@@ -2981,6 +3127,16 @@ def _starred(node: ast.Scripted) -> bool:
     script = node.scripts[0]
     star = isinstance(script.body, ast.Name) and script.body.id == "*" and script.body.verbatim
     return script.kind == "^" and star
+
+
+def _square_bracketed(node: ast.Expr) -> ast.Expr | None:
+    """The one expression square brackets hold, as F of ``[F]``, ``\\left[F\\right]`` and
+    ``\\big[F\\big]``; ``None`` for anything else, as a list or a pair."""
+    if not _SQUARE.fullmatch(node.span.text.strip()):
+        return None
+    if isinstance(node, ast.List):
+        return node.items[0] if len(node.items) == 1 else None
+    return None if isinstance(node, ast.Tuple) else node
 
 
 def _without_script(node: ast.Expr, kind: Literal["^", "_"]) -> bool:

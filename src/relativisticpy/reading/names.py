@@ -445,6 +445,8 @@ def _factor_names(statement: ast.Node) -> frozenset[str]:
     for node in _walk(statement):
         if isinstance(node, ast.Substitution):
             other.update(id(target) for target, _ in node.bindings)
+        elif isinstance(node, ast.Evaluation) and node.variable is not None:
+            other.add(id(node.variable))
     latex = bool(getattr(statement, "latex", False))
     found: set[str] = set()
     for node in _walk(statement):

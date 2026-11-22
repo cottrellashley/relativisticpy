@@ -9,6 +9,7 @@ import pytest
 import sympy
 
 from relativisticpy import Workbook, latex
+from relativisticpy.errors import CompileError
 
 SCHWARZSCHILD = "Coordinates := [t, r, \\theta, \\phi]\ng_{\\mu\\nu} := Schwarzschild(M)"
 
@@ -79,6 +80,64 @@ class TestIntegrals:
     def test_where_an_integral_ends(self, text, value):
         with Workbook() as wb:
             assert sympy.simplify(wb.expr(text) - value) == 0
+
+
+class TestEvaluationBars:
+    x, p, a = sympy.symbols("x p a")
+
+    @pytest.mark.parametrize(
+        ("text", "value"),
+        [
+            # the bar evaluates what \left. and \right| enclose: not x + x^2 at x = 2
+            (r"x + \left. x^2 \right|_{x=2}", x + 4),
+            # and inside a limit, before the limit is taken
+            (r"\lim_{d \to 0} \left. q d \right|_{q = p/d}", p),
+            # between limits, in the variable written with them
+            (r"\left. x^3 \right|_{x=1}^{x=2}", 7),
+            (r"[x^2]_{x=0}^{x=3}", 9),
+            (r"\big[ x^2 \big]_{x=1}^{x=2}", 3),
+            # where none is written, in the one symbol what it evaluates is written with
+            (r"\left[ x e^x \right]_0^1", sympy.E),
+            (r"\left. \sin\theta \right|_0^{\pi/2}", 1),
+            (r"\frac{x^3}{3} \Big|_0^1", sympy.Rational(1, 3)),
+            (r"\left. \frac{d}{dx} x^3 \right|_{2}", 12),
+            # or else in the variable of the integral beside it, as integration by parts writes it
+            (r"\left[ x e^x \right]_0^1 - \int_0^1 e^x \, dx", 1),
+            (r"\left[ \frac{a x^2}{2} \right]_0^1 + \int_0^1 a \, dx", sympy.Rational(3, 2) * a),
+        ],
+    )
+    def test_what_a_bar_evaluates(self, text, value):
+        with Workbook() as wb:
+            assert sympy.simplify(wb.expr(text) - value) == 0
+
+    def test_a_bar_with_limits_after_an_equation_evaluates_its_side(self):
+        with Workbook() as wb:
+            assert wb.expr(r"\int_0^1 x^2 \, dx = \frac{x^3}{3} \Big|_0^1") is sympy.true
+
+    def test_the_variable_of_an_evaluation_is_its_own(self):
+        with Workbook() as wb:
+            wb.exe("x := 3")
+            assert wb.expr(r"\left[ x^2 \right]_{x=0}^{x=1}") == 1
+
+    def test_a_bar_of_several_symbols_says_which(self):
+        with Workbook() as wb, pytest.raises(CompileError) as caught:
+            wb.expr(r"\left[ a x^2 \right]_0^1")
+        assert "does not say which variable" in caught.value.message
+        assert caught.value.hint == "write the variable with the limits: _{a=0}^{a=1}"
+
+    def test_each_reading_is_explained(self):
+        with Workbook() as wb:
+            explained = str(wb.explain(r"\left[ x e^x \right]_0^1 - \int_0^1 e^x \, dx"))
+        assert (
+            r"evaluation bar: \left[ x e^x \right]_0^1 is x e^x at x = 1, minus at x = 0, "
+            "since no variable is written, and x is that of the integral beside it"
+        ) in explained
+        with Workbook() as wb:
+            explained = str(wb.explain(r"x + \left. x^2 \right|_{x=2}"))
+        assert (
+            r"evaluation bar: \left. x^2 \right|_{x=2} is x^2 at x = 2, since its variable is "
+            "written with its point"
+        ) in explained
 
 
 class TestNamesOfTheirOwn:

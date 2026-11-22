@@ -232,6 +232,15 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   `d\mathbf{r}` is the curve's tangent, its name its point and x, y and z its components;
   where SymPy finds no closed form in time and only the curves' parameters are left, as
   in Gauss's linking integral, the value is computed numerically, said in a note.
+- Evaluation bars and brackets as books write them (`curriculum/ROADMAP.md`, section 7):
+  `\left. F \right|_{x=a}` is F at a, and `\left. F \right|_a^b`, `\left[F\right]_a^b`,
+  `[F]_{x=a}^{x=b}` and `F \Big|_a^b` are F(b) − F(a). A bar written with `\left.` and
+  `\right|` evaluates what they enclose and nothing else, so that
+  `x + \left. x^2 \right|_{x=2}` is x + 4, not 6, and a limit around it is taken after it;
+  a bar with limits written alone evaluates the side of an equation it is on. Where no
+  variable is written, it is that of an integral beside it in a sum, as integration by
+  parts writes it, else the one symbol what it evaluates holds, and otherwise the bar is
+  refused, with a hint. Each reading is recorded, as `Workbook.explain` shows it.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

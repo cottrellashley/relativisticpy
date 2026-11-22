@@ -413,7 +413,69 @@ class TestRelations:
         assert sexpr("f(x, y) |_{x=1, y=2}") == "(at (call f x y) (x 1) (y 2))"
 
     def test_latex_evaluation_bar(self):
-        assert sexpr(r"\left. x^2 \right|_{x=3}") == "(at (^ x 2) (x 3))"
+        assert sexpr(r"\left. x^2 \right|_{x=3}") == "(eval (^ x 2) (x 3))"
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # \left. and \right| enclose what the bar evaluates, and nothing else
+            (r"x + \left. x^2 \right|_{x=2}", "(+ x (eval (^ x 2) (x 2)))"),
+            (
+                r"\lim_{d \to 0} \left. q d \right|_{q = p/d}",
+                "(lim d 0 (eval (* q d) (q (/ p d))))",
+            ),
+            (
+                r"\left( \left. v \right|_{x=1} - \left. v \right|_{x=0} \right)",
+                "(- (eval v (x 1)) (eval v (x 0)))",
+            ),
+            (r"\left( a + b \right|_{a=1}", "(eval (+ a b) (a 1))"),
+            # several substitutions, made at once, of what they enclose
+            (r"2 \left. x^2 + y \right|_{x=3, y=1}", "(* 2 (at (+ (^ x 2) y) (x 3) (y 1)))"),
+            # a bar without \left. evaluates all that precedes it, as before
+            ("x + x^2 |_{x=2}", "(at (+ x (^ x 2)) (x 2))"),
+            # and the closing bar of \left| x \right| is an absolute value's
+            (r"\left| x \right|_2", "((abs x) _[2])"),
+        ],
+    )
+    def test_an_evaluation_bar_closes_what_left_opens(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\left. F \right|_a^b", "(eval F (? a b))"),
+            (r"\left. F \right|^{b}_{a}", "(eval F (? a b))"),
+            (r"\left. F \right|_{x=a}^{x=b}", "(eval F (x a b))"),
+            (r"\left[ x e^x \right]_0^1", "(eval (* x (e ^[x])) (? 0 1))"),
+            (r"[x^2]_{x=0}^{x=1}", "(eval (^ x 2) (x 0 1))"),
+            (r"\big[ x^2 \big]_0^1", "(eval (^ x 2) (? 0 1))"),
+            (r"[x^2]_{x=0}", "(eval (^ x 2) (x 0))"),
+            # a point alone, after \right|, for the reader to find its variable
+            (r"\left. f'(x) \right|_{x_0}", "(eval (call f' x) (? x_0))"),
+            # a bar alone with limits evaluates the sum before it, but not an equation
+            (r"\frac{x^3}{3} \Big|_0^1", "(eval (/ (^ x 3) 3) (? 0 1))"),
+            (r"x + \frac{x^3}{3} \Big|_0^1", "(eval (+ x (/ (^ x 3) 3)) (? 0 1))"),
+            (r"a = x^2 \Big|_0^1", "(= a (eval (^ x 2) (? 0 1)))"),
+        ],
+    )
+    def test_an_evaluation_between_limits(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a concentration, as chemistry writes it, and a bracket with a label
+            (r"[\mathrm{A}]_0^2", "((list A) _[0] ^2)"),
+            (r"\left[ \frac{q}{R} \right]_{\text{ret}}", "((/ q R) _[ret])"),
+            (r"\left[ x \right]^2", "(^ x 2)"),
+            ("[1, 2]_0^1", "((list 1 2) _[0] ^1)"),
+        ],
+    )
+    def test_brackets_that_evaluate_nothing(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_the_limits_of_an_evaluation_are_of_one_variable(self):
+        assert "of one variable" in str(error(r"\left. F \right|_{x=0}^{y=1}"))
 
     def test_substitution_target_can_be_an_expression(self):
         assert sexpr("y |_{diff(f(x), x) = 10}") == "(at y ((call diff (call f x) x) 10))"
@@ -906,14 +968,17 @@ class TestSumsLimitsIntegrals:
         ("text", "expected"),
         [
             # an evaluation bar before the differential is inside the integrand
-            (r"\int_0^1 \left. f(x, y) \right|_{x=0} dy", "(int (at (call f x y) (x 0)) (y 0 1))"),
+            (
+                r"\int_0^1 \left. f(x, y) \right|_{x=0} dy",
+                "(int (eval (call f x y) (x 0)) (y 0 1))",
+            ),
             (
                 r"\int_0^{\pi} \left. \sqrt{g} \right|_{r = r_+} d\theta",
-                "(int (at (sqrt g) (r (r _+))) (theta 0 pi))",
+                "(int (eval (sqrt g) (r (r _+))) (theta 0 pi))",
             ),
             # and after it, outside
             (r"\int_0^1 x y \, dx \Big|_{y=2}", "(at (int (* x y) (x 0 1)) (y 2))"),
-            (r"\left. \int_0^1 x y \, dx \right|_{y=2}", "(at (int (* x y) (x 0 1)) (y 2))"),
+            (r"\left. \int_0^1 x y \, dx \right|_{y=2}", "(eval (int (* x y) (x 0 1)) (y 2))"),
         ],
     )
     def test_an_evaluation_bar_in_an_integral(self, text, expected):
@@ -1703,7 +1768,7 @@ class TestDiracNotation:
     def test_bars_of_absolute_values_stay_so(self):
         assert sexpr("|x| + |y|") == "(+ (abs x) (abs y))"
         assert sexpr(r"|\langle k | H | 0 \rangle|^2") == "(^ (abs (braket k H 0)) 2)"
-        assert sexpr(r"\left. x^2 \right|_{x=1}") == "(at (^ x 2) (x 1))"
+        assert sexpr(r"\left. x^2 \right|_{x=1}") == "(eval (^ x 2) (x 1))"
 
     def test_a_ket_after_a_coefficient_is_a_product(self):
         assert sexpr(r"i|1\rangle - 2|2\rangle") == "(- (* i (ket 1)) (* 2 (ket 2)))"

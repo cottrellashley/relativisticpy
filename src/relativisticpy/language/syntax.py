@@ -197,10 +197,25 @@ class Accent(Expr):
 
 @dataclass(frozen=True)
 class Substitution(Expr):
-    """An evaluation bar: ``expr |_{x = a}`` or ``\\left. expr \\right|_{x = a}``."""
+    """An evaluation bar that substitutes: ``expr |_{x = a, y = b}``, or
+    ``\\left. expr \\right|_{x = a, y = b}``, every substitution at once."""
 
     expr: Expr
     bindings: tuple[tuple[Expr, Expr], ...]
+
+
+@dataclass(frozen=True)
+class Evaluation(Expr):
+    """An evaluation bar or bracket, as books write a function's value at a point or the
+    difference of its values: ``\\left. F \\right|_{x=a}`` is F at a, with no ``upper``;
+    ``\\left. F \\right|_a^b``, ``\\left[F\\right]_a^b`` and ``[F]_{x=a}^{x=b}`` are
+    F(b) − F(a). ``variable`` is what is written with the limits, as x of ``_{x=a}``, or
+    ``None`` where nothing is, for the reader to find."""
+
+    expr: Expr
+    lower: Expr
+    upper: Expr | None
+    variable: Expr | None
 
 
 # ---------------------------------------------------------------------------
@@ -590,6 +605,11 @@ class _Printer:
     def _Substitution(self, node: Substitution) -> str:
         bindings = " ".join(f"({self.render(t)} {self.render(v)})" for t, v in node.bindings)
         return f"(at {self.render(node.expr)} {bindings})"
+
+    def _Evaluation(self, node: Evaluation) -> str:
+        variable = self.render(node.variable) if node.variable is not None else "?"
+        limits: list[Node] = [node.lower] if node.upper is None else [node.lower, node.upper]
+        return f"(eval {self.render(node.expr)} ({variable} {self._many(limits)}))"
 
     def _Ket(self, node: Ket) -> str:
         return f"(ket {self.render(node.label)})"

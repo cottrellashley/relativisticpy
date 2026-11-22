@@ -293,6 +293,19 @@ An evaluation bar substitutes values, as on paper:
 
 ```
 
+A bar written with `\left.` and `\right|` evaluates what they enclose, and only that. With
+limits, a bar or a bracket is the difference of two values, F(b) − F(a), in the variable
+written with them; where none is written, in that of an integral beside it, or else in the
+one symbol it holds:
+
+```python
+>>> wb.expr(r"x + \left. x^2 \right|_{x=2}")
+x + 4
+>>> wb.expr(r"\left[ x e^x \right]_0^1 - \int_0^1 e^x \, dx")
+1
+
+```
+
 ## Calculus
 
 Derivatives can be written in every common notation:

@@ -13,6 +13,7 @@ from typing import Any
 
 import sympy
 from sympy import Symbol
+from sympy.core.function import AppliedUndef
 
 from relativisticpy import integrations
 from relativisticpy.compiler.builtins import BUILTINS, Builtin
@@ -31,6 +32,7 @@ from relativisticpy.compiler.scope import (
     TensorBinding,
     VariableBinding,
 )
+from relativisticpy.compiler.session import Session
 from relativisticpy.diffgeom import differential
 from relativisticpy.errors import CompileError, IndexNotationError
 from relativisticpy.ir import (
@@ -49,6 +51,7 @@ from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.linalg import LinearAlgebra
+from relativisticpy.reading import evaluations
 from relativisticpy.reading.names import (
     _LINEAR_ALGEBRA,
     BOLD_ONE,
@@ -62,9 +65,11 @@ from relativisticpy.reading.names import (
     _named,
     _names_builtin,
     _names_omega,
+    _shown,
     _slashed,
     _splittable,
     _unprimed,
+    _written_with,
 )
 from relativisticpy.reading.reader import BookCall
 from relativisticpy.reading.unknowns import read_as_functions
@@ -86,6 +91,12 @@ from relativisticpy.typing.typer import TensorSource, _indices, _listed, _public
 
 class Expressions(LinearAlgebra):
     """The walk of an expression, lowered to the IR."""
+
+    def __init__(self, session: Session) -> None:
+        super().__init__(session)
+        # The sums being lowered, innermost last: an evaluation bar written without its
+        # variable is in that of an integral beside it in its sum.
+        self._sums: list[ast.Binary] = []
 
     def value(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node:
         """Compile an expression that must produce a value. A builtin's name with nothing
@@ -263,7 +274,11 @@ class Expressions(LinearAlgebra):
                 pending.append((sign, expr.left))
             else:
                 terms.append((sign, expr))
-        values = self._terms_of_a_sum(terms, scope, ctx)  # A - \lambda I
+        self._sums.append(node)
+        try:
+            values = self._terms_of_a_sum(terms, scope, ctx)  # A - \lambda I
+        finally:
+            self._sums.pop()
         tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         if not tensors:
             kind = VALUE if any(v.type == VALUE for _, v, _ in values) else SCALAR
@@ -962,6 +977,107 @@ class Expressions(LinearAlgebra):
             return self.graph.add(ops.Map("core.subs"), [expr, *pairs], expr.type, span)
         return self._call("core.subs", [expr, *pairs], _passed(expr.type), span)
 
+    def _Evaluation(self, node: ast.Evaluation, scope: Scope, ctx: Context) -> Node:
+        """An evaluation bar or bracket: what it evaluates at a point, or its value at the
+        upper limit minus its value at the lower, in the variable written with them; else in
+        that of an integral beside it in a sum; else in the one symbol what it evaluates is
+        written with (see :mod:`relativisticpy.reading.evaluations`)."""
+        written = evaluations.enclosed(node.expr)
+        limits = [node.lower] if node.upper is None else [node.upper, node.lower]
+        variable, note = node.variable, None
+        why = f"its variable is written with its {'point' if node.upper is None else 'limits'}"
+        if variable is None and (beside := self._integral_beside(node)) is not None:
+            variable = beside
+            why = (
+                f"no variable is written, and {beside.span.text} is that of the integral beside it"
+            )
+        symbol: Node | None
+        if isinstance(variable, ast.Name):
+            inner = scope
+            if scope.lookup(variable.id) is not None:  # as an integral's, its variable is its own
+                inner = scope.child()
+                symbol = self._bound_variable(variable, inner)
+            else:
+                symbol = self.graph.const(self.session.symbol(variable.id), SCALAR, variable.span)
+            value = self.value(node.expr, inner, ctx)
+            shown = variable.span.text
+            others = [name for name in _symbols_written(value) if name != variable.id]
+            if node.variable is None and others:
+                other = _shown(others[0], ctx.latex)
+                note = (
+                    f"{node.span.text} is evaluated in {shown}, the variable of the integral "
+                    f"beside it; for {other}, write it with the limits: "
+                    f"{_with_variable(node, other)}"
+                )
+        elif variable is not None:
+            value = self.value(node.expr, scope, ctx)
+            symbol, shown = self.value(variable, scope, ctx), variable.span.text
+        else:
+            value = self.value(node.expr, scope, ctx)
+            symbol, shown = self._evaluated_in(node, value, written, ctx)
+            why = f"no variable is written, and {written} is written with {shown} alone"
+            if symbol is None:
+                why = f"{written} is written with no symbol, so it is the same at every point"
+                note = (
+                    f"{node.span.text} is the same wherever it is evaluated, as {written} is "
+                    "written with no symbol; to evaluate it in a variable, write it with it: "
+                    f"{_with_variable(node, 'x')}"
+                )
+        if len(limits) > 1 and isinstance(value.type, EquationType):
+            raise CompileError(
+                f"{node.span.text} takes the difference of the values of an equation at two "
+                "points, which is no equation",
+                span=node.span,
+                hint="write the bar with \\left. and \\right| around what it evaluates, as in "
+                f"\\left. ... \\right|{_with_variable(node, 'x')}",
+            )
+        if note is not None:
+            self._note(note)
+        at = [f"{shown} = {limit.span.text}" for limit in limits]
+        reading = f"{written} at {at[0]}" + (f", minus at {at[1]}" if len(at) > 1 else "")
+        self._decide(evaluations.EVALUATION, node.span, reading, why, note)
+        values = [
+            value
+            if symbol is None
+            else self._substituted(value, [symbol, self.value(limit, scope, ctx)], node.span)
+            for limit in limits
+        ]
+        if len(values) == 1:
+            return values[0]
+        return self.graph.add(ops.Add((1, -1)), values, value.type, node.span)
+
+    def _integral_beside(self, node: ast.Evaluation) -> ast.Name | None:
+        """The variable of the integral written beside an evaluation in the innermost sum it
+        is in, as x of ``\\left[x e^x\\right]_0^1 - \\int_0^1 e^x\\,dx``; ``None`` where there
+        is none, or there are integrals in several variables."""
+        sum_ = next(
+            (s for s in reversed(self._sums) if evaluations.within(node.span, s.span)), None
+        )
+        if sum_ is None:
+            return None
+        variables = evaluations.integral_variables(sum_, node.span)
+        return variables[0] if len(variables) == 1 else None
+
+    def _evaluated_in(
+        self, node: ast.Evaluation, value: Node, written: str, ctx: Context
+    ) -> tuple[Node | None, str]:
+        """The one symbol what an evaluation evaluates is written with, which it is in where
+        no variable is written, and that symbol as written; ``None`` where it is written with
+        none, and refused where it is written with several."""
+        names = _symbols_written(value)
+        shown = [_shown(name, ctx.latex) for name in names]
+        if len(names) > 1:
+            where = "its point" if node.upper is None else "the limits"
+            raise CompileError(
+                f"{node.span.text} does not say which variable it is evaluated in, and "
+                f"{written} is written with {_listed(shown)}",
+                span=node.span,
+                hint=f"write the variable with {where}: {_with_variable(node, shown[0])}",
+            )
+        if not names:
+            return None, ""
+        return self.graph.const(self.session.symbol(names[0]), SCALAR, node.span), shown[0]
+
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         if node.accent in ("dot", "ddot"):
             return self._dotted(node.base, node.accent, node.span, scope, ctx)
@@ -1267,3 +1383,23 @@ def _unsigned(factor: ast.Expr) -> list[ast.Expr]:
     if isinstance(factor, ast.Unary) and factor.op == "-":
         return [ast.Number("-1", span=factor.span), *_unsigned(factor.operand)]
     return [factor]
+
+
+def _symbols_written(value: Node) -> list[str]:
+    """The names of the symbols a value is written with, read from its IR as
+    :func:`~relativisticpy.reading.names._written_with` reads them, without computing it,
+    but not the functions it applies that nothing defines, as f of f(x)."""
+    functions: set[str] = set()
+    for node in dependencies([value]):
+        op = node.op
+        if isinstance(op, ops.Call) and op.name == "core.function":
+            functions.add(str(dict(op.attributes)["name"]))
+        elif isinstance(op, ops.Const) and isinstance(op.value, sympy.Basic):
+            functions.update(each.func.__name__ for each in op.value.atoms(AppliedUndef))
+    return sorted(_written_with(value) - functions)
+
+
+def _with_variable(node: ast.Evaluation, variable: str) -> str:
+    """The scripts of an evaluation, written with a variable, as ``_{x=0}^{x=1}``."""
+    lower = f"_{{{variable}={node.lower.span.text}}}"
+    return lower if node.upper is None else f"{lower}^{{{variable}={node.upper.span.text}}}"

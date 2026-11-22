@@ -116,7 +116,8 @@ a(t)**2 + Derivative(a(t), t)*Derivative(b(t), t)
 
 **Brackets group.** `\left[ ... \right]` and `\{ ... \}` group like parentheses.
 `\left| ... \right|` is an absolute value and `\left. ... \right|_{x=a}` an
-evaluation bar.
+evaluation bar of what it encloses; with limits, `\left. ... \right|_a^b` and
+`\left[ ... \right]_a^b` are the difference of its values there.
 
 **A bracket right after a name calls it.** `A(r)` is the function A at r: an unknown
 function, if nothing defines A, which is how a metric writes one. A name numbered by
