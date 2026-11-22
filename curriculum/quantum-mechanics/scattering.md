@@ -91,7 +91,7 @@ V(\mathbf{x}')\), for the Yukawa potential \(V_0 e^{-\mu r}/\mu r\).
 
 ```latex
 V(r) := \frac{V_0 e^{-\mu r}}{\mu r}
-f^{(1)}(\mathbf{k}', \mathbf{k}) := -\frac{1}{4\pi} \frac{2m}{\hbar^2} \int d^3x' \, e^{i(\mathbf{k} - \mathbf{k}') \cdot \mathbf{x}'} \, V(r')
+f^{(1)}(\mathbf{k}', \mathbf{k}) := -\frac{1}{4\pi} \frac{2m}{\hbar^2} \int d^3x' \, e^{i(\mathbf{k} - \mathbf{k}') \cdot \mathbf{x}'} \, V(|\mathbf{x}'|)
 f^{(1)}(\mathbf{k}', \mathbf{k}) = -\frac{2mV_0}{\mu\hbar^2} \frac{1}{|\mathbf{k} - \mathbf{k}'|^2 + \mu^2}
 ```
 

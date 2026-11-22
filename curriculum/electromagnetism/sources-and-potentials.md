@@ -92,6 +92,7 @@ expansion: an identity between a closed form and an infinite series of special
 functions, for \(r' < r\).
 
 ```latex
+r' < r
 \frac{1}{\sqrt{r^2 + r'^2 - 2 r r' \cos\gamma}} = \sum_{l=0}^{\infty} \frac{r'^l}{r^{l+1}} P_l(\cos\gamma)
 ```
 

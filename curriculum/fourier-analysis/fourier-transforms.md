@@ -125,7 +125,7 @@ The transform of eight samples, \(X_k = \sum_n x_n e^{-2\pi i k n/N}\) for
 ```latex
 x := (1, 2, 0, -1, 3, 0, 0, 2)
 N := 8
-X_k := \sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}
+X_k := \sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}, \quad k = 0, \ldots, N-1
 X_k
 ```
 

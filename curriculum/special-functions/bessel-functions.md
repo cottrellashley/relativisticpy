@@ -48,6 +48,7 @@ expected = True
 \(J_{1/2}\) is elementary. Its order is a fraction in the subscript.
 
 ```latex
+x > 0
 J_{1/2}(x) = \sqrt{\frac{2}{\pi x}} \sin x
 ```
 

@@ -63,6 +63,7 @@ An identity between a function and a power series whose coefficients are Legendr
 polynomials of symbolic degree \(n\).
 
 ```latex
+|t| < 1
 \frac{1}{\sqrt{1 - 2xt + t^2}} = \sum_{n=0}^{\infty} P_n(x) \, t^n
 ```
 
@@ -98,6 +99,7 @@ The sum of \(|Y_l^m|^2\) over the orders \(m\) of one degree is constant over th
 \((2l + 1)/4\pi\): the addition theorem at coincident points, here for \(l = 2\).
 
 ```latex
+\theta, \phi \in \mathbb{R}
 \sum_{m=-2}^{2} \left| Y_2^m(\theta, \phi) \right|^2 = \frac{5}{4\pi}
 ```
 
