@@ -1,9 +1,9 @@
 # The language
 
 > **For:** everyone who writes RelativisticPy, whatever the field. **You will learn:**
-> statements and comments, numbers and names, what `:=` and `=` mean, functions,
-> equations, calculus, piecewise functions and matrices, and what the language makes of
-> Python's habits. **Before this:** [Getting started](getting-started.md).
+> statements, names, what `:=` and `=` mean, functions, equations, calculus and
+> matrices, and what the language makes of Python's habits. **Before this:**
+> [Getting started](getting-started.md).
 
 A RelativisticPy program is a sequence of statements: definitions, which
 give names to things, and expressions, whose values are the program's results.

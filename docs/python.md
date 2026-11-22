@@ -1,8 +1,7 @@
 # Python API
 
 > **For:** programmers and agents who use RelativisticPy from Python. **You will learn:**
-> the workbook, every kind of result and how to ask whether a claim holds, how results
-> are shown, tensors, metrics, equations, spaces, checks, geodesics, spacetimes and
+> the workbook, every kind of result, whether a claim holds, how results are shown, and
 > errors. **Before this:** [Getting started](getting-started.md).
 
 Everything the language does is available from Python, and the language's

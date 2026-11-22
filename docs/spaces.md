@@ -2,7 +2,7 @@
 
 > **For:** anyone with data in NumPy or pandas; no General Relativity needed. **You will
 > learn:** how data is bound to tensors, what spaces and indices are, and how to write
-> statistics, linear algebra, graphs and regressions in index notation, as on a page.
+> statistics and linear algebra in index notation.
 > **Before this:** [Getting started](getting-started.md), with the `data` extra.
 
 Index notation never needed spacetime. An index ranges over a **space**: the four

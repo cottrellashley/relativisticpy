@@ -2,8 +2,8 @@
 
 > **For:** authors and readers of papers, and anyone who checks them in continuous
 > integration. **You will learn:** how to check a LaTeX document or a Markdown notebook,
-> what each verdict means, how to read a report from Python, and how Carroll's lecture
-> notes were checked, step by step. **Before this:** [LaTeX](latex.md).
+> what each verdict means, and how to read a report from Python. **Before this:**
+> [LaTeX](latex.md).
 
 A paper is a program whose statements are its display equations.
 `relativisticpy check` runs them in order, as a reader would, and says what

@@ -1,8 +1,8 @@
 # The MCP server
 
 > **For:** anyone who gives an AI agent mathematics to do, and agents themselves. **You
-> will learn:** how to serve RelativisticPy to Claude Code, Claude Desktop or any MCP
-> client, what each tool takes and gives, and the bounds the server keeps.
+> will learn:** how to serve RelativisticPy to any MCP client, what each tool takes and
+> gives, and the bounds the server keeps.
 > **Before this:** [Getting started](getting-started.md).
 
 Language models write physics and mathematics fluently, and get long algebra wrong.
