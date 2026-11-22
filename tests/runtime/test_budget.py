@@ -45,3 +45,18 @@ def test_a_sum_past_its_budget_is_kept_as_written(monkeypatch):
     monkeypatch.setattr(core.assumptions, "summed", slow)
     n = sympy.Symbol("n")
     assert core.summation(1 / n**2, n, 1, sympy.oo) == sympy.Sum(1 / n**2, (n, 1, sympy.oo))
+
+
+def test_an_equation_is_judged_as_written_where_carrying_it_out_runs_past_the_budget(
+    monkeypatch,
+):
+    # an integral SymPy's heuristics search for ever, as in the claim of a light ray's bending
+    from relativisticpy.runtime import kernels
+
+    x = sympy.Symbol("x")
+    written = sympy.Integral(x, (x, 0, 1))
+    monkeypatch.setattr(core, "_CLOSED_FORM_BUDGET", 0.05)
+    monkeypatch.setattr(sympy.Integral, "doit", lambda self, **hints: time.sleep(1))
+    started = time.monotonic()
+    assert kernels._carried_out(written) == written
+    assert time.monotonic() - started < 0.5

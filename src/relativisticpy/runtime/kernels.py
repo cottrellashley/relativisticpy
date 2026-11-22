@@ -474,12 +474,17 @@ def _proven(lhs: sympy.Expr, rhs: sympy.Expr) -> bool | None:
 
 
 def _carried_out(expr: sympy.Expr) -> sympy.Expr:
-    """``expr`` with its sums, products, integrals, limits and derivatives carried out."""
+    """``expr`` with its sums, products, integrals, limits and derivatives carried out, in
+    the time a closed form is given; as written where SymPy cannot, or not in that time, as
+    an integral its heuristics search for ever."""
+    from relativisticpy.runtime import core
+
     if not expr.has(*_UNEVALUATED):
         return expr
     try:
-        done = expr.doit()
-    except Exception:  # SymPy cannot carry it out: the equation is judged as written
+        with core._budget(core._CLOSED_FORM_BUDGET):
+            done = expr.doit()
+    except (Exception, core._OverBudget):  # the equation is judged as written
         return expr
     return done if isinstance(done, sympy.Expr) else expr
 
