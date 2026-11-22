@@ -1918,9 +1918,11 @@ class Parser:
             first, rest = token.value[0], token.value[1:]
             dimension = ast.Name(first, span=token.span)
             if rest:  # d^nx
-                return ast.Name(rest, span=token.span), dimension
+                primes = self._primes()
+                return ast.Name(rest + primes, span=self._span(token)), dimension
         name = self.advance()
-        return ast.Name(name.value, name.verbatim, span=name.span), dimension
+        primes = self._primes()  # d^3x', over the primed coordinates
+        return ast.Name(name.value + primes, name.verbatim, span=self._span(name)), dimension
 
     def _differential(self) -> ast.Expr:
         if self.check(K.LBRACE):  # {\rm d}x
@@ -2749,15 +2751,22 @@ def _numerator_differentials(
         if joined is not None:  # dr, dp^0
             found.append((joined, None))
         elif following is not None and _variable(following) and _is_d(factor):  # d\theta
-            found.append((following, None))
+            found.append((_unprimed_name(following), None))
             index += 1
         elif following is not None and _variable(following) and dimension is not None:
-            found.append((following, dimension))  # d^3 p
+            found.append((_unprimed_name(following), dimension))  # d^3 p
             index += 1
         else:
             kept.append(factor)
         index += 1
     return _product(kept), found
+
+
+def _unprimed_name(node: ast.Expr) -> ast.Expr:
+    """A primed variable as the name it is, ``x'``, as a differential's variable is named."""
+    if isinstance(node, ast.Prime):
+        return ast.Name(node.func.id + "'" * node.order, node.func.verbatim, span=node.span)
+    return node
 
 
 def _is_d(node: ast.Expr) -> bool:
@@ -2780,10 +2789,11 @@ def _volume_dimension(node: ast.Expr) -> ast.Expr | None:
 
 
 def _variable(node: ast.Expr) -> bool:
-    """A name, maybe with indices, that a differential can be of: ``x``, ``p_1``, ``p^0``."""
+    """A name, maybe primed or with indices, that a differential can be of: ``x``,
+    ``x'``, ``p_1``, ``p^0``."""
     if isinstance(node, ast.Scripted):
         return isinstance(node.base, ast.Name) and all(s.indices for s in node.scripts)
-    return isinstance(node, ast.Name)
+    return isinstance(node, ast.Name | ast.Prime)
 
 
 def _check_brackets(items: list[ast.IndexItem]) -> None:

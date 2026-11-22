@@ -871,6 +871,9 @@ class TestSumsLimitsIntegrals:
             (r"\frac{dy}{dx_1}", "(d/dx_1 y)"),
             (r"\int A_\mu dx^\mu", "(int (A _[mu]) (x ^[mu]))"),
             (r"\int dp^0 f(p^0)", "(int (call f (^ p 0)) (^ p 0))"),
+            # a volume element over primed coordinates, however it is written
+            (r"\int d^3x' \, f(x')", "(int (call f x') (d^3 x'))"),
+            (r"\int \frac{d^3 x'}{(2\pi)^3} f", "(int (* (/ 1 (^ (* 2 pi) 3)) f) (d^3 x'))"),
         ],
     )
     def test_differentials(self, text, expected):
