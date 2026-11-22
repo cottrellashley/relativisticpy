@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 import sympy
 from sympy import Symbol
 
-from relativisticpy.compiler.scope import Binding, Scope
+from relativisticpy.compiler.scope import Binding, FunctionBinding, Scope
 from relativisticpy.errors import CompileError
 from relativisticpy.ir import SCALAR, Graph, Node, NotationAlgebra, TensorType, ops
 from relativisticpy.language.source import Span
@@ -157,11 +157,17 @@ class Session:
 
     def fork(self) -> Session:
         """A session in the same state whose changes leave this one as it is: to compile a
-        program in order to look at it, without running it. It shares the graph, which only
+        program in order to look at it, without running it, or to carry on apart from this
+        one, as a copy of a workbook does. Its functions are its own: a function this
+        session defines sees the fork's names in the fork. It shares the graph, which only
         ever gains nodes."""
+        scope = self.globals.copy()
+        for name, binding in scope.bindings():
+            if isinstance(binding, FunctionBinding) and binding.closure is self.globals:
+                scope.bind(name, replace(binding, closure=scope))
         return replace(
             self,
-            globals=self.globals.copy(),
+            globals=scope,
             assumptions=dict(self.assumptions),
             bounds=list(self.bounds),
             names=dict(self.names),

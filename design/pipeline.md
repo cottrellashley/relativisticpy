@@ -82,7 +82,10 @@ What the work on live mathematics needed from the core, which it did without, fo
   and says what each step defined (`snapshot`, `defined_between`, `in_words`) and what
   it is as data (`as_data`); the three use it, and nothing else.
 - **`Session.fork()` should give a copy its own functions.** `Workbook.copy()` rebinds
-  the closures of user functions to the copy's names itself.
+  the closures of user functions to the copy's names itself. *Paid:* the fork rebinds
+  them, each as the kind of function it is, so that a copy keeps the operators and
+  brackets a program defines, and `ir` and `explain` see a function's names as a run
+  would.
 - **Keys that do not depend on the process.** The IR numbers its constants and
   `abstract` its dummy indices from process-wide counters, so a worker that receives a
   pickled workbook must number its own from far away (2^62) to avoid collisions.

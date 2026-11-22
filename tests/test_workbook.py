@@ -411,6 +411,23 @@ def test_a_copy_defines_apart_from_its_workbook():
     assert wb["a"] == 1
 
 
+def test_a_copy_keeps_the_operators_and_brackets_its_workbook_defines():
+    wb = Workbook()
+    wb.exe(r"\hat{p} := -i\hbar \frac{d}{dx}" "\n" r"\langle x|p\rangle := e^{i p x}")
+    trial = wb.copy()
+    assert trial.names() == wb.names()
+    assert trial.expr(r"\hat{p} \sin(x)") == wb.expr(r"\hat{p} \sin(x)")
+    assert trial.expr(r"\langle x|p\rangle") == wb.expr(r"\langle x|p\rangle")
+
+
+def test_a_program_looked_at_calls_a_function_as_running_it_would():
+    wb = Workbook()
+    wb.exe("a := 2; f(x) := a x")
+    assert "mul(%1, %2)" in wb.ir("a := 3; f(1)")  # %1 is the 3 a is defined as
+    assert "a: a value, defined on line 1, 3" in str(wb.explain("a := 3; f(1)"))
+    assert wb.exe("a := 3; f(1)") == [3]
+
+
 def test_a_workbook_counts_what_may_change_it():
     wb = Workbook()
     revisions = [wb._revision]

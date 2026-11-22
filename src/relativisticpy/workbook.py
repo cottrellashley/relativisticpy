@@ -743,10 +743,6 @@ class Workbook:
         copied.__dict__.update(self.__dict__)
         copied._session = self._session.fork()
         copied._compiler = Compiler(copied._session)
-        scope = copied._session.globals
-        for name, binding in scope.bindings():  # a function sees the names of its own copy
-            if isinstance(binding, FunctionBinding) and binding.closure is self._session.globals:
-                scope.bind(name, FunctionBinding(binding.definition, scope))
         return copied
 
     @contextlib.contextmanager

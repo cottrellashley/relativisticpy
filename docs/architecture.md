@@ -133,7 +133,9 @@ an index is a contraction with the metric; a covariant derivative is a partial
 derivative plus one contraction with the Christoffel symbols per index; a trace
 is a contraction of a tensor with itself; `T_{(ab)}` is a symmetrisation.
 User functions are inlined at their call sites, in a child of the scope they
-were defined in, which gives lexical scoping.
+were defined in, which gives lexical scoping. A fork of the session, which a copy of a
+workbook is made with, and in which `Workbook.ir` and `Workbook.explain` compile, gives
+each function the fork's scope, so that it sees the names of the fork.
 
 A tensor without components, such as \(T_{\mu\nu}\) in Einstein's equations,
 is kept as notation instead: operations of the IR, `notation.tensor`, `notation.add`,
