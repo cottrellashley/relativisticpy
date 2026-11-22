@@ -121,30 +121,39 @@ class Equation(Expr):
 @dataclass(frozen=True)
 class Relation(Expr):
     """A relation other than equality or order, such as ``a \\sim b``, ``a \\propto b``,
-    ``x \\in X`` or ``x \\to x'``. RelativisticPy reads relations but does not compute them."""
+    ``x \\in X`` or ``x \\to x'``. RelativisticPy reads relations but does not compute them.
+
+    ``op`` is the relation's symbol, one for each relation however it is written, and
+    ``written`` the relation as it was written, ``\\propto`` or ``∝``, for messages. It is
+    empty for a relation the parser makes, as it makes ``∈`` of ``\\mu, \\nu = 0, 1``."""
 
     lhs: Expr
     op: str
     rhs: Expr
+    written: str = field(default="", compare=False)
 
 
 @dataclass(frozen=True)
 class Chain(Expr):
     """Relations in a row, as in a derivation: ``a = b = c`` or ``a \\approx b = c``.
-    Each link is a statement of its own."""
+    Each link is a statement of its own. ``written`` is each relation as it was written."""
 
     operands: tuple[Expr, ...]
     relations: tuple[str, ...]
+    written: tuple[str, ...] = field(default=(), compare=False)
 
     def links(self) -> list[Equation | Relation]:
         """Each relation with its two operands: ``a = b`` and ``b = c``."""
         links: list[Equation | Relation] = []
-        for left, op, right in zip(self.operands, self.relations, self.operands[1:], strict=False):
+        written = self.written or ("",) * len(self.relations)
+        for left, op, right, spelling in zip(
+            self.operands, self.relations, self.operands[1:], written, strict=False
+        ):
             span = left.span.to(right.span)
             if op == "=":
                 links.append(Equation(left, right, span=span))
             else:
-                links.append(Relation(left, op, right, span=span))
+                links.append(Relation(left, op, right, spelling, span=span))
         return links
 
 

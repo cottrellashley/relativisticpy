@@ -330,6 +330,17 @@ class TestRelations:
     def test_relations_that_are_not_computed(self, text, expected):
         assert to_sexpr(parse_expression(text)) == expected
 
+    def test_a_relation_keeps_how_it_was_written(self):
+        # so that a message can say \propto, as the user wrote it, rather than ∝
+        relation = parse_expression(r"\rho \propto a^{-3}")
+        assert isinstance(relation, ast.Relation)
+        assert (relation.op, relation.written) == ("∝", r"\propto")
+        chain = parse_expression(r"a \approx b ≈ c")
+        assert isinstance(chain, ast.Chain)
+        assert [link.written for link in chain.links()] == [r"\approx", "≈"]  # type: ignore[union-attr]
+        identity = parse(r"\nabla \cdot E \equiv \rho").statements[0].expr  # type: ignore[attr-defined]
+        assert identity.written == r"\equiv"
+
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
@@ -954,6 +965,48 @@ class TestErrors:
     def test_misplaced_alignment_environment(self):
         message = str(error(r"x + \begin{align} y \end{align}"))
         assert "cannot appear inside an expression" in message
+
+
+class TestPythonHabits:
+    """Python written as a program would be reads as something else, so it is an error."""
+
+    @pytest.mark.parametrize(
+        ("text", "message", "hint"),
+        [
+            ("x := [1, 2, 3]\nx[1]", "x[1] indexes as Python does, which the language does not",
+             "put a space before the bracket"),
+            ("[i^2 for i in range(3)]", "a list comprehension is not part of the language",
+             r"or a sum, as in \sum_{i=0}^{2} i^2"),
+            ("import sympy", "Python's import is not part of the language",
+             "there is nothing to import"),
+            ("from sympy import diff", "Python's import is not part of the language",
+             "there is nothing to import"),
+            ("def f(x): return x^2", "Python's def is not part of the language",
+             "as in f(x) := x^2"),
+            ("series(sin(x), x, 0, n=5)",
+             "n=5 is a keyword argument, which the language does not have",
+             "as in series(sin(x), x, 0, 5)"),
+        ],
+    )  # fmt: skip
+    def test_python_is_an_error_that_says_what_to_write(self, text, message, hint):
+        caught = error(text)
+        assert caught.message == message
+        assert caught.hint is not None
+        assert caught.hint.endswith(hint)
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "x [1, 2]",  # a product, with a space
+            "subs(x^2, x=2)",  # a substitution: x is in the other argument
+            "solve(x^2 = 4, x)",
+            r"\delta S[\phi] = 0",  # a functional, in LaTeX
+            r"e^{-2\beta}[r - 1]",
+            r"\begin{cases} 1 & for x > 0 \\ 0 & otherwise \end{cases}",
+        ],
+    )
+    def test_what_only_looks_like_python_is_read(self, text):
+        assert parse(text).statements
 
 
 class TestWhereErrorsAre:

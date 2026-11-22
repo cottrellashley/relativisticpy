@@ -26,7 +26,7 @@ import difflib
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from dataclasses import replace
+from dataclasses import fields, replace
 from enum import IntEnum
 from typing import Literal, TypeVar, cast
 
@@ -364,6 +364,9 @@ class Parser:
             or "\\" in written
             or any(_is_latex(t) for t in tokens)
         )
+        if not latex:  # Python, written as a program would be, which reads as something else
+            for statement in statements:
+                _python_habits(statement)
         return [replace(statement, latex=latex) for statement in statements]
 
     def _expression_statements(self) -> list[ast.Statement]:
@@ -480,7 +483,8 @@ class Parser:
         # A \equiv B, or in LaTeX A := B, where A cannot be defined, states an identity.
         identity = define.span.text in ("\\equiv", "≡") or "\\" in targets[0].span.text
         if len(targets) == 1 and identity and not _definable(targets[0]):
-            return ast.Evaluate(_identity(targets[0], value, span), span=span)
+            identity_node = _identity(targets[0], value, span, define.span.text)
+            return ast.Evaluate(identity_node, span=span)
         if len(targets) == 1 and isinstance(call := targets[0], ast.Call):
             if not isinstance(call.func, ast.Name):
                 raise ParseError("cannot define this", span=call.func.span)
@@ -725,20 +729,21 @@ class Parser:
 
     def _relations(self, left: ast.Expr, first: Token) -> ast.Expr:
         """``a = b``, ``a \\sim b``, or relations in a row: ``a = b = c``."""
-        operands, relations = [left], [_relation(first)]
+        operands, relations, written = [left], [_relation(first)], [first.span.text]
         while True:
             operands.append(self.expression(Power.EQUATION))
             if self.peek().kind not in _RELATIONS:
                 break
             relation = self.advance()
             relations.append(_relation(relation))
+            written.append(relation.span.text)
             self._continue_after(relation)
         span = left.span.to(operands[-1].span)
         if len(relations) > 1:
-            return ast.Chain(tuple(operands), tuple(relations), span=span)
+            return ast.Chain(tuple(operands), tuple(relations), tuple(written), span=span)
         if relations[0] == "=":
             return ast.Equation(left, operands[1], span=span)
-        return ast.Relation(left, relations[0], operands[1], span=span)
+        return ast.Relation(left, relations[0], operands[1], written[0], span=span)
 
     def _starts_operand(self, token: Token) -> bool:
         """Whether ``token`` can begin an operand, making juxtaposition a product."""
@@ -1968,6 +1973,109 @@ def _unclosed(opener: Token, found: Token) -> ParseError:
     return ParseError(f"unclosed '{text}'", span=span, hint=hint)
 
 
+# Python's keywords, which in plain text would read as symbols, each with what to write.
+_PYTHON_KEYWORDS = {
+    "import": "the functions are built in, as diff(f, x) and solve(x^2 = 4, x) are: "
+    "there is nothing to import",
+    "def": "define a function by its parameters, as in f(x) := x^2",
+    "return": "a function's value is what follows its :=, as in f(x) := x^2",
+    "while": r"write the terms out, or a sum, as in \sum_{i=0}^{2} i^2",
+    "for": r"write the terms out, or a sum, as in \sum_{i=0}^{2} i^2",
+}
+_PYTHON_KEYWORDS["from"] = _PYTHON_KEYWORDS["import"]
+
+
+def _children(node: ast.Node) -> Iterator[ast.Node]:
+    """The nodes directly inside ``node``."""
+    pending: list[object] = [getattr(node, f.name) for f in fields(node)]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, ast.Node):
+            yield value
+        elif isinstance(value, tuple):
+            pending.extend(value)
+
+
+def _python_habits(statement: ast.Statement) -> None:
+    """Raise for Python written in a plain-text statement, which the language would read
+    as something else: a keyword as a symbol, ``x[1]`` as a product and ``n=5`` in a call
+    as an equation."""
+    pending: list[ast.Node] = [statement]
+    while pending:
+        node = pending.pop()
+        pending.extend(_children(node))
+        if (
+            isinstance(node, ast.Name)
+            and node.id in _PYTHON_KEYWORDS
+            and not node.verbatim
+            and node.span.text == node.id
+        ):
+            raise _keyword(node, statement)
+        if (
+            isinstance(node, ast.Binary)
+            and node.implicit
+            and isinstance(node.right, ast.List)
+            and not isinstance(node.left, ast.Number)
+            and node.left.span.end == node.right.span.start
+            and node.right.span.text.startswith("[")
+        ):
+            raise ParseError(
+                f"{node.left.span.text}{node.right.span.text} indexes as Python does, "
+                "which the language does not",
+                span=node.span,
+                hint="a component is written with indices, as in V^{0}; for a product, "
+                "put a space before the bracket",
+            )
+        if isinstance(node, ast.Call):
+            _keyword_arguments(node)
+
+
+def _keyword(name: ast.Name, statement: ast.Statement) -> ParseError:
+    """The error for one of Python's keywords, written as a statement would be."""
+    if name.id == "for" and any(
+        isinstance(node, ast.List) and node.span.start < name.span.start < node.span.end
+        for node in _walk(statement)
+    ):
+        what = "a list comprehension"
+        hint = r"write the list out, as in [0, 1, 4], or a sum, as in \sum_{i=0}^{2} i^2"
+    else:
+        what = f"Python's {'import' if name.id == 'from' else name.id}"
+        hint = _PYTHON_KEYWORDS[name.id]
+    return ParseError(f"{what} is not part of the language", span=statement.span, hint=hint)
+
+
+def _walk(node: ast.Node) -> Iterator[ast.Node]:
+    pending = [node]
+    while pending:
+        current = pending.pop()
+        yield current
+        pending.extend(_children(current))
+
+
+def _keyword_arguments(call: ast.Call) -> None:
+    """Raise for Python's keyword argument, ``n=5``: a name and a value with ``=`` between
+    them and no space, where the name is in no other argument. An equation, as a
+    substitution in ``subs(x^2, x=2)`` is, names what the other arguments hold."""
+    for argument in call.args:
+        if not (isinstance(argument, ast.Equation) and isinstance(argument.lhs, ast.Name)):
+            continue
+        name, value = argument.lhs, argument.rhs
+        source = argument.span.source
+        if Span(source, name.span.end, value.span.start).text != "=":
+            continue
+        others = [node for other in call.args if other is not argument for node in _walk(other)]
+        if any(isinstance(node, ast.Name) and node.id == name.id for node in others):
+            continue
+        written = call.span.text
+        offset = argument.span.start - call.span.start
+        example = written[:offset] + value.span.text + written[offset + len(argument.span.text) :]
+        raise ParseError(
+            f"{argument.span.text} is a keyword argument, which the language does not have",
+            span=argument.span,
+            hint=f"give the value in its place, as in {example}",
+        )
+
+
 def _written_before(token: Token, limit: int = 24) -> str:
     """What is written just before a token, back to a space or an operator: the base of a
     script, as ``\\Gamma^{a}`` is before ``_{bc``, for an example in a message."""
@@ -2511,21 +2619,25 @@ def _definable(target: ast.Expr) -> bool:
     return isinstance(target, ast.Name | ast.Scripted)
 
 
-def _identity(target: ast.Expr, value: ast.Expr, span: Span) -> ast.Expr:
-    r"""``A \equiv B``, where ``A`` cannot be defined, states that A is identically B."""
-    operands, relations = [target], ["≡"]
+def _identity(target: ast.Expr, value: ast.Expr, span: Span, equiv: str) -> ast.Expr:
+    r"""``A \equiv B``, where ``A`` cannot be defined, states that A is identically B.
+    ``equiv`` is how the identity was written: ``\equiv`` or ``≡``."""
+    operands, relations, written = [target], ["≡"], [equiv]
     if isinstance(value, ast.Chain):
         operands += value.operands
         relations += value.relations
+        written += value.written or [""] * len(value.relations)
     elif isinstance(value, ast.Equation):
         operands += [value.lhs, value.rhs]
         relations.append("=")
+        written.append("=")
     elif isinstance(value, ast.Relation):
         operands += [value.lhs, value.rhs]
         relations.append(value.op)
+        written.append(value.written)
     else:
-        return ast.Relation(target, "≡", value, span=span)
-    return ast.Chain(tuple(operands), tuple(relations), span=span)
+        return ast.Relation(target, "≡", value, equiv, span=span)
+    return ast.Chain(tuple(operands), tuple(relations), tuple(written), span=span)
 
 
 def _primed_script(node: ast.Scripted, primes: str) -> ast.Scripted:
