@@ -315,10 +315,16 @@ def equal(actual: Any, expected: Any, tolerance: float = 1e-9) -> bool:
         mine, theirs = _flat(actual), _flat(expected)
         if mine is None or theirs is None or len(mine[1]) != len(theirs[1]):
             return False
-        if mine[0] != theirs[0]:
+        if _vector_shape(mine[0]) != _vector_shape(theirs[0]):  # a column is a vector
             return False
         return all(equal(a, b, tolerance) for a, b in zip(mine[1], theirs[1], strict=True))
     return _same_expression(actual, expected, tolerance)
+
+
+def _vector_shape(shape: tuple[int, ...]) -> tuple[int, ...]:
+    """A shape without its axes of one element: a column of three numbers, (3, 1), is the
+    vector (3,) the oracle may write as a list, as books write a vector either way."""
+    return tuple(size for size in shape if size != 1)
 
 
 def _mappings(value: Any) -> bool:

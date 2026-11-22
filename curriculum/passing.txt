@@ -55,6 +55,7 @@ complex.numbers.arithmetic
 complex.numbers.roots-of-unity
 data.fft.dft-sum
 data.fft.named
+data.fft.sampled-tone
 data.finance.compounding
 data.finance.continuous-compounding
 data.learning.anscombe-regression
@@ -251,6 +252,7 @@ opt.constrained.circle
 opt.constrained.closed-interval
 opt.constrained.dual-function
 opt.constrained.kkt-system
+opt.constrained.long-only
 opt.convex.positive-definite
 opt.integer.knapsack
 opt.least-squares.argmin

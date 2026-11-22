@@ -96,3 +96,10 @@ def test_other_solutions_are_not():
     assert not curriculum.equal([{K: 1}], [1, 2])  # a solution missing
     assert not curriculum.equal([{K: 1}, {K: 1}], [1, 2])  # one solution twice
     assert not curriculum.equal({p: 1}, [(1, 2)])
+
+
+def test_a_column_is_the_vector_a_list_writes():
+    column = sympy.Matrix([[sympy.Rational(4, 5)], [0], [sympy.Rational(1, 5)]])
+    assert curriculum.equal(column, [sympy.Rational(4, 5), 0, sympy.Rational(1, 5)])
+    assert curriculum.equal(column.T, [sympy.Rational(4, 5), 0, sympy.Rational(1, 5)])
+    assert not curriculum.equal(sympy.ones(2, 3), sympy.ones(3, 2).tolist())
