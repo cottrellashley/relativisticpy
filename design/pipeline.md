@@ -58,12 +58,12 @@ cases, and the verdicts on Carroll's notes, statement by statement.
 4. **Split the compiler** into `reading/`, `typing/` and `lowering/`. These are moves of
    code, each with the tests that already pin its behaviour.
 5. **One place for the rules of index notation.** The checker's "ill-formed" asks the
-   typer, instead of analysing the syntax again. *Done:* the rule of a term is
+   typer, instead of analysing the syntax again. Done: the rule of a term is
    `typing.written.contraction`, which the typer keeps as notation is compiled, and a
    check asks `typing.written.broken_rule` whether a statement surely breaks the rules
    as written. The verdict keeps its own words, which the tests and the reports pin.
 6. **Bind data in a module of its own,** with its spaces, so that the workbook only
-   orchestrates. *Done:* `compiler.binding` binds data, and the data of Python objects,
+   orchestrates. Done: `compiler.binding` binds data, and the data of Python objects,
    into the session, with the space of each axis, and declares spaces; the lowering
    imports it as any module, where it imported the workbook's private helpers inside its
    functions to get round a cycle.
@@ -77,12 +77,12 @@ What the work on live mathematics needed from the core, which it did without, fo
 - **One way to list a program's statements and steps without running it.** The command
   line, the MCP server and the editor each do it with private helpers of the workbook
   and the command line (`_in_order`, `_pieces`, `_record`, `_snapshot`, `_defined`). It
-  belongs with step 6, in a module of its own that all three use. *Paid:*
+  belongs with step 6, in a module of its own that all three use. Done:
   `relativisticpy.steps` lists the statements and steps (`statements_of`, `steps_of`)
   and says what each step defined (`snapshot`, `defined_between`, `in_words`) and what
   it is as data (`as_data`); the three use it, and nothing else.
 - **`Session.fork()` should give a copy its own functions.** `Workbook.copy()` rebinds
-  the closures of user functions to the copy's names itself. *Paid:* the fork rebinds
+  the closures of user functions to the copy's names itself. Done: the fork rebinds
   them, each as the kind of function it is, so that a copy keeps the operators and
   brackets a program defines, and `ir` and `explain` see a function's names as a run
   would.
