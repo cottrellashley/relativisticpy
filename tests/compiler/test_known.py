@@ -65,3 +65,43 @@ class TestSizes:
         with pytest.raises(EvaluationError, match="text in quotes is not a value"):
             wb.exe(r"\mathcal{A} := \mathbb{R}^{'3'}")
         assert sympy.Symbol("A") == wb.expr("A")  # nothing was declared
+
+
+class TestTheNamesAMetricIsWrittenWith:
+    """A definition of a name the metric in force is written with gives it its value there
+    too; which names those are is read from what the metric is computed from."""
+
+    LATE = (
+        "the metric defined on line {} is written with {}, which has this value there from now on"
+    )
+
+    def test_a_parameter_of_a_spacetime(self, wb):
+        wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+        wb.exe("M := 2")
+        assert wb._compiler.take_notes() == [self.LATE.format(1, "M")]
+        assert wb.expr("Kretschmann") == 192 / sympy.Symbol("r") ** 6
+
+    def test_a_name_given_a_value_before_the_metric(self, wb):
+        wb.exe("M := 1\n" r"g_{\mu\nu} := Schwarzschild(M)")
+        wb.exe("M := 2")
+        assert wb._compiler.take_notes() == []
+        assert wb.expr("Kretschmann") == 48 / sympy.Symbol("r") ** 6
+
+    def test_a_parameter_the_spacetime_is_not_written_with(self, wb):
+        wb.exe(r"g_{\mu\nu} := FLRW(k, a, G)")
+        wb.exe("G := 2")
+        assert wb._compiler.take_notes() == []
+        wb.exe("a := 5")
+        assert wb._compiler.take_notes() == [self.LATE.format(1, "a")]
+
+    def test_what_a_sum_or_an_evaluation_bar_binds(self, wb):
+        wb.exe("Coordinates := [t, r]\n" r"g_{ab} := diag(-1 - \sum_{n=0}^{2} n, (1 + x)|_{x=2})")
+        wb.exe("n := 2\nx := 3")
+        assert wb._compiler.take_notes() == []
+
+    def test_a_name_that_cancels_counts(self, wb):
+        # the metric is not computed to find that x has gone
+        wb.exe("Coordinates := [t, r]\n" r"g_{ab} := diag(-1, 1 + x - x)")
+        wb.exe("x := 2")
+        assert wb._compiler.take_notes() == [self.LATE.format(2, "x")]
+        assert wb.expr("g_{rr}") == 1

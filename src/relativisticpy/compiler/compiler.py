@@ -662,17 +662,15 @@ class Compiler:
     def _written_in_metric(self, name: str) -> bool:
         """Whether the metric in force is written with ``name`` as a symbol or a function
         that has no value, as with \\Delta in ``ds^2 = -\\Delta dt^2 + ...``: a definition of
-        it then gives it that value there too. A coordinate never is."""
+        it then gives it that value there too. A coordinate never is. It is read from what
+        the metric is computed from, without computing it (see :func:`_written_with`), so a
+        name that cancels, as x in 1 + x - x, counts too."""
         metric = self.session.metric
         if metric is None or name not in metric.names:
             return False
         if any(c.name == name for c in self.session.coordinates or ()):
             return False
-        components = self.session.evaluate(metric.node)
-        if any(symbol.name == name for symbol in getattr(components, "free_symbols", ())):
-            return True
-        applied = components.atoms(AppliedUndef) if hasattr(components, "atoms") else ()
-        return any(function.func.__name__ == name for function in applied)
+        return name in _written_with(metric.node)
 
     def _metric_mentions(self, names: frozenset[str]) -> None:
         """Count ``names`` among those the metric in force is written with."""
@@ -5219,6 +5217,80 @@ def _used(node: ast.Node) -> Iterator[ast.Node]:
                 pending.extend((current.func, current.args[0]))
             else:
                 pending.extend(vars(current).values())
+
+
+def _written_with(root: Node) -> frozenset[str]:
+    """The names of the symbols and of the functions that have no value that ``root``'s
+    value is written with, read from the IR without computing it: those of its constants
+    and of the functions it applies, but not the differentials a line element takes away,
+    the variables a sum, a product, an integral, a limit or an evaluation bar binds, a name
+    a definition made after the metric gives its value to, or a parameter a spacetime is
+    not written with, as G of flat space."""
+    found: dict[int, frozenset[str]] = {}
+    for node in dependencies([root]):
+        found[node.id] = _names_written(node, found)
+    return found[root.id]
+
+
+def _names_written(node: Node, found: Mapping[int, frozenset[str]]) -> frozenset[str]:
+    """The names ``node`` is written with (see :func:`_written_with`), from those of its
+    arguments, in ``found``."""
+    op = node.op
+    if isinstance(op, ops.Const):
+        return _symbol_names(op.value)
+    args = [found[arg.id] for arg in node.args]
+    every = frozenset().union(*args)
+    if isinstance(op, ops.LineElement):
+        return every - {differential.name for differential in op.differentials}
+    if not isinstance(op, ops.Call | ops.Map):
+        return every
+    name, rest = op.name, frozenset().union(*args[2:])
+    if name == "core.function":
+        return every | {str(dict(op.attributes)["name"])}
+    if name in ("core.sum", "core.prod", "core.limit"):  # body, variable, then the rest
+        return (args[0] - args[1]) | rest
+    if name == "core.derivative_at":  # body, the variable, the order and the point
+        return (args[0] - args[1]) | args[3]
+    if name == "core.subs":  # expr, then pairs of what and what for
+        return (args[0] - frozenset().union(*args[1::2])) | frozenset().union(*args[2::2])
+    if name == "integrate":  # what a definite integral's limits bind, as core.limits gives
+        bound = frozenset().union(
+            *(found[arg.args[0].id] for arg in node.args[1:] if _calls(arg, "core.limits"))
+        )
+        return every - bound
+    if name in ("core.where", "core.where_function"):  # the metric, the name, the value
+        defined = node.args[1].op
+        assert isinstance(defined, ops.Const)
+        parameters: frozenset[str] = frozenset()
+        if name == "core.where_function":
+            defined_name, symbols = defined.value
+            parameters = frozenset(symbol.name for symbol in symbols)
+        else:
+            defined_name = defined.value
+        return (args[0] - {defined_name}) | (args[2] - parameters)
+    if name in _SPACETIMES:
+        absent = spacetimes.absent_from(_SPACETIMES[name])
+        written = BUILTINS[name].parameters
+        return frozenset().union(
+            *(names for names, p in zip(args, written, strict=False) if p not in absent)
+        )
+    return every
+
+
+def _calls(node: Node, name: str) -> bool:
+    """Whether ``node`` applies the operation registered as ``name``."""
+    return isinstance(node.op, ops.Call) and node.op.name == name
+
+
+def _symbol_names(value: Any) -> frozenset[str]:
+    """The names of the symbols and of the functions that have no value in a constant."""
+    if isinstance(value, list | tuple):
+        return frozenset().union(*(_symbol_names(item) for item in value))
+    if not isinstance(value, sympy.Basic):
+        return frozenset()
+    names = {symbol.name for symbol in value.free_symbols if isinstance(symbol, Symbol)}
+    names.update(function.func.__name__ for function in value.atoms(AppliedUndef))
+    return frozenset(names)
 
 
 def _mentioned(value: ast.Expr, *, latex: bool) -> frozenset[str]:
