@@ -353,6 +353,39 @@ class TestRefusals:
         assert found.message.startswith(r"\nabla \cdot (x, y, z) is of vector calculus")
 
 
+class TestCartesianIndices:
+    CARTESIAN = "ds^2 = dx^2 + dy^2 + dz^2\n"
+    FIELD = r"A_{i} := [u(x, y, z), v(x, y, z), w(x, y, z)]"
+
+    def test_repeated_lower_indices_are_summed(self, wb):
+        wb.exe(self.CARTESIAN + self.FIELD)
+        u, v, w = (sympy.Function(name)(x, y, z) for name in "uvw")
+        assert wb.expr(r"\partial_i A_i") == u.diff(x) + v.diff(y) + w.diff(z)
+        assert wb.expr(r"\delta_{ii}") == 3
+
+    def test_the_levi_civita_symbol(self, wb):
+        wb.exe(self.CARTESIAN + self.FIELD)
+        curl_curl = r"\epsilon_{ijk} \partial_j (\epsilon_{klm} \partial_l A_m)"
+        assert wb.expr(rf"{curl_curl} = \partial_i \partial_j A_j - \partial_j \partial_j A_i")
+        assert readings(wb, r"\epsilon_{ijk}") == [
+            r"vector or number: \epsilon_{ijk} is the Levi-Civita symbol, since nothing defines "
+            r"\epsilon, and its 3 indices range over a space of 3 dimensions whose metric is "
+            "the identity"
+        ]
+
+    def test_in_a_space_declared_as_the_reals_cubed(self, wb):
+        wb.exe(r"V := \mathbb{R}^{3}" "\n" r"i, j, k, m, n \in V")
+        identity = (
+            r"\epsilon_{ijk} \epsilon_{imn} = \delta_{jm} \delta_{kn} - \delta_{jn} \delta_{km}"
+        )
+        assert wb.expr(identity)
+
+    def test_in_spacetime_an_index_is_still_summed_once_up_once_down(self, wb):
+        wb.exe(r"ds^2 = -dt^2 + dx^2" "\n" r"B_{i} := [f(t, x), g(t, x)]")
+        found = error(wb, r"\partial_i B_i")
+        assert "appears twice as a lower index" in found.message
+
+
 class TestFrame:
     def test_scale_factors_are_the_positive_roots_books_write(self):
         r_, theta_ = sympy.symbols("r theta", real=True)

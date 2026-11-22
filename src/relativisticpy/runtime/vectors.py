@@ -168,6 +168,15 @@ def hessian(f: Any, *, coordinates: tuple[Symbol, ...]) -> ImmutableDenseNDimArr
     )
 
 
+def levi_civita(size: int) -> ImmutableDenseNDimArray:
+    """The Levi-Civita symbol of ``size`` indices: +1 of an even permutation of 1 to
+    ``size``, -1 of an odd one, and 0 where an index repeats."""
+    return ImmutableDenseNDimArray(
+        [sympy.LeviCivita(*place) for place in product(range(size), repeat=size)],
+        (size,) * size,
+    )
+
+
 def component(vector: Any, position: int) -> sympy.Expr:
     """A vector's component at ``position``, counted from 0, of a list or a column."""
     return sympy.sympify(arrays.flatten(arrays.to_array(vector))[position])

@@ -57,7 +57,10 @@ from relativisticpy.reading.vectors import (
     bold,
     hatted,
 )
-from relativisticpy.typing.syntax import _operand, _signed_terms
+from relativisticpy.tensors import Index, Indices
+from relativisticpy.tensors.spaces import Space
+from relativisticpy.typing.syntax import _operand, _plain_label, _signed_terms, _walk
+from relativisticpy.typing.typer import TensorSource
 
 #: The operations that act on each component of a vector they are given first.
 _EACH_COMPONENT = frozenset(
@@ -815,11 +818,74 @@ class VectorCalculus(Vectors, Probability):
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         if (unit := self._basis_vector(node, scope)) is not None:  # \mathbf{e}_r
             return unit
+        if (epsilon := self._levi_civita(node, scope, ctx)) is not None:  # \epsilon_{ijk}
+            return epsilon
         if (partial := self._subscript_partial(node, scope, ctx)) is not None:  # \mathbf{x}_u
             return partial
         if hatted(node.base) is not None:  # {\hat\theta}^{(\mu)}: a name, as before
             self._hats_named.add(id(node.base))
         return super()._Scripted(node, scope, ctx)
+
+    def _is_notation(
+        self,
+        node: ast.Expr,
+        scope: Scope,
+        ctx: Context,
+        *,
+        equation: bool = False,
+        operation: bool = False,
+    ) -> bool:
+        """Whether an expression is notation, as :meth:`Reader._is_notation` decides, with
+        \\epsilon the Levi-Civita symbol where :meth:`_levi_civita` reads it so: it has
+        components, and is no new tensor."""
+        if any(self._levi_civita_space(current, scope) for current in _walk(node)):
+            scope = scope.child()
+            scope.bind("epsilon", VariableBinding(self.graph.const(sympy.Integer(1), SCALAR)))
+        return super()._is_notation(node, scope, ctx, equation=equation, operation=operation)
+
+    def _levi_civita_space(self, node: ast.Node, scope: Scope) -> Space | None:
+        """The space \\epsilon with indices is the Levi-Civita symbol of, where nothing
+        defines \\epsilon and it has as many indices as the space has dimensions, a space
+        whose metric is the identity; ``None`` for anything else."""
+        if not isinstance(node, ast.Scripted):
+            return None
+        base = node.base
+        if not (isinstance(base, ast.Name) and base.id == "epsilon"):
+            return None
+        if scope.lookup("epsilon") is not None:
+            return None
+        labels = []
+        for script in node.scripts:
+            items = script.indices.items if script.indices is not None else ()
+            if not items or not all(_plain_label(item) for item in items):
+                return None
+            labels += [str(item.label) for item in items]
+        space = self._labels.get(labels[0]) or self.session.labels.get(labels[0])
+        if space is None and self.session.coordinates is not None:
+            space = self.session.spacetime(node.span)
+        if space is None or space.dim != len(labels) or not self._euclidean(space):
+            return None
+        return space
+
+    def _levi_civita(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term | None:
+        """``\\epsilon_{ijk}`` where nothing defines \\epsilon, with as many indices as the
+        space they range over has dimensions, a space whose metric is the identity: the
+        Levi-Civita symbol, +1 of 1, 2, 3 in any position, as in Cartesian coordinates and
+        in \\mathbb{R}^3 (decision 16 of design/notation.md). ``None`` for anything else, as
+        \\epsilon of spacetime, whose sign is a convention."""
+        space = self._levi_civita_space(node, scope)
+        if space is None:
+            return None
+        size = space.dim
+        indices = Indices([Index(name) for name in "abcdefgh"[:size]])
+        kind = TensorType(indices, (space,) * size)
+        symbol = self._call("vectors.levi_civita", [self.graph.const(size, VALUE)], kind, node.span)
+        why = (
+            f"nothing defines \\epsilon, and its {size} indices range over a space of {size} "
+            "dimensions whose metric is the identity"
+        )
+        self._decide(VECTOR, node.span, "the Levi-Civita symbol", why)
+        return self._access(TensorSource(symbol, indices, "\\epsilon"), node, scope, ctx)
 
     def _basis_vector(self, node: ast.Scripted, scope: Scope) -> Node | None:
         """``\\mathbf{e}_r`` or ``\\hat{\\mathbf{e}}_\\theta``, where nothing defines them:

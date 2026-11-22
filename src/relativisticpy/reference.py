@@ -475,6 +475,9 @@ def _vectors() -> list[str]:
         "- An equation between vectors holds component by component; `\\mathbf{0}` is the "
         "zero vector. `\\iint_{x^2 + y^2 \\le 1} f\\,dA` is over the disk, and "
         "`\\iiint_{[0, 1]^3} f\\,dV` over the cube.",
+        "- Where the metric is written as the identity, `ds^2 = dx^2 + dy^2 + dz^2`, or a "
+        "space is `\\mathbb{R}^n`, an index repeated in any position is summed, and "
+        "`\\epsilon_{ijk}` is the Levi-Civita symbol.",
     ]
 
 

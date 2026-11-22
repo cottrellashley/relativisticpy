@@ -222,6 +222,11 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   origin, `\iint_{x^2 + y^2 \le 1} f\,dA`, and over a box, `\iiint_{[0, 1]^3} f\,dV`, are
   computed. These replace the refusals of the cross product of unit vectors, of the
   derivative of a list and of the absolute value of one.
+- Cartesian tensors (`design/notation.md`, 16): where the metric in force is written as
+  the identity, `ds^2 = dx^2 + dy^2 + dz^2`, an index repeated in any position is summed,
+  as it is in a space declared as \(\mathbb{R}^n\), and there `\epsilon_{ijk}`, which
+  nothing defines, is the Levi-Civita symbol. In spacetime, where its sign is a
+  convention, it is not read yet.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

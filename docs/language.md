@@ -978,6 +978,23 @@ are x, y and z, or the variables of the function, as of `f(x, y)`.
 
 ```
 
+Where the metric in force is written as the identity, as Cartesian coordinates' line
+element is, an index may be repeated in any position and is summed, as in Cartesian
+tensors; so too in a space declared as \(\mathbb{R}^n\). There, `\epsilon_{ijk}`, which
+nothing defines, is the Levi-Civita symbol, +1 of 1, 2, 3; in spacetime, whose sign is a
+convention, it is not read yet.
+
+```python
+>>> cartesian = Workbook()
+>>> cartesian.exe(r"""
+...     ds^2 = dx^2 + dy^2 + dz^2
+...     A_{i} := [u(x, y, z), v(x, y, z), w(x, y, z)]
+...     \epsilon_{ijk} \partial_j (\epsilon_{klm} \partial_l A_m) = \partial_i \partial_j A_j - \partial_j \partial_j A_i
+... """)
+[ε_{ijk} ∂_j (ε_{klm} ∂_l A_m) = ∂_i ∂_j A_j − ∂_j ∂_j A_i: holds in all 3 components]
+
+```
+
 Of a function the program defines, written at a point rather than at its variables,
 `\nabla f(\mathbf{a})` is its gradient there, a column, and `\nabla^2 f(\mathbf{a})` its
 Hessian, as optimisation books write them, said in a note; `\Delta f` is always the

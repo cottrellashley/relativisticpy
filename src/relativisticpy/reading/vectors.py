@@ -31,12 +31,15 @@ import sympy
 from sympy import Symbol
 
 from relativisticpy.compiler.scope import Scope, VariableBinding
+from relativisticpy.diffgeom.metric import metric_from_line_element
 from relativisticpy.errors import CompileError
 from relativisticpy.ir import SCALAR, VALUE, Node, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK_VARIANTS
+from relativisticpy.reading.matrices import _known
 from relativisticpy.reading.reader import Reader
+from relativisticpy.tensors.spaces import Space
 
 #: The decision of whether a form is of vectors or of numbers.
 VECTOR = "vector or number"
@@ -251,6 +254,39 @@ class Vectors(Reader):
         listed = self._vector_of(cartesian, span)
         metric = self.graph.add(ops.Call("vectors.induced_metric", attributes), (listed,), VALUE)
         return metric, system
+
+    def _euclidean(self, space: Space) -> bool:
+        """Whether an index of ``space`` may be summed in any position: of a space whose
+        metric is the identity, and of the coordinates in force where their metric is
+        written as the identity, as Cartesian tensors are (decision 16 of
+        design/notation.md)."""
+        return super()._euclidean(space) or (space.spacetime and self._cartesian_metric())
+
+    def _cartesian_metric(self) -> bool:
+        """Whether the metric in force is written as the identity, known without computing
+        it: a line element of constant coefficients, ``ds^2 = dx^2 + dy^2 + dz^2``, or
+        ``\\operatorname{diag}(1, 1, 1)``."""
+        metric, coordinates = self.session.metric, self.session.coordinates
+        if metric is None or coordinates is None:
+            return False
+        node = metric.node
+        if not (isinstance(node.op, ops.Geometry) and node.op.quantity == "metric" and node.args):
+            return False
+        written = node.args[0]
+        if isinstance(written.op, ops.ToArray) and written.args:  # diag(1, 1, 1)
+            written = written.args[0]
+            ones = isinstance(written.op, ops.Call) and written.op.name == "diag"
+            return ones and all(_known(arg) == 1 for arg in written.args)
+        if not isinstance(written.op, ops.LineElement):
+            return False
+        value = _known(written.args[0])
+        if value is None:
+            return False
+        try:
+            matrix = metric_from_line_element(value, written.op.coordinates)
+        except (TypeError, ValueError):
+            return False
+        return bool(matrix == sympy.eye(len(coordinates)))
 
     def _frame_or_refuse(self, span: Span, what: str) -> Frame:
         """The frame of vector calculus, or the error that there is none here."""

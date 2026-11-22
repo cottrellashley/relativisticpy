@@ -97,6 +97,7 @@ With a metric in force, these names mean the tensors of its geometry, by name an
 - `\hat{\mathbf{x}}`, `\hat{x}`, `\hat{\imath}` and `\mathbf{i}`, `\mathbf{j}`, `\mathbf{k}`, which nothing defines, are Cartesian unit vectors; `\hat{\mathbf{r}}` and `\mathbf{e}_r` are those of the coordinates in force.
 - `\nabla f`, `\nabla \cdot \mathbf{v}`, `\nabla \times \mathbf{v}`, `\nabla^2 f` and `\Delta f` are of the coordinates in force, whose scale factors a line element gives, or the Cartesian coordinates written in them, or their names; without coordinates they are of x, y and z. `(\mathbf{u} \cdot \nabla)` acts on what follows it. Of a function at a point, `\nabla f(\mathbf{a})` is its gradient there and `\nabla^2 f(\mathbf{a})` its Hessian.
 - An equation between vectors holds component by component; `\mathbf{0}` is the zero vector. `\iint_{x^2 + y^2 \le 1} f\,dA` is over the disk, and `\iiint_{[0, 1]^3} f\,dV` over the cube.
+- Where the metric is written as the identity, `ds^2 = dx^2 + dy^2 + dz^2`, or a space is `\mathbb{R}^n`, an index repeated in any position is summed, and `\epsilon_{ijk}` is the Levi-Civita symbol.
 
 ## Spacetimes
 
