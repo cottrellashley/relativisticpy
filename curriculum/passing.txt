@@ -80,6 +80,7 @@ gr.spacetimes.minkowski-null
 gr.spacetimes.minkowski-spherical
 gr.spacetimes.rindler-flat
 gr.spacetimes.wormhole-energy-density
+gr.waves.linearised-riemann
 gr.waves.plane-wave
 gr.waves.tt-gauge
 la.index.free-indices
@@ -121,6 +122,7 @@ sr.kinematics.muon-lifetime
 sr.kinematics.twin-paradox
 sr.lorentz.rapidity
 sr.lorentz.velocity-addition
+sr.lorentz.velocity-composition
 statmech.canonical.schottky
 statmech.canonical.two-level-energy
 statmech.ising.ring
