@@ -56,10 +56,11 @@ def _solved(equations: Any, unknowns: tuple[Any, ...], bounds: tuple[Any, ...]) 
     :func:`relativisticpy.assumptions.ruled_out`).
 
     Each equation is one fraction with its common factors cancelled, so that a root that
-    also zeroes a factor the fraction cancels is kept, as the horizons of g^{rr} are. It is
-    solved for unknowns that assume nothing, so that what an assumption rules out is
-    known and said; where that leaves a family of solutions, as one complex equation does
-    of two real unknowns, for unknowns that keep what numbers they are, as real ones; and by
+    also zeroes a factor the fraction cancels is kept, as the horizons of g^{rr} are; but
+    not where a side, as written, is not defined (see :func:`_defined`). It is solved for
+    unknowns that assume nothing, so that what an assumption rules out is known and said;
+    where that leaves a family of solutions, as one complex equation does of two real
+    unknowns, for unknowns that keep what numbers they are, as real ones; and by
     :func:`_robustly`, so that a failure inside SymPy that another path avoids does not end
     it."""
     listed = equations if isinstance(equations, list) else [equations]
@@ -97,7 +98,51 @@ def _solved(equations: Any, unknowns: tuple[Any, ...], bounds: tuple[Any, ...]) 
         found = _put(found, back)
         if not _family(found, named):
             break
-    return _allowed(found, named, bounds)
+    return _allowed(_defined(found, listed, named), named, bounds)
+
+
+def _defined(found: Any, equations: list[Any], unknowns: list[Any]) -> Any:
+    """The solutions found, but those where a side of an equation, as written, is not
+    defined, as (x² - 1)/(x - 1) is not at 1, which its common factor cancelled would give:
+    the denominator vanishes there, and the side, its common factors cancelled, is not 0. A
+    side that is, as r²f²/(r² - 2Mr + Q²) is at a horizon, has a zero there written as 0/0,
+    which is kept. A note names the solutions dropped."""
+    sides = [
+        side
+        for equation in equations
+        for side in (
+            (equation.lhs, equation.rhs) if isinstance(equation, sympy.Equality) else (equation,)
+        )
+    ]
+    kept: list[tuple[dict[Any, Any], Any]] = []
+    dropped: list[str] = []
+    for mapping, item in _items(found, unknowns):
+        undefined = next((side for side in sides if _undefined_at(side, mapping)), None)
+        if undefined is None:
+            kept.append((mapping, item))
+        else:
+            dropped.append(f"{_shown(mapping)}, where {display.unicode(undefined)} is not defined")
+    for each in dropped:
+        assumptions.remark(f"solve dropped {each}")
+    return _rebuilt(found, kept) if dropped else found
+
+
+def _undefined_at(side: Any, mapping: dict[Any, Any]) -> bool:
+    """Whether a side of an equation is not defined at a solution: its denominator vanishes
+    there, and it is no zero written as 0/0."""
+    if not isinstance(side, sympy.Expr) or not all(isinstance(u, sympy.Symbol) for u in mapping):
+        return False
+    if not side.has(*mapping):
+        return False
+    _, denominator = sympy.fraction(sympy.together(side))
+    if _vanishes(denominator.xreplace(mapping)) is not True:
+        return False
+    if not side.is_rational_function(*mapping):
+        return True
+    numerator, rest = sympy.fraction(sympy.cancel(side))
+    if _vanishes(rest.xreplace(mapping)) is not False:
+        return True  # still divided by 0
+    return _vanishes(numerator.xreplace(mapping)) is not True
 
 
 def _domain(unknown: sympy.Symbol) -> dict[str, bool]:

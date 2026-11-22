@@ -13,6 +13,7 @@ import pytest
 import sympy
 
 from relativisticpy.cli import main
+from relativisticpy.errors import EvaluationError
 
 a, b, s, x = sympy.symbols("a b s x")
 
@@ -122,6 +123,30 @@ class TestLimits:
         assert step.values == [0]
         assert step.notes == ["assuming x ≠ 0, real; the program does not say what x is"]
         assert step.assuming == ["x ≠ 0, real"]
+
+    @pytest.mark.parametrize(
+        ("source", "said"),
+        [
+            ("limit(abs(x)/x, x, 0)", "it is -1 from below and 1 from above"),
+            ("limit(floor(x), x, 1)", "it is 0 from below and 1 from above"),
+            ("limit(sin(1/x), x, 0)", "the values keep between -1 and 1"),
+        ],
+    )
+    def test_the_function_is_from_both_sides_as_the_notation_is(self, wb, source, said):
+        with pytest.raises(EvaluationError, match="the limit does not exist") as raised:
+            wb.expr(source)
+        assert said in raised.value.message
+
+    def test_the_function_takes_a_side(self, wb):
+        assert wb.exe("limit(1/x, x, 0, '-')\nlimit(1/x, x, 0, '+')") == [-sympy.oo, sympy.oo]
+        assert wb.expr("limit(floor(x), x, 1, '-')") == 0
+        with pytest.raises(EvaluationError, match="from above, '\\+', from below, '-', or"):
+            wb.expr("limit(1/x, x, 0, 'up')")
+
+    def test_the_side_is_the_only_text_the_function_takes(self, wb):
+        for source in ("limit('1/x', x, 0)", "limit(1/x, 'x', 0)", "limit(1/x, x, '0')"):
+            with pytest.raises(EvaluationError, match="text in quotes is not a value"):
+                wb.expr(source)
 
 
 class TestTheData:

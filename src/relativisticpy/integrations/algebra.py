@@ -11,7 +11,7 @@ from typing import Any
 
 import sympy
 
-from relativisticpy import assumptions
+from relativisticpy import assumptions, display
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
 
@@ -206,19 +206,49 @@ class Integrate:
         return assumptions.integrated(f, limits, assuming)
 
 
+#: The sides a limit is taken from: above, below, or both.
+_SIDES = ("+", "-", "+-")
+
+
 @function(
     "limit",
     aliases=["lim"],
-    summary=r"`limit(f, x, a)`, as x tends to a; `\lim_{x \to a^+}` for one side",
+    summary=r"`limit(f, x, a)`, as x tends to a from both sides, as `\lim_{x \to a}` is; "
+    r"`limit(f, x, a, '-')` from below and `'+'` from above, as `\lim_{x \to a^-}`",
     examples=[
         Example("limit(sin(x)/x, x, 0)", 1, "standard"),
         Example("limit(1/x, x, oo)", 0, "standard"),
     ],
     points=[(sympy.sin(x) / x, x, 0), ((1 + 1 / x) ** x, x, sympy.oo)],
+    takes_names=True,
 )
 class Limit:
-    def exact(self, f: Any, x: Any, a: Any, dir: Any = "+") -> Any:
-        return sympy.limit(f, x, a, dir)
+    def exact(self, f: Any, x: Any, a: Any, direction: Any = "+-") -> Any:
+        """The limit of ``f`` as ``x`` tends to ``a``, as the notation takes it: from both
+        sides, where it exists, unless ``direction`` gives one, '+' from above or '-' from
+        below. The side is the only text it takes."""
+        from relativisticpy.runtime import core
+
+        if any(_text_in(each) for each in (f, x, a)):
+            raise EvaluationError(
+                "text in quotes is not a value to compute with",
+                hint="write the expression without quotes: only the side of a limit is "
+                "given in quotes, as in limit(1/x, x, 0, '-')",
+            )
+        if not isinstance(direction, str) or direction not in _SIDES:
+            raise EvaluationError(
+                "a limit is taken from above, '+', from below, '-', or from both sides, "
+                f"'+-', not {display.text(direction)}",
+                hint="for example limit(1/x, x, 0, '-')",
+            )
+        return core.limit(f, x, a, direction)
+
+
+def _text_in(value: Any) -> bool:
+    """Whether a value is text, or a list or a tuple that holds some."""
+    if isinstance(value, str):
+        return True
+    return isinstance(value, list | tuple) and any(_text_in(item) for item in value)
 
 
 @function(

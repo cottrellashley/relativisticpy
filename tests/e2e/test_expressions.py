@@ -64,7 +64,7 @@ def test_symbols(wb):
         ("simplify((x + 1)**2 - x**2)", simplify((x + 1) ** 2 - x**2)),
         ("expand((x + y)*(x - y))", expand((x + y) * (x - y))),
         ("lim((x**2 - 1)/(x - 1), x, 1)", limit((x**2 - 1) / (x - 1), x, 1)),
-        ("lim(1/x, x, 0)", limit(1 / x, x, 0)),
+        ("lim(1/x, x, 0)", limit(1 / x, x, 0, "+-")),  # from both sides, as \lim is
         ("sin(x)", sin(x)),
     ],
 )

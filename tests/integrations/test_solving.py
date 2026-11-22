@@ -84,6 +84,19 @@ class TestRobustly:
             == []
         )
 
+    @pytest.mark.parametrize(
+        ("source", "dropped"),
+        [
+            ("solve((x^2 - 1)/(x - 1) = 2, x)", "x = 1, where (x² − 1)/(x − 1) is not defined"),
+            (r"solve(\frac{x^2 - 4}{x - 2} = 4, x)",
+             "x = 2, where (x² − 4)/(x − 2) is not defined"),
+        ],
+    )  # fmt: skip
+    def test_a_root_where_a_side_is_not_defined_is_dropped(self, wb, source, dropped):
+        last = step(wb, source)
+        assert last.values == [[]]
+        assert last.notes == [f"solve dropped {dropped}"]
+
     def test_a_coefficient_that_vanishes_by_an_identity_is_dropped(self, wb):
         # Compton's equation is linear in E' only through cos^2 + sin^2 = 1: SymPy, keeping
         # the vanishing square, divides by it and finds no solution

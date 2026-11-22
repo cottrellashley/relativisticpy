@@ -198,12 +198,15 @@ def function(
     lifts: bool = True,
     scalar: bool = True,
     integers: Sequence[str] = (),
+    takes_names: bool = False,
 ) -> Callable[[type], Function]:
     """Declare a function: scalar in, scalar out. It ``lifts`` to tensors and data, applied
     to each component, unless it takes its arguments whole, as ``min`` and ``max`` do, and
     gives a ``scalar``, unless it gives another value, as ``latex`` gives text. A form
     written with a letter, as ``\\varphi(n)``, reads as it only where the parameters it
-    names as ``integers`` are integers, and prints so only there."""
+    names as ``integers`` are integers, and prints so only there. Where it ``takes_names``,
+    it is given text in quotes as it is written, as ``limit`` is the side of a limit, '-',
+    and never reads it as Python."""
     return _declare(
         Function,
         name,
@@ -217,6 +220,7 @@ def function(
         lifts=lifts,
         scalar=scalar,
         integers=integers,
+        takes_names=takes_names,
     )
 
 
