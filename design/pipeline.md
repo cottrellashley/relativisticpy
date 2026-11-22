@@ -63,7 +63,10 @@ cases, and the verdicts on Carroll's notes, statement by statement.
    check asks `typing.written.broken_rule` whether a statement surely breaks the rules
    as written. The verdict keeps its own words, which the tests and the reports pin.
 6. **Bind data in a module of its own,** with its spaces, so that the workbook only
-   orchestrates.
+   orchestrates. *Done:* `compiler.binding` binds data, and the data of Python objects,
+   into the session, with the space of each axis, and declares spaces; the lowering
+   imports it as any module, where it imported the workbook's private helpers inside its
+   functions to get round a cycle.
 7. **Turn the registry into integrations,** discovered as the design of integrations
    describes, with the conformance suite.
 

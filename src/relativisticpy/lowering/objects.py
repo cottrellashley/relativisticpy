@@ -24,6 +24,13 @@ from typing import Any, Literal
 
 import sympy
 
+from relativisticpy.compiler.binding import (
+    bind_data,
+    data_tensor,
+    in_basis_order,
+    labelled_spaces,
+    written_tensor,
+)
 from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import Context, Scope, VariableBinding
 from relativisticpy.compiler.session import Session
@@ -43,6 +50,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.quantum import Quantum
 from relativisticpy.tensors import Index, Indices, Space, numerical
+from relativisticpy.tensors.numerical import double_precision
 from relativisticpy.typing.syntax import _plain_label
 
 #: The name the lexer gives a Python object: the command, and what its braces hold.
@@ -181,8 +189,6 @@ class PythonObjects(Quantum):
     def _data_node(self, made: Data, node: ast.Name) -> Node:
         """Data as a tensor whose indices no one wrote, each axis over the space its labels
         meet, or one named after its axis or the object."""
-        from relativisticpy.workbook import _double_precision, _in_basis_order
-
         components = made.components
         complex_data = numerical.is_numerical(components) and numerical.numpy().iscomplexobj(
             components
@@ -197,14 +203,14 @@ class PythonObjects(Quantum):
             space = self._object_space(written, axis, rank, size, basis, name, field)
             if basis is not None and space.basis is not None and basis != space.basis:
                 what = f"axis {axis + 1} of {node.span.text}"
-                components = _in_basis_order(components, axis, basis, space, what)
+                components = in_basis_order(components, axis, basis, space, what)
             spaces.append(space)
         reader = self.session.objects
         if reader is not None and reader.backend == "jax" and not numerical.is_sparse(components):
             import jax
             import jax.numpy as jnp
 
-            _double_precision(jax)
+            double_precision(jax)
             components = jnp.asarray(components)
         indices = Indices(Index(_unwritten(axis)) for axis in range(rank))
         return self.graph.const(components, TensorType(indices, tuple(spaces)), node.span)
@@ -240,8 +246,6 @@ class PythonObjects(Quantum):
         r"""``\texttt{signal}_t``: data read from an object, with the indices written on it,
         each axis over a space as ``x_t := \texttt{signal}`` would have it; an index written
         twice is summed, as on any tensor."""
-        from relativisticpy.workbook import _data_tensor
-
         base = node.base
         assert isinstance(base, ast.Name)
         if isinstance(made, Array):
@@ -258,7 +262,7 @@ class PythonObjects(Quantum):
         reader = self.session.objects
         backend = reader.backend if reader is not None else "numpy"
         data = (made.components, made.bases, made.names)
-        tensor, indices = _data_tensor(
+        tensor, indices = data_tensor(
             self.session, node.span.text, base.id, written, data, backend, node.span, self._labels
         )
         assert isinstance(tensor.type, TensorType)
@@ -279,10 +283,8 @@ class PythonObjects(Quantum):
         """The space an axis of data read from an object ranges over: one in use whose
         elements are its labels, the one its name names, or one of its own, named after its
         axis, or the object's."""
-        from relativisticpy.workbook import _labelled_spaces
-
         if basis is not None:
-            for space in _labelled_spaces(self.session, "", "#", ()):
+            for space in labelled_spaces(self.session, "", "#", ()):
                 if space.dim == size and sorted(space.basis or ()) == sorted(basis):
                     return space
         if name is not None:
@@ -314,8 +316,6 @@ class PythonObjects(Quantum):
     def _bind_object(self, target: ast.Expr, made: Data | Array, span: Span) -> bool:
         """Bind data, or a vector or a matrix, to a target written with indices, by the rules
         by which ``wb[...] = data`` binds it; whether the target writes indices."""
-        from relativisticpy.workbook import _bind_data, _tensor_written
-
         if isinstance(made, Data):
             data = (made.components, made.bases, made.names)
         else:
@@ -324,7 +324,7 @@ class PythonObjects(Quantum):
             data = (components, (None,) * rank, (None,) * rank)
         written = target.span.text
         try:
-            tensor = _tensor_written(written, len(getattr(data[0], "shape", ())))
+            tensor = written_tensor(written, len(getattr(data[0], "shape", ())))
         except RelativisticPyError:  # no target to bind data to: the definition says why
             return False
         if tensor is None:
@@ -332,7 +332,7 @@ class PythonObjects(Quantum):
         name, entries = tensor
         reader = self.session.objects
         backend = reader.backend if reader is not None else "numpy"
-        _bind_data(self.session, written, name, entries, data, backend, span)
+        bind_data(self.session, written, name, entries, data, backend, span)
         return True
 
     # -- calling ------------------------------------------------------------------------

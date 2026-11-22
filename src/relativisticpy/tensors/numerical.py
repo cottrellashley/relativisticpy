@@ -66,6 +66,13 @@ def is_jax(value: Any) -> bool:
     return (type(value).__module__ or "").split(".")[0] in ("jax", "jaxlib")
 
 
+def double_precision(jax: Any) -> None:
+    """Turn on JAX's 64-bit numbers, which numerical work needs: by default JAX
+    computes in 32 bits."""
+    if not jax.config.read("jax_enable_x64"):
+        jax.config.update("jax_enable_x64", True)
+
+
 def _xp(*values: Any) -> Any:
     """The array module of the values: JAX's for JAX arrays, NumPy's otherwise."""
     if any(is_jax(value) for value in values):

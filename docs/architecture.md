@@ -16,7 +16,7 @@ Each stage has one job, its own tests, and a module of its own:
 | Reader | `relativisticpy.reading` | what each name and each ambiguous form means, with a note where it could surprise |
 | Typer | `relativisticpy.typing` | the rules of index notation and spaces: free and summed indices, positions, spaces |
 | Lowerer | `relativisticpy.lowering` | the IR of each statement, a closed graph of named operations, computing nothing |
-| Compiler | `relativisticpy.compiler` | the three passes over a statement, the session and the scope |
+| Compiler | `relativisticpy.compiler` | the three passes over a statement, the session and the scope, and the data bound into them |
 | IR | `relativisticpy.ir` | a graph of typed operations, interned |
 | Executor | `relativisticpy.runtime` | computes the values outputs need, cached, in parallel |
 | Algebra | `relativisticpy.tensors`, `relativisticpy.diffgeom` | tensors, contraction, curvature, simplification |
@@ -168,6 +168,13 @@ space's metric: where it is the identity, an index may be summed in any position
 Expectations bind their index, so that factors share it, and are contracted with the
 measure of its space in the same contraction as the factors. Products with an inverse
 become linear solves.
+
+Data bound from Python, as `wb["R_{ta}"] = returns`, and the data of a Python object a
+definition names, as `P_{ta} := \texttt{prices}`, are bound into the session by
+`relativisticpy.compiler.binding`: each axis over a space, by the rules of
+`Workbook.__setitem__`, and data labelled by pandas in the order of its space's basis.
+The spaces `Workbook.space` declares are declared there too, and the workbook only
+orchestrates: it compiles text bound to a name, and hands everything else to the module.
 
 ## The IR
 

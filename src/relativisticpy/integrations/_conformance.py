@@ -559,9 +559,9 @@ def _map_jax(capability: Capability, point: tuple[Any, ...], expected: Any) -> l
         return []
     import numpy as np
 
-    from relativisticpy.workbook import _double_precision
+    from relativisticpy.tensors.numerical import double_precision
 
-    _double_precision(jax)
+    double_precision(jax)
     arrays = tuple(jnp.asarray(np.asarray(value, dtype=float)) for value in point)
     try:
         found = np.asarray(_numerically(capability, arrays, jnp), dtype=complex)
