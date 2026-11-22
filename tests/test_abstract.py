@@ -212,3 +212,50 @@ class TestDisplay:
         assert str(equation) == r"T_{\mu\nu} = \Lambda g_{\mu\nu}"
         assert not equation.holds()
         assert IndexEquation(Ricci(mu, nu), Ricci(nu, mu), space).holds()
+
+
+class TestTruth:  # API-1, API-11, API-34
+    def test_an_equation_is_true_when_it_holds(self):
+        assert not IndexEquation(T(mu, nu), Lam * g(mu, nu), space)
+        assert IndexEquation(Ricci(mu, nu), Ricci(nu, mu), space)
+
+    def test_an_expression_compares_with_numbers_and_scalars(self):
+        cyclic = Riemann(rho, sigma, mu, nu) + Riemann(rho, mu, nu, sigma)
+        cyclic = IndexExpression(cyclic + Riemann(rho, nu, sigma, mu), space)
+        assert cyclic == 0
+        assert cyclic.is_zero
+        assert cyclic.holds()
+        assert not cyclic  # zero, as SymPy's is, is false
+        trace_of_einstein = IndexExpression(Einstein(up(mu), mu), space)
+        assert trace_of_einstein == -R
+        assert trace_of_einstein != R
+        assert IndexExpression(T(mu, nu), space) != 0  # free indices: no scalar
+
+    def test_equal_values_hash_alike(self):
+        one = IndexEquation(T(mu, nu), Lam * g(mu, nu), space)
+        other = IndexEquation(Lam * g(mu, nu), T(mu, nu), space)
+        assert one == other
+        assert len({one, other}) == 1
+        zero = IndexExpression(Ricci(mu, nu) - Ricci(nu, mu), space)
+        assert hash(zero) == hash(0)
+
+    def test_the_algebra_shows_itself(self):
+        assert repr(Algebra(dim=3)) == "Algebra(dim=3, metric g, Ricci scalar R, no tensors)"
+        assert repr(space).startswith("Algebra(dim=4, metric g, Ricci scalar R, ")
+        fresh = Algebra(dim=4)
+        fresh.head("T", 2)
+        assert repr(fresh) == "Algebra(dim=4, metric g, Ricci scalar R, 1 tensor: T)"
+        equation = IndexEquation(T(mu, nu), Lam * g(mu, nu), space)
+        assert equation.algebra is equation.space is space
+        assert space.index("a", upper=True) == -space.index("a")
+
+
+class TestForms:  # API-19
+    def test_unicode_and_text(self):
+        equation = IndexEquation(Einstein(mu, nu) + Lam * g(mu, nu), 8 * pi * G * T(mu, nu), space)
+        assert repr(equation) == "IndexEquation(G_{μν} + Λ g_{μν} = 8π G T_{μν})"
+        assert equation.display("text") == r"G_{\mu\nu} + \Lambda*g_{\mu\nu} = 8*pi*G*T_{\mu\nu}"
+        assert str(equation) == r"G_{\mu\nu} + \Lambda g_{\mu\nu} = 8 \pi G T_{\mu\nu}"
+        assert repr(IndexExpression(-R, space)) == "IndexExpression(−R)"
+        fluid = IndexExpression((rho_ + p) * u(mu) * u(nu) + p * g(mu, nu), space)
+        assert fluid.display("unicode") == "(p + ρ) u_μ u_ν + p g_{μν}"

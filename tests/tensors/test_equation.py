@@ -106,6 +106,7 @@ class TestHolds:  # API-1, DOC-8
         notation = Workbook().expr(r"R_{\mu\nu} = 0")
         assert isinstance(notation, IndexEquation)
         assert holds(notation) is False
+        assert bool(notation) is False
 
     def test_failures_are_keyed_by_coordinate(self):  # API-23
         t = sympy.Symbol("t")

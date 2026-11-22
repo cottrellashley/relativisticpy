@@ -38,8 +38,9 @@ from sympy.tensor.tensor import (
     TensorSymmetry,
 )
 
+from relativisticpy.display import _LatexPrinter, _PlainPrinter, text_name, unicode_name
 from relativisticpy.errors import CompileError
-from relativisticpy.tensors.indices import latex_label
+from relativisticpy.tensors.indices import latex_label, scripts, text_label, unicode_label
 
 #: A value in abstract index notation: a SymPy tensor expression, or a scalar.
 Value = Any
@@ -63,7 +64,11 @@ _DUMMY_LABELS = (
 
 class Algebra:
     """The tensors of a computation in ``dim`` dimensions: their indices, the metric
-    and Kronecker delta, and a head for every tensor by name and rank."""
+    and Kronecker delta, and a head for every tensor by name and rank.
+
+    >>> Algebra(dim=3)
+    Algebra(dim=3, metric g, Ricci scalar R, no tensors)
+    """
 
     def __init__(self, dim: int = 4, *, metric: str = "g", ricci_scalar: str = "R") -> None:
         self.dim = dim
@@ -75,7 +80,20 @@ class Algebra:
         self._quantities: dict[TensorHead, str] = {}
         self._indices: dict[str, TensorIndex] = {}
 
-    def index(self, label: str, upper: bool) -> TensorIndex:
+    def __repr__(self) -> str:
+        names = sorted({name for name, _ in self._heads})
+        tensors = (
+            f"{len(names)} tensor{'s' if len(names) != 1 else ''}: {', '.join(names)}"
+            if names
+            else "no tensors"
+        )
+        return (
+            f"Algebra(dim={self.dim}, metric {self.metric.name}, "
+            f"Ricci scalar {self.ricci_scalar}, {tensors})"
+        )
+
+    def index(self, label: str, upper: bool = False) -> TensorIndex:
+        """The index ``label``, upper or lower: ``algebra.index("a", upper=True)``."""
         index = self._indices.get(label)
         if index is None:
             index = self._indices[label] = TensorIndex(label, self.type)
@@ -617,14 +635,25 @@ def _substitute_scalar(value: Value, symbol: Symbol, by: Expr) -> Value:
 def latex(value: Value) -> str:
     """Typeset a value in index notation, as in
     ``\\frac{G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu}}{8 \\pi G}``."""
+    return notation(value, "latex")
+
+
+def notation(value: Value, form: str = "unicode") -> str:
+    """A value in index notation in one of the forms of :mod:`relativisticpy.display`:
+    ``G_{μν} + Λ g_{μν}`` in Unicode, ``G_{\\mu\\nu} + \\Lambda*g_{\\mu\\nu}`` as text and
+    ``G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu}`` in LaTeX."""
+    if form not in ("unicode", "text", "latex"):
+        raise ValueError(f"the forms are unicode, text and latex, not {form!r}")
     if not isinstance(value, TensExpr):
-        return str(_Printer({}).doprint(value))
+        if form == "latex":
+            return str(_Printer({}).doprint(value))
+        return str(_PlainNotation({}, {}, unicode=form == "unicode").doprint(value))
     placeholders: dict[str, Symbol] = {}
     names: dict[Symbol, str] = {}
     ranks: dict[Symbol, tuple[bool, int]] = {}
     coefficients: dict[Symbol, Expr] = {}
     for coefficient, tensors in terms(value):
-        text = _product_latex(tensors)
+        text = _product(tensors, form)
         placeholder = placeholders.get(text)
         if placeholder is None:
             placeholder = placeholders[text] = Symbol(f"zz{len(placeholders):04d}")
@@ -633,8 +662,12 @@ def latex(value: Value) -> str:
             ranks[placeholder] = (all(map(_is_metric, tensors)), -len(tensors))
         coefficients[placeholder] = coefficients.get(placeholder, sympy.S.Zero) + coefficient
     coefficients = {tensor: _cancelled(c) for tensor, c in coefficients.items()}
-    printer = _Printer(names, ranks)
-    return str(printer.doprint(printer.factored(coefficients)))
+    printer: _Printer | _PlainNotation
+    if form == "latex":
+        printer = _Printer(names, ranks)
+    else:
+        printer = _PlainNotation(names, ranks, unicode=form == "unicode")
+    return str(printer.doprint(_factored(coefficients, printer._order)))
 
 
 def _is_metric(tensor: Tensor) -> bool:
@@ -642,7 +675,35 @@ def _is_metric(tensor: Tensor) -> bool:
     return tensor.head in (index_type.metric, index_type.delta)
 
 
-class _Printer(LatexPrinter):  # type: ignore[misc]
+def _factored(coefficients: dict[Symbol, Expr], order: Any) -> Expr:
+    """The sum of each tensor times its coefficient, with a factor common to every
+    coefficient taken out so that the first term's is 1, as in
+    :math:`\\frac{1}{8\\pi G}(G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu})`."""
+    coefficients = {tensor: c for tensor, c in coefficients.items() if c != 0}
+    total = sympy.Add(*(c * tensor for tensor, c in coefficients.items()))
+    if len(coefficients) < 2:
+        return total
+    shared = sympy.factor_terms(
+        sympy.Add(*(c.as_coeff_Mul()[1] * tensor for tensor, c in coefficients.items()))
+    )
+    symbolic = shared.as_independent(*coefficients, as_Add=False)[0]
+    if symbolic == 1:  # only a number in common: leave the coefficients as they are
+        return total
+    first = min(coefficients, key=lambda tensor: order(coefficients[tensor] * tensor))
+    common = coefficients[first].as_coeff_Mul()[0] * symbolic
+    return sympy.Mul(common, sympy.Add(*(c / common * t for t, c in coefficients.items())))
+
+
+def _term_order(
+    ranks: dict[Symbol, tuple[bool, int]], term: Expr
+) -> tuple[tuple[bool, int], int, bool]:
+    tensors = term.free_symbols & ranks.keys()
+    rank = min((ranks[tensor] for tensor in tensors), default=(False, 0))
+    scalars = len(term.free_symbols - ranks.keys())
+    return rank, scalars, term.could_extract_minus_sign()
+
+
+class _Printer(_LatexPrinter):
     """SymPy's LaTeX as a physicist writes it, as in ``(\\rho + p) u_{\\mu} u_{\\nu} + p
     g_{\\mu\\nu}`` and ``R_{\\mu\\nu} - \\frac{1}{2} R g_{\\mu\\nu}``: coefficients before
     tensors, terms in the order of their tensors' ``ranks`` and then the simplest first, and
@@ -656,31 +717,14 @@ class _Printer(LatexPrinter):  # type: ignore[misc]
         self._ranks = ranks or {}
 
     def factored(self, coefficients: dict[Symbol, Expr]) -> Expr:
-        """The sum of each tensor times its coefficient, with a factor common to every
-        coefficient taken out so that the first term's is 1, as in
-        :math:`\\frac{1}{8\\pi G}(G_{\\mu\\nu} + \\Lambda g_{\\mu\\nu})`."""
-        coefficients = {tensor: c for tensor, c in coefficients.items() if c != 0}
-        total = sympy.Add(*(c * tensor for tensor, c in coefficients.items()))
-        if len(coefficients) < 2:
-            return total
-        shared = sympy.factor_terms(
-            sympy.Add(*(c.as_coeff_Mul()[1] * tensor for tensor, c in coefficients.items()))
-        )
-        symbolic = shared.as_independent(*coefficients, as_Add=False)[0]
-        if symbolic == 1:  # only a number in common: leave the coefficients as they are
-            return total
-        first = min(coefficients, key=lambda tensor: self._order(coefficients[tensor] * tensor))
-        common = coefficients[first].as_coeff_Mul()[0] * symbolic
-        return sympy.Mul(common, sympy.Add(*(c / common * t for t, c in coefficients.items())))
+        """See :func:`_factored`."""
+        return _factored(coefficients, self._order)
 
     def _as_ordered_terms(self, expr: Expr, order: Any = None) -> list[Expr]:
-        return sorted(super()._as_ordered_terms(expr, order=order), key=self._order)
+        return sorted(LatexPrinter._as_ordered_terms(self, expr, order=order), key=self._order)
 
     def _order(self, term: Expr) -> tuple[tuple[bool, int], int, bool]:
-        tensors = term.free_symbols & self._ranks.keys()
-        rank = min((self._ranks[tensor] for tensor in tensors), default=(False, 0))
-        scalars = len(term.free_symbols - self._ranks.keys())
-        return rank, scalars, term.could_extract_minus_sign()
+        return _term_order(self._ranks, term)
 
     def _print_Mul(self, expr: Expr) -> str:
         tensors = [arg for arg in expr.args if arg in self._ranks]
@@ -700,6 +744,43 @@ class _Printer(LatexPrinter):  # type: ignore[misc]
         return str(super()._print_Mul(expr))
 
 
+class _PlainNotation(_PlainPrinter):
+    """Index notation on one line, in Unicode or as text: ``R_{μν} − ½ R g_{μν}`` is
+    ``R_{μν} − 1/2 R g_{μν}``, with the order of terms of :class:`_Printer`."""
+
+    def __init__(
+        self,
+        names: dict[Symbol, str],
+        ranks: dict[Symbol, tuple[bool, int]],
+        *,
+        unicode: bool,
+    ) -> None:
+        super().__init__(unicode=unicode, latex_mode=not unicode, names=names)
+        self._ranks = ranks
+
+    def _as_ordered_terms(self, expr: Expr, order: Any = None) -> list[Expr]:
+        return sorted(expr.as_ordered_terms(), key=self._order)
+
+    def _order(self, term: Expr) -> tuple[tuple[bool, int], int, bool]:
+        return _term_order(self._ranks, term)
+
+    def _print_Mul(self, expr: Expr) -> str:
+        tensors = [arg for arg in expr.args if arg in self._ranks]
+        if not tensors:
+            return str(super()._print_Mul(expr))
+        scalar = sympy.Mul(*(arg for arg in expr.args if arg not in self._ranks))
+        text = " ".join(self._print(tensor) for tensor in tensors)
+        minus = "−" if self.unicode else "-"
+        if scalar in (1, -1):
+            return text if scalar == 1 else f"{minus}{text}"
+        if scalar.could_extract_minus_sign() and not scalar.is_Add:
+            return minus + self._print_Mul(-expr)
+        written = self._print(scalar)
+        if scalar.is_Add:
+            written = f"({written})"
+        return f"{written} {text}" if self.unicode else f"{written}*{text}"
+
+
 def latex_labels(labels: Sequence[str]) -> str:
     """Index labels side by side as LaTeX: ``\\mu\\nu`` and ``ab``, but ``\\mu a``, since
     ``\\mua`` would be a command of its own."""
@@ -712,6 +793,11 @@ def latex_labels(labels: Sequence[str]) -> str:
 
 
 def _product_latex(tensors: Sequence[Tensor]) -> str:
+    """Tensors multiplied, in LaTeX; see :func:`_product`."""
+    return _product(tensors, "latex")
+
+
+def _product(tensors: Sequence[Tensor], form: str) -> str:
     """Tensors multiplied, with dummy indices named as a physicist would: Greek letters,
     then, for products with more dummies than those, the letters numbered."""
     used = {index.name for tensor in tensors for index in tensor.indices}
@@ -720,75 +806,162 @@ def _product_latex(tensors: Sequence[Tensor]) -> str:
     available = (label for label in candidates if label not in used)
     labels: dict[str, str] = {}
     pieces = []
+    label_in = {"unicode": unicode_label, "text": text_label, "latex": latex_label}[form]
     for tensor in tensors:
-        runs: list[tuple[str, list[str]]] = []  # consecutive indices in one position
+        positions, written = [], []
         for index in tensor.indices:
             if index.name.startswith("L_") and index.name not in labels:
                 labels[index.name] = next(available)
-            label = labels.get(index.name, index.name)
-            kind = "^" if index.is_up else "_"
-            if runs and runs[-1][0] == kind:
-                runs[-1][1].append(label)
-            else:
-                runs.append((kind, [label]))
-        name = r"\delta" if tensor.head.name == "KD" else latex_label(tensor.head.name)
-        scripts = "{}".join(f"{kind}{{{latex_labels(parts)}}}" for kind, parts in runs)
-        pieces.append(name + scripts)
+            positions.append(bool(index.is_up))
+            written.append(label_in(labels.get(index.name, index.name)))
+        if tensor.head.name == "KD":
+            name = "δ" if form == "unicode" else r"\delta"
+        elif form == "unicode":
+            name = unicode_name(tensor.head.name)
+        elif form == "latex":
+            name = latex_label(tensor.head.name)
+        else:
+            name = text_name(tensor.head.name, latex_mode=True)
+        pieces.append(name + scripts(positions, written, form))  # type: ignore[arg-type]
     return " ".join(pieces)
 
 
 @dataclass(frozen=True, eq=False)
 class IndexExpression:
-    """An expression in abstract index notation, such as :math:`8\\pi G\\,T_{\\mu\\nu}`."""
+    """An expression in abstract index notation, such as :math:`8\\pi G\\,T_{\\mu\\nu}`.
+
+    It compares with others and with scalars by canonical forms, so that a simplified
+    identity is zero: ``simplify(R_{a b c d} + R_{a c d b} + R_{a d b c}) == 0``. As for
+    any number, it is true in a boolean context when it is not zero; :attr:`is_zero`
+    says so plainly, and :meth:`holds` reads it as the claim that it vanishes."""
 
     value: Value
     space: Algebra
 
+    @property
+    def algebra(self) -> Algebra:
+        """The tensors of the computation it belongs to (also ``space``)."""
+        return self.space
+
     def latex(self) -> str:
         return latex(self.value)
 
+    def display(self, form: str = "unicode") -> str:
+        """The expression in a form of :mod:`relativisticpy.display`."""
+        return notation(self.value, form)
+
+    def _display_unicode(self) -> str:
+        return self.display("unicode")
+
+    def _display_text(self) -> str:
+        return self.display("text")
+
+    def _display_latex(self) -> str:
+        return self.display("latex")
+
+    def _display_data(self) -> dict[str, Any]:
+        return {"kind": "index expression", "is_zero": self.is_zero}
+
     def __str__(self) -> str:
-        return self.latex()
+        return self.latex()  # LaTeX, as it always has been; repr is Unicode
 
     def __repr__(self) -> str:
-        return f"IndexExpression({self.latex()})"
+        return f"IndexExpression({self.display('unicode')})"
 
     def _repr_latex_(self) -> str:
         return f"$\\displaystyle {self.latex()}$"
 
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, IndexExpression):
-            return NotImplemented
-        if not _same_free(self.value, other.value):
-            return False
-        return _vanishes(self.value - other.value, self.space)
+    def _latex(self, printer: Any = None) -> str:
+        return self.latex()
 
-    __hash__ = object.__hash__
+    @property
+    def is_zero(self) -> bool:
+        """Whether the expression vanishes identically, by canonical forms."""
+        return _vanishes(self.value, self.space)
+
+    def holds(self) -> bool:
+        """Whether the expression vanishes identically: an expression read as the claim
+        that it is zero, as a simplified identity is written."""
+        return self.is_zero
+
+    def __bool__(self) -> bool:
+        """Whether the expression is not zero, as for any number."""
+        return not self.is_zero
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, IndexExpression):
+            if not _same_free(self.value, other.value):
+                return False
+            return _vanishes(self.value - other.value, self.space)
+        if isinstance(other, int | float | sympy.Expr) and not isinstance(other, bool):
+            scalar = sympy.sympify(other)
+            if scalar == 0:  # zero has whatever indices the other side has
+                return self.is_zero
+            if free(self.value):
+                return False
+            return _vanishes(self.value - scalar, self.space)
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        reduced = canonical(self.value, self.space)
+        if not isinstance(reduced, TensExpr):
+            return hash(reduced)  # as the scalar it equals
+        return hash(("IndexExpression", _free_key(reduced)))
 
 
 @dataclass(frozen=True, eq=False)
 class IndexEquation:
-    """An equation in abstract index notation, such as Einstein's."""
+    """An equation in abstract index notation, such as Einstein's.
+
+    :meth:`holds` says whether it is an identity, and ``bool()`` agrees with it."""
 
     lhs: Value
     rhs: Value
     space: Algebra
 
+    @property
+    def algebra(self) -> Algebra:
+        """The tensors of the computation it belongs to (also ``space``)."""
+        return self.space
+
     def latex(self) -> str:
         return f"{latex(self.lhs)} = {latex(self.rhs)}"
 
+    def display(self, form: str = "unicode") -> str:
+        """The equation in a form of :mod:`relativisticpy.display`."""
+        return f"{notation(self.lhs, form)} = {notation(self.rhs, form)}"
+
+    def _display_unicode(self) -> str:
+        return self.display("unicode")
+
+    def _display_text(self) -> str:
+        return self.display("text")
+
+    def _display_latex(self) -> str:
+        return self.display("latex")
+
+    def _display_data(self) -> dict[str, Any]:
+        return {"kind": "index equation", "holds": self.holds()}
+
     def __str__(self) -> str:
-        return self.latex()
+        return self.latex()  # LaTeX, as it always has been; repr is Unicode
 
     def __repr__(self) -> str:
-        return f"IndexEquation({self.latex()})"
+        return f"IndexEquation({self.display('unicode')})"
 
     def _repr_latex_(self) -> str:
         return f"$\\displaystyle {self.latex()}$"
 
+    def _latex(self, printer: Any = None) -> str:
+        return self.latex()
+
     def holds(self) -> bool:
         """Whether the equation is an identity, by canonical forms."""
         return _vanishes(self.lhs - self.rhs, self.space)
+
+    def __bool__(self) -> bool:
+        """Whether the equation is an identity: see :meth:`holds`."""
+        return self.holds()
 
     def __eq__(self, other: object) -> bool:
         """Equations are equal when they say the same: their sides differ alike."""
@@ -799,4 +972,10 @@ class IndexEquation:
             return False
         return _vanishes(mine - theirs, self.space) or _vanishes(mine + theirs, self.space)
 
-    __hash__ = object.__hash__
+    def __hash__(self) -> int:
+        # Equal equations have sides that differ by the same free indices.
+        return hash(("IndexEquation", _free_key(self.lhs - self.rhs)))
+
+
+def _free_key(value: Value) -> frozenset[tuple[str, bool]]:
+    return frozenset((index.name, bool(index.is_up)) for index in free(value))
