@@ -25,6 +25,7 @@ how the language treats it:
 | `constructor` | builds an object the language works with | `Schwarzschild`, `Eq`, `symbols` |
 | `transform` | a function of a variable in, a function of another out; or data over an index in, data over a new space out | `LaplaceTransform`, `FourierTransform`, `fft` |
 | `rewrite` | a faster computation of what a program writes, to the same numbers | the DFT written as its sum, computed by `fft` |
+| `optimizer` | a problem of optimisation in, its optimum out, with how it was found and whether it is global | SymPy's stationary points and simplex method, SciPy's `linprog` and `minimize` |
 | `python_object` | what a Python object read by name, `\texttt{prices}`, becomes | NumPy arrays, pandas tables, SymPy expressions, functions |
 
 The decorator takes, by name:
@@ -67,6 +68,45 @@ A `rewrite` declares, in its `latex` form, the sum it stands for, and the capabi
 given the kernel of a sum over data in the positions of its two indices, gives the factor
 by which the sum is that computation, or `None`. The DFT written as its sum,
 \(\sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}\), is so computed by `fft`.
+
+An `optimizer` finds the optimum of a `Problem`: the greatest or least value of an
+objective, a SymPy expression of its variables, real or whole numbers, subject to
+equalities, each 0 where it holds, and inequalities, each at least 0. Its class has a
+`takes(self, problem)` method, which says whether it solves a problem, and an
+`optimum(self, problem)` method, which gives a `Found`, the value, the point, how it was
+found and whether it is proven global, or `None`, so that the next optimizer is asked. It
+declares `problems` it is checked at, and `numerical=True` where its answers are numbers
+found numerically. An optimum a program writes, `\min_{x} f(x)`, is never a call: the
+optimizers are asked in turn as it runs, the exact ones first. SymPy's are in
+`integrations/sympy_optima.py`, and SciPy's in `integrations/scipy_optimize.py`:
+
+```python
+>>> import sympy
+>>> from relativisticpy import integrations
+>>> from relativisticpy.integrations import Example, Found, Problem, optimizer
+>>> x = sympy.Symbol("x", real=True)
+>>> @optimizer(
+...     "vertex",
+...     summary="the vertex of a parabola, at -b/2a",
+...     problems=[Problem("min", x**2 - 4*x + 7, (x,))],
+...     examples=[
+...         Example(r"\min_{x} \left(x^2 - 4x + 7\right)", 3, "standard: (x - 2)^2 + 3"),
+...         Example(r"\arg\min_{x} \left(x^2 - 2x\right)", 1, "standard: (x - 1)^2 - 1"),
+...     ],
+... )
+... class Vertex:
+...     def takes(self, problem):
+...         return problem.degree() == 2 and len(problem.variables) == 1
+...
+...     def optimum(self, problem):
+...         (v,) = problem.variables
+...         a, b = sympy.Poly(problem.objective, v).all_coeffs()[:2]
+...         point = -b / (2 * a)
+...         return Found(problem.at((point,)), (point,), "at -b/2a", proven=bool(a > 0))
+>>> integrations.check(Vertex, ["feasibility", "optimality"])
+{'feasibility': [], 'optimality': []}
+
+```
 
 ## Written forms
 
@@ -159,16 +199,19 @@ declarations.
 
 ## The conformance suite
 
-`tests/integrations` runs nine checks for every capability the scan finds, each where it
+`tests/integrations` runs eleven checks for every capability the scan finds, each where it
 applies to its kind. A failure names the capability and says what to do:
 
 1. **Declaration.** Its names are its own, and the language reads each as one name; it
    has a summary, at least two examples, each with its source, and declares the library
    it needs, which is imported only when it is used.
-2. **Examples.** Each runs in the language, calls the capability, and gives its answer.
+2. **Examples.** Each runs in the language, calls the capability, and gives its answer;
+   an optimizer's is found by it.
 3. **Agreement.** `exact` and `numeric` agree at each point, `numeric` takes arrays of the
    points at once, and JAX agrees with NumPy where it is installed; of a function of a
-   matrix, entry by entry, at each matrix.
+   matrix, entry by entry, at each matrix; of an optimizer, at each problem it declares,
+   the optimizers of the other kind, exact or numeric, that take it find the same value,
+   and none a better one than an optimum proven global.
 4. **Lifting.** A function applied to a tensor, or to data, gives its value at each
    component, over the same space; a function of a matrix, applied to a map, gives its
    value at the map's matrix, a number or a map over the same space.
@@ -184,6 +227,12 @@ applies to its kind. A failure names the capability and says what to do:
    result is over a space of the size and the labels it declares.
 9. **Rewrite.** Each example of a rewrite is computed by what it names, and gives the
    numbers it gives computed as written.
+10. **Feasibility.** At each problem an optimizer declares, the point it reports keeps
+    every constraint, and the value it reports is the objective there.
+11. **Optimality.** At that point, the conditions of optimality hold: of a smooth problem,
+    the KKT conditions, the gradient of the objective a combination of the gradients of the
+    constraints that hold there with equality, with multipliers of the right signs; over
+    finitely many points, no feasible point is better.
 
 A capability that breaks the pattern is told, for instance:
 

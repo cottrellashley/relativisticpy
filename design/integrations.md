@@ -33,7 +33,8 @@ of the conformance suite.
 | map function | acts on a map, a tensor with one index up and one down | `\exp(H)`, `\sqrt{\Sigma}`, inverses, `\operatorname{eig}` |
 | reduction | binds an index, as a sum does | `\mathbb{E}_t`, `\operatorname{Var}_t`, `\operatorname{LedoitWolf}_t` |
 | transform | acts on a function of a variable | Fourier, Laplace, Hilbert |
-| solver | equations in, solutions out | `solve`, `dsolve`, ODE integration, roots, optimisation |
+| solver | equations in, solutions out | `solve`, `dsolve`, ODE integration, roots |
+| optimizer | a problem of optimisation in, its optimum out, with how it was found and whether it is global | SymPy's stationary points, KKT conditions and simplex method; SciPy's `linprog`, `milp` and `minimize` |
 | constructor | builds an object the language works with | spacetimes, distributions, spaces |
 | backend | an array library | NumPy, JAX, CuPy, PyTorch, Dask, through the Python array API standard |
 | object | what a Python object, read by name, becomes | NumPy, JAX, CuPy and PyTorch arrays; pandas, polars and Arrow tables; xarray with its named dimensions; SciPy sparse matrices; SymPy expressions; Python functions |

@@ -202,6 +202,21 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   make, a scale positive, with a note and the step's `assuming`. `solve` drops
   the solutions an assumption rules out, saying which, and takes another path
   where SymPy fails inside itself; `dsolve` takes conditions written `y(0) = y_0`.
+- Optima as books write them: `\max_{x}`, `\min_{x \in S}`, `\sup_{0 \le x < 1}`,
+  `\inf_{x > 0}`, and where they are, `\arg\max_{x, y}`, `\operatorname*{arg\,min}_w` and
+  `\underset{x}{\min}`, in plain text `min_{x}`, with the set or the conditions of the
+  variables beneath the operator, in `\substack` too, and constraints after "subject to"
+  or "s.t.", on the line or the lines after it. Over an index of data, an optimum is the
+  greatest or least value along it, and `\arg\max` its label; over variables, real, whole
+  numbers, vectors and tensors, it is found by optimizers, a new kind of capability: SymPy's
+  first, exactly, from stationary points and the ends of a domain, the Lagrange and KKT
+  conditions, the simplex method, or every point of a finite domain; then SciPy's,
+  `linprog` and `milp`, convex quadratic programs, and `minimize`, which take first a
+  problem written with decimals. A note says which found it and whether it is global, and
+  where the answer depends on signs a program does not say, it is found with the fewest
+  parameters positive, as books take them. The conformance suite checks that an optimum
+  reported is feasible, that the KKT conditions hold at it, and that exact and numeric
+  optimizers agree. `A \succ 0` and `w \succeq 0` are generalized inequalities.
 
 ### Changed
 

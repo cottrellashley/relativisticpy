@@ -378,6 +378,29 @@ True
 
 ```
 
+## Optima over an index
+
+An optimum over an index of data binds the index, as a sum does, and is the greatest or the
+least value along it, for each value of any other index; `\arg\max` and `\arg\min` give the
+label of the element where it is, a number where the label is one, or else its position.
+Where several elements share it, the first is given, and a note says so. An optimum over
+variables is found by the optimizers (see [the language](language.md#optima)):
+
+```python
+>>> signal.exe(r"""
+...     \max_t y_t
+...     \arg\min_t y_t
+... """)
+[2.0, 3]
+>>> grid.expr(r"\arg\max_n \sin(\pi x_n)")
+4
+>>> assets = Workbook()
+>>> assets["R_{ta}"] = np.array([[0.01, 0.02, -0.01], [0.03, -0.02, 0.0]])
+>>> assets.expr(r"\max_t R_{ta}").to_numpy().tolist()
+[0.03, 0.02, 0.0]
+
+```
+
 ## Domains
 
 **Portfolios**: expected returns, covariances, the tangency portfolio, risk as a metric,

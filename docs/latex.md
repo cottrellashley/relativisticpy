@@ -98,8 +98,9 @@ argument runs over the following factors (`\sin\omega t` is
 \(\sin(\omega t)\), and `\ln A(r)` is \(\ln A(r)\)) and stops at explicit
 spacing, an operator, another function or a differential: in
 `\sin^2\theta\, d\phi^2` the argument is \(\theta\). Only `\log` takes a
-subscript, its base, as in `\log_2 x`: `\det_g` is an error, and a maximum or
-minimum over a variable, `\max_v` or `\arg\min_w`, is not supported yet.
+subscript, its base, as in `\log_2 x`, and `\max` and `\min` the variables they are
+over, as `\max_v` and `\arg\min_w` are [optima](language.md#optima): `\det_g` is an
+error.
 
 **What RelativisticPy prints reads back.** Results are typeset as SymPy
 typesets them, with a function's arguments in braces, `a{\left(t \right)}`,
