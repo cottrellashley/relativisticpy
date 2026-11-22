@@ -103,10 +103,11 @@ class TestUndoneResultsAreNoted:
         assert notes(wb, r"[1, \int_0^\infty \frac{x^3}{e^x - 1} \, dx]") == undone  # in a list
 
     def test_conditions_on_the_parameters(self, wb):
-        found = notes(wb, r"\int_{-\infty}^{\infty} e^{-a x^2 + b x} \, dx")
+        # that no assumption books make removes, as they do of a Gaussian's width
+        found = notes(wb, r"\int_{-\infty}^{\infty} e^{-i \omega t} \, dt")
         assert found[-1] == (
             "this holds under the conditions SymPy gives, as it takes every symbol to be "
-            "complex; declaring the parameters, as in Positive := [a], may remove them"
+            "complex; saying what the parameters are, as in a > 0, may remove them"
         )
 
     def test_what_is_done_has_no_note(self, wb):

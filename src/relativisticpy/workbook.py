@@ -1651,7 +1651,7 @@ def _left_undone(value: Any) -> list[str]:
     if any(_on_conditions(piecewise) for piecewise in value.atoms(sympy.Piecewise)):
         notes.append(
             "this holds under the conditions SymPy gives, as it takes every symbol to be "
-            "complex; declaring the parameters, as in Positive := [a], may remove them"
+            "complex; saying what the parameters are, as in a > 0, may remove them"
         )
     return notes
 

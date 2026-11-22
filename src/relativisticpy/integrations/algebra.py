@@ -11,6 +11,7 @@ from typing import Any
 
 import sympy
 
+from relativisticpy import assumptions
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
 
@@ -201,8 +202,8 @@ class Differentiate:
     points=[(x**2, x), (sympy.cos(x), x)],
 )
 class Integrate:
-    def exact(self, f: Any, *limits: Any) -> Any:
-        return sympy.integrate(f, *limits)
+    def exact(self, f: Any, *limits: Any, assuming: tuple[Any, ...] = ()) -> Any:
+        return assumptions.integrated(f, limits, assuming)
 
 
 @function(

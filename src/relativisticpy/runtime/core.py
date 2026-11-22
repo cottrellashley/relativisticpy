@@ -72,6 +72,18 @@ def _finite(written: Any, lower: Any, upper: Any) -> Any:
 
 
 def limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
+    """A limit (see :func:`_limit`); where SymPy cannot take it for not knowing the sign of
+    a parameter, the limit under the assumption books make, which a note says."""
+    try:
+        return _limit(body, variable, point, direction)
+    except NotImplementedError:  # "Result depends on the sign of sign(k)"
+        found = assumptions.limited(_limit, body, variable, point, direction)
+        if found is None:
+            raise
+        return found
+
+
+def _limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
     """A limit, never taken in a case that holds only at points of the variable, as
     ``Eq(k, 0)`` does of a scattering amplitude: a limit is of the values near the point,
     and SymPy would take that case's value at the point itself. One that does not exist,

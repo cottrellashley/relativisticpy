@@ -195,6 +195,13 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   typesets the results with `--render`, and has an interactive prompt.
 - Documentation at [relativisticpy.org](https://relativisticpy.org), and worked
   examples. Every example in both runs as part of the test suite.
+- Assumptions written as books write them: `a > 0`, `0 < x < 1`, `a, b > 0` and
+  `x \in \mathbb{R}` say what names are for the rest of a program, as a reading
+  `Workbook.explain` shows. Where a program says nothing, an integral or a limit
+  that would hold conditions on a parameter is given under the assumption books
+  make, a scale positive, with a note and the step's `assuming`. `solve` drops
+  the solutions an assumption rules out, saying which, and takes another path
+  where SymPy fails inside itself; `dsolve` takes conditions written `y(0) = y_0`.
 
 ### Changed
 

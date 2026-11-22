@@ -122,6 +122,23 @@ The declarations `Constants`, `Reals`, `Integers`, `Complex` and `Positive`, as 
 `Positive := [a]`, say the same of a list of names, and `Coordinates` declares the
 coordinates.
 
+Where a program says nothing of a name, its symbol stays general. An integral or a limit
+that would then hold conditions on a parameter, a modulus of one, or be left undone, is
+given under the assumption books make, and a note says so: a parameter is a scale, a
+width, a mass, a frequency, positive, and the variable of an integral over real limits is
+real. The fewest parameters are assumed, and none the program said something of:
+
+```python
+>>> step = list(wb.each(r"\int_0^\infty e^{-s t} \, dt"))[0]
+>>> step.values, step.assuming
+([1/s], ['s > 0'])
+>>> step.notes
+['assuming s > 0, as books take a scale to be; the program does not say what s is']
+
+```
+
+`solve` keeps the solutions the program's assumptions allow, and says which it dropped.
+
 ## Definitions, and what `=` means
 
 `:=` defines a name, or gives it a new value; LaTeX's `\equiv` and `\coloneqq` mean the
