@@ -107,6 +107,11 @@ class Workbook:
       or the error it raised;
     - :meth:`check` runs the equations of a paper and says which hold.
 
+    A program is text in the language, in LaTeX, plain text or Unicode;
+    ``relativisticpy help reference`` prints the whole language on one page. ``:=``
+    always defines; ``=`` defines only what has no meaning yet, and is otherwise a claim,
+    which is checked, or an equation. Write LaTeX in raw strings, ``r"\frac{1}{2}"``.
+
     Definitions persist from one call to the next::
 
         >>> wb = Workbook()

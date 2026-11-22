@@ -1,16 +1,30 @@
-r"""RelativisticPy: General Relativity for physicists in a hurry.
+r"""RelativisticPy reads mathematics as it is written, in LaTeX, plain text or Unicode,
+and computes it: General Relativity with SymPy, numerical data in index notation over any
+space, and the equations of LaTeX papers, which it checks.
 
-Write tensor equations the way they look on paper, or paste the LaTeX, and
-compute them::
+It is a language. A :class:`Workbook` runs programs written in it::
 
     >>> from relativisticpy import Workbook
     >>> wb = Workbook()
     >>> wb.expr(r'''
-    ...     Coordinates := [t, r, \theta, \phi]
     ...     ds^2 = -(1 - \frac{2M}{r}) dt^2 + \frac{dr^2}{1 - \frac{2M}{r}} + r^2 d\Omega^2
     ...     R_{abcd} R^{abcd}
     ... ''')
     48*M**2/r**6
+
+From the command line, ``relativisticpy FILE`` runs a program or a Markdown notebook,
+and ``relativisticpy check paper.tex`` checks the equations of a paper.
+
+Before writing a program:
+
+- Learn the language offline: ``relativisticpy help reference`` prints all of it on one
+  page, as :func:`relativisticpy.reference.markdown` gives it; ``relativisticpy help``
+  lists the other pages of the documentation.
+- ``:=`` always defines. ``=`` defines only what has no meaning yet: a new name,
+  function or tensor, or a line element. Otherwise it is a claim, which is checked, or
+  an equation to solve.
+- Write LaTeX in Python in raw strings, ``r"\frac{1}{2}"``: in an ordinary string,
+  Python turns ``\f``, ``\t``, ``\n`` and the like into control characters.
 
 The API at a glance:
 
