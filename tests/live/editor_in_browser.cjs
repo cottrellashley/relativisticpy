@@ -48,10 +48,19 @@ async function main() {
     await settled(1);
     seen.first = await latex(statements.nth(0).locator(".rp-value"));
 
-    // Type more, as a person types it, and wait for it to be computed.
+    // Type more, as a person types it, and wait for it to be computed. The keys are the
+    // editor's: the notebook's own handlers, as JupyterLab's that keep Enter from
+    // breaking a line in a cell, never see them.
+    await page.evaluate(() => {
+      window.keysSeen = 0;
+      document.addEventListener("keydown", () => {
+        window.keysSeen += 1;
+      });
+    });
     await input.click();
     await page.keyboard.press("Control+End");
     await page.keyboard.type("\nK := R_{abcd} R^{abcd}\nK r^6\n\\frca{1}{2}", { delay: 15 });
+    seen.keysSeen = await page.evaluate(() => window.keysSeen);
     await settled(4);
     seen.statements = await statements.count();
     seen.written = await latex(editor.locator(".rp-written"));

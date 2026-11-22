@@ -175,6 +175,7 @@ def seen(tools, notebook):
 
 def test_the_editor_typesets_what_is_typed(seen):
     assert seen["errors"] == []
+    assert seen["keysSeen"] == 0  # the notebook's own shortcuts never take the editor's keys
     assert seen["first"] == ["2 M - r"]
     assert seen["statements"] == 4
     assert seen["written"][:3] == [

@@ -79,10 +79,17 @@ function render({ model, el }) {
   let shown = model.get("statements") || []; // the statements on show
   let stale = false; // whether the source has changed since they ran
   let committing = false; // whether this view is setting the model itself
+  let committed = []; // what it set lately, which Jupyter echoes back, maybe after more typing
   let timer = null;
 
   // -- the layout ---------------------------------------------------------------------
   const root = element("div", "rp-live");
+  // Keys typed in the editor are its own: the notebook neither runs its shortcuts on them
+  // nor, as JupyterLab does inside a cell, keeps Enter from breaking a line.
+  root.setAttribute("data-lm-suppress-shortcuts", "true");
+  for (const type of ["keydown", "keypress", "keyup"]) {
+    root.addEventListener(type, (event) => event.stopPropagation());
+  }
   const bar = element("div", "rp-bar");
   const status = element("span", "rp-status", "");
   status.setAttribute("aria-live", "polite");
@@ -380,6 +387,7 @@ function render({ model, el }) {
       root.classList.remove("rp-running");
       show(message.statements, message.notes);
       if (timer !== null) return; // more has been typed: its run will be committed
+      committed = [...committed.slice(-8), message.source, JSON.stringify(message.statements)];
       committing = true;
       try {
         model.set("source", message.source);
@@ -393,17 +401,19 @@ function render({ model, el }) {
     }
   }
 
+  // The source, or the statements, set from Python, and not this view's own come back.
   function changed() {
     const text = model.get("source");
-    if (!committing && text !== input.value) {
-      input.value = text;
-      fit();
-      run();
-    }
+    if (committing || text === input.value || committed.includes(text)) return;
+    input.value = text;
+    fit();
+    run();
   }
 
   function arrived() {
-    if (!committing && running === null) show(model.get("statements") || [], []);
+    const statements = model.get("statements") || [];
+    if (committing || running !== null || committed.includes(JSON.stringify(statements))) return;
+    show(statements, []);
   }
 
   model.on("msg:custom", heard);
