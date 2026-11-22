@@ -26,7 +26,7 @@ OPTIONAL = frozenset({"architecture.md", "roadmap.md"})
 
 #: What an agent needs before any page, under the summary of llms.txt.
 FACTS = r"""
-RelativisticPy is a Python package and a language. Key facts:
+It is a Python package and a language. Key facts:
 
 - Install: `pip install "relativisticpy[numeric] @ git+https://github.com/cottrellashley/relativisticpy@v2"`
   until version 2 is on PyPI, which still has version 1. The extras are `numeric` (NumPy
@@ -107,9 +107,10 @@ def description(markdown: str) -> str:
 
 
 def llms_txt(
-    entries: Iterable[tuple[str | None, str, str]], docs: Path, site: str, summary: str
+    entries: Iterable[tuple[str | None, str, str]], docs: Path, site: str, name: str, summary: str
 ) -> str:
-    """The index of the site, for language models."""
+    """The index of the site, for language models: the site's name, its summary, the key
+    facts, then each page, grouped as the navigation groups them."""
     groups: dict[str, list[str]] = {}
     for section, title, page in entries:
         group = "Optional" if page in OPTIONAL else section or "Docs"
@@ -117,7 +118,7 @@ def llms_txt(
         link = f"{site}{url(page)}index.html.md"
         groups.setdefault(group, []).append(f"- [{title}]({link}): {description(text)}")
     ordered = sorted(groups, key=lambda group: (group == "Optional", group != "Docs"))
-    lines = ["# RelativisticPy", "", f"> {summary}", "", FACTS]
+    lines = [f"# {name}", "", f"> {summary}", "", FACTS]
     for group in ordered:
         lines += ["", f"## {group}", "", *groups[group]]
     return "\n".join(lines) + "\n"
@@ -141,9 +142,8 @@ def on_post_build(config: Any, **kwargs: Any) -> None:
     docs, site = Path(config["docs_dir"]), Path(config["site_dir"])
     root = config["site_url"] or "/"
     entries = pages(config["nav"])
-    (site / "llms.txt").write_text(
-        llms_txt(entries, docs, root, config["site_description"]), encoding="utf-8"
-    )
+    index = llms_txt(entries, docs, root, config["site_name"], config["site_description"])
+    (site / "llms.txt").write_text(index, encoding="utf-8")
     (site / "llms-full.txt").write_text(llms_full_txt(entries, docs, root), encoding="utf-8")
     for _, _, page in entries:
         copy = site / url(page) / "index.html.md"

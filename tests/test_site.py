@@ -83,9 +83,9 @@ def test_llms_txt_indexes_every_page_in_a_few_lines(config, site):
     navigation = tool("navigation")
     entries = navigation.pages(config["nav"])
     text = (site / "llms.txt").read_text(encoding="utf-8")
-    summary = config["site_description"]
-    assert text == navigation.llms_txt(entries, DOCS, config["site_url"], summary)
-    assert text.startswith(f"# RelativisticPy\n\n> {summary}\n")
+    name, summary = config["site_name"], config["site_description"]
+    assert text == navigation.llms_txt(entries, DOCS, config["site_url"], name, summary)
+    assert text.startswith(f"# {name}\n\n> {summary}\n\nIt is a Python package and a language.")
     for _, title, page in entries:
         assert f"- [{title}]({config['site_url']}{navigation.url(page)}index.html.md): " in text
     for fact in ("relativisticpy help reference", ":=", 'r"\\frac{1}{2}"', "--format json"):
