@@ -291,12 +291,43 @@ class Workbook:
         return parse(source)
 
     @_from_python
-    def ir(self, source: str | Source) -> str:
-        """The IR that ``source`` compiles to, as text. Nothing is computed, and the
-        workbook is left as it was: a definition in ``source`` is not made."""
+    def ir(self, source: str | Source | Iterable[str | Source]) -> str:
+        r"""The IR that ``source`` compiles to, as text. Nothing is computed, and the
+        workbook is left as it was: a definition in ``source`` is not made.
+
+        Several sources, such as the blocks of a Markdown notebook, compile in order in
+        one copy of the workbook, so that each sees what those before it define. The IR
+        of each is headed by where it is, and lists what its outputs add to the
+        computation (a definition adds nothing until something uses it)::
+
+            >>> print(Workbook().ir([Source("y := 2", "notes.md", (3, 1)), "y^2"]))
+            # notes.md:3
+            # <input>:1
+            %0 = const 2                                             Scalar
+            %1 = const 2                                             Scalar
+            %2 = pow(%0, %1)                                         Scalar
+            out %2
+        """
+        if isinstance(source, str | Source):
+            compiler = Compiler(self._session.fork())
+            outputs = compiler.compile(self._parse(source, "<input>", "ir"))
+            return render([output.node for output in outputs])
+        if not isinstance(source, Iterable):
+            raise UsageError(f"ir takes a program, or a list of them, not {_kind(source)}")
         compiler = Compiler(self._session.fork())
-        outputs = compiler.compile(self._parse(source, "<input>", "ir"))
-        return render([output.node for output in outputs])
+        shown: set[str] = set()
+        listing: list[str] = []
+        for block in source:
+            program = self._parse(block, "<input>", "ir")
+            outputs = compiler.compile(program)
+            text = program.span.source
+            listing.append(f"# {text.name}:{text.origin[0]}")
+            for line in render([output.node for output in outputs]).splitlines():
+                node = line.split(" ", 1)[0]
+                if line.startswith("out ") or node not in shown:
+                    listing.append(line)
+                    shown.add(node)
+        return "\n".join(listing)
 
     @_from_python
     def __getitem__(self, written: str) -> Any:

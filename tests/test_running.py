@@ -1,10 +1,12 @@
 """Running programs a statement at a time, as the command line does: every error in
-order."""
+order, and the IR of a notebook's blocks together."""
 
 import pytest
+from sympy import Symbol
 
 from relativisticpy import Workbook
 from relativisticpy.errors import CompileError, ParseError
+from relativisticpy.language import Source
 
 
 class TestEveryErrorInOrder:
@@ -59,3 +61,32 @@ class TestEveryErrorInOrder:
         steps = list(Workbook().each("T_{ab} u^a\nx := 2\nx^2", recover=True))
         assert isinstance(steps[0].error, CompileError)
         assert steps[2].values == [4]
+
+
+class TestTheIrOfSeveralBlocks:
+    """CLI-19: a notebook's blocks compile in order, in one copy of the workbook."""
+
+    def test_a_block_sees_what_the_blocks_before_it_define(self):
+        blocks = [
+            Source("Coordinates := [t, r]", "notes.md", (3, 1)),
+            Source("g_{ab} := diag(-1, r^2)", "notes.md", (7, 1)),
+            Source("\\Gamma^{t}_{tt}", "notes.md", (11, 1)),
+        ]
+        listing = Workbook().ir(blocks)
+        assert listing.splitlines()[:2] == ["# notes.md:3", "# notes.md:7"]
+        assert "# notes.md:11" in listing
+        assert "christoffel" in listing
+
+    def test_each_node_is_listed_once(self):
+        listing = Workbook().ir(["y := x^2", "y + 1", "y + 2"])
+        nodes = [line.split(" ", 1)[0] for line in listing.splitlines() if line.startswith("%")]
+        assert len(nodes) == len(set(nodes))
+        assert listing.count("out ") == 2
+
+    def test_nothing_is_defined(self):
+        wb = Workbook()
+        wb.ir(["z := 2", "z^2"])
+        assert wb.expr("z") == Symbol("z")
+
+    def test_one_program_is_as_before(self):
+        assert not Workbook().ir("x^2").startswith("#")
