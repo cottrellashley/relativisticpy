@@ -425,3 +425,16 @@ class TestReading:
             \begin{equation} a + b = 3 \end{equation}
         """
         assert verdicts(document) == ["defines", "defines", "holds"]
+
+    def test_a_statement_is_quoted_from_its_first_command(self):
+        # it was quoted from inside \mathrm{, as "solve}(x^2 = 4, x)" and "d} s^2 = ..."
+        document = Document(
+            "\\newcommand{\\dd}{\\mathrm{d}}\n"
+            "$$ \\mathrm{solve}(x^2 = 4, x) $$\n$$ \\dd s^2 = -\\dd t^2 + \\dd x^2 $$\n"
+        )
+        findings = Workbook().check(document).findings
+        assert [finding.span.text for finding in findings] == [
+            r"\mathrm{solve}(x^2 = 4, x)",
+            r"\mathrm{d} s^2 = -\mathrm{d} t^2 + \mathrm{d} x^2",
+        ]
+        assert findings[1].span.written == r"\dd s^2 = -\dd t^2 + \dd x^2"  # as the file has it
