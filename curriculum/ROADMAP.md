@@ -927,6 +927,70 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 
 **Recommendation.** Keep them refused until a design exists. The first step worth taking is 'for all x in a set' as a claim decided as identities and inequalities are.
 
+## 7. Found by the first climb of the front end (21 November)
+
+The parser now reads more of what the cases write. Behind several correct parses, the
+compiler still gets the meaning wrong, and some notation needs syntax nodes the parser
+does not have yet. Both are for after the pipeline's refactor.
+
+### The compiler, behind correct parses
+
+- **`d` with a script is read as ∂.** In `\frac{\pi d^2}{4}`, `d^2` becomes ∂², because
+  the session's name for the partial derivative is `d` (`em.sources.loop-moment`).
+- **`\dot{a}^2` is read as d(a²)/dt.** `_Scripted` moves every script of an accented base
+  inside the time derivative. It should move only index scripts, as in `\dot{x}^\mu`, so
+  that a power stays outside (`analysis.derivatives.dot-squared` and two cosmology cases).
+- **A squared sum of differentials in a line element,** `(dr + \beta\,dt)^2`, is not
+  expanded (`gr.formalisms.painleve-gullstrand-lapse`).
+- **Definitions refused or misread:** `r_+ :=`, a name labelled by a sign; `H'(x) :=`
+  (a function bound to the primed name should be looked up first); `\psi_{200} :=`, read as
+  a tensor; recurrences such as `a_{n+2} :=`; `\frac{d^2\psi_0}{dx^2}` of a defined
+  function.
+- **An integral over the component `p^0`** is refused.
+- **The message for an integral over a region** says "spacetime" when the region is not.
+- **An unknown function's value compared with a tuple** gives DIFFERS, not RELATES. In
+  Carroll's notes, `\phi_1(x^1,x^2,x^3) \equiv (y^1,y^2)`, a chart map, is judged a
+  mistake (lines 2223 and 2231).
+- **A pair compared with a scalar** is a silent `False`: `\{L_x, L_y\} = L_z` without a
+  canonical pair (`cm.hamiltonian.angular-momentum`). Refuse it (Wave 0, guard 4).
+
+### Syntax the parser needs
+
+- **`Evaluation(expr, lower, upper, variable)`,** for `\left[F\right]_a^b`,
+  `\left. F \right|_a^b` and `[F]_{x=a}^{x=b}`. Without a variable, the reader takes the
+  variable of an integral in the same sum, else the one free symbol, else refuses.
+- **Brackets read by their operands.** The parser keeps a list or a tuple. The reader makes
+  a two-item `[A, B]` or `\{A, B\}` a commutator or an anticommutator when the operands are
+  operators or square matrices, a Poisson bracket when canonical pairs are declared, and a
+  list or a set otherwise (decision 9 of section 6).
+- **Dirac notation:** `Ket`, `Bra`, `BraKet(bra, operator, ket)` and an expectation value,
+  with the lexer giving angle brackets and `|` as a separator between them (9 cases).
+- **`Optimum`:** max, min, argmax, argmin, sup and inf, with a variable, a body and an
+  optional constraint. Over a data index it is a reduction; over a symbol, stationary
+  points. Today these refuse with what they are.
+- **Functional application,** `L[y] := …`, a function whose parameter is a function,
+  keeping `\mathbb{E}[X]` and `x [1, 2]` as they are.
+- **`Probability(event, given)`,** with `\mid` read as the conditional bar. Today `\mid`
+  is an absolute-value bar.
+- **Calls of scripted names:** `f^{(4)}(0)`, `Y_2^1(\theta,\phi)`, `J_{1/2}(x)`,
+  `\psi_n(x)`. The reader decides between an n-th derivative, a name of its own, a member
+  of a family, and `\delta^{(4)}`, the four-dimensional delta. Today `f^{(4)}(0)` is
+  f^{(4)}·0 = 0, silently (`analysis.taylor.nth-derivative`,
+  `prob.moments.normal-fourth-moment`).
+- **The path-integral measure** `\mathcal{D}[x(t)]`, and stochastic differentials once a
+  process is declared. `dB_s` is deliberately left unread: an Itô integral computed as an
+  ordinary integral would be a silent wrong answer.
+
+### Ready once what they need exists
+
+- `X^\dagger` as `conjugate(transpose(X))`. This computes `qm.dirac.change-of-basis`. It is
+  blocked only by its entry among the unsupported commands.
+- `{}_pF_q(a; b; z)` as `hyper([a], [b], z)`, and `(a)_n` as `rf(a, n)`, once those
+  functions exist.
+- `\left. … \right|`, binding an evaluation bar to what the delimiters enclose
+  (`em.sources.dipole`, and `x + \left. x^2 \right|_{x=2}`, which is 6 today rather
+  than x + 4).
+
 ## Appendix: every failing case
 
 The first blocker is the first capability the run meets. "Verified" says whether a variant that
