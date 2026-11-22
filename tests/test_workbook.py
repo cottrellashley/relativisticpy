@@ -396,3 +396,31 @@ def test_latex():
     tensor = Tensor([[1, 0], [0, 1]], "_{ab}", name="delta")
     lines = [r"\begin{aligned}", r"\delta_{0\,0} &= 1 \\", r"\delta_{1\,1} &= 1", r"\end{aligned}"]
     assert latex(tensor) == "\n".join(lines)
+
+
+def test_a_copy_defines_apart_from_its_workbook():
+    wb = Workbook()
+    wb.exe(r"f(x) := x + a; a := 1; g_{\mu\nu} := Schwarzschild(M)")
+    trial = wb.copy()
+    assert trial.exe("a := 5; f(0)") == [5]  # a function sees the names of its own copy
+    assert wb.expr("f(0)") == 1
+    trial.expr(r"g_{\mu\nu} := Minkowski()")
+    assert trial.expr(r"R_{abcd} R^{abcd}") == 0
+    assert str(wb.expr(r"R_{abcd} R^{abcd}")) == "48*M**2/r**6"
+    assert "a" in trial
+    assert wb["a"] == 1
+
+
+def test_a_workbook_counts_what_may_change_it():
+    wb = Workbook()
+    revisions = [wb._revision]
+    changes = (
+        lambda: wb.expr("x := 2"),
+        lambda: wb.__setitem__("y", 3),
+        lambda: wb.space("assets", 2),
+        wb.reset,
+    )
+    for change in changes:
+        change()
+        revisions.append(wb._revision)
+    assert revisions == sorted(set(revisions))  # every change counted, and never undone

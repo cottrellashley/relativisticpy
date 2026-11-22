@@ -151,6 +151,7 @@ class Workbook:
         self._session = Session()
         self._compiler = Compiler(self._session)
         self._metric: tuple[Any, Metric] | None = None  # the metric in force, by its node
+        self._revision = 0  # counts what may have changed what it defines, for its copies
 
     # -- running programs --------------------------------------------------------
 
@@ -553,6 +554,7 @@ class Workbook:
         """
         if not isinstance(written, str):
             raise UsageError(f"a name is a str, as in wb['x'] = 2, not {_kind(written)}")
+        self._revision += 1
         target = _written(written)
         session = self._session
         if isinstance(target, ast.Name) and "_" in target.id and _rank_of(value):
@@ -709,6 +711,7 @@ class Workbook:
             >>> wb.space("assets", basis=["AAPL", "MSFT"], labels="ab")
             Space(name='assets', dim=2, basis=('AAPL', 'MSFT'), field='real', spacetime=False)
         """
+        self._revision += 1
         names = tuple(str(b) for b in basis) if basis is not None else None
         size = len(names) if names is not None else dim
         if size is None:
@@ -769,6 +772,45 @@ class Workbook:
 
     # -- lifecycle ---------------------------------------------------------------
 
+    def copy(self) -> Workbook:
+        """A workbook in the state this one is in, whose definitions are its own from then
+        on: what either defines afterwards, the other does not see. The copy knows what
+        this one has computed, and what either computes, the other need not compute
+        again::
+
+            >>> wb = Workbook()
+            >>> wb.expr("x := 2")
+            >>> trial = wb.copy()
+            >>> trial.expr("x := 3; x^2")
+            9
+            >>> wb.expr("x^2")
+            4
+
+        A copy computes with this workbook's worker processes, if it has any."""
+        copied = object.__new__(type(self))
+        copied.__dict__.update(self.__dict__)
+        copied._session = self._session.fork()
+        copied._compiler = Compiler(copied._session)
+        scope = copied._session.globals
+        for name, binding in scope.bindings():  # a function sees the names of its own copy
+            if isinstance(binding, FunctionBinding) and binding.closure is self._session.globals:
+                scope.bind(name, FunctionBinding(binding.definition, scope))
+        return copied
+
+    def _portable(self) -> tuple[str, Session, dict[Any, Any]]:
+        """What another process needs to carry on from this workbook as it is: its backend,
+        its session and the values it has computed, by computation (see :meth:`_carried`)."""
+        return self._backend, self._session, dict(self._executor._values)
+
+    @classmethod
+    def _carried(cls, backend: str, session: Session, values: dict[Any, Any]) -> Workbook:
+        """A workbook that carries on from what :meth:`_portable` gave in another process."""
+        workbook = cls(backend=backend)
+        workbook._session = session
+        workbook._compiler = Compiler(session)
+        workbook._executor._values.update(values)
+        return workbook
+
     def reset(self) -> None:
         """Forget every definition."""
         self._executor.close()
@@ -776,6 +818,7 @@ class Workbook:
         self._session = Session()
         self._compiler = Compiler(self._session)
         self._metric = None
+        self._revision += 1
 
     def close(self) -> None:
         """Stop any worker processes."""
@@ -823,6 +866,7 @@ class Workbook:
         written before the error is computed first, in order, so that an error of its own
         is said first, as written."""
         compiler = compiler or self._compiler
+        self._revision += 1
         saved = compiler.save()
         try:
             compiled = compile()
