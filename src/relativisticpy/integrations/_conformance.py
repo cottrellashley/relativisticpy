@@ -1,14 +1,15 @@
 r"""The conformance suite: what every capability must do, checked, and said in words that
 say what to fix.
 
-There are nine checks, each a function that takes a capability and gives its failures,
+There are eleven checks, each a function that takes a capability and gives its failures,
 none where it passes:
 
 1. **declaration**: names that are the capability's alone, a summary, two examples with
    their sources, the library it needs declared, and written forms that read as it;
 2. **examples**: each example runs in the language and gives its known answer;
 3. **agreement**: the exact and numeric implementations agree at points, with NumPy and
-   with JAX;
+   with JAX; of an optimizer, the optimizers of the other kind, exact or numeric, find the
+   same optimum of the problems it is checked at;
 4. **lifting**: applied to a tensor, or to data, it gives its results component by
    component, over the same spaces;
 5. **errors**: the wrong number of arguments, the wrong kind of argument and a library
@@ -18,7 +19,10 @@ none where it passes:
 8. **transform**: a transform agrees with the integral or the sum it stands for, its inverse
    undoes it, and, of data, it keeps Parseval's relation and gives data over a space of the
    size and the labels it declares;
-9. **rewrite**: a rewrite gives the numbers of what it rewrites, computed as written.
+9. **rewrite**: a rewrite gives the numbers of what it rewrites, computed as written;
+10. **feasibility**: the optimum an optimizer reports keeps every constraint of its problem;
+11. **optimality**: the conditions of optimality hold at it, stationarity or the KKT
+    conditions, or, over finitely many points, no other point is better.
 
 ``tests/integrations`` runs them for every capability the integrations declare;
 :func:`check` runs them for one, as an agent checks a capability it writes before it
@@ -41,7 +45,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.errors import InternalError, RelativisticPyError
-from relativisticpy.integrations import _objects, _transforms
+from relativisticpy.integrations import _objects, _optimizers, _transforms
 from relativisticpy.integrations._declarations import Capability, Example, Function, MapFunction
 from relativisticpy.integrations._discovery import (
     Exactly,
@@ -233,6 +237,8 @@ def _written(capability: Capability) -> list[str]:
     if isinstance(capability, _transforms.Rewrite):
         with usable(capability):
             return _transforms.sum_failures(capability)
+    if isinstance(capability, _optimizers.Optimizer):
+        return []  # never called: an optimum, as books write it, is found by the optimizers
     text = capability.text().replace(", ...)", ")")
     try:
         expr = _expression(parse(text).statements)
@@ -294,16 +300,23 @@ def examples(capability: Capability) -> list[str]:
         for example in capability.examples:
             shown = _shown(example)
             try:
-                with Workbook() as wb:
+                with Workbook() as wb, _optimizers.answering() as answers:
                     used = _uses(wb.ir(example.program), capability)
                     values = wb.exe(example.program)
+                    if isinstance(capability, _optimizers.Optimizer):
+                        used = any(found.by == capability.name for found in answers)
             except RelativisticPyError as error:
                 failures.append(
                     f"{capability.name}'s example {shown} fails: {error.kind}: "
                     f"{error.message}; fix the program, or what it needs"
                 )
                 continue
-            if not used:
+            if not used and isinstance(capability, _optimizers.Optimizer):
+                failures.append(
+                    f"{capability.name}'s example {shown} is not found by {capability.name}: "
+                    "write an optimum it takes, and the optimizers before it do not"
+                )
+            elif not used:
                 failures.append(
                     f"{capability.name}'s example {shown} does not use {capability.name}: "
                     f"write a program that calls it, as {capability.text()}"
@@ -339,6 +352,8 @@ def agreement(capability: Capability) -> list[str]:
 
     if isinstance(capability, MapFunction):
         return _map_agreement(capability)
+    if isinstance(capability, _optimizers.Optimizer):
+        return _optimizers.agreement(capability)
     name, failures = capability.name, []
     points = _points(capability)
     computed = []
@@ -669,6 +684,8 @@ def errors(capability: Capability) -> list[str]:
     do, and the wrong kind of argument, a list given to a function or text in quotes to
     anything else, is computed or refused so, never a failure of RelativisticPy's own."""
     name, failures = capability.name, []
+    if isinstance(capability, _optimizers.Optimizer):  # never called: only its library
+        return _missing(capability) if capability.requires is not None else []
     low, high = capability.arity
     counts = ([low - 1] if low > 0 else []) + ([high + 1] if high is not None else [])
     with usable(capability):
@@ -819,6 +836,8 @@ def reference(capability: Capability) -> list[str]:
     named = (capability.text(), *capability.aliases, *capability.latex)
     if isinstance(capability, _transforms.Rewrite):  # never called: written, and computed
         named = (*capability.latex, capability.computes)
+    if isinstance(capability, _optimizers.Optimizer):  # never called: consulted in turn
+        named = (capability.name,)
     wanted = [*(f"`{name}`" for name in named), capability.summary]
     missing = [item for item in wanted if item not in page]
     if not missing:
@@ -844,7 +863,8 @@ CHECKS: tuple[Check, ...] = (
           lambda capability: True, declaration),
     Check("examples", "each example gives its known answer", lambda capability: True, examples),
     Check("agreement", "exact and numeric agree at points",
-          lambda capability: _computed(capability) and capability.numeric is not None,
+          lambda capability: (_computed(capability) and capability.numeric is not None)
+          or isinstance(capability, _optimizers.Optimizer),
           agreement),
     Check("lifting", "applied to a tensor or data, component by component, or to a map",
           lambda capability: _computed(capability) and capability.lifts, lifting),
@@ -859,6 +879,12 @@ CHECKS: tuple[Check, ...] = (
     Check("rewrite", "the numbers of what it rewrites, as written",
           lambda capability: isinstance(capability, _transforms.Rewrite),
           _transforms.rewrite_checks),
+    Check("feasibility", "the optimum it reports keeps every constraint",
+          lambda capability: isinstance(capability, _optimizers.Optimizer),
+          _optimizers.feasibility),
+    Check("optimality", "stationarity or the KKT conditions hold at its optimum",
+          lambda capability: isinstance(capability, _optimizers.Optimizer),
+          _optimizers.optimality),
 )  # fmt: skip
 
 

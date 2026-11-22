@@ -374,6 +374,21 @@ class Limit(Expr):
     direction: Literal["+", "-"] | None = None
 
 
+@dataclass(frozen=True)
+class Optimum(Expr):
+    """The greatest or the least value of ``body`` over its ``variables``, as
+    ``\\max_{x} f(x)`` and ``\\inf_{x \\in S} f(x)`` write it, or where it is, as
+    ``\\arg\\min_{w} f(w)`` does. ``constraints`` are the conditions written beneath the
+    operator, as the ``0 \\le x \\le 3`` of ``\\max_{0 \\le x \\le 3}``, and after it, after
+    "subject to": comparisons, equations and memberships, ``x \\in S``. A condition on
+    several names at once, as ``x_1, x_2 \\geq 0``, has them as a tuple."""
+
+    op: Literal["max", "min", "argmax", "argmin", "sup", "inf"]
+    variables: tuple[Expr, ...]
+    body: Expr
+    constraints: tuple[Expr, ...] = ()
+
+
 # ---------------------------------------------------------------------------
 # Statements
 # ---------------------------------------------------------------------------
@@ -629,6 +644,10 @@ class _Printer:
     def _Limit(self, node: Limit) -> str:
         point = self.render(node.point) + (node.direction or "")
         return f"(lim {self.render(node.variable)} {point} {self.render(node.body)})"
+
+    def _Optimum(self, node: Optimum) -> str:
+        constraints = "".join(f" {self.render(constraint)}" for constraint in node.constraints)
+        return f"({node.op} ({self._many(node.variables)}) {self.render(node.body)}{constraints})"
 
     def _Evaluate(self, node: Evaluate) -> str:
         return self.render(node.expr)

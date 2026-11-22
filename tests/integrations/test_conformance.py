@@ -82,10 +82,20 @@ def test_rewrite(capability):
     passes(capability, "rewrite")
 
 
+@pytest.mark.parametrize("capability", applicable("feasibility"))
+def test_feasibility(capability):
+    passes(capability, "feasibility")
+
+
+@pytest.mark.parametrize("capability", applicable("optimality"))
+def test_optimality(capability):
+    passes(capability, "optimality")
+
+
 def test_every_check_is_run_for_some_capability():
     assert {check.name for check in integrations.CHECKS} == {
         "declaration", "examples", "agreement", "lifting", "errors", "display", "reference",
-        "transform", "rewrite",
+        "transform", "rewrite", "feasibility", "optimality",
     }  # fmt: skip
     for check in integrations.CHECKS:
         assert applicable(check.name), f"no capability is checked for {check.name}"

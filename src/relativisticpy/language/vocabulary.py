@@ -146,6 +146,7 @@ RELATION_COMMANDS: Mapping[str, str] = MappingProxyType(
         "asymp": "≍", "propto": "∝", "ll": "≪", "gg": "≫",
         "in": "∈", "notin": "∉", "subset": "⊂", "subseteq": "⊆", "supset": "⊃",
         "supseteq": "⊇", "leftrightarrow": "↔", "longleftrightarrow": "↔",
+        "succeq": "⪰", "preceq": "⪯", "succ": "≻", "prec": "≺",
     }
 )  # fmt: skip
 
@@ -405,6 +406,7 @@ PARSER_COMMANDS: frozenset[str] = frozenset(
         "frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "int", "oint", "iint",
         "iiint", "lim", "partial", "nabla", "Box", "square", "pounds", "pdv", "dv",
         "binom", "dbinom", "tbinom", "lfloor", "rfloor", "lceil", "rceil", "over", "choose",
+        "sup", "inf", "underset",
     }
 )  # fmt: skip
 
@@ -471,8 +473,6 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
                   r"write the terms out, or \mathcal{O}(x^2) as a symbol"),
         "eval": (r"\eval, the physics package's evaluation bar, is not supported",
                  r"write \left. f \right|_{x=0}"),
-        "inf": (r"the infimum, \inf, is not supported", r"write \min, or the value"),
-        "sup": (r"the supremum, \sup, is not supported", r"write \max, or the value"),
         "liminf": (r"\liminf is not supported", r"write \lim_{x \to a} for a limit"),
         "limsup": (r"\limsup is not supported", r"write \lim_{x \to a} for a limit"),
         "forall": (r"the quantifier \forall is not supported", r"write \text{for all}"),

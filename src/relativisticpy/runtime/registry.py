@@ -12,8 +12,8 @@ The names are of two kinds:
   ``Schwarzschild``;
 - what the compiler emits for notation is registered in a namespace: ``core.sum`` for
   :math:`\\sum`, ``core.subs`` for an evaluation bar, ``core.diff`` for a derivative,
-  ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``, and
-  ``notation.solve`` for the algebra of index notation.
+  ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``, ``optimum.find``
+  for an optimum, and ``notation.solve`` for the algebra of index notation.
 
 The builtins are the capabilities the integrations declare
 (:mod:`relativisticpy.integrations`), registered under each of their names; what the
@@ -31,6 +31,7 @@ from typing import Any, Literal
 from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _objects as objects
+from relativisticpy.integrations import _optimizers as optima
 from relativisticpy.runtime import core, notation
 from relativisticpy.tensors import linalg
 
@@ -122,9 +123,10 @@ def lookup(name: str) -> Implementation:
 def _builtins() -> Iterator[Implementation]:
     """The functions a program calls by name: every capability the integrations declare,
     under its name and each alias. A spacetime names its parameters in messages. A rewrite
-    is no function: what it rewrites is computed by the capability it names."""
+    is no function: what it rewrites is computed by the capability it names; nor is an
+    optimizer: an optimum, as books write it, is found by the optimizers in turn."""
     for capability in integrations.capabilities():
-        if isinstance(capability, integrations.Rewrite):
+        if isinstance(capability, integrations.Rewrite | integrations.Optimizer):
             continue
         low, high = capability.arity
         result: Result = "scalar" if capability.scalar else "value"
@@ -233,6 +235,15 @@ def _core() -> Iterator[Implementation]:
     yield entry("stats.ledoit_wolf", core.ledoit_wolf, "tensor", 1, 1)
     # Python's functions, called on the values of a program
     yield entry("python.call", objects.call, "value", 1)
+    # optima: a problem, found by the optimizers in turn, as a number, where it is, or a
+    # tensor; the extremes of data along an index, its label there, and along one of several
+    yield entry("optimum.find", optima.optimum, "scalar", 1)
+    yield entry("optimum.point", optima.optimum, "value", 1)
+    yield entry("optimum.components", optima.optimum, "tensor", 1)
+    yield entry("optimum.extreme", optima.extreme, "scalar", 1, 1)
+    yield entry("optimum.label", optima.extreme, "value", 1, 1)
+    yield entry("optimum.along", optima.extreme, "tensor", 1, 1)
+    yield entry("optimum.order", optima.order, "scalar", 2, 2)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

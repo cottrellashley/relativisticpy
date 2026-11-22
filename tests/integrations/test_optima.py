@@ -1,0 +1,287 @@
+r"""Optima: the greatest and the least value over variables, or along an index of data, as
+books write them, and where they are; found by the optimizers, SymPy's exactly and SciPy's
+numerically, each saying how it found the optimum and whether it is global; and what the
+conformance suite says of an optimizer that breaks the pattern."""
+
+from __future__ import annotations
+
+import numpy as np
+import pytest
+import sympy
+
+from relativisticpy import Workbook, integrations
+from relativisticpy.errors import CompileError, EvaluationError
+from relativisticpy.integrations import Example, Found, Problem, optimizer
+
+x, y = sympy.symbols("x y", real=True)
+a, c, m, p = sympy.symbols("a c m p")
+
+
+def notes(wb: Workbook, source: str) -> list[str]:
+    return [note for step in wb.each(source) for note in step.notes]
+
+
+class TestOneVariable:
+    @pytest.mark.parametrize(
+        ("source", "value"),
+        [
+            (r"\min_{x \in \mathbb{R}} \left(x^2 - 4x + 7\right)", 3),
+            (r"\min_x \; x^2 - 4x + 7", 3),  # of the whole sum it begins
+            (r"\max_{0 \leq x \leq 3} \left(x^3 - 3x\right)", 18),  # at an end
+            (r"\arg\max_{x \geq 0} \; x e^{-x}", 1),
+            (r"\inf_{x > 0} \left(x + \frac{1}{x}\right)", 2),
+            (r"\sup_{x \geq 0} \frac{x}{1 + x}", 1),  # never reached
+            (r"\min_x |x - 1| + |x + 2|", 3),  # where it has no derivative
+            ("min_{x} (x^2 + 1)", 1),
+            (r"\underset{x}{\min} \; (x - 3)^2", 0),
+        ],
+    )
+    def test_from_its_stationary_points_and_the_ends_of_its_domain(self, wb, source, value):
+        assert wb.expr(source) == value
+
+    def test_a_note_says_how_it_was_found_and_whether_it_is_global(self, wb):
+        assert notes(wb, r"\min_{x} \; (x - 2)^2 + 3") == [
+            "the global minimum, found exactly by SymPy, from its stationary points and the "
+            "ends of its domain (extrema)"
+        ]
+
+    def test_a_maximum_no_point_reaches_is_refused_and_the_supremum_given(self, wb):
+        with pytest.raises(EvaluationError, match="has no maximum") as refused:
+            wb.expr(r"\max_{x \geq 0} \frac{x}{1 + x}")
+        assert "\\sup" in (refused.value.hint or "")
+        with pytest.raises(EvaluationError, match="grows without bound"):
+            wb.expr(r"\max_x x^2")
+        assert wb.expr(r"\sup_x x^2") == sympy.oo
+
+    def test_an_optimum_inside_another_is_of_its_parameter(self, wb):
+        payoff = (
+            r"\begin{pmatrix} p & 1 - p \end{pmatrix} A \begin{pmatrix} q \\ 1 - q \end{pmatrix}"
+        )
+        wb.exe(r"A := \begin{pmatrix} 3 & -1 \\ -2 & 1 \end{pmatrix}")
+        inner = wb.expr(rf"\min_{{0 \leq q \leq 1}} {payoff}")
+        assert inner == sympy.Min(1 - 2 * sympy.Symbol("p"), 5 * sympy.Symbol("p") - 2)
+        assert wb.expr(rf"\max_{{0 \leq p \leq 1}} \min_{{0 \leq q \leq 1}} {payoff}") == (
+            sympy.Rational(1, 7)
+        )
+
+
+class TestParameters:
+    def test_what_the_program_assumes_is_used(self, wb):
+        wb.exe("0 < a < 1\np_x, p_y, m > 0")
+        found = wb.expr(
+            r"\arg\max_{x, y} \; x^{a} y^{1 - a} \quad \text{subject to} \quad p_x x + p_y y = m"
+        )
+        px, py = sympy.symbols("p_x p_y")
+        plain = [f.xreplace({s: sympy.Symbol(s.name) for s in f.free_symbols}) for f in found]
+        assert plain == [a * m / px, m * (1 - a) / py]
+
+    def test_where_signs_are_not_said_they_are_taken_as_books_take_them(self, wb):
+        wb.exe(r"L(v) = -m c^2 \sqrt{1 - \frac{v^2}{c^2}}" + "\n" + r"H(p) = \max_v (p v - L(v))")
+        steps = list(wb.each("H(p)"))
+        assert steps[0].values == [c * sympy.sqrt(c**2 * m**2 + p**2)]
+        assert steps[0].assuming == ["c > 0", "m > 0"]
+
+    def test_a_function_defined_by_an_optimum_takes_its_parameter(self, wb):
+        wb.exe(
+            r"L(x_1, x_2, \nu) := x_1^2 + x_2^2 + \nu (x_1 + x_2 - 1)"
+            + "\n"
+            + r"g(\nu) := \inf_{x_1, x_2} L(x_1, x_2, \nu)"
+        )
+        nu = sympy.Symbol("nu")
+        assert wb.expr(r"g(\nu)") == -(nu**2) / 2 - nu
+
+
+class TestSeveralVariables:
+    @pytest.mark.parametrize(
+        ("source", "value", "by"),
+        [
+            (r"\min_{x_1, x_2} \; x_1 + x_2 \quad \text{subject to} \quad x_1^2 + x_2^2 = 2",
+             -2, "kkt"),
+            (r"\max_{x_1, x_2} \; 3x_1 + 5x_2 \quad \text{subject to} \quad x_1 \leq 4, \quad "
+             r"2x_2 \leq 12, \quad 3x_1 + 2x_2 \leq 18, \quad x_1, x_2 \geq 0", 36, "simplex"),
+            (r"\max_{x \in \{0, 1\}^3} \; 60x_1 + 100x_2 + 120x_3 \quad \text{subject to} \quad "
+             r"10x_1 + 20x_2 + 30x_3 \leq 50", 220, "enumeration"),
+            (r"\max_{x, y} \; 0.5x + 0.3y \quad \text{subject to} \quad x + y \leq 10, \quad "
+             r"x \leq 6, \quad x, y \geq 0", 4.2, "linprog"),
+        ],
+    )  # fmt: skip
+    def test_each_by_the_method_that_fits_it(self, wb, source, value, by):
+        with integrations._optimizers.answering() as answers:
+            assert wb.expr(source) == pytest.approx(value)
+        assert [found.by for found in answers] == [by]
+
+    def test_constraints_on_the_lines_after_it(self, wb):
+        source = "\\min_{x, y} x + y\n\\text{subject to} \\quad x^2 + y^2 = 2"
+        assert wb.exe(source) == [-2]
+
+    def test_a_vector_takes_its_length_from_the_matrix_it_is_multiplied_by(self, wb):
+        rows = r"1 & -2 & 4 \\ 1 & -1 & 1 \\ 1 & 0 & 0 \\ 1 & 1 & 1 \\ 1 & 2 & 4"
+        wb.exe(
+            rf"""
+            A := \begin{{pmatrix}} {rows} \end{{pmatrix}}
+            \mathbf{{b}} := \begin{{pmatrix}} 4 \\ 1 \\ 1 \\ 2 \\ 7 \end{{pmatrix}}
+            """
+        )
+        found = wb.expr(r"\arg\min_{\mathbf{x}} \|A\mathbf{x} - \mathbf{b}\|_2^2")
+        assert found.tolist() == [
+            [sympy.Rational(4, 7)],
+            [sympy.Rational(7, 10)],
+            [sympy.Rational(17, 14)],
+        ]
+
+    def test_componentwise_constraints_between_vectors(self, wb):
+        wb.exe(
+            r"""
+            A := \begin{pmatrix} 1 & 0 \\ 0 & 2 \\ 3 & 2 \end{pmatrix}
+            b := \begin{pmatrix} 4 \\ 12 \\ 18 \end{pmatrix}
+            c := \begin{pmatrix} 3 \\ 5 \end{pmatrix}
+            """
+        )
+        dual = r"\min_{y} \; b^T y \quad \text{subject to} \quad "
+        assert wb.expr(dual + r"A^T y \geq c, \quad y \geq 0") == 36
+        assert wb.expr(dual + r"A^T y \succeq c, \quad y \succeq 0") == 36  # componentwise
+
+    def test_a_tensor_is_found_over_its_space(self, wb):
+        wb.exe(
+            r"""
+            \mathcal{A} := \mathbb{R}^{2}
+            a, b \in \mathcal{A}
+            \Sigma_{ab} := [[0.0144, 0.0072], [0.0072, 0.04]]
+            """
+        )
+        found = wb.expr(
+            r"\arg\min_{w} \; w^{a} \Sigma_{ab} w^{b} \quad \text{subject to} \quad 1_{a} w^{a} = 1"
+        )
+        assert np.allclose(found.to_numpy().astype(float), [0.82, 0.18], atol=1e-12)
+        assert found.spaces[0].name == "A"
+
+    def test_whole_numbers_with_no_end_are_found_over_the_reals_first(self, wb):
+        source = r"\arg\max_{n \in \mathbb{N}} \frac{\pi^{n/2}}{\Gamma\left(\frac{n}{2} + 1\right)}"
+        assert wb.expr(source) == 5
+        assert "not proven global" in notes(wb, source)[-1]
+
+
+class TestOverAnIndex:
+    def test_the_greatest_value_along_an_index_of_data(self, wb):
+        wb["y_t"] = np.array([1.0, 2.0, 0.0, -1.0])
+        found = wb.exe(r"\max_t y_t" + "\n" + r"\min_t y_t" + "\n" + r"\arg\min_t y_t")
+        assert found == [2.0, -1.0, 3]
+
+    def test_along_one_index_of_several(self, wb):
+        wb["R_{ta}"] = np.array([[0.01, 0.02, -0.01], [0.03, -0.02, 0.0]])
+        assert wb.expr(r"\max_t R_{ta}").to_numpy().tolist() == [0.03, 0.02, 0.0]
+
+    def test_where_it_is_is_the_label_and_the_first_of_ties_is_given(self, wb):
+        wb.exe(r"N := 8" + "\n" + r"x_n := \frac{n}{N}, \quad n = 0, \ldots, N-1")
+        assert wb.expr(r"\arg\max_n \sin(\pi x_n)") == 4
+        source = r"\arg\max_n \sin(2\pi x_n)^2"
+        assert wb.expr(source) == 2
+        assert notes(wb, source) == [
+            "\\arg\\max_n: the optimum is reached at 2 and 6, and the first is given"
+        ]
+
+    def test_complex_data_has_no_order(self, wb):
+        wb["z_t"] = np.array([1 + 1j, 2.0])
+        with pytest.raises(EvaluationError, match="have no order"):
+            wb.expr(r"\max_t z_t")
+
+
+class TestRefusals:
+    def test_an_optimum_over_a_function_is_not_supported_yet(self, wb):
+        with pytest.raises(CompileError, match="is over a function, u"):
+            wb.expr(r"\min_{u} \int_0^1 u(t)^2 \, dt")
+
+    def test_an_optimum_of_a_function_nothing_defines_is_refused(self, wb):
+        with pytest.raises(EvaluationError, match="a function the program does not define") as no:
+            wb.expr(r"\max_{0 < c < k} \left[\ln c + \beta V(k - c)\right]")
+        assert no.value.hint == "define V before the optimum"
+
+    def test_an_optimum_over_a_set_the_language_does_not_know(self, wb):
+        with pytest.raises(CompileError, match="a set the language does not know"):
+            wb.expr(r"\inf_{\gamma \in \Pi(\mu, \nu)} \gamma")
+
+    def test_a_variable_before_brackets_that_hold_it_multiplies_them(self, wb):
+        assert wb.expr(r"\max_x x(1 - x)") == sympy.Rational(1, 4)  # decision 28
+
+    def test_constraints_nothing_keeps(self, wb):
+        source = r"\max_{x, y} \; x + y \quad \text{s.t.} \quad x + y \leq 1, \quad x + y \geq 2"
+        with pytest.raises(EvaluationError, match="no point keeps the constraints"):
+            wb.expr(source)
+
+
+class TestGeneralizedInequalities:
+    @pytest.mark.parametrize(
+        ("source", "holds"),
+        [
+            (r"\begin{pmatrix} 2 & -1 \\ -1 & 2 \end{pmatrix} \succ 0", True),
+            (r"\begin{pmatrix} 1 & 1 \\ 1 & 1 \end{pmatrix} \succ 0", False),
+            (r"\begin{pmatrix} 1 & 1 \\ 1 & 1 \end{pmatrix} \succeq 0", True),
+            (r"\begin{pmatrix} 1 \\ 2 \end{pmatrix} \succeq \begin{pmatrix} 0 \\ 2 \end{pmatrix}",
+             True),
+        ],
+    )  # fmt: skip
+    def test_definiteness_and_components(self, wb, source, holds):
+        assert bool(wb.expr(source)) is holds
+
+
+class TestTheKind:
+    def test_the_optimizers_are_consulted_exact_first(self):
+        found = [(each.name, each.numerical) for each in integrations._optimizers.optimizers()]
+        assert found == [
+            ("extrema", False), ("kkt", False), ("simplex", False), ("enumeration", False),
+            ("linprog", True), ("quadratic", True), ("minimize", True),
+        ]  # fmt: skip
+
+    def test_an_optimizer_that_reports_what_breaks_its_constraints_is_told(self):
+        @optimizer(
+            "careless",
+            summary="a careless optimizer",
+            problems=[
+                Problem("min", (x - 1) ** 2 + (y - 2) ** 2, (x, y), inequalities=(1 - x - y,))
+            ],
+            examples=[
+                Example(r"\min_{x} x^2", 0, "standard"),
+                Example(r"\min_{x} x^4", 0, "standard"),
+            ],
+        )
+        class Careless:
+            def takes(self, problem):
+                return True
+
+            def optimum(self, problem):
+                return Found(sympy.Integer(0), (sympy.Integer(1), sympy.Integer(2)), "badly", True)
+
+        failures = integrations.check(Careless, ["feasibility", "agreement"])
+        assert failures["feasibility"][0].startswith(
+            "careless: at the least (x − 1)² + (y − 2)² over x, y with 1 − x − y ≥ 0, the point "
+            "it reports, (1, 2), breaks 1 − x − y ≥ 0"
+        )
+        assert any("disagree" in failure for failure in failures["agreement"])
+
+    def test_one_that_is_not_stationary_is_told(self):
+        @optimizer(
+            "hasty",
+            summary="a hasty optimizer",
+            problems=[Problem("min", (x - 1) ** 2 + y**2, (x, y))],
+            examples=[
+                Example(r"\min_{x} x^2", 0, "standard"),
+                Example(r"\min_{x} x^4", 0, "standard"),
+            ],
+        )
+        class Hasty:
+            def takes(self, problem):
+                return True
+
+            def optimum(self, problem):
+                return Found(sympy.Integer(1), (sympy.Integer(0), sympy.Integer(0)), "badly", False)
+
+        (failure,) = integrations.check(Hasty, ["optimality"])["optimality"]
+        assert "is not stationary" in failure
+
+    def test_a_class_without_its_methods_is_told_what_to_declare(self):
+        with pytest.raises(TypeError, match="has no takes method"):
+
+            @optimizer("lazy", summary="a lazy optimizer", problems=[], examples=[])
+            class Lazy:
+                def optimum(self, problem):
+                    return None

@@ -16,7 +16,9 @@ The kinds are:
 - :func:`transform`: a function of a variable in, a function of another out, as the Laplace
   transform; or data over an index in, data over a new space out, as the FFT;
 - :func:`rewrite`: a faster computation of what a program writes, as the discrete Fourier
-  transform written as its sum, computed as an FFT.
+  transform written as its sum, computed as an FFT;
+- :func:`optimizer`: what finds the optimum of a problem, as SymPy's stationary points or
+  SciPy's linear programming, which ``\min_x f(x)`` and ``\arg\max_w`` consult in turn;
 - :func:`python_object`: what a Python object becomes when a program reads it by name, as
   ``\texttt{prices}`` reads a DataFrame as labelled data.
 
@@ -67,6 +69,7 @@ from relativisticpy.integrations._objects import (
     Scalar,
     python_object,
 )
+from relativisticpy.integrations._optimizers import Found, Optimizer, Problem, optimizer
 from relativisticpy.integrations._transforms import Rewrite, Transform, rewrite, transform
 
 __all__ = [
@@ -79,10 +82,13 @@ __all__ = [
     "Data",
     "Exactly",
     "Example",
+    "Found",
     "Function",
     "MapFunction",
     "Numerically",
     "ObjectConversion",
+    "Optimizer",
+    "Problem",
     "PythonFunction",
     "PythonScope",
     "Reservation",
@@ -100,6 +106,7 @@ __all__ = [
     "installed",
     "map_function",
     "on_change",
+    "optimizer",
     "python_object",
     "reservations",
     "reserved",

@@ -562,22 +562,98 @@ class TestFractionsRootsAndFunctions:
         assert r"a subscript on \det is not supported" in str(error(r"\det_g A"))
 
     @pytest.mark.parametrize(
-        ("text", "message"),
+        ("text", "expected"),
         [
             # \max_v is a maximum over v, not a logarithm to the base v, nor a product
-            (r"H(p) = \max_v \left(p v - L(v)\right)", r"\max_v, a maximum over v,"),
-            (r"\min_{x} f", r"\min_{x}, a minimum over x,"),
-            (r"\arg\min_{w} \; w^{a} \Sigma_{ab} w^{b}", r"\arg\min_{w}, the w at which a minimum"),
-            (r"\operatorname*{arg\,max}_k |f_k|", r"\operatorname*{arg\,max}_k, the k at which"),
-            (r"\operatorname{argmax}_k |f_k|", r"\operatorname{argmax}_k, the k at which"),
-            (r"\mathrm{arg\,min}_w f", r"\mathrm{arg\,min}_w, the w at which"),
-            (r"\arg\max f", r"\arg\max, where a maximum is,"),
+            (r"H(p) = \max_v \left(p v - L(v)\right)",
+             "(= (call H p) (max (v) (- (* p v) (call L v))))"),
+            (r"\min_{x} f", "(min (x) f)"),
+            (r"\sup_{0 \le x < 1} x^n", "(sup (x) (x ^[n]) (chain 0 <= x < 1))"),
+            (r"\inf_{x > 0} \left(x + \frac{1}{x}\right)", "(inf (x) (+ x (/ 1 x)) (> x 0))"),
+            (r"\min_{x \in \mathbb{R}} x^2", "(min (x) (^ x 2) (∈ x ℝ))"),
+            (r"\min_{x, y \in \mathbb{R}} x^2 + y^2",
+             "(min (x y) (+ (^ x 2) (^ y 2)) (∈ (tuple x y) ℝ))"),
+            (r"\max_{x \in \{0, 1\}^3} x_1", "(max (x) x_1 (∈ x (^ (tuple 0 1) 3)))"),
+            # where it is, written in each of the ways books write it
+            (r"\arg\min_{w} \; w^{a} \Sigma_{ab} w^{b}",
+             "(argmin (w) (* (* (w ^[a]) (Sigma _[a b])) (w ^[b])))"),
+            (r"\operatorname*{arg\,max}_k |f_k|", "(argmax (k) (abs f_k))"),
+            (r"\operatorname{argmax}_k |f_k|", "(argmax (k) (abs f_k))"),
+            (r"\mathrm{arg\,min}_w f", "(argmin (w) f)"),
+            (r"\underset{x \in S}{\operatorname{argmin}} f(x)", "(argmin (x) (call f x) (∈ x S))"),
+            (r"\min_{\substack{x \in \mathbb{R}^2 \\ x_1 + x_2 = 1}} x_1^2 + x_2^2",
+             "(min (x) (+ (^ x_1 2) (^ x_2 2)) (∈ x (^ ℝ 2)) (= (+ x_1 x_2) 1))"),
+            # in plain text and Unicode
+            ("min_{x} (x^2 + 1)", "(min (x) (+ (^ x 2) 1))"),
+            ("argmax_{x >= 0} x*exp(-x)", "(argmax (x) (* x (call exp (- x))) (>= x 0))"),
+            ("max_{x ∈ ℝ} f", "(max (x) f (∈ x ℝ))"),
+        ],
+    )  # fmt: skip
+    def test_an_optimum_is_over_the_variables_beneath_it(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # it begins the sum, and is of the whole of it
+            (r"\max_x f(x) + 1", "(max (x) (+ (call f x) 1))"),
+            (r"a = \min_{x} x^2 + 1", "(= a (min (x) (+ (^ x 2) 1)))"),
+            # it is a factor, or has a sign, and is of the factor alone
+            (r"2 \max_x f(x) + 1", "(+ (* 2 (max (x) (call f x))) 1)"),
+            (r"-\max_x f(x) + 1", "(+ (- (max (x) (call f x))) 1)"),
+            (r"\max_{0 \leq p \leq 1} \min_{0 \leq q \leq 1} p q",
+             "(max (p) (min (q) (* p q) (chain 0 <= q <= 1)) (chain 0 <= p <= 1))"),
+            # brackets around what it is of group it
+            (r"\max_{c} \left[\ln c - c\right]", "(max (c) (- (call ln c) c))"),
+        ],
+    )  # fmt: skip
+    def test_an_optimum_is_of_what_follows_it_as_far_as_it_begins(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"\min_{x_1, x_2} \; x_1 + x_2 \quad \text{subject to} \quad x_1^2 + x_2^2 = 2",
+             "(min (x_1 x_2) (+ x_1 x_2) (= (+ (^ x_1 2) (^ x_2 2)) 2))"),
+            (r"\max_{x} \; 3x + 5y \quad \text{s.t.} \quad x \leq 4, \quad x, y \geq 0",
+             "(max (x) (+ (* 3 x) (* 5 y)) (<= x 4) (>= (tuple x y) 0))"),
+            (r"\min_{x} x^2 \mathrm{s.t.} x \geq 1", "(min (x) (^ x 2) (>= x 1))"),
+            ("min_{x} x^2 subject to x >= 1", "(min (x) (^ x 2) (>= x 1))"),
+        ],
+    )  # fmt: skip
+    def test_constraints_follow_subject_to(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_constraints_follow_on_the_lines_after_it_as_books_set_them(self):
+        assert program("\\min_{x, y} x + y\n\\text{subject to} \\quad x^2 + y^2 = 2\nz") == [
+            "(min (x y) (+ x y) (= (+ (^ x 2) (^ y 2)) 2))",
+            "z",
+        ]
+        aligned = dedent(
+            r"""
+            \begin{aligned}
+            \min_{x} \quad & x_1 + x_2 \\
+            \text{s.t.} \quad & x_1^2 + x_2^2 \le 2 \\
+            & x_1 \geq 0
+            \end{aligned}
+            """
+        )
+        assert program(aligned) == [
+            "(min (x) (+ x_1 x_2) (<= (+ (^ x_1 2) (^ x_2 2)) 2) (>= x_1 0))"
+        ]
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            (r"\arg\max f", r"\arg\max, where a maximum is, needs the variable it is over"),
+            (r"\sup f", r"\sup, the supremum, needs the variable it is over"),
+            (r"\max_{x + 1} f", r"beneath \max, x + 1 is no variable"),
+            (r"\min_{x}", r"\min_{x} needs what it is the minimum of, after it"),
+            (r"\min_{x} x^2 \text{ s.t. } y", r"y is no constraint"),
         ],
     )
-    def test_an_optimum_over_a_variable_is_not_supported_yet(self, text, message):
-        caught = error(text)
-        assert caught.message.startswith(message)
-        assert caught.message.endswith("is not supported yet")
+    def test_an_optimum_without_what_it_needs_says_what_is_missing(self, text, message):
+        assert error(text).message.startswith(message)
 
     def test_the_extremes_of_values_and_the_argument_of_a_number_are_read(self):
         assert sexpr(r"\max(a, b) + \arg z") == "(+ (call max a b) (call arg z))"

@@ -304,6 +304,20 @@ What a program writes, computed faster by another capability, to the same number
 |---|---|---|
 | `\sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}` | `fft` | the discrete Fourier transform written as its sum; on data or a list, computed as an FFT |
 
+### Optimizers
+
+An optimum, `\min_{x} f(x)`, `\arg\max_{x, y} u \quad \text{subject to} \quad g = 0` or `\sup_{0 \le x < 1} f(x)`, is found by the optimizers, in this order: those that compute exactly, then, where it has no parameters, those that compute numerically, which take first one written with decimals, as data is. A note says which found it, how, and whether it is global. Over an index of data, `\max_t x_t` is the greatest value along it, and `\arg\max_t x_t` its label.
+
+| Optimizer | Computes | Meaning |
+|---|---|---|
+| `extrema` | exactly | optima of a function of one variable: at its stationary points, where it has no derivative, and at the ends of its domain, or toward them |
+| `kkt` | exactly | optima of smooth functions of several variables: where the gradient vanishes, or the Lagrange or the KKT conditions hold, at each set of constraints that hold with equality |
+| `simplex` | exactly | linear programs, by SymPy's simplex method |
+| `enumeration` | exactly | optima over finitely many points, as whole numbers between bounds or values in \{0, 1\}, by trying each |
+| `linprog` | numerically | linear programs, by SciPy's HiGHS: linprog, or milp where the variables are whole numbers |
+| `quadratic` | numerically | convex quadratic programs: the linear system of the KKT conditions at each set of active constraints, by SciPy's linear algebra |
+| `minimize` | numerically | any other optimum without parameters, by SciPy's minimize (SLSQP) from several starting points; of whole numbers, over the reals, then at the whole numbers either side |
+
 ### Book names not supported yet
 
 A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{Var}(X)`, the variance of a random variable; `\epsilon_{ijk}`, the Levi-Civita symbol.
@@ -378,7 +392,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\pm \mp` | both signs, so two values |
 | `\wedge` | the wedge product |
 | `\circ` | composition: read, not computed |
-| `\approx \asymp \cong \doteq \gg \in \leftrightarrow \ll \longleftrightarrow \notin \propto \sim \simeq \subset \subseteq \supset \supseteq` | relations, read so that the equations around them run, but not computed; `\in` also declares index labels |
+| `\approx \asymp \cong \doteq \gg \in \leftrightarrow \ll \longleftrightarrow \notin \prec \preceq \propto \sim \simeq \subset \subseteq \succ \succeq \supset \supseteq` | relations, read so that the equations around them run, but not computed; `\in` also declares index labels |
 | `\iff \implies \Leftrightarrow \Longleftrightarrow \Longrightarrow \Rightarrow` | between equations, each side a statement |
 | `\cdots \ddots \dots \dotsb \dotsc \dotsi \dotsm \dotso \ldots \vdots` | terms not written: read, not computed |
 | `\hbox \mbox \operatorname \text \textbf \textit \textnormal \textrm \textsf \textup` | text: one name, as `\text{otherwise}`; `\operatorname{name}` names a function |
@@ -395,6 +409,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\prod \sum` | a sum, `\sum_{n=1}^{N}`, and a product, in closed form where SymPy finds one |
 | `\iiint \iint \int \oint` | integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx` |
 | `\lim` | a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}` |
+| `\inf \sup \underset` | the supremum and the infimum over a variable, `\sup_{0 \le x < 1} x^n`, as `\max_x` and `\arg\min_w` are optima; `\underset{x}{\min}` sets the variable beneath |
 | `\nabla \partial` | the partial and the covariant derivative, `\partial_\mu` and `\nabla_\mu`; `\partial_t^2` is the second derivative |
 | `\Box \square` | the d'Alembertian, `\nabla^\mu \nabla_\mu`, as is `\nabla^2` |
 | `\pounds` | the Lie derivative, `\pounds_V T_{ab}` |
@@ -430,13 +445,11 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 - `\eval`: the physics package's evaluation bar, is not supported; write `\left. f \right|_{x=0}`.
 - `\exists`: the quantifier is not supported; write `\text{there is}`.
 - `\forall`: the quantifier is not supported; write `\text{for all}`.
-- `\inf`: the infimum is not supported; write `\min`, or the value.
 - `\liminf \limsup`: is not supported; write `\lim_{x \to a}` for a limit.
 - `\norm`: the physics package's norm, is not supported; write `\| x \|`.
 - `\not`: is not supported; write `\neq` for not equal, or `\notin`.
 - `\order`: the physics package's order, is not supported; write the terms out, or `\mathcal{O}(x^2)` as a symbol.
 - `\qty`: the physics package's brackets, is not supported; write `\left( ... \right)`.
-- `\sup`: the supremum is not supported; write `\max`, or the value.
 - `\Tr`: the physics package's trace, is not supported; write `\operatorname{Tr}(A)`, or contract the indices: `A^{a}_{a}`.
 - `\tr`: the physics package's trace, is not supported; write `\operatorname{tr}(A)`, or contract the indices: `A^{a}_{a}`.
 - `\va`: the physics package's vector arrow, is not supported; write `\vec{v}`.

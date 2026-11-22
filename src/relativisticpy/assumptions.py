@@ -48,7 +48,10 @@ _WORDS = {
 _ORDERED = ("positive", "nonnegative", "negative", "nonpositive")
 #: The operations a bound the program assumes decides something of, which are given the
 #: bounds in force as their attribute ``assuming``.
-DECIDED = frozenset({"solve", "integrate", "core.sum", "core.lt", "core.gt", "core.le", "core.ge"})
+DECIDED = frozenset(
+    {"solve", "integrate", "core.sum", "core.lt", "core.gt", "core.le", "core.ge",
+     "optimum.find", "optimum.point", "optimum.components"}
+)  # fmt: skip
 #: The relation each fact of a sign is, for a coordinate, whose symbol stays as it is.
 _SIGNS = {
     "positive": sympy.Gt,

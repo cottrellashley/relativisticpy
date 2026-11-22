@@ -82,6 +82,9 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
     (("int", "oint", "iint", "iiint"),
      r"integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx`"),
     (("lim",), r"a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}`"),
+    (("sup", "inf", "underset"),
+     r"the supremum and the infimum over a variable, `\sup_{0 \le x < 1} x^n`, as "
+     r"`\max_x` and `\arg\min_w` are optima; `\underset{x}{\min}` sets the variable beneath"),
     (("partial", "nabla"),
      r"the partial and the covariant derivative, `\partial_\mu` and `\nabla_\mu`; "
      r"`\partial_t^2` is the second derivative"),
@@ -499,6 +502,8 @@ def _functions() -> list[str]:
         if isinstance(capability, integrations.Rewrite):
             rewrites.append(capability)
             continue
+        if isinstance(capability, integrations.Optimizer):
+            continue  # consulted in turn, never called: see _optimizers
         modules.setdefault(capability.module, []).append(capability)
     for module, declared in modules.items():
         rows = [
@@ -518,6 +523,7 @@ def _functions() -> list[str]:
         for rewrite in rewrites
     ]
     lines += _table(("Written", "Computed by", "Meaning"), rows)
+    lines += _optimizers()
     reserved = [
         f"{_code(reservation.written[0])}, {reservation.what}"
         for reservation in integrations.reservations()
@@ -530,6 +536,29 @@ def _functions() -> list[str]:
         "is, never read as an unknown function or a symbol: " + "; ".join(reserved) + ".",
     ]
     return lines
+
+
+def _optimizers() -> list[str]:
+    """The optimizers, in the order an optimum consults them."""
+    from relativisticpy.integrations._optimizers import optimizers
+
+    lines = [
+        "",
+        "### Optimizers",
+        "",
+        "An optimum, `\\min_{x} f(x)`, `\\arg\\max_{x, y} u \\quad \\text{subject to} \\quad "
+        "g = 0` or `\\sup_{0 \\le x < 1} f(x)`, is found by the optimizers, in this order: "
+        "those that compute exactly, then, where it has no parameters, those that compute "
+        "numerically, which take first one written with decimals, as data is. A note says "
+        "which found it, how, and whether it is global. Over an index of data, `\\max_t x_t` "
+        "is the greatest value along it, and `\\arg\\max_t x_t` its label.",
+        "",
+    ]
+    rows = [
+        (_code(each.name), "numerically" if each.numerical else "exactly", each.summary)
+        for each in optimizers()
+    ]
+    return lines + _table(("Optimizer", "Computes", "Meaning"), rows)
 
 
 def _called(capability: integrations.Capability) -> str:

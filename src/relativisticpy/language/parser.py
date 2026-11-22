@@ -97,10 +97,16 @@ _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
 }  # fmt: skip
 _CASE_WORDS = frozenset({"if", "for", "when", "where"})
 _OTHERWISE = frozenset({"otherwise", "else"})
-# The extremes taken over a variable, \max_v, and the operator names of where they are,
-# \operatorname*{arg\,max}_k.
+# The extremes taken over a variable, \max_v, the operator names of where they are,
+# \operatorname*{arg\,max}_k, the bounds, \sup_x and \inf_x, and the names of all of them
+# in plain text, as min_{x}.
 _OPTIMA = frozenset({"max", "min"})
 _ARG_OPTIMA = frozenset({"argmax", "argmin"})
+_BOUNDS = frozenset({"sup", "inf"})
+_NAMED_OPTIMA = _OPTIMA | _ARG_OPTIMA | _BOUNDS
+# The words that put the constraints of an optimum after it, \text{subject to} and
+# \text{s.t.}, as they are read; \mathrm{s.t.} is read as the letters and stops of "s.t.".
+_SUBJECT_TO = frozenset({"subject to", "s.t.", "s.t", "st", "such that", "subject to:"})
 # The commands that are a label in a script, as \max is in \lambda_{\max}.
 _LABEL_COMMANDS = _OPTIMA
 # A command whose argument is prose, as in \text{where}.
@@ -248,6 +254,11 @@ class Parser:
         self._continued: tuple[Token, Token] | None = None
         # The last argument of a command read, braces and all, to mark it if it is empty.
         self._group: Span | None = None
+        # The binding power the expression being read stops at: an optimum that begins a
+        # sum takes the whole of it, and one in a product only its factor.
+        self._power: int = Power.NONE
+        # Inside what an optimum is of, "subject to" ends it, even written as letters.
+        self._bodies = 0
 
     # -- cursor ---------------------------------------------------------------
 
@@ -662,7 +673,11 @@ class Parser:
     # -- expressions ----------------------------------------------------------
 
     def expression(self, min_power: int = Power.NONE) -> ast.Expr:
-        return self._operations(self._prefix(), min_power)
+        outer, self._power = self._power, min_power
+        try:
+            return self._operations(self._prefix(), min_power)
+        finally:
+            self._power = outer
 
     def _operations(self, left: ast.Expr, min_power: int) -> ast.Expr:
         """The operations that follow ``left``, as far as ``min_power`` lets them go."""
@@ -733,6 +748,8 @@ class Parser:
             return Power.EQUATION
         if self._at_connective(token):
             return Power.NONE  # \text{and} between equations ends the one before it
+        if self._bodies and self._subject_to_word(self._significant(self.pos)):
+            return Power.NONE  # \mathrm{s.t.} ends what an optimum is of
         if kind is K.IDENT and token.value == "or":
             return Power.OR
         if kind is K.IDENT and token.value == "and":
@@ -1010,7 +1027,7 @@ class Parser:
                 return self._plain_differential()
             self.advance()
             if token.verbatim and token.value in _ARG_OPTIMA:  # \operatorname*{arg\,max}_k
-                raise self._optimum(token, token.value)
+                return self._optimum(token, token.value)
             following = self.peek()
             if (
                 token.verbatim
@@ -1020,7 +1037,9 @@ class Parser:
                 and following.value in _OPTIMA
             ):  # \mathrm{arg\,min}_w
                 self.advance()
-                raise self._optimum(token, "arg" + following.value)
+                return self._optimum(token, "arg" + following.value)
+            if token.value in _NAMED_OPTIMA and following.kind is K.UNDERSCORE:
+                return self._optimum(token, token.value)  # min_{x} in plain text
             return ast.Name(token.value, token.verbatim, span=token.span)
         if kind is K.COMMAND:
             return self._command()
@@ -1687,6 +1706,10 @@ class Parser:
             return self._function()
         if name in vocab.ACCENT_COMMANDS:
             return self._accent()
+        if name in _BOUNDS:
+            return self._optimum(self.advance(), name)  # \sup_{x \in S} f(x)
+        if name == "underset" and (beneath := self._beneath()) is not None:
+            return beneath  # \underset{x}{\min} f(x)
         notes = self._expanded_from(token)
         if (unsupported := vocab.UNSUPPORTED_COMMANDS.get(name)) is not None:
             message, hint = unsupported
@@ -2116,17 +2139,18 @@ class Parser:
 
     def _function(self) -> ast.Expr:
         r"""``\sin x``, ``\sin(x)``, ``\sin^2\theta``, ``\sin^{-1} x``, ``\log_{2} x``.
-        Only ``\log`` takes a subscript, its base: ``\max_x`` and ``\det_g`` are errors."""
+        Only ``\log`` takes a subscript, its base, and ``\max`` and ``\min`` the variable
+        they are over, ``\max_x``: ``\det_g`` is an error."""
         command = self.advance()
         name = vocab.FUNCTION_COMMANDS[command.value]
         if command.value == "arg" and self.check(K.COMMAND) and self.peek().value in _OPTIMA:
             self.advance()  # \arg\min_w: where the minimum is, not the argument of a number
-            raise self._optimum(command, "arg" + self.previous.value)
+            return self._optimum(command, "arg" + self.previous.value)
         power: ast.Expr | None = None
         base: ast.Expr | None = None
         while self.peek().kind in (K.CARET, K.UNDERSCORE):
             if self.check(K.UNDERSCORE) and command.value in _OPTIMA:
-                raise self._optimum(command, command.value)  # \max_v: over v
+                return self._optimum(command, command.value)  # \max_v: over v
             marker = self.advance()
             script = self._script("^" if marker.kind is K.CARET else "_", marker)
             if script.body is None:
@@ -2165,29 +2189,232 @@ class Parser:
             node = ast.Scripted(node, (script,), span=self._span(command))
         return node
 
-    def _optimum(self, start: Token, optimum: str) -> ParseError:
-        """The error for a maximum or a minimum over a variable, or the point where it is,
-        as ``\\max_v``, ``\\arg\\min_w`` and ``\\operatorname*{arg\\,max}_k`` write them,
-        which the language does not compute yet. Reads the variable, to name it."""
-        variable = ""
-        if self.check(K.UNDERSCORE) and not self.peek().space_before:
-            marker = self.advance()
-            script = self._script("_", marker)
-            variable = self.source.text[marker.span.end : script.span.end].strip()
-            if variable.startswith("{") and variable.endswith("}"):
-                variable = variable[1:-1].strip()
+    # -- optima -----------------------------------------------------------------
+
+    def _optimum(self, start: Token, op: str) -> ast.Optimum:
+        """An optimum, as books write it: ``\\max_{x} f(x)``, ``\\arg\\min_{w} f(w)``,
+        ``\\operatorname*{arg\\,max}_k |X_k|``, ``\\sup_{0 \\le x < 1} x^n``: the variables
+        beneath the operator, with the set they are in or the conditions they keep, what it
+        is of after it, and the constraints after "subject to" (:meth:`_subject_to`)."""
+        if not self.check(K.UNDERSCORE):
+            raise self._without_variable(start, op)
+        self.advance()
+        token = self.tokens[self.pos]
+        if token.kind not in (K.LBRACE, K.IDENT, K.COMMAND):
+            raise self._without_variable(start, op)
+        under = self._script_tokens(start)
+        variables, constraints = self._beneath_optimum(under, start, op)
+        return self._optimum_after(start, op, variables, constraints)
+
+    def _without_variable(self, start: Token, op: str) -> ParseError:
+        """The error for an optimum written without the variable it is over, as ``\\arg\\max f``."""
         written = self._span(start).text
-        extreme = "maximum" if optimum.endswith("max") else "minimum"
-        if not optimum.startswith("arg"):
-            what = f"a {extreme} over {variable}" if variable else f"a {extreme}"
-            return ParseError(
-                f"{written}, {what}, is not supported yet",
-                span=self._span(start),
-                hint=f"for the {'larger' if extreme == 'maximum' else 'smaller'} of values, "
-                f"write \\{optimum}(a, b)",
+        extreme = "maximum" if op.endswith(("max", "sup")) else "minimum"
+        what = {
+            "sup": "the supremum",
+            "inf": "the infimum",
+            "argmax": "where a maximum is",
+            "argmin": "where a minimum is",
+        }.get(op, f"a {extreme}")
+        return ParseError(
+            f"{written}, {what}, needs the variable it is over, beneath it",
+            span=self._span(start),
+            hint=f"write it as {written}_{{x}} f(x), or {written}_{{x \\in S}} f(x)",
+        )
+
+    def _beneath(self) -> ast.Optimum | None:
+        """``\\underset{x \\in S}{\\min} f(x)``: an optimum whose variable ``\\underset`` sets
+        beneath it; ``None``, having read nothing, where what is set beneath is no optimum."""
+        before = self.pos, self.previous
+        command = self.advance()
+        under = self._argument_tokens(command, "subscript")
+        operator = _optimum_operator(self._argument_tokens(command, "operator"))
+        if operator is None:
+            self.pos, self.previous = before
+            return None
+        variables, constraints = self._beneath_optimum(under, command, operator)
+        return self._optimum_after(command, operator, variables, constraints)
+
+    def _optimum_after(
+        self, start: Token, op: str, variables: list[ast.Expr], constraints: list[ast.Expr]
+    ) -> ast.Optimum:
+        """The rest of an optimum, after its variables: what it is of, and its constraints.
+        It is of the whole sum it begins, up to a relation or "subject to", as
+        ``\\min_x \\; x^2 - 4x + 7`` is; where it is a factor, or has a sign before it, as in
+        ``2\\max_x f(x) + 1``, of that factor alone."""
+        whole = self._power < Power.SUM or self._subject_to_ahead()
+        token = self.peek()
+        if not (self._starts_operand(token) or token.kind in _SIGNS):
+            written = self._span(start).text
+            raise ParseError(
+                f"{written} needs what it is the {'maximum' if 'max' in op else 'minimum'} "
+                "of, after it",
+                span=token.span.labelled("expected an expression"),
+                hint=f"write it after the operator, as in {written} f(x)",
             )
-        where = f"the {variable} at which a {extreme} is" if variable else f"where a {extreme} is"
-        return ParseError(f"{written}, {where}, is not supported yet", span=self._span(start))
+        self._bodies += 1
+        try:
+            body = self.expression(Power.COMPARISON if whole else Power.SUM)
+        finally:
+            self._bodies -= 1
+        if isinstance(body, ast.List) and len(body.items) == 1:
+            body = body.items[0]  # \max_c \left[\ln c + \beta V(k - c)\right]: brackets group
+        constraints = [*constraints, *self._subject_to()]
+        kind = cast(Literal["max", "min", "argmax", "argmin", "sup", "inf"], op)
+        return ast.Optimum(kind, tuple(variables), body, tuple(constraints), span=self._span(start))
+
+    def _beneath_optimum(
+        self, tokens: list[Token], owner: Token, op: str
+    ) -> tuple[list[ast.Expr], list[ast.Expr]]:
+        """The variables an optimum is over, and the conditions beneath it: ``x``, ``x, y``,
+        ``x \\in S``, ``x, y \\in \\mathbb{R}``, the ``x`` of ``0 \\le x \\le 3`` and of
+        ``x \\geq 0``; and, in further rows of ``\\substack``, conditions alone."""
+        variables: list[ast.Expr] = []
+        constraints: list[ast.Expr] = []
+        written = owner.span.text
+        for number, row in enumerate(_split_tokens(tokens, K.ROW_SEP)):
+            pending: list[ast.Expr] = []
+            for item_tokens in _split_tokens(row, K.COMMA):
+                item = self._subparse(item_tokens, "variable", owner)
+                if number == 0 and _written_variable(item):
+                    pending.append(item)
+                    continue
+                if number > 0 and isinstance(item, ast.Comparison | ast.Equation | ast.Relation):
+                    constraints.append(item)
+                    continue
+                variable = _variable_of(item)
+                if variable is None:
+                    raise ParseError(
+                        f"beneath {written}, {item.span.text} is no variable: write the "
+                        "variables an optimum is over, with the set they are in or the "
+                        "conditions they keep",
+                        span=item.span,
+                        hint=f"as in {written}_{{x}}, {written}_{{x \\in S}} or "
+                        f"{written}_{{0 \\le x \\le 1}}",
+                    )
+                variables.extend([*pending, variable])
+                constraints.append(_on_each([*pending, variable], item))
+                pending = []
+            variables.extend(pending)
+        if not variables:
+            raise self._without_variable(owner, op)
+        return variables, constraints
+
+    def _subject_to(self) -> list[ast.Expr]:
+        """The constraints of an optimum after "subject to" or "s.t.", on its line or the
+        lines after it, as books set them, separated by commas, wide spaces and line
+        breaks: ``\\text{subject to} \\quad x_1 \\leq 4, \\quad x_1, x_2 \\geq 0``. A name
+        before a comma shares the relation after it, so that ``x_1, x_2 \\geq 0`` holds of
+        both."""
+        index = self._after_breaks(self.pos)
+        size = self._subject_to_word(index)
+        if not size:
+            return []
+        self.pos = index + size
+        self.previous = self.tokens[self.pos - 1]
+        constraints: list[ast.Expr] = []
+        pending: list[ast.Expr] = []
+        while True:
+            item = self.expression()
+            if _written_variable(item):
+                pending.append(item)
+            elif (
+                pending and (first := _first_operand(item)) is not None and _written_variable(first)
+            ):
+                constraints.append(_on_each([*pending, first], item))
+                pending = []
+            else:
+                if pending:
+                    raise _no_constraint(pending[0])
+                constraints.append(item)
+            if self._next_constraint():
+                continue
+            if pending:
+                raise _no_constraint(pending[0])
+            return constraints
+
+    def _next_constraint(self) -> bool:
+        """Go to the next constraint of an optimum, if one follows: after a comma, a word
+        such as ``\\text{and}``, or wide spacing before a relation; on the next row of an
+        alignment, set under the one before it, or after "s.t." again."""
+        if self.check(K.COMMA) and not self._at_punctuation():
+            self.advance()
+            if self._at_connective(self.peek()):  # x \geq 0, \text{and} y \geq 0
+                self.advance()
+            return True
+        if self._at_connective(self.peek()):
+            self.advance()
+            return True
+        if self._at_wide_space() and self._relates(self._significant(self.pos)):
+            return True
+        index = self._after_breaks(self.pos)
+        if index == self.pos:
+            return False
+        if size := self._subject_to_word(index):
+            self.pos = index + size
+            self.previous = self.tokens[self.pos - 1]
+            return True
+        if self.tokens[index].aligned and self._relates(index):  # & h(x) = 0, beneath
+            self.pos = index
+            self.previous = self.tokens[index - 1]
+            return True
+        return False
+
+    def _after_breaks(self, index: int) -> int:
+        """The first token after the line breaks and row separators at ``index``."""
+        while self.tokens[index].kind in (K.NEWLINE, K.ROW_SEP):
+            index += 1
+        return index
+
+    def _subject_to_ahead(self) -> bool:
+        """Whether "subject to" follows what an optimum is of, on its line or at the start
+        of the next: with no relation, comma or wide spacing before it, at the level the
+        optimum is written at."""
+        depth, index = 0, self.pos
+        while True:
+            token = self.tokens[index]
+            if token.kind is K.EOF:
+                return False
+            if depth == 0 and self._subject_to_word(index):
+                return True
+            if token.kind in _OPENERS or token.kind is K.BEGIN:
+                depth += 1
+            elif token.kind in _CLOSERS or token.kind is K.END:
+                depth -= 1
+                if depth < 0:
+                    return False
+            elif depth == 0 and token.kind in _SEPARATORS:
+                return bool(self._subject_to_word(self._after_breaks(index)))
+            elif depth == 0 and (
+                token.kind in _RELATIONS
+                or token.kind in _COMPARISONS
+                or token.kind in (K.COMMA, K.DEFINE)
+                or (token.wide_space and index > self.pos)
+            ):
+                return False
+            index += 1
+
+    def _subject_to_word(self, index: int) -> int:
+        """How many tokens the words "subject to" take at ``index``: ``\\text{subject to}``,
+        ``\\text{s.t.}``, ``\\text{such that}``, ``\\mathrm{s.t.}`` and, in plain text,
+        ``subject to``; 0 where they are not there."""
+        token = self.tokens[index]
+        if token.kind is K.STRING and token.value.strip().lower() in _SUBJECT_TO:
+            return 1
+        if token.kind is K.IDENT and token.verbatim and token.value == "st":
+            return 1
+        following = self.tokens[min(index + 1, len(self.tokens) - 1)]
+        if (token.kind, token.value, following.kind, following.value) == (
+            K.IDENT,
+            "subject",
+            K.IDENT,
+            "to",
+        ) and not (token.verbatim or following.verbatim):
+            return 2
+        letters = [(t.kind, t.value) for t in self.tokens[index : index + 4]]
+        if letters[:3] == [(K.IDENT, "s"), (K.PERIOD, "."), (K.IDENT, "t")] and token.verbatim:
+            return 4 if len(letters) == 4 and letters[3][0] is K.PERIOD else 3
+        return 0
 
     def _function_arguments(self) -> tuple[ast.Expr, ...]:
         """Arguments in parentheses or square brackets (``\\exp[-x^2]``), or (as typeset
@@ -2642,6 +2869,93 @@ def _order(token: Token) -> int:
     if not token.value.isdigit():
         raise ParseError("the order of a derivative must be a whole number", span=token.span)
     return int(token.value)
+
+
+def _split_tokens(tokens: list[Token], kind: TokenKind) -> list[list[Token]]:
+    """``tokens`` split at each token of ``kind`` outside brackets and environments."""
+    parts: list[list[Token]] = [[]]
+    depth = 0
+    for token in tokens:
+        if token.kind in _OPENERS or token.kind is K.BEGIN:
+            depth += 1
+        elif token.kind in _CLOSERS or token.kind is K.END:
+            depth -= 1
+        if token.kind is kind and depth == 0:
+            parts.append([])
+        else:
+            parts[-1].append(token)
+    return parts
+
+
+def _optimum_operator(tokens: list[Token]) -> str | None:
+    """The optimum an operator set by ``\\underset`` writes, as ``\\min``, ``\\arg\\max``
+    or ``\\operatorname{argmin}`` do; ``None`` for anything else."""
+    written = [(t.kind, t.value) for t in tokens if t.kind is not K.NEWLINE]
+    verbatim = all(t.verbatim for t in tokens if t.kind is K.IDENT)
+    if len(written) == 1:
+        kind, value = written[0]
+        if kind is K.COMMAND and value in _OPTIMA | _BOUNDS:
+            return value
+        if kind is K.IDENT and verbatim and value in _NAMED_OPTIMA:
+            return value
+    commands = {kind for kind, _ in written} == {K.COMMAND}
+    if len(written) == 2 and written[0][1] == "arg" and written[1][1] in _OPTIMA:
+        return "arg" + written[1][1] if commands or verbatim else None
+    return None
+
+
+def _written_variable(node: ast.Expr) -> bool:
+    """Whether a node is a variable as an optimum is written over it: a name, ``x``,
+    ``\\mathbf{x}`` or ``x_1``, maybe with subscripts, as ``x_{1}``, or an accent."""
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Accent):
+        return isinstance(node.base, ast.Name)
+    if isinstance(node, ast.Scripted) and isinstance(node.base, ast.Name):
+        return all(script.kind == "_" for script in node.scripts)
+    return False
+
+
+def _first_operand(node: ast.Expr) -> ast.Expr | None:
+    """The left side of a relation, an equation or a comparison."""
+    if isinstance(node, ast.Relation | ast.Equation):
+        return node.lhs
+    if isinstance(node, ast.Comparison):
+        return node.operands[0]
+    return None
+
+
+def _variable_of(node: ast.Expr) -> ast.Expr | None:
+    """The variable a condition beneath an optimum is on: the ``x`` of ``x \\in S``, of
+    ``x \\geq 0`` and of ``0 \\le x \\le 3``; ``None`` for anything else."""
+    if isinstance(node, ast.Relation) and node.op in ("∈", "∉"):
+        return node.lhs if _written_variable(node.lhs) else None
+    if not isinstance(node, ast.Comparison):
+        return None
+    if len(node.ops) == 2:
+        return node.operands[1] if _written_variable(node.operands[1]) else None
+    return next((side for side in node.operands if _written_variable(side)), None)
+
+
+def _on_each(names: list[ast.Expr], condition: ast.Expr) -> ast.Expr:
+    """A condition on the last of ``names``, as on each of them: ``x_1, x_2 \\geq 0`` has
+    the tuple of both on its left."""
+    if len(names) == 1 or _first_operand(condition) is not names[-1]:
+        return condition
+    group = ast.Tuple(tuple(names), span=names[0].span.to(names[-1].span))
+    span = group.span.to(condition.span)
+    if isinstance(condition, ast.Comparison):
+        return replace(condition, operands=(group, *condition.operands[1:]), span=span)
+    assert isinstance(condition, ast.Relation | ast.Equation)
+    return replace(condition, lhs=group, span=span)
+
+
+def _no_constraint(node: ast.Expr) -> ParseError:
+    return ParseError(
+        f'{node.span.text} is no constraint: after "subject to", write relations',
+        span=node.span,
+        hint="as in \\text{subject to} \\quad x \\geq 0, \\quad x + y = 1",
+    )
 
 
 def _is_minus_one(node: ast.Expr | None) -> bool:
