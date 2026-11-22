@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import numbers
+import re
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -252,18 +253,13 @@ class Workbook:
 
     @_from_python
     def run_file(self, path: str | Path) -> list[Any]:
-        """Run a program from a file, as :meth:`run` does. In a Markdown file, the
-        ``$$...$$`` blocks are the program."""
-        path = _path(path, "run_file")
-        try:
-            text = path.read_text(encoding="utf-8-sig")  # with a byte order mark or without
-        except UnicodeDecodeError as error:
-            raise _not_utf8(path, error) from None
-        except OSError as error:
-            raise _unreadable(path, error) from None
-        if path.suffix.lower() in (".md", ".markdown"):
-            return [result for block in math_blocks(text, str(path)) for result in self.exe(block)]
-        return self.exe(text, name=str(path))
+        """Run a program from a file, as :meth:`run` does, and return the value of every
+        expression in it, in order. In a Markdown notebook (``.md``), its blocks of maths
+        are the program, without the results ``relativisticpy --render`` typeset in it
+        (see :func:`read_program`). A LaTeX document, whose equations are checked rather
+        than run, and a Jupyter notebook are refused, with what to do instead."""
+        sources = read_program(_path(path, "run_file"))
+        return [result for source in sources for result in self.exe(source)]
 
     @_from_python
     def markdown(self, text: str, *, name: str = "<markdown>") -> str:
@@ -933,7 +929,7 @@ def _not_utf8(path: Path, error: UnicodeDecodeError) -> RelativisticPyError:
     return FileError(
         f"{path} is not UTF-8 text: the byte 0x{error.object[error.start]:02X} at line "
         f"{line}, column {column} is not",
-        hint=f"save it as UTF-8, as with  iconv -f latin1 -t utf-8 {path}",
+        hint=f"save it as UTF-8, as with iconv -f latin1 -t utf-8 {path}",
     )
 
 
@@ -944,6 +940,93 @@ def _unreadable(path: Path, error: OSError) -> RelativisticPyError:
     if isinstance(error, IsADirectoryError):
         return FileError(f"{path} is a folder, not a file")
     return FileError(f"cannot read {path}: {error.strerror or error}")
+
+
+# -- the files a run reads ---------------------------------------------------------------
+
+#: The comments around the results that ``relativisticpy --render`` typesets in a
+#: Markdown notebook, each on a line of its own: rendering the notebook again replaces
+#: what is between them, and running or rendering it never runs it as input.
+RESULT_START = "<!-- relativisticpy:result -->"
+RESULT_END = "<!-- /relativisticpy:result -->"
+
+_RESULT = re.compile(
+    r"(?:\n[ \t]*){0,2}^" + re.escape(RESULT_START) + r"[ \t]*\n.*?^" + re.escape(RESULT_END),
+    re.DOTALL | re.MULTILINE,
+)
+_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})[^\n]*\n.*?^ {0,3}\1[ \t]*$", re.DOTALL | re.MULTILINE)
+_MARKDOWN_SUFFIXES = (".md", ".markdown")
+_LATEX_SUFFIXES = (".tex", ".ltx", ".latex")
+_LATEX_DOCUMENT = re.compile(r"\\documentclass\b|\\begin\s*\{document\}")
+
+
+def rendered_results(text: str) -> list[tuple[int, int]]:
+    r"""Where a Markdown notebook holds results that ``relativisticpy --render``
+    typeset: the start and the end of each, from the line break before it, outside
+    code blocks::
+
+        >>> rendered_results("$$ x^2 $$\n\n" + RESULT_START + "\n$$ x^{2} $$\n" + RESULT_END)
+        [(9, 85)]
+    """
+    fences = [match.span() for match in _FENCE.finditer(text)]
+    found = []
+    for match in _RESULT.finditer(text):
+        marker = text.index(RESULT_START, match.start())
+        if not any(start <= marker < end for start, end in fences):
+            found.append(match.span())
+    return found
+
+
+def notebook_blocks(text: str, name: str = "<markdown>") -> list[Source]:
+    """The blocks a Markdown notebook runs, in order, as
+    :func:`~relativisticpy.documents.math_blocks` finds them, but not the results that
+    ``relativisticpy --render`` typeset in it, which are not input."""
+    return math_blocks(_blanked(text, rendered_results(text)), name)
+
+
+def _blanked(text: str, spans: Sequence[tuple[int, int]]) -> str:
+    """``text`` with each span made blank, its line breaks and every offset kept, so that
+    the lines of what follows are still the file's."""
+    pieces, done = [], 0
+    for start, end in spans:
+        pieces.append(text[done:start])
+        pieces.append(re.sub(r"[^\n]", " ", text[start:end]))
+        done = end
+    pieces.append(text[done:])
+    return "".join(pieces)
+
+
+def read_program(path: str | Path) -> list[Source]:
+    r"""What running a file runs: the text of a program, or the blocks of a Markdown
+    notebook (``.md``, ``.markdown``), as :func:`notebook_blocks` finds them. The file
+    is UTF-8 text, with a byte order mark or without.
+
+    A file that cannot be read is a :class:`~relativisticpy.errors.FileError`, and so is
+    a LaTeX document (``.tex``, or text with ``\documentclass``), whose equations are
+    checked rather than run, and a Jupyter notebook; each says what to do instead."""
+    path = Path(path)
+    suffix = path.suffix.lower()
+    if suffix == ".ipynb":
+        raise FileError(
+            f"{path} is a Jupyter notebook, which RelativisticPy does not run",
+            hint=f"export it as Markdown, as with jupyter nbconvert --to markdown {path}, "
+            "and run that",
+        )
+    try:
+        text = path.read_text(encoding="utf-8-sig")  # with a byte order mark or without
+    except UnicodeDecodeError as error:
+        raise _not_utf8(path, error) from None
+    except OSError as error:
+        raise _unreadable(path, error) from None
+    if suffix in _MARKDOWN_SUFFIXES:
+        return notebook_blocks(text, str(path))
+    if suffix in _LATEX_SUFFIXES or _LATEX_DOCUMENT.search(text):
+        raise FileError(
+            f"{path} is a LaTeX document, not a program",
+            hint=f"to check its equations: relativisticpy check {path} (in Python, "
+            f"wb.check({str(path)!r}))",
+        )
+    return [Source(text, str(path))]
 
 
 def _double_precision(jax: Any) -> None:

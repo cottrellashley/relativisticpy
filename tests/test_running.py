@@ -1,12 +1,19 @@
 """Running programs a statement at a time, as the command line does: every error in
-order, and the IR of a notebook's blocks together."""
+order, the IR of a notebook's blocks together, and the files a run reads."""
 
 import pytest
 from sympy import Symbol
 
 from relativisticpy import Workbook
-from relativisticpy.errors import CompileError, ParseError
+from relativisticpy.errors import CompileError, FileError, ParseError
 from relativisticpy.language import Source
+from relativisticpy.workbook import (
+    RESULT_END,
+    RESULT_START,
+    notebook_blocks,
+    read_program,
+    rendered_results,
+)
 
 
 class TestEveryErrorInOrder:
@@ -90,3 +97,66 @@ class TestTheIrOfSeveralBlocks:
 
     def test_one_program_is_as_before(self):
         assert not Workbook().ir("x^2").startswith("#")
+
+
+class TestTheFilesARunReads:
+    def test_a_program(self, tmp_path):
+        program = tmp_path / "square.relpy"
+        program.write_text("x := 3\nx^2\n", encoding="utf-8-sig")
+        [source] = read_program(program)
+        assert source.name == str(program)
+        assert Workbook().run_file(program) == [9]
+
+    def test_a_latex_document_is_checked_not_run(self, tmp_path):
+        # CLI-34, DOC-40: a LaTeX document belongs to check
+        for name, text in (("paper.tex", "$$ x = 1 $$"), ("notes.txt", "\\documentclass{article}")):
+            document = tmp_path / name
+            document.write_text(text)
+            with pytest.raises(FileError, match="is a LaTeX document, not a program") as error:
+                Workbook().run_file(document)
+            assert f"relativisticpy check {document}" in error.value.hint
+
+    def test_a_jupyter_notebook_is_refused(self, tmp_path):
+        notebook = tmp_path / "notes.ipynb"
+        notebook.write_text("{}")
+        with pytest.raises(FileError, match="Jupyter notebook") as error:
+            read_program(notebook)
+        assert "jupyter nbconvert --to markdown" in error.value.hint
+
+    def test_files_that_cannot_be_read(self, tmp_path):
+        with pytest.raises(FileError, match="no file"):
+            read_program(tmp_path / "missing.relpy")
+        with pytest.raises(FileError, match="is a folder, not a file"):
+            read_program(tmp_path)
+        latin = tmp_path / "latin.relpy"
+        latin.write_bytes("\\text{é}\n".encode("latin-1"))
+        with pytest.raises(FileError, match="not UTF-8") as error:
+            read_program(latin)
+        assert "  " not in error.value.hint  # CLI-48: one space, as every hint has
+
+
+class TestRenderedResults:
+    """DOC-23: the results --render typesets are marked, and never run as input."""
+
+    RENDERED = (
+        "Prose.\n\n$$\nx := 2 \\\\\nx^2\n$$\n\n"
+        f"{RESULT_START}\n$$\n4\n$$\n{RESULT_END}\n\nMore.\n\n$$\nx + 1\n$$\n"
+    )
+
+    def test_where_they_are(self):
+        [(start, end)] = rendered_results(self.RENDERED)
+        assert self.RENDERED[start:end].startswith(f"\n\n{RESULT_START}")
+        assert self.RENDERED[start:end].endswith(RESULT_END)
+
+    def test_they_are_not_run_and_lines_stay_the_files(self, tmp_path):
+        blocks = notebook_blocks(self.RENDERED, "notes.md")
+        assert [block.text.strip() for block in blocks] == ["x := 2 \\\\\nx^2", "x + 1"]
+        [step] = Workbook().each(blocks[1])
+        assert step.span.line == 17  # as the file has it, results and all
+        notes = tmp_path / "notes.md"
+        notes.write_text(self.RENDERED)
+        assert Workbook().run_file(notes) == [4, 3]
+
+    def test_markers_in_code_are_text(self):
+        shown = f"```markdown\n$$ y $$\n\n{RESULT_START}\n$$ 1 $$\n{RESULT_END}\n```\n"
+        assert rendered_results(shown) == []
