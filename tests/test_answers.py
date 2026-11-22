@@ -68,7 +68,7 @@ class TestClaimsAreDecidedOrRefused:
         assert wb.expr("x + 1 = x") is sympy.false
         assert wb.expr("x^2 + y^2 = 1") == sympy.Eq(x**2 + y**2, 1)  # an equation, to solve
         assert wb.expr("solve(x^2 = 4, x)") == [-2, 2]
-        assert wb.expr("a > 0") == (sympy.Symbol("a") > 0)  # a condition, as written
+        assert wb.expr("a > 0") is None  # an assumption, which shows nothing
         assert wb.expr("r' < r") == (sympy.Symbol("r'") < sympy.Symbol("r"))
         assert wb.expr("x >= y + 1") == (x >= y + 1)  # between rational functions: a condition
 

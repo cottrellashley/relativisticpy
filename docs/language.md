@@ -96,17 +96,31 @@ is `r_s`.
 
 ```
 
-Declare assumptions about symbols *before* you use them, so that SymPy can
-simplify with them:
+State what a symbol is as books do, with a relation on its name alone: `a > 0`,
+`0 < x < 1`, `a, b > 0`, `x \in \mathbb{R}`, `n \in \mathbb{N}` or `n \in \mathbb{Z}_{>0}`.
+It is an assumption for the rest of the program, shows nothing, and SymPy simplifies
+with it:
 
 ```python
->>> wb.exe("Positive := [a]\nsqrt(a^2)\nsqrt(b^2)")
-[a, sqrt(b**2)]
+>>> wb.exe(r"""
+...     a, b > 0
+...     \sqrt{a^2 b^2}
+...     \sqrt{c^2}
+... """)
+[a*b, sqrt(c**2)]
 
 ```
 
-The declarations are `Coordinates`, `Constants`, `Reals`, `Integers`, `Complex` and
-`Positive`.
+A name may be used before it is assumed: what was defined with it takes the assumption
+from then on, and what was shown stays as it was. What SymPy cannot keep on a symbol,
+as x < 1 in `0 < x < 1` or `a > r` in `a > r > 0`, is kept beside it and used where it
+decides something, as by `solve`; so is what is assumed of a coordinate, whose symbol
+stays as it is. A relation between names alone, as `T_h > T_c`, stays a condition, and
+one on a name that has a value is a claim, checked. `Workbook.explain` says which.
+
+The declarations `Constants`, `Reals`, `Integers`, `Complex` and `Positive`, as in
+`Positive := [a]`, say the same of a list of names, and `Coordinates` declares the
+coordinates.
 
 ## Definitions, and what `=` means
 

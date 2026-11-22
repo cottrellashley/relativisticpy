@@ -25,7 +25,7 @@ so whatever SymPy does to them still works.
 | SymPy | RelativisticPy |
 |---|---|
 | `x = sympy.Symbol("x")` | nothing: a name nothing defines is a symbol |
-| `sympy.Symbol("a", positive=True)` | `Positive := [a]` |
+| `sympy.Symbol("a", positive=True)` | `a > 0`, or `Positive := [a]` |
 | `f = sympy.Function("f")` | nothing: `f(x)` is an unknown function |
 | `sympy.diff(f(x), x, 2)` | `f''(x)`, `\frac{d^2}{dx^2} f(x)`, or `diff(f(x), x, 2)` |
 | `sympy.integrate(x**2, (x, 0, 1))` | `\int_0^1 x^2 \, dx`, or `integrate(x^2, (x, 0, 1))` |

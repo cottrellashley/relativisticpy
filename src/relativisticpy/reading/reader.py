@@ -40,6 +40,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.reading.assumptions import numbers
 from relativisticpy.reading.names import (
     _BUILT_IN_SCALARS,
     _BUILTIN_TENSORS,
@@ -1873,6 +1874,13 @@ class Reader(Typer):
         member, space = node.lhs.span.text, node.rhs
         styled = _styled(space.span)  # \mathcal{B}, not B
         written = Span(node.span.source, node.span.start, styled.end).text
+        if numbers(node):  # of a value, or of what is no name: ω(V) \in \mathbb{R}
+            return CompileError(
+                f"{written} says what {member} is, which is read but not computed",
+                span=node.span,
+                hint=f"of a name nothing defines, as in x \\in {styled.text}, it is an "
+                "assumption about the name from then on",
+            )
         if isinstance(space, ast.Name) and space.id not in self.session.spaces:
             name = styled.text
             return CompileError(

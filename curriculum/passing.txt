@@ -3,6 +3,7 @@ analysis.derivatives.chain-rule
 analysis.derivatives.continuity
 analysis.derivatives.dot-squared
 analysis.derivatives.not-differentiable
+analysis.integrals.gaussian
 analysis.integrals.gaussian-polar
 analysis.integrals.substitution
 analysis.limits.does-not-exist
@@ -12,6 +13,8 @@ analysis.limits.sinc
 analysis.multivariable.iterated
 analysis.series.taylor-exp
 analysis.taylor.integral-remainder
+astro.collapse.free-fall-time
+astro.collapse.jeans-mass
 astro.distances.angular-diameter-maximum
 astro.distances.comoving-distance
 astro.distances.milne-luminosity-distance
@@ -19,6 +22,7 @@ astro.expansion.deceleration-parameter
 astro.expansion.lambda-cdm-age
 astro.expansion.matter-age
 astro.gravitation.binding-energy
+astro.gravitation.geostationary-orbit
 astro.gravitation.jupiter-mass
 astro.gravitation.virial-ellipse
 astro.stars.eddington-luminosity
@@ -29,6 +33,7 @@ chem.rates.activation-energy
 chem.rates.arrhenius-factor
 chem.spectroscopy.hcl-wavenumber
 chem.spectroscopy.nmr-populations
+chem.spectroscopy.rotational-maximum
 cm.central.kepler-period
 cm.central.kepler-third-law
 cm.oscillations.angular-momentum
@@ -39,6 +44,7 @@ cm.oscillations.two-carts
 complex.analytic.cauchy-riemann
 complex.analytic.conjugate
 complex.analytic.harmonic-conjugate
+complex.maps.cayley
 complex.maps.principal-log
 complex.numbers.arithmetic
 complex.numbers.roots-of-unity
@@ -78,6 +84,7 @@ dg.symmetry.conformal-killing
 dg.symmetry.flrw-conformally-flat
 dg.symmetry.sphere-killing
 dyn.control.controllability
+dyn.control.critical-gain
 dyn.control.observability
 dyn.control.overshoot
 dyn.control.step-response
@@ -96,7 +103,9 @@ econ.games.mixed-equilibrium
 econ.interest.continuous-equivalent
 econ.interest.continuous-limit
 econ.interest.doubling-time
+econ.interest.irr
 econ.interest.present-value
+econ.production.returns-to-scale
 em.field-tensor.invariant
 em.maxwell.bianchi
 em.maxwell.dispersion
@@ -116,8 +125,10 @@ fa.transforms.dft
 fa.transforms.gaussian
 fa.transforms.rayleigh
 fa.transforms.rectangle
+fluid.ideal.cylinder-pressure
 fluid.ideal.dalembert
 fluid.ideal.stagnation-points
+fluid.ideal.torricelli
 fluid.ideal.venturi
 fluid.motion.stream-function
 fluid.sound.speed-in-air
@@ -129,6 +140,7 @@ fluid.viscous.terminal-velocity
 fluid.vorticity.line-vortex
 fluid.vorticity.shear-flow
 geom.balls.five-ball
+geom.balls.sphere-area
 geom.curves.ellipse-vertex
 geom.gauss-bonnet.chern-four-sphere
 geom.gauss-bonnet.geodesic-triangle
@@ -253,6 +265,7 @@ sig.frequency.moving-average-null
 sig.notation.sinc
 sig.windows.coherent-gain
 special.bessel.equation
+special.bessel.half-order
 special.bessel.value
 special.erf.asymptotic
 special.erf.derivative
@@ -293,11 +306,13 @@ thermo.cycles.carnot
 thermo.cycles.otto-efficiency
 thermo.entropy.third-law
 thermo.ideal-gas.adiabatic-temperature
+thermo.ideal-gas.adiabatic-work
 thermo.ideal-gas.mixing-entropy
 thermo.maxwell.heat-capacities
 thermo.maxwell.joule-expansion
 thermo.phases.boiling-on-everest
 thermo.phases.clapeyron-slope
+thermo.potentials.euler-relation
 thermo.potentials.gibbs-helmholtz
 thermo.real-gases.boyle-temperature
 thermo.real-gases.corresponding-states

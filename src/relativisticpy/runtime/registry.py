@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from types import MappingProxyType
 from typing import Any, Literal
 
-from relativisticpy import integrations, spacetimes
+from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.runtime import core, notation
@@ -200,6 +200,8 @@ def _core() -> Iterator[Implementation]:
     yield entry("core.components", core.components, "value", 1, 1)
     yield entry("core.metric_diagnosis", core.metric_diagnosis, "value", 1, 1)
     yield entry("core.geodesic_equations", geodesic_equations, "value", 3, 3)
+    # what was defined with a symbol an assumption has since given facts
+    yield entry("core.assume", assumptions.substituted, "argument", 1, 1)
     # values for Python
     yield entry("core.tensor", core.tensor, "value", 1, 1)
     yield entry("core.tensor_equation", core.tensor_equation, "value", 1, 1)

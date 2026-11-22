@@ -23,6 +23,7 @@ A program is a sequence of statements, one to a line; a semicolon, `\\` and `\li
 | `\mathcal{H} := \mathbb{C}^{2}` | a space, complex, of 2 dimensions; `\mathbb{R}^{n}` is real |
 | `i, j \in \mathcal{H}` | index labels that range over a space |
 | `x_n := n h, \quad n = 0, \ldots, N-1` | a grid: n ranges over its N values, and x is made for each |
+| `a > 0`, `0 < x < 1`, `a, b > 0`, `x \in \mathbb{R}`, `n \in \mathbb{N}` | an assumption about names nothing defines, from then on |
 | `Coordinates := [t, r, \theta, \phi]` | the coordinates, in order |
 | `Constants` `Reals` `Integers` `Complex` `Positive` `:= [a, b]` | declare a and b constants, real, integers, complex or positive, before they are used |
 

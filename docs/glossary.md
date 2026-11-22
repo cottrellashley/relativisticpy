@@ -54,6 +54,10 @@ no meaning yet.
 `Coordinates := [t, r, \theta, \phi]`, `Positive := [a]`, `a, b \in \mathcal{A}`,
 `MetricSymbol := G`.
 
+**Assumption.** A relation on names nothing defines, standing alone, as `a > 0`,
+`0 < x < 1` or `x \in \mathbb{R}`: it says what the names are from then on, and shows
+nothing.
+
 **Equation.** Two sides joined by `=`. What it does depends on its left side: it is a
 definition, a claim, a condition, or an equation to solve, as `x^2 + y^2 = 1` is.
 

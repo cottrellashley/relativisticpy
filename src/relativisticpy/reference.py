@@ -318,6 +318,8 @@ def _statements() -> list[str]:
         (r"`i, j \in \mathcal{H}`", "index labels that range over a space"),
         (r"`x_n := n h, \quad n = 0, \ldots, N-1`",
          "a grid: n ranges over its N values, and x is made for each"),
+        (r"`a > 0`, `0 < x < 1`, `a, b > 0`, `x \in \mathbb{R}`, `n \in \mathbb{N}`",
+         "an assumption about names nothing defines, from then on"),
         (r"`Coordinates := [t, r, \theta, \phi]`", "the coordinates, in order"),
         (f"{declarations} `:= [a, b]`", f"declare a and b {assumptions}, before they are used"),
     ]  # fmt: skip

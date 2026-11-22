@@ -29,6 +29,7 @@ from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.lowering.objects import PythonObjects
+from relativisticpy.reading import assumptions
 
 # The tables of the language, which its reference reads from here.
 from relativisticpy.reading.names import _BUILTIN_TENSORS as _BUILTIN_TENSORS
@@ -184,6 +185,8 @@ class Compiler(PythonObjects):
         assert isinstance(statement, ast.Evaluate)
         expr = statement.expr
         if isinstance(expr, ast.Relation) and self._declares(expr):
+            return []
+        if assumptions.assume(self, expr, scope, ctx):  # a > 0, x \in \mathbb{R}
             return []
         if isinstance(expr, ast.Chain):  # a = b = c: each link is a claim of its own
             return [

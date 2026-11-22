@@ -1365,7 +1365,10 @@ class Parser:
             self.advance()
             self.advance()
             return node
-        script = self._script(kind, marker)
+        if _a_number_set(node) and self.check(K.LBRACE) and self.peek(1).kind in _COMPARISONS:
+            script = self._bound_script(node, kind, marker)  # \mathbb{Z}_{>0}
+        else:
+            script = self._script(kind, marker)
         if extend and isinstance(node, ast.Scripted):
             base, scripts = node.base, (*node.scripts, script)
         else:
@@ -1413,6 +1416,19 @@ class Parser:
         raise ParseError(
             f"expected a {what} after '{kind}', found {token.describe()}", span=token.span
         )
+
+    def _bound_script(
+        self, numbers: ast.Expr, kind: Literal["^", "_"], marker: Token
+    ) -> ast.Script:
+        """``\\mathbb{Z}_{>0}``: a set of numbers with a bound in its script, the numbers
+        of the set that keep it, read as the comparison ``ℤ > 0``."""
+        opener = self.advance()
+        relation = self.advance()
+        bound = self.expression(Power.COMPARISON)
+        self.expect(K.RBRACE, opener=opener)
+        span = relation.span.to(bound.span)
+        comparison = ast.Comparison((numbers, bound), (_COMPARISONS[relation.kind],), span=span)
+        return ast.Script(kind, comparison, None, span=self._span(marker))
 
     def _signs_operand(self, kind: Literal["^", "_"]) -> bool:
         """Whether the ``+`` or ``-`` after a script marker signs what follows it, as plain
@@ -3016,7 +3032,8 @@ def _labels_written(target: ast.Expr) -> set[str]:
 def _memberships(targets: list[ast.Expr], joined: list[bool]) -> list[ast.Expr]:
     """``a, b \\in \\mathcal{A}``: names listed with commas before a membership are
     members too, so the list is one statement, ``(a, b) \\in \\mathcal{A}``, not ``a``
-    and ``b \\in ...``. Prose, as in ``\\text{where} \\quad x, y \\in X``, is not."""
+    and ``b \\in ...``; and so are names listed before a comparison, as in ``a, b > 0``,
+    which is ``(a, b) > 0``. Prose, as in ``\\text{where} \\quad x, y \\in X``, is not."""
     grouped: list[ast.Expr] = []
     names: list[ast.Expr] = []
     for target, link in zip(targets, joined, strict=True):
@@ -3029,12 +3046,24 @@ def _memberships(targets: list[ast.Expr], joined: list[bool]) -> list[ast.Expr]:
         if isinstance(target, ast.Relation) and target.op == "∈" and names and _member(target.lhs):
             members = ast.Tuple((*names, target.lhs), span=names[0].span.to(target.lhs.span))
             target = ast.Relation(members, "∈", target.rhs, span=names[0].span.to(target.span))
+        elif isinstance(target, ast.Comparison) and names and _member(target.operands[0]):
+            first = target.operands[0]
+            members = ast.Tuple((*names, first), span=names[0].span.to(first.span))
+            operands = (members, *target.operands[1:])
+            span = names[0].span.to(target.span)
+            target = ast.Comparison(operands, target.ops, span=span)
         else:
             grouped.extend(names)
         names = []
         grouped.append(target)
     grouped.extend(names)
     return grouped
+
+
+def _a_number_set(node: ast.Expr) -> bool:
+    """``\\mathbb{R}``, ``\\mathbb{Z}`` and the other sets of numbers written in
+    blackboard bold."""
+    return isinstance(node, ast.Name) and node.id in ("ℂ", "ℕ", "ℚ", "ℝ", "ℤ")
 
 
 def _member(node: ast.Expr) -> bool:

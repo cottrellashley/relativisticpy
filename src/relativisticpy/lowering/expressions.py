@@ -439,6 +439,12 @@ class Expressions(LinearAlgebra):
         return value
 
     def _Comparison(self, node: ast.Comparison, scope: Scope, ctx: Context) -> Node:
+        first = node.operands[0]
+        if isinstance(first, ast.Tuple):  # a, b > 0 is a > 0 and b > 0
+            each = [replace(node, operands=(name, *node.operands[1:])) for name in first.items]
+            return self._call(
+                "core.and", [self.value(c, scope, ctx) for c in each], SCALAR, node.span
+            )
         operands = [self.value(o, scope, ctx) for o in node.operands]
         relations = [
             self._call(_COMPARE[op], [a, b], SCALAR, node.span)

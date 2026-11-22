@@ -77,8 +77,8 @@ class MetricState:
 class Saved:
     """What a statement may change in a session, as it was before the statement, so that
     the statement can be undone where a check of what it defines fails: the names bound,
-    the coordinates and the metric, the functions of the coordinates, and the names
-    written as factors."""
+    the coordinates and the metric, the functions of the coordinates, the names written
+    as factors, and what is assumed."""
 
     bindings: dict[str, Binding]
     coordinates: tuple[Symbol, ...] | None
@@ -87,6 +87,8 @@ class Saved:
     functions: dict[str, tuple[Symbol, ...]]
     dropped: Span | None
     factors: frozenset[str]
+    assumptions: dict[str, Symbol]
+    bounds: tuple[tuple[Any, Span], ...]
 
 
 @dataclass
@@ -99,6 +101,9 @@ class Session:
     coordinates: tuple[Symbol, ...] | None = None
     metric: MetricState | None = None
     assumptions: dict[str, Symbol] = field(default_factory=dict)
+    # The bounds the program assumes that SymPy cannot keep on a symbol, as x < 1 in
+    # 0 < x < 1 or a > r, with where each was stated (see relativisticpy.assumptions).
+    bounds: list[tuple[Any, Span]] = field(default_factory=list)
     names: dict[str, str] = field(default_factory=lambda: dict(DEFAULT_NAMES))
     # Functions of the coordinates, written once with their arguments as in \alpha(t, r):
     # as in physics texts, a bare \alpha then means \alpha(t, r).
@@ -158,6 +163,7 @@ class Session:
             self,
             globals=self.globals.copy(),
             assumptions=dict(self.assumptions),
+            bounds=list(self.bounds),
             names=dict(self.names),
             functions=dict(self.functions),
             factors=set(self.factors),
@@ -182,6 +188,8 @@ class Session:
             dict(self.functions),
             self.dropped,
             frozenset(self.factors),
+            dict(self.assumptions),
+            tuple(self.bounds),
         )
 
     def restore(self, saved: Saved) -> None:
@@ -195,6 +203,8 @@ class Session:
         self.dropped = saved.dropped
         self.factors.clear()
         self.factors.update(saved.factors)
+        self.assumptions = dict(saved.assumptions)
+        self.bounds = list(saved.bounds)
 
     def spacetime(self, span: Span, why: str = "index notation") -> Space:
         """The space of the coordinates in force."""

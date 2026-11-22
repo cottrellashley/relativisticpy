@@ -73,7 +73,7 @@ CORPUS = [
     r"\prod_{n=1}^{k} n", "{ 1, x >= 0; 0, otherwise }",
     "{ x, x < 0; x^2, x < 1; 1, otherwise }", "limit(f(x), x, 0)", r"\lim_{x \to 0} f(x)",
     # relations and truth values
-    "x^2 + y^2 = 1", "x != y", "x <= 1", "x >= y + 1", "True", "False",
+    "x^2 + y^2 = 1", "x != y", "2x <= 1", "x >= y + 1", "True", "False",
     # containers
     "[1, 2, 3]", "[x, y^2]", "[[1, 2], [3, 4]]", r"\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}",
     "solve(x^2 = 4, x)",

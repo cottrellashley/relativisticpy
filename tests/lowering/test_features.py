@@ -19,8 +19,9 @@ def plane(wb):
 def test_logic_and_chained_comparisons(wb):
     assert wb.expr("x > 0 and x < 1 or y") == sympy.Or(sympy.And(x > 0, x < 1), y)
     assert wb.expr("not x > 0") == sympy.Not(x > 0)
-    assert wb.expr("0 < x <= 1") == sympy.And(sympy.Lt(0, x), sympy.Le(x, 1))
+    assert wb.expr("0 < x + y <= 1") == sympy.And(sympy.Lt(0, x + y), sympy.Le(x + y, 1))
     assert wb.expr("+x") == x
+    assert wb.expr("0 < x <= 1") is None  # of a name alone, an assumption
 
 
 def test_coordinates_by_name(plane):

@@ -67,6 +67,7 @@ class Decision:
 #: The kinds of decision the reader takes, in the order the text lists them.
 KINDS = (
     "definition or claim",
+    "assumption or claim",
     "notation or components",
     "product or call",
     "index or power",
