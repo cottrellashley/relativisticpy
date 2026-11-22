@@ -933,10 +933,18 @@ def _cut(result: dict[str, Any], note: str) -> dict[str, Any]:
 
 
 class _CallError(Exception):
-    """A call that failed as a whole, as the agent is told it: what, and how to go on."""
+    """A call that failed as a whole, as the agent is told it, as a diagnostic is: what,
+    then why, in notes, then how to go on, in a hint."""
 
-    def __init__(self, message: str, hint: str | None = None) -> None:
-        super().__init__(message if hint is None else f"{message}\nhint: {hint}")
+    def __init__(self, message: str, hint: str | None = None, notes: Sequence[str] = ()) -> None:
+        super().__init__(message)
+        self.message, self.hint, self.notes = message, hint, list(notes)
+
+    def __str__(self) -> str:
+        lines = [self.message, *(f"note: {note}" for note in self.notes)]
+        if self.hint:
+            lines.append(f"hint: {self.hint}")
+        return "\n".join(lines)
 
 
 class _Lost(_CallError):
@@ -1422,10 +1430,9 @@ def _build(settings: Settings) -> "tuple[MCPServer[Any], _Pool]":
                 )
             except _Lost as lost:
                 await pool.forget(session)
-                raise _CallError(
-                    f"{lost}\nnote: the session {session} was stopped with it, and what it "
-                    "defined is lost: run its definitions again"
-                ) from None
+                stopped = f"the session {session} was stopped with it, and what it defined is lost"
+                again = "run its definitions again" + (f"; {lost.hint}" if lost.hint else "")
+                raise _CallError(lost.message, hint=again, notes=[*lost.notes, stopped]) from None
             finally:
                 record.calls -= 1
                 record.used = time.monotonic()

@@ -444,8 +444,13 @@ def test_a_worker_that_does_not_stop_is_stopped(monkeypatch):
     stopped, seconds, listed, anew = serve(test)
     assert isinstance(stopped, Failure)
     assert seconds < 5
-    assert "took longer than its time limit of 1 s" in stopped
-    assert "the session frozen was stopped with it" in stopped
+    message, note, hint = stopped.removeprefix("Error executing tool compute: ").split("\n")
+    assert message == (
+        "the computation took longer than its time limit of 1 s, and did not stop when "
+        "asked to, so it was stopped"
+    )
+    assert note == "note: the session frozen was stopped with it, and what it defined is lost"
+    assert hint.startswith("hint: run its definitions again; give it longer with time_limit")
     assert listed["sessions"] == []
     assert values(anew) == [["y + 1"]]  # a new session, which knows no y
 
