@@ -87,7 +87,20 @@ relativisticpy.errors.IndexNotationError: the index a ranges over the space of a
 sparse matrix, a SymPy array or nested lists. A name without braces works too:
 binding to `y_t` binds the tensor `y` with the index `t`. Results are
 [`Tensor`](python.md#tensor) values with `to_numpy()` and `to_pandas()`; numbers
-are Python numbers.
+are Python numbers. What was bound reads back as it was written, `wb["R_{ta}"]`,
+and `"R" in wb` says whether it was. Data that cannot be bound is refused with a
+`DataError`, which is also a `ValueError`, saying why:
+
+```python
+>>> wb["v^a"] = [0.5, 0.25, [0.25]]
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.DataError: the data for v^a is ragged: entry 3 is a list, the others are numbers
+
+```
+
+A name takes a number, `wb["J"] = 1.5`, or text, which is read as a program reads
+it, never run as Python: `wb["J"] = "x^2 + 1"`.
 
 ## Positions, metrics and duals
 
