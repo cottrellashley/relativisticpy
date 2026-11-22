@@ -97,6 +97,7 @@ it, by \(e^{j\omega}\): for \(h[n] = a^n u[n]\) with \(|a| < 1\) the series conv
 
 ```latex
 |a| < 1
+\omega \in \mathbb{R}
 h[n] := a^n u[n]
 H(e^{j\omega}) := \sum_{n=-\infty}^{\infty} h[n] e^{-j\omega n}
 H(e^{j\omega})

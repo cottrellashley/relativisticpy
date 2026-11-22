@@ -76,6 +76,7 @@ stationarity are beyond any design of the language yet.
 
 ```latex
 |a| < 1
+\omega \in \mathbb{R}
 x[n] = a\, x[n-1] + w[n], \quad w[n] \sim \mathcal{N}(0, \sigma^2) \text{ independent}
 P_{xx}(\omega) := \sum_{k=-\infty}^{\infty} \mathbb{E}\left[x[n]\, x[n+k]\right] e^{-j\omega k}
 P_{xx}(\omega)

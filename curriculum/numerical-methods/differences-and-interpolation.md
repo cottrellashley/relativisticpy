@@ -91,12 +91,13 @@ assert abs(np.polyval(coefficients, 3) - float(expected)) < 1e-12
 **Level 5** · `num.rounding.cancellation` · Higham (2002), chapter 1
 
 \(\operatorname{fl}(\cdot)\), Higham's notation for a value computed in floating-point
-arithmetic, here IEEE double precision. At \(x = 10^{-8}\), \(\cos x\) rounds to exactly 1,
-so \(1 - \cos x\) cancels to nothing and the computed \((1 - \cos x)/x^2\) is 0, though its
-exact value is \(\frac{1}{2}\) to sixteen digits. No design of the language says how to
-ask for a computation in a given arithmetic.
+arithmetic, here of unit roundoff \(u = 2^{-53}\), IEEE double precision. At \(x = 10^{-8}\),
+\(\cos x\) rounds to exactly 1, so \(1 - \cos x\) cancels to nothing and the computed
+\((1 - \cos x)/x^2\) is 0, though its exact value is \(\frac{1}{2}\) to sixteen digits. No
+design of the language says how to ask for a computation in a given arithmetic.
 
 ```latex
+u := 2^{-53}
 x := 10^{-8}
 \operatorname{fl}\left(\frac{1 - \cos x}{x^2}\right)
 ```
