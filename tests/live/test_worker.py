@@ -168,11 +168,24 @@ def test_a_worker_that_stops_while_computing_fails_that_job_and_the_next_goes_on
         done.wait(30)
         error = got[0]["statements"][0]["error"]
         assert error["message"] == "RelativisticPy's worker process stopped while computing this"
-        assert (
-            answers(computations, arguments={"text": "1 + 1"})[0][1]["statements"][0]["values"][0][
-                "text"
-            ]
-            == "2"
-        )
+        ((_, data),) = answers(computations, arguments={"text": "1 + 1"})
+        assert texts(data) == [["2"]]
+    finally:
+        computations.close()
+
+
+def test_an_answer_with_nowhere_to_go_does_not_stop_the_next():
+    computations = working.Computations()
+    try:
+        tried = threading.Event()
+
+        def gone(kind, data):
+            tried.set()
+            raise RuntimeError("the widget was closed")
+
+        computations.submit(working.Job("run", {"text": "x"}, gone))
+        assert tried.wait(60)
+        ((_, data),) = answers(computations, arguments={"text": "2 + 2"})
+        assert texts(data) == [["4"]]
     finally:
         computations.close()

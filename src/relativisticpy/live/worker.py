@@ -83,6 +83,12 @@ class Job:
         """The kind of answer it is given: ``ran`` or ``computed``."""
         return "ran" if self.kind == "run" else "computed"
 
+    def give(self, kind: str, data: dict[str, Any]) -> None:
+        """Hand its answer on. A widget closed since has nowhere to show it, and the
+        thread that hands it on goes on to the next job."""
+        with contextlib.suppress(Exception):
+            self.deliver(kind, data)
+
 
 # == the notebook's side =====================================================================
 
@@ -218,9 +224,9 @@ class Computations:
         if job.stale or kind == "stopped":
             return
         if kind == "failed":
-            job.deliver(job.answer, _failure(job, data))
+            job.give(job.answer, _failure(job, data))
         else:
-            job.deliver(kind, data)
+            job.give(kind, data)
 
     def _lost(self, generation: int) -> None:
         """The worker stopped, or was stopped: the job in hand fails, saying so; and if it
@@ -241,7 +247,7 @@ class Computations:
                 hint="it may have run out of memory: compute this in steps, or give the "
                 "editor more, as with Editor(memory_limit=8192)",
             )
-            job.deliver(job.answer, _failure(job, _data(failure)))
+            job.give(job.answer, _failure(job, _data(failure)))
 
     def _expired(self) -> None:
         """A deadline passed: a worker did not start, or a job did not stop."""
@@ -262,12 +268,12 @@ class Computations:
                 hint="give the editor longer, as with Editor(time_limit=120), or compute "
                 "this in steps, defining its parts first",
             )
-            job.deliver(job.answer, _failure(job, _data(failure)))
+            job.give(job.answer, _failure(job, _data(failure)))
 
     def _fail_waiting(self, failure: RelativisticPyError) -> None:
         waiting, self._pending = self._pending, []
         for job in waiting:
-            job.deliver(job.answer, _failure(job, _data(failure)))
+            job.give(job.answer, _failure(job, _data(failure)))
 
     def _interrupt(self) -> None:
         """Interrupt the job in hand, which has gone stale; stop its worker if it cannot be
@@ -450,11 +456,11 @@ class InPlace:
             kind, data = _do(self.engine, job.kind, arguments)
         except Exception as error:  # a failure of our own: reported as the job's answer
             failure = internal_error(error, during="computing this")
-            job.deliver(job.answer, _failure(job, _data(failure)))
+            job.give(job.answer, _failure(job, _data(failure)))
             return
         if self.note and kind == "ran":
             data = {**data, "notes": [*data["notes"], self.note]}
-        job.deliver(kind, data)
+        job.give(kind, data)
 
     def warm(self) -> None:
         """Nothing to start."""
