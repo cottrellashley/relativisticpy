@@ -558,11 +558,47 @@ class TestFractionsRootsAndFunctions:
     def test_function_commands(self, text, expected):
         assert sexpr(text) == expected
 
-    @pytest.mark.parametrize("text", [r"\max_x f(x)", r"\min_{x} f", r"\det_g A"])
-    def test_only_log_takes_a_subscript(self, text):
-        # \max_x is a maximum over x, not a logarithm to the base x
-        command = text.split("_")[0]
-        assert f"a subscript on {command} is not supported" in str(error(text))
+    def test_only_log_takes_a_subscript(self):
+        assert r"a subscript on \det is not supported" in str(error(r"\det_g A"))
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            # \max_v is a maximum over v, not a logarithm to the base v, nor a product
+            (r"H(p) = \max_v \left(p v - L(v)\right)", r"\max_v, a maximum over v,"),
+            (r"\min_{x} f", r"\min_{x}, a minimum over x,"),
+            (r"\arg\min_{w} \; w^{a} \Sigma_{ab} w^{b}", r"\arg\min_{w}, the w at which a minimum"),
+            (r"\operatorname*{arg\,max}_k |f_k|", r"\operatorname*{arg\,max}_k, the k at which"),
+            (r"\operatorname{argmax}_k |f_k|", r"\operatorname{argmax}_k, the k at which"),
+            (r"\mathrm{arg\,min}_w f", r"\mathrm{arg\,min}_w, the w at which"),
+            (r"\arg\max f", r"\arg\max, where a maximum is,"),
+        ],
+    )
+    def test_an_optimum_over_a_variable_is_not_supported_yet(self, text, message):
+        caught = error(text)
+        assert caught.message.startswith(message)
+        assert caught.message.endswith("is not supported yet")
+
+    def test_the_extremes_of_values_and_the_argument_of_a_number_are_read(self):
+        assert sexpr(r"\max(a, b) + \arg z") == "(+ (call max a b) (call arg z))"
+        assert sexpr(r"\mathrm{arg}\, z") == "(* arg z)"
+
+    @pytest.mark.parametrize(
+        "text",
+        [
+            r"{}_2F_1(1, 1; 2; z) = -\frac{\ln(1 - z)}{z}",
+            r"{}_2F_{1}\left(\tfrac{1}{2}, \tfrac{1}{2}; 2; 1\right)",
+            # after a space, an empty group starts a prescript, rather than spacing z's indices
+            r"\arcsin z = z \, {}_2F_1\left(\tfrac{1}{2}, \tfrac{1}{2}; \tfrac{3}{2}; z^2\right)",
+        ],
+    )
+    def test_the_hypergeometric_function_is_not_supported_yet(self, text):
+        assert error(text).message == "{}_2F_1, the hypergeometric function, is not supported yet"
+
+    def test_other_prescripts_label_a_symbol(self):
+        assert sexpr(r"{}^{(3)}R + {}_2F") == "(+ ^{(3)}R _{2}F)"
+        assert sexpr(r"z {}^{(3)}R") == "(* z ^{(3)}R)"
+        assert sexpr(r"R^{a}{}_{bcd}") == "(R ^[a] _[b c d])"  # written against it, it spaces
 
     def test_a_function_argument_stops_at_a_differential(self):
         assert sexpr(r"\sin^2\theta d\phi^2") == "(* (* (^ (call sin theta) 2) d) (^ phi 2))"

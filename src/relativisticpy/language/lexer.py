@@ -53,6 +53,8 @@ _COMMAND_NAME = re.compile(r"[A-Za-z]+")
 # The argument of \mathbb when it is one letter or digit: {R}, { R }, or R itself.
 _BLACKBOARD_ARGUMENT = re.compile(r"\s*(?:\{\s*([A-Za-z0-9])\s*\}|([A-Za-z0-9]))")
 _TEXT_NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*")
+# The spacing in an operator's name, as in \operatorname{arg\,max}, which is one name.
+_OPERATOR_SPACING = re.compile(r"\\[,;:! ]|\s|~")
 # What may follow a row break: a star, which forbids a page break there (``\\*``), and
 # an optional spacing argument, as in ``\\[2pt]``.
 _ROW_SPACING = re.compile(
@@ -734,11 +736,15 @@ class Lexer:
                 self.pos = end + 1
 
     def _text_command(self, name: str, start: int) -> None:
-        r"""``\text{otherwise}`` is the name ``otherwise``; ``\text{for all}`` a string."""
+        r"""``\text{otherwise}`` is the name ``otherwise``; ``\text{for all}`` a string. An
+        operator's name is one name, however it is spaced: ``\operatorname{arg\,max}`` is
+        ``argmax``."""
         if self._peek() == "*":  # \operatorname*{...}
             self.pos += 1
         example = "tr" if name == "operatorname" else "word"
         contents = self._read_group(start, name, example).strip()
+        if name == "operatorname":
+            contents = _OPERATOR_SPACING.sub("", contents)
         if not contents:
             self.space_before = True
         elif _TEXT_NAME.fullmatch(contents):

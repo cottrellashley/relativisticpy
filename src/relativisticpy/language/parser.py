@@ -94,6 +94,10 @@ _ARGUMENT_STOPPERS = frozenset(vocab.FUNCTION_COMMANDS) | {
 }  # fmt: skip
 _CASE_WORDS = frozenset({"if", "for", "when", "where"})
 _OTHERWISE = frozenset({"otherwise", "else"})
+# The extremes taken over a variable, \max_v, and the operator names of where they are,
+# \operatorname*{arg\,max}_k.
+_OPTIMA = frozenset({"max", "min"})
+_ARG_OPTIMA = frozenset({"argmax", "argmin"})
 # A command whose argument is prose, as in \text{where}.
 _TEXT_COMMAND = re.compile(r"\\(?:text[a-z]*|mbox|hbox)(?![A-Za-z])")
 # The halves of old-style cases, \left\{ \begin{array} ... \end{array} \right.
@@ -903,8 +907,33 @@ class Parser:
                 hint=f"write it after what it is on, as in {example}",
             )
         self.advance()
+        if marker.kind is K.UNDERSCORE and label.isdigit():
+            order = self._hypergeometric_order(token)
+            if order is not None:  # {}_2F_1(a, b; c; z)
+                written = f"{{}}_{label}F_{order}"
+                raise ParseError(
+                    f"{written}, the hypergeometric function, is not supported yet",
+                    span=self._span(marker),
+                    notes=(f"its parameters are separated by semicolons: {written}(a; b; z)",),
+                )
         name = ast.Name(f"{marker.value}{{{label}}}{token.value}", True, span=self._span(marker))
         return self._postfix(name)
+
+    def _hypergeometric_order(self, name: Token) -> str | None:
+        """The ``q`` of ``{}_pF_q`` after its ``F``, which the lexer may have joined to it, as
+        it joins ``F_1``; ``None``, having read nothing, if ``name`` is no such ``F``."""
+        if (joined := re.fullmatch(r"F_([0-9]+)", name.value)) is not None:
+            return joined.group(1)
+        if name.value != "F" or not self.check(K.UNDERSCORE):
+            return None
+        before = self.pos, self.previous
+        marker = self.advance()
+        script, _ = self._attempt(lambda: self._script("_", marker))
+        order = script.body if script is not None else None
+        if isinstance(order, ast.Number) and order.text.isdigit():
+            return order.text
+        self.pos, self.previous = before
+        return None
 
     def _atom(self) -> ast.Expr:
         token = self.peek()
@@ -919,6 +948,18 @@ class Parser:
             if token.value == "d" and self._at_plain_differential():
                 return self._plain_differential()
             self.advance()
+            if token.verbatim and token.value in _ARG_OPTIMA:  # \operatorname*{arg\,max}_k
+                raise self._optimum(token, token.value)
+            following = self.peek()
+            if (
+                token.verbatim
+                and token.value == "arg"
+                and following.kind is K.IDENT
+                and following.verbatim
+                and following.value in _OPTIMA
+            ):  # \mathrm{arg\,min}_w
+                self.advance()
+                raise self._optimum(token, "arg" + following.value)
             return ast.Name(token.value, token.verbatim, span=token.span)
         if kind is K.COMMAND:
             return self._command()
@@ -958,6 +999,7 @@ class Parser:
                 grouped = False
             elif (
                 kind is K.LBRACE
+                and not token.space_before  # z \, {}_2F_1: a prescript of what follows
                 and self.peek(1).kind is K.RBRACE
                 and (isinstance(node, ast.Scripted) or self.peek(2).kind in (K.CARET, K.UNDERSCORE))
             ):
@@ -1984,9 +2026,14 @@ class Parser:
         Only ``\log`` takes a subscript, its base: ``\max_x`` and ``\det_g`` are errors."""
         command = self.advance()
         name = vocab.FUNCTION_COMMANDS[command.value]
+        if command.value == "arg" and self.check(K.COMMAND) and self.peek().value in _OPTIMA:
+            self.advance()  # \arg\min_w: where the minimum is, not the argument of a number
+            raise self._optimum(command, "arg" + self.previous.value)
         power: ast.Expr | None = None
         base: ast.Expr | None = None
         while self.peek().kind in (K.CARET, K.UNDERSCORE):
+            if self.check(K.UNDERSCORE) and command.value in _OPTIMA:
+                raise self._optimum(command, command.value)  # \max_v: over v
             marker = self.advance()
             script = self._script("^" if marker.kind is K.CARET else "_", marker)
             if script.body is None:
@@ -2024,6 +2071,30 @@ class Parser:
             script = ast.Script("^", power, None, span=power.span)
             node = ast.Scripted(node, (script,), span=self._span(command))
         return node
+
+    def _optimum(self, start: Token, optimum: str) -> ParseError:
+        """The error for a maximum or a minimum over a variable, or the point where it is,
+        as ``\\max_v``, ``\\arg\\min_w`` and ``\\operatorname*{arg\\,max}_k`` write them,
+        which the language does not compute yet. Reads the variable, to name it."""
+        variable = ""
+        if self.check(K.UNDERSCORE) and not self.peek().space_before:
+            marker = self.advance()
+            script = self._script("_", marker)
+            variable = self.source.text[marker.span.end : script.span.end].strip()
+            if variable.startswith("{") and variable.endswith("}"):
+                variable = variable[1:-1].strip()
+        written = self._span(start).text
+        extreme = "maximum" if optimum.endswith("max") else "minimum"
+        if not optimum.startswith("arg"):
+            what = f"a {extreme} over {variable}" if variable else f"a {extreme}"
+            return ParseError(
+                f"{written}, {what}, is not supported yet",
+                span=self._span(start),
+                hint=f"for the {'larger' if extreme == 'maximum' else 'smaller'} of values, "
+                f"write \\{optimum}(a, b)",
+            )
+        where = f"the {variable} at which a {extreme} is" if variable else f"where a {extreme} is"
+        return ParseError(f"{written}, {where}, is not supported yet", span=self._span(start))
 
     def _function_arguments(self) -> tuple[ast.Expr, ...]:
         """Arguments in parentheses or square brackets (``\\exp[-x^2]``), or (as typeset

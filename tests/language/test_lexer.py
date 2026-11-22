@@ -506,6 +506,11 @@ class TestLexerDetails:
     def test_operatorname_star(self):
         assert lex(r"\operatorname*{argmax}") == "argmax"
 
+    @pytest.mark.parametrize("text", [r"\operatorname*{arg\,max}", r"\operatorname{arg max}"])
+    def test_an_operator_name_is_one_name_however_it_is_spaced(self, text):
+        assert lex(text) == "argmax"
+        assert [t.kind for t in tokenize(text)] == [TokenKind.IDENT, TokenKind.EOF]
+
     def test_unclosed_style_argument(self):
         with pytest.raises(ParseError, match=r"unclosed argument of \\mathrm") as error:
             tokenize(r"\mathrm{abc")
