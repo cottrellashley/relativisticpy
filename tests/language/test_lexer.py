@@ -633,7 +633,7 @@ class TestWhereTokensAre:
 
 
 class TestRemainders:
-    @pytest.mark.parametrize("text", ["x % 2", "y := n % k", "(a + b) % 7 == 0"])
+    @pytest.mark.parametrize("text", ["x % 2", "y := n % k == 0", "(a + b) % 7 == 0", "x%2"])
     def test_a_python_remainder_is_an_error(self, text):
         error = lexing_error(text)
         assert error.message.startswith("'%' starts a comment, so ")
@@ -642,7 +642,13 @@ class TestRemainders:
 
     @pytest.mark.parametrize(
         "text",
-        ["x := 1 % the radius of the star", "% a line of its own", r"\alpha % 2", "x %"],
+        [
+            "x := 1 % the radius of the star",
+            "M := 1.989e30 % kg",  # a unit, as a comment
+            "% a line of its own",
+            r"\alpha % 2",
+            "x %",
+        ],
     )
     def test_a_comment_is_a_comment(self, text):
         assert tokenize(text)[0].kind in (TokenKind.IDENT, TokenKind.EOF)

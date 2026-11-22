@@ -96,12 +96,16 @@ _NEVER_MEANT = frozenset("\a\b\f\v")
 _LEAST_REST = {"\t": 2, "\r": 2, "\n": 3}
 _STYLE_EXAMPLES = {"mathcal": "A", "mathscr": "L", "mathfrak": "g", "mathrm": "d", "mathbf": "v"}
 _ARGUMENT_EXAMPLES = {"label": "eq:1", "tag": "1", "vspace": "1em", "hspace": "1em"}
-# Python's remainder, x % 2: after an operand, and followed by a short expression only.
+# Python's remainder, x % 2: after an operand, and followed only by a number, maybe
+# compared, as in x % 2 == 0, or by an operand compared, as in n % k == 0. A word alone,
+# as in M := 2e30 % kg, is a comment.
 _OPERAND_ENDS = frozenset(
     {TokenKind.IDENT, TokenKind.NUMBER, TokenKind.RPAREN, TokenKind.RBRACKET, TokenKind.RBRACE}
 )
+_NUMBER_OPERAND = r"\s*\(?\s*[0-9][0-9.]*\s*\)?"
 _OPERAND = r"\s*\(?\s*[A-Za-z0-9_.]+\s*\)?"
-_REMAINDER = re.compile(rf"{_OPERAND}(?:\s*(?:==|!=|<=|>=|<|>|[-+*/]){_OPERAND})*\s*")
+_COMPARED = rf"\s*(?:==|!=|<=|>=|<|>){_OPERAND}"
+_REMAINDER = re.compile(rf"(?:{_NUMBER_OPERAND}(?:{_COMPARED})?|{_OPERAND}{_COMPARED})\s*")
 _FRACTION_SLASH = "\N{FRACTION SLASH}"
 # The alphabets of Unicode's mathematical letters, and the commands that set them.
 _ALPHABETS = {

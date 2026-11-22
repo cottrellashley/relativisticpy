@@ -23,8 +23,9 @@ statements. Comments start with `#` (or LaTeX's `%`).
 ```
 
 Since `%` starts a comment, `x % 2` would be `x`: in plain text, a `%` between
-two operands, as Python writes a remainder, is an error. Write `#` to comment
-there.
+an operand and a number, as Python writes a remainder (`x % 2`, or
+`x % 2 == 0`), is an error. Write `#` to comment there. A word after it, as in
+`M := 1.989e30 % kg`, is a comment.
 
 A statement continues onto the next line when a bracket is open, when the line
 ends with an operator, or when the next line starts with an operator that
