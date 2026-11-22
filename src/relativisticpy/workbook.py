@@ -13,6 +13,7 @@ from typing import Any, Literal, TypeVar
 
 import sympy
 from sympy import Symbol
+from sympy.core.function import AppliedUndef
 from sympy.core.relational import Relational
 
 from relativisticpy import checking, display
@@ -212,6 +213,7 @@ class Workbook:
                 yield Step(piece.span, piece, error=failure)
             else:
                 notes = [output.note for output in outputs if output.note]
+                notes += [note for value in values for note in _left_undone(value)]
                 sides = self._sides(piece)
                 yield Step(piece.span, piece, values, sides=sides, notes=notes)
 
@@ -1518,6 +1520,39 @@ def _undecided(output: Output, value: Any) -> UndecidedError | None:
         notes=["shown as it is, an undecided claim would read as an answer"],
         hint="to see what is left, write the difference of its sides alone, as an expression",
     )
+
+
+def _left_undone(value: Any) -> list[str]:
+    """The notes on what a value leaves undone, which shown as it is would read as an
+    answer (guard 7 of wave 0): an integral, a sum or a limit SymPy did not carry out, a
+    derivative of what is no function, and the conditions SymPy puts on its parameters."""
+    if not isinstance(value, sympy.Basic):
+        return []
+    notes = []
+    if value.has(sympy.Integral):
+        notes.append("an integral is left as written: SymPy could not compute it")
+    if value.has(sympy.Sum, sympy.Product):
+        notes.append(
+            "a sum is left as written, as one with symbolic or infinite limits is: doit(...) "
+            "carries it out where SymPy can"
+        )
+    if value.has(sympy.Limit):
+        notes.append("a limit is left as written: SymPy could not compute it")
+    if any(not d.expr.has(AppliedUndef) for d in value.atoms(sympy.Derivative)):
+        notes.append("a derivative is left as written: SymPy could not take it")
+    if any(_on_conditions(piecewise) for piecewise in value.atoms(sympy.Piecewise)):
+        notes.append(
+            "this holds under the conditions SymPy gives, as it takes every symbol to be "
+            "complex; declaring the parameters, as in Positive := [a], may remove them"
+        )
+    return notes
+
+
+def _on_conditions(piecewise: sympy.Piecewise) -> bool:
+    """Whether a piecewise value is a result under conditions SymPy puts on its parameters,
+    as an integral's ``|\\arg a| < \\pi/2``, rather than cases a program wrote."""
+    complex_plane = (sympy.arg, sympy.re, sympy.im, sympy.polar_lift)
+    return any(condition.has(*complex_plane) for _, condition in piecewise.args)
 
 
 def _a_condition(value: Any) -> bool:

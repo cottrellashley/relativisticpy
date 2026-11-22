@@ -2,8 +2,10 @@
 analysis.derivatives.chain-rule
 analysis.derivatives.continuity
 analysis.derivatives.dot-squared
+analysis.derivatives.not-differentiable
 analysis.integrals.gaussian-polar
 analysis.integrals.substitution
+analysis.limits.does-not-exist
 analysis.limits.lhopital
 analysis.limits.one-sided
 analysis.limits.sinc
@@ -176,6 +178,7 @@ qm.angular-momentum.lz
 qm.hydrogen.balmer
 qm.oscillator.rodrigues
 qm.scattering.rutherford
+qm.scattering.soft-sphere
 qm.spin.spin-one
 sig.filters.bilinear
 sig.filters.half-power

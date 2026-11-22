@@ -484,6 +484,12 @@ class TestConstrainedSymbols:
         wb.exe("x^2 + y^2 = 1")
         assert wb.expr(r"\frac{dz}{dx}") == 0
 
+    def test_its_own_equation_does_not_tie_a_derivative(self, wb):
+        # a check computes the sides of d^2 t/d\tau^2 = 0 after the equation is read
+        (step,) = list(wb.each(r"\frac{d^2 t}{d\tau^2} = 0"))
+        assert step.error is None
+        assert step.zero
+
     def test_a_contour_integral_with_no_path(self, wb):
         found = error(wb, r"J = \oint p\, dq")
         assert (

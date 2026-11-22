@@ -9,6 +9,7 @@ its attributes, by name: module-level, so that a worker process can run it.
 from __future__ import annotations
 
 import itertools
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -69,9 +70,94 @@ def _finite(written: Any, lower: Any, upper: Any) -> Any:
 
 
 def limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
+    """A limit, never taken in a case that holds only at points of the variable, as
+    ``Eq(k, 0)`` does of a scattering amplitude: a limit is of the values near the point,
+    and SymPy would take that case's value at the point itself. One that does not exist,
+    as of a step from both sides or of sin(1/h), says so, where SymPy would give a value."""
     if direction == "+-" and point in (sympy.oo, -sympy.oo):
         direction = "-" if point == sympy.oo else "+"
-    return sympy.limit(body, variable, point, direction)
+    near = _near(sympy.sympify(body), variable)
+    if not near.has(sympy.Piecewise) or point in (sympy.oo, -sympy.oo):
+        try:
+            found = sympy.limit(near, variable, point, direction)
+        except ValueError as error:  # |x|/x at 0: said in RelativisticPy's words
+            if "does not exist" not in str(error):
+                raise
+            said = re.search(r"left hand limit = (.+) and right hand limit = (.+)", str(error))
+            why = f": it is {said[1]} from below and {said[2]} from above" if said else ""
+            raise ValueError(f"the limit does not exist{why}") from None
+        return _existing(found)
+    # SymPy takes a case as it holds at the point: each side is approached by a step
+    step = sympy.Dummy("h", positive=True)
+    values = {
+        side: _existing(sympy.limit(near.subs(variable, point + sign * step), step, 0, "+"))
+        for side, sign in (("+", 1), ("-", -1))
+        if side in direction
+    }
+    if len(values) == 2 and sympy.simplify(values["-"] - values["+"]) != 0:
+        raise ValueError(
+            f"the limit does not exist: it is {values['-']} from below and {values['+']} from above"
+        )
+    return next(iter(values.values()))
+
+
+def _existing(value: Any) -> Any:
+    """A limit SymPy found, unless it only bounds the values, as AccumBounds(-1, 1) does
+    of sin(1/h), whose values never settle."""
+    if isinstance(value, sympy.AccumBounds):
+        raise ValueError(
+            f"the limit does not exist: the values keep between {value.min} and {value.max}"
+        )
+    return value
+
+
+def _near(expr: Any, variable: Any) -> Any:
+    """``expr`` with each piecewise part as it is near any point of ``variable``: without
+    the cases that hold only at points, and the first case that holds at every point but
+    some taken for all the rest, which no limit sees."""
+
+    def generic(piecewise: Any) -> Any:
+        kept = []
+        for value, condition in piecewise.args:
+            if variable not in condition.free_symbols:
+                kept.append((value, condition))
+            elif _at_points(condition):
+                continue
+            elif _but_at_points(condition):
+                kept.append((value, sympy.true))
+                break
+            else:
+                kept.append((value, condition))
+        if len(kept) == 1 and kept[0][1] is sympy.true:
+            return kept[0][0]
+        return sympy.Piecewise(*kept) if kept else piecewise
+
+    if not isinstance(expr, sympy.Basic) or not expr.has(sympy.Piecewise):
+        return expr
+    return expr.replace(lambda node: isinstance(node, sympy.Piecewise), generic)
+
+
+def _at_points(condition: Any) -> bool:
+    """Whether a condition holds only at isolated values, as ``Eq(k, 0)``, or either of
+    several such, as ``Eq(k, 0) | Eq(\\theta, 0)`` does."""
+    if isinstance(condition, sympy.Eq):
+        return True
+    if isinstance(condition, sympy.Or):
+        return all(_at_points(part) for part in condition.args)
+    if isinstance(condition, sympy.And):
+        return any(_at_points(part) for part in condition.args)
+    return False
+
+
+def _but_at_points(condition: Any) -> bool:
+    """Whether a condition holds everywhere but at isolated values, as ``Ne(x, 0)``."""
+    if isinstance(condition, sympy.Ne):
+        return True
+    if isinstance(condition, sympy.And):
+        return all(_but_at_points(part) for part in condition.args)
+    if isinstance(condition, sympy.Or):
+        return any(_but_at_points(part) for part in condition.args)
+    return False
 
 
 def differentiate(expr: Any, orders: tuple[int, ...], *variables: Any) -> Any:
@@ -79,7 +165,40 @@ def differentiate(expr: Any, orders: tuple[int, ...], *variables: Any) -> Any:
 
 
 def derivative_at(body: Any, dummy: Any, order: int, point: Any) -> Any:
-    return sympy.diff(body, dummy, order).subs(dummy, point)
+    """``f'(p)``. Where the cases of a piecewise function meet at p, as x sin(1/x) and 0 do
+    at 0, it is taken from its definition, the limit of the difference quotient, which may
+    not exist, rather than case by case, which would give the derivative of the case that
+    holds at p alone."""
+    body = sympy.sympify(body)
+    if not _on_a_seam(body, dummy, point):
+        return sympy.diff(body, dummy, order).subs(dummy, point)
+    if order != 1:
+        raise ValueError(
+            f"a derivative of order {order} where the cases of a function meet is not taken yet"
+        )
+    step = sympy.Dummy("h")
+    quotient = (body.subs(dummy, point + step) - body.subs(dummy, point)) / step
+    try:
+        return limit(quotient, step, 0, "+-")
+    except ValueError as error:
+        why = str(error).removeprefix("the limit does not exist").lstrip(": ")
+        raise ValueError(
+            f"the derivative at {point} does not exist: its difference quotient has no limit"
+            + (f", as {why}" if why else "")
+        ) from None
+
+
+def _on_a_seam(body: Any, dummy: Any, point: Any) -> bool:
+    """Whether the cases of a piecewise part of ``body`` meet at ``point``: a condition on
+    ``dummy`` whose two sides are equal there, as x \\neq 0 at 0."""
+    for piecewise in body.atoms(sympy.Piecewise):
+        for _, condition in piecewise.args:
+            for relation in condition.atoms(sympy.core.relational.Relational):
+                if dummy in relation.free_symbols:
+                    gap = (relation.lhs - relation.rhs).subs(dummy, point)
+                    if sympy.simplify(gap) == 0:
+                        return True
+    return False
 
 
 def gradient(expr: Any, vector: Any) -> Any:

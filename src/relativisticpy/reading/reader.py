@@ -1010,7 +1010,8 @@ class Reader(Typer):
         it to, as dy/dx after x^3 + y^3 = 6xy: read as written, y is a constant, and the
         derivative 0, where the book means y as the function of x the equation makes it."""
         for names, where in reversed(self.session.relations):
-            if expr.id not in names:
+            own = where.source is span.source and where.start <= span.start <= where.end
+            if expr.id not in names or own:  # its own equation is no earlier one
                 continue
             tied = [variable for variable in by if variable.id in names and variable.id != expr.id]
             if not tied:
