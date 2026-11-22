@@ -4,6 +4,7 @@ import contextlib
 import os
 import re
 import traceback
+from pathlib import Path
 
 import pytest
 from sympy import Array, Symbol
@@ -21,6 +22,7 @@ from relativisticpy.errors import (
     UsageError,
 )
 from relativisticpy.language.tokens import TokenKind
+from relativisticpy.workbook import RESULT_END, RESULT_START
 
 x = Symbol("x")
 
@@ -364,7 +366,8 @@ def test_notebook_errors_point_at_the_file(tmp_path):
 
 def test_maths_in_code_is_not_run(tmp_path):
     document = "The `$$...$$` blocks run.\n\n```\n$$ 1/0 $$\n```\n\n$$ 1 + 1 $$\n"
-    assert Workbook().markdown(document) == document[:-1] + "\n\n$$\n2\n$$\n"
+    result = f"\n\n{RESULT_START}\n$$\n2\n$$\n{RESULT_END}\n"
+    assert Workbook().markdown(document) == document[:-1] + result
     notes = tmp_path / "notes.md"
     notes.write_text(document)
     assert Workbook().run_file(notes) == [2]
@@ -376,6 +379,16 @@ def test_markdown_typesets_results_after_each_block():
     assert rendered.startswith(document.split("The end.")[0].rstrip())
     assert "$$\n3 x^{2}\n$$" in rendered
     assert rendered.endswith("The end.")
+
+
+def test_markdown_renders_as_the_command_line_does():
+    document = "$$\n\\farc{1}{2}\n$$\n\nThen:\n\n$$\nx := 3\nx^2\n$$\n"
+    rendered = Workbook().markdown(document)
+    assert "ParseError: unknown LaTeX command \\farc" in rendered  # typeset, and on it goes
+    assert "$$\n9\n$$" in rendered
+    assert Workbook().markdown(rendered) == rendered  # its results replaced, not run
+    with pytest.raises(UsageError, match="takes the document as a str"):
+        Workbook().markdown(Path("notes.md"))
 
 
 def test_latex():

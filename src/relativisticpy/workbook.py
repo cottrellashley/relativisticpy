@@ -268,18 +268,18 @@ class Workbook:
 
     @_from_python
     def markdown(self, text: str, *, name: str = "<markdown>") -> str:
-        """Run the ``$$...$$`` blocks of a Markdown document in order, and return the
-        document with each block's results typeset after it."""
+        """Run the blocks of maths of a Markdown notebook in order, and return the notebook
+        with each block's results typeset after it, as ``relativisticpy --render`` does.
+
+        The results go between :data:`RESULT_START` and :data:`RESULT_END`, so that a
+        notebook rendered again has its results replaced, not run. A block's notes are
+        typeset with its results, and a statement that fails has its error typeset in its
+        place, and the blocks after it still run: :meth:`each` gives the errors as
+        values."""
         if not isinstance(text, str):
             raise UsageError(f"markdown takes the document as a str, not {_kind(text)}")
-        pieces: list[str] = []
-        done = 0
-        for block, end in find_math_blocks(text, name):
-            pieces.append(text[done:end])
-            pieces.extend(f"\n\n$$\n{latex(result)}\n$$" for result in self.exe(block))
-            done = end
-        pieces.append(text[done:])
-        return "".join(pieces)
+        rendered, _ = render_notebook(self, text, name)
+        return rendered
 
     # -- looking inside ----------------------------------------------------------
 
@@ -1060,6 +1060,70 @@ def _blanked(text: str, spans: Sequence[tuple[int, int]]) -> str:
         done = end
     pieces.append(text[done:])
     return "".join(pieces)
+
+
+def render_notebook(
+    workbook: Workbook, text: str, name: str = "<markdown>"
+) -> tuple[str, list[RelativisticPyError]]:
+    """A Markdown notebook with the results of each block typeset after it, and the
+    errors of the blocks that failed, each typeset in its place too.
+
+    The results are put between :data:`RESULT_START` and :data:`RESULT_END`, so that
+    rendering the document again replaces them rather than running them, and gives the
+    same document. ``relativisticpy --render`` and :meth:`Workbook.markdown` both render
+    with this."""
+    old = rendered_results(text)
+    blanked = _blanked(text, old)
+    pieces: list[str] = []
+    errors: list[RelativisticPyError] = []
+    done = 0
+    for block, end in find_math_blocks(blanked, name):
+        body: list[str] = []
+        for step in workbook.each(block, recover=True):
+            if step.error is not None:
+                errors.append(step.error)
+                body.append(_fenced(_placeless(step.error.render())))
+                continue
+            body.extend(f"$$\n{latex(value)}\n$$" for value in step.values or [])
+            body.extend(f"> note: {note}" for note in step.notes)
+        pieces.append(_without(text, done, end, old))
+        if body:
+            pieces.append(f"\n\n{RESULT_START}\n" + "\n\n".join(body) + f"\n{RESULT_END}")
+        done = end
+    pieces.append(_without(text, done, len(text), old))
+    return "".join(pieces), errors
+
+
+def _without(text: str, start: int, end: int, spans: Sequence[tuple[int, int]]) -> str:
+    """``text[start:end]`` without the spans in it."""
+    pieces = []
+    for first, last in spans:
+        if last <= start or first >= end:
+            continue
+        pieces.append(text[start:first])
+        start = last
+    pieces.append(text[start:end])
+    return "".join(pieces)
+
+
+def _placeless(diagnostic: str) -> str:
+    """A diagnostic without the lines of the file it points at, as it is typeset under
+    its block: where it is goes without saying there, and its lines change as results
+    are typeset above it, which a document rendered again must not."""
+    lines = []
+    for line in diagnostic.split("\n"):
+        if re.match(r"\s*(?:-->|:::) ", line):
+            continue
+        gutter = re.match(r"\s*\d*\s?\|", line)
+        lines.append("  |" + line[gutter.end() :] if gutter else line)
+    return "\n".join(lines)
+
+
+def _fenced(text: str) -> str:
+    """Text in a fenced block of code, whose fence nothing in the text closes."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return f"{fence}text\n{text}\n{fence}"
 
 
 def read_program(path: str | Path) -> list[Source]:

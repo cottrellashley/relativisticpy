@@ -79,9 +79,11 @@ x := 2
 x^2
 $$
 <BLANKLINE>
+<!-- relativisticpy:result -->
 $$
 4
 $$
+<!-- /relativisticpy:result -->
 <BLANKLINE>
 
 ```

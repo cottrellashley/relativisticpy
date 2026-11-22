@@ -52,7 +52,7 @@ from relativisticpy import __version__, checking
 from relativisticpy import display as shown
 from relativisticpy import help as documentation
 from relativisticpy.checking import Report, Verdict
-from relativisticpy.documents import Document, Equation, find_math_blocks, read_text
+from relativisticpy.documents import Document, Equation, read_text
 from relativisticpy.errors import (
     FileError,
     InternalError,
@@ -66,15 +66,12 @@ from relativisticpy.errors import (
 from relativisticpy.language import Source, Span, parse
 from relativisticpy.language import syntax as ast
 from relativisticpy.workbook import (
-    RESULT_END,
-    RESULT_START,
     Step,
     Workbook,
-    _blanked,
     _steps_of,
     notebook_blocks,
     read_program,
-    rendered_results,
+    render_notebook,
 )
 
 # The exit statuses, as the shell sees them.
@@ -704,76 +701,13 @@ def _json(record: dict[str, Any], stream: TextIO) -> str:
 # -- --render and --ir -----------------------------------------------------------------
 
 
-def render(
-    workbook: Workbook, text: str, name: str = "<markdown>"
-) -> tuple[str, list[RelativisticPyError]]:
-    """A Markdown notebook with the results of each block typeset after it, and the
-    errors of the blocks that failed, each typeset in its place too.
-
-    The results are put between :data:`~relativisticpy.workbook.RESULT_START` and
-    :data:`~relativisticpy.workbook.RESULT_END`, so that rendering the document again
-    replaces them rather than running them, and gives the same document."""
-    old = rendered_results(text)
-    blanked = _blanked(text, old)
-    pieces: list[str] = []
-    errors: list[RelativisticPyError] = []
-    done = 0
-    for block, end in find_math_blocks(blanked, name):
-        body: list[str] = []
-        for step in workbook.each(block, recover=True):
-            if step.error is not None:
-                errors.append(step.error)
-                body.append(_fenced(_placeless(step.error.render())))
-                continue
-            body.extend(f"$$\n{shown.latex(value)}\n$$" for value in step.values or [])
-            body.extend(f"> note: {note}" for note in step.notes)
-        pieces.append(_without(text, done, end, old))
-        if body:
-            pieces.append(f"\n\n{RESULT_START}\n" + "\n\n".join(body) + f"\n{RESULT_END}")
-        done = end
-    pieces.append(_without(text, done, len(text), old))
-    return "".join(pieces), errors
-
-
-def _without(text: str, start: int, end: int, spans: Sequence[tuple[int, int]]) -> str:
-    """``text[start:end]`` without the spans in it."""
-    pieces = []
-    for first, last in spans:
-        if last <= start or first >= end:
-            continue
-        pieces.append(text[start:first])
-        start = last
-    pieces.append(text[start:end])
-    return "".join(pieces)
-
-
-def _placeless(diagnostic: str) -> str:
-    """A diagnostic without the lines of the file it points at, as it is typeset under
-    its block: where it is goes without saying there, and its lines change as results
-    are typeset above it, which a document rendered again must not."""
-    lines = []
-    for line in diagnostic.split("\n"):
-        if re.match(r"\s*(?:-->|:::) ", line):
-            continue
-        gutter = re.match(r"\s*\d*\s?\|", line)
-        lines.append("  |" + line[gutter.end() :] if gutter else line)
-    return "\n".join(lines)
-
-
-def _fenced(text: str) -> str:
-    """Text in a fenced block of code, whose fence nothing in the text closes."""
-    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
-    fence = "`" * max(3, longest + 1)
-    return f"{fence}text\n{text}\n{fence}"
-
-
 def _render_command(workbook: Workbook, plan: _Plan, console: _Console) -> int:
     """``--render``: the notebook with its results, to standard output or ``-o FILE``;
     the errors are typeset in it, and reported on standard error too."""
     progress = _Progress(console, "rendering")
     progress.begin(plan.name)
     try:
-        document, errors = render(workbook, plan.text, plan.name)
+        document, errors = render_notebook(workbook, plan.text, plan.name)
     except KeyboardInterrupt:
         _stop_workers(workbook)
         console.note(f"interrupted while rendering {plan.name}; nothing was written")

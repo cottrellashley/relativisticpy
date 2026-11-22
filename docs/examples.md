@@ -64,9 +64,11 @@ B_1
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 \frac{C1}{A\left(r\right)}
 $$
+<!-- /relativisticpy:result -->
 
 Substituting into the third leaves an equation for $A$ alone:
 
@@ -77,9 +79,11 @@ A_1
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 C1 + \frac{C2}{r}
 $$
+<!-- /relativisticpy:result -->
 
 ### The integration constants
 
@@ -93,9 +97,11 @@ g_{\mu\nu} &:= \mathrm{diag}\left(-(1 + \tfrac{C}{r}),\; \frac{1}{1 + \tfrac{C}{
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 [- 2 G M]
 $$
+<!-- /relativisticpy:result -->
 
 So $C = -2GM$, and spacetime around any spherical mass is the Schwarzschild
 metric. Its curvature invariant shows that $r = 2GM$ is no singularity at all,
@@ -108,9 +114,11 @@ R_{abcd} R^{abcd}
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 \frac{48 G^{2} M^{2}}{r^{6}}
 $$
+<!-- /relativisticpy:result -->
 
 ## The Kretschmann scalar, from scratch
 
@@ -154,9 +162,11 @@ K
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 \frac{48 G^{2} M^{2}}{c^{4} r^{6}}
 $$
+<!-- /relativisticpy:result -->
 
 The built-in Kretschmann scalar agrees:
 
@@ -164,9 +174,11 @@ $$
 K - R_{abcd} R^{abcd}
 $$
 
+<!-- relativisticpy:result -->
 $$
 0
 $$
+<!-- /relativisticpy:result -->
 
 ## The Friedmann equations
 
@@ -204,9 +216,11 @@ F_1 &:= G_{tt} = 8 \pi G\, T_{tt} \\
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 [\frac{3 \left(k + \left(a'\left(t\right)\right)^{2}\right)}{8 \pi G a\left(t\right)^{2}}]
 $$
+<!-- /relativisticpy:result -->
 
 and a radial component gives the second, for the acceleration $\ddot a$:
 
@@ -217,9 +231,11 @@ F_2 &:= G^{r}{}_{r} = 8 \pi G\, T^{r}{}_{r} \\
 \end{aligned}
 $$
 
+<!-- relativisticpy:result -->
 $$
 [\frac{- 8 \pi G a\left(t\right)^{2} p\left(t\right) - k - \left(a'\left(t\right)\right)^{2}}{2 a\left(t\right)}]
 $$
+<!-- /relativisticpy:result -->
 
 Energy conservation, $\nabla_\mu T^{\mu\nu} = 0$, is the continuity equation
 $\dot\rho + 3 \frac{\dot a}{a}(\rho + p) = 0$:
@@ -228,9 +244,11 @@ $$
 \nabla_{\mu} T^{\mu t}
 $$
 
+<!-- relativisticpy:result -->
 $$
 \frac{a\left(t\right) \rho'\left(t\right) + 3 p\left(t\right) a'\left(t\right) + 3 \rho\left(t\right) a'\left(t\right)}{a\left(t\right)}
 $$
+<!-- /relativisticpy:result -->
 
 ## Geodesics from a Lagrangian
 
@@ -267,9 +285,11 @@ $$
 EL_{\theta}
 $$
 
+<!-- relativisticpy:result -->
 $$
 2 r\left(\tau\right)^{2} \theta''\left(\tau\right) - 2 r\left(\tau\right)^{2} \sin{\left(\theta\left(\tau\right) \right)} \cos{\left(\theta\left(\tau\right) \right)} \left(\phi'\left(\tau\right)\right)^{2} + 4 r\left(\tau\right) r'\left(\tau\right) \theta'\left(\tau\right)
 $$
+<!-- /relativisticpy:result -->
 
 Each is twice the geodesic equation
 $\ddot x^\nu + \Gamma^\nu{}_{\alpha\beta}\, \dot x^\alpha \dot x^\beta = 0$
@@ -279,9 +299,11 @@ $$
 EL_{\mu} = \left. 2 g_{\mu\nu} \left( \ddot{x}^{\nu} + \Gamma^{\nu}_{\alpha\beta}\, \dot{x}^{\alpha} \dot{x}^{\beta} \right) \right|_{t = t(\tau),\; r = r(\tau),\; \theta = \theta(\tau),\; \phi = \phi(\tau)}
 $$
 
+<!-- relativisticpy:result -->
 $$
 \text{equation}\ {}_{\mu} \tag*{holds in all 4 components}
 $$
+<!-- /relativisticpy:result -->
 
 ## Light near a black hole
 
@@ -403,6 +425,7 @@ $$
 \operatorname{spec}(H^{ik}{}_{jl})
 $$
 
+<!-- relativisticpy:result -->
 $$
 \begin{aligned}
 \operatorname{spec}(H^{i0}{}_{jl}) &= - 3 J \\
@@ -411,6 +434,7 @@ $$
 \operatorname{spec}(H^{i3}{}_{jl}) &= J
 \end{aligned}
 $$
+<!-- /relativisticpy:result -->
 
 The trace of $H$ vanishes, as it must for a sum of traceless products:
 
@@ -418,9 +442,11 @@ $$
 \operatorname{tr}(H^{ik}{}_{jl})
 $$
 
+<!-- relativisticpy:result -->
 $$
 0
 $$
+<!-- /relativisticpy:result -->
 
 A single spin in a magnetic field precesses: the operator of its evolution over a time
 $t$ is the exponential of the map $Z$, written without indices as a matrix is.
@@ -433,12 +459,14 @@ $$
 U^{i}{}_{j}
 $$
 
+<!-- relativisticpy:result -->
 $$
 \begin{aligned}
 U^{0}{}_{0} &= e^{- \frac{i \omega t}{2}} \\
 U^{1}{}_{1} &= e^{\frac{i \omega t}{2}}
 \end{aligned}
 $$
+<!-- /relativisticpy:result -->
 
 ## A portfolio of 500 assets, in index notation
 
