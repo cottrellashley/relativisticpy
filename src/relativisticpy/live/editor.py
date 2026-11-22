@@ -28,7 +28,6 @@ import traitlets
 from relativisticpy.errors import RelativisticPyError, UsageError
 from relativisticpy.integrations._objects import Carried, PythonScope, Reference, reference
 from relativisticpy.language import Source, parse
-from relativisticpy.language import syntax as ast
 from relativisticpy.live.engine import _nodes
 from relativisticpy.live.worker import (
     GRACE,
@@ -42,7 +41,7 @@ from relativisticpy.live.worker import (
     Job,
     portable,
 )
-from relativisticpy.lowering.objects import _named_object
+from relativisticpy.lowering.objects import written_object
 from relativisticpy.workbook import Workbook
 
 __all__ = ["Editor"]
@@ -249,13 +248,14 @@ def _references(text: str) -> list[Reference]:
         return []
     found: dict[str, Reference] = {}
     for node in _nodes(program):
-        if _named_object(node):
-            assert isinstance(node, ast.Name)
-            try:
-                written = reference(node.id)
-            except RelativisticPyError:
-                continue
-            found.setdefault(written.written, written)
+        held = written_object(node)
+        if held is None:
+            continue
+        try:
+            written = reference(held)
+        except RelativisticPyError:
+            continue
+        found.setdefault(written.written, written)
     return list(found.values())
 
 

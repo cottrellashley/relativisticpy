@@ -176,6 +176,54 @@ def test_labelled_data_bound_from_python_meets_by_label_too(prices):
     assert wb.expr(r"P_{ta} w^a").to_numpy().tolist() == [320.0, 322.0, 325.5]
 
 
+def test_data_takes_the_indices_written_on_it(prices):
+    weights = pd.Series([0.2, 0.5, 0.3], index=pd.Index(["NVDA", "AAPL", "MSFT"], name="asset"))
+    wb = Workbook(scope={"signal": np.array([1.0, 2.0, 6.0]), "grid": np.eye(2), "c": 3})
+    assert wb.expr(r"\mathbb{E}_t[\texttt{signal}_t]") == 3.0
+    assert wb.expr(r"\texttt{grid}_{ii}") == 2.0  # an index written twice is summed
+    assert wb.expr(r"\texttt{grid}_{ij}").spaces[0] == wb.expr(r"\texttt{grid}_{ij}").spaces[1]
+    market = Workbook(scope={"prices": prices, "weights": weights})
+    expected = prices.to_numpy() @ weights.reindex(prices.columns).to_numpy()
+    assert market.expr(r"\texttt{prices}_{ta} \texttt{weights}^a").to_numpy() == pytest.approx(
+        expected
+    )
+    with pytest.raises(CompileError, match="is a number, which has no indices"):
+        wb.expr(r"\texttt{c}_1")
+    with pytest.raises(DataError, match=r"has 1 index, but the data has 2 axes"):
+        wb.expr(r"\texttt{grid}_i")
+
+
+def test_an_object_is_never_taken_for_a_name_of_the_languages():
+    signal = np.array([1.0, 2.0, 6.0])
+    assets = pd.Index(["A", "B"], name="asset")
+    scope = {
+        "Var": signal,
+        "E": signal,
+        "x": signal,
+        "cov": pd.DataFrame([[2.0, 0.0], [0.0, 3.0]], index=assets, columns=assets),
+        "w": pd.Series([1.0, 1.0], index=assets),
+        "tr": 2,
+        "J": lambda n: n + 100,
+    }
+    wb = Workbook(scope=scope)
+    assert wb.expr(r"\texttt{Var}_t \texttt{x}_t") == 41.0  # a contraction, not a variance
+    assert wb.expr(r"\texttt{E}_t[\texttt{x}_t]") == 41.0  # not the expectation
+    assert wb.expr(r"\texttt{cov}_{ab} \texttt{w}^a \texttt{w}^b") == 5.0
+    assert wb.expr(r"\texttt{tr} \cdot 3") == 6  # not the trace, a book name
+    assert wb.expr(r"\texttt{J}(0)") == 100  # not the Bessel function
+    steps = list(wb.each(r"\texttt{cov}_{ab} \texttt{w}^a \texttt{w}^b"))
+    assert steps[0].notes == []
+    with pytest.raises(CompileError, match=r"what follows a Python object's name is not part"):
+        wb.expr(r"\texttt{J}_0(3)")
+
+
+def test_a_prime_or_an_accent_on_an_object_is_not_read():
+    wb = Workbook(scope={"f": sympy.sin(x), "c": 3})
+    for written in (r"\texttt{f}'", r"\texttt{f}'(x)", r"\hat{\texttt{c}}", r"\dot{\texttt{c}}"):
+        with pytest.raises(CompileError, match="a prime or an accent on a Python object"):
+            wb.expr(written)
+
+
 def test_data_read_is_a_copy_and_read_anew_each_time():
     signal = np.array([1.0, 2.0, 3.0])
     wb = Workbook(scope={"signal": signal})

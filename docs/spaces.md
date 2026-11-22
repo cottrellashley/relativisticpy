@@ -178,8 +178,9 @@ What an object becomes depends on its type, as an object integration of
 
 Data from two objects meets by label, never by position: above, `weights` lists the
 assets in another order than `prices`, and each asset is weighed by its own weight.
-Labels that are not the same elements are refused where they meet. A function and an
-expression are used as the program's own:
+Labels that are not the same elements are refused where they meet. Written with indices,
+as `\texttt{signal}_t`, an object is data with those indices, without a definition. A
+function and an expression are used as the program's own:
 
 ```python
 >>> import numpy as np
@@ -187,9 +188,9 @@ expression are used as the program's own:
 >>> def hann(n, N):
 ...     return 0.5 - 0.5 * np.cos(2 * np.pi * n / (N - 1))
 >>> windowed = Workbook(scope={"hann": hann, "signal": np.array([4.0, 2.0, 6.0, 8.0])})
->>> windowed.exe(r"x_t := \texttt{signal}")
-[]
->>> windowed.expr(r"\texttt{hann}(x_t, 9)").to_numpy().round(3).tolist()
+>>> windowed.expr(r"\mathbb{E}_t[\texttt{signal}_t]")
+5.0
+>>> windowed.expr(r"\texttt{hann}(\texttt{signal}_t, 9)").to_numpy().round(3).tolist()
 [1.0, 0.5, 0.5, 0.0]
 >>> x = sympy.Symbol("x")
 >>> Workbook(scope={"f": sympy.sin(x) ** 2}).expr(r"\frac{d}{dx} \texttt{f}")

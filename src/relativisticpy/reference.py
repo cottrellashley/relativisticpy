@@ -584,8 +584,8 @@ def _data() -> list[str]:
         'keys and positions follow, `\\texttt{prices["NVDA"]}`, and are read, never run as '
         "Python. A document checked, and a program sent to the MCP server, have no scope. "
         "Defined with indices, `P_{ta} := \\texttt{prices}`, data is bound as "
-        '`wb["P_{ta}"] = prices` binds it, and meets other data by label. What an object '
-        "becomes, by the object integrations:",
+        '`wb["P_{ta}"] = prices` binds it, and meets other data by label; written with them, '
+        "`\\texttt{signal}_t`, it has them. What an object becomes, by the object integrations:",
         "",
     ]
     lines += _table(

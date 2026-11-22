@@ -46,7 +46,7 @@ from relativisticpy.errors import (
     translate,
 )
 from relativisticpy.integrations._objects import PythonScope
-from relativisticpy.ir import SCALAR, EquationType, ScalarType, TensorType, ops, render
+from relativisticpy.ir import SCALAR, EquationType, Node, ScalarType, TensorType, ops, render
 from relativisticpy.language import Source, Span, parse, tokenize
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
@@ -1297,6 +1297,26 @@ def _bind_data(
     as in ``P_{ta} := \texttt{prices}``: ``data`` is the components, the names of each
     axis's elements and each axis's own name, and each axis ranges over a space by the rules
     of :meth:`Workbook.__setitem__`. ``span`` is where a definition writes it."""
+    node, indices = _data_tensor(session, written, name, entries, data, backend, span)
+    session.globals.bind(name, TensorBinding(node, indices))
+
+
+def _data_tensor(
+    session: Session,
+    written: str,
+    name: str,
+    entries: Sequence[tuple[str, bool]],
+    data: tuple[Any, Sequence[tuple[str, ...] | None], Sequence[str | None]],
+    backend: str,
+    span: Span | None = None,
+    labels: Mapping[str, Space] | None = None,
+) -> tuple[Node, Indices]:
+    r"""The node of data written as the tensor ``name`` with the index labels ``entries``,
+    and its indices, each axis over a space by the rules of :meth:`Workbook.__setitem__`, as
+    :func:`_bind_data` binds it and as ``\texttt{signal}_t`` reads it: there, a label that
+    already ranges over a space in the statement, by ``labels``, ranges over it on the data
+    too, as a declared one does."""
+    known = labels or {}
     components, bases, axis_names = data
     shape = tuple(getattr(components, "shape", ()))
     if len(shape) != len(entries):
@@ -1312,7 +1332,9 @@ def _bind_data(
         zip(entries, shape, bases, axis_names, strict=True)
     ):
         earlier = [(entries[k][0], space) for k, space in enumerate(spaces)]
-        space = _axis_space(session, name, label, size, basis, axis_name, field, earlier)
+        space = known.get(label) or _axis_space(
+            session, name, label, size, basis, axis_name, field, earlier
+        )
         if space.dim != size:
             raise DataError(
                 f"the index {label} ranges over {space}, of dimension {space.dim}, "
@@ -1332,8 +1354,7 @@ def _bind_data(
         if not numerical.is_sparse(components):  # a sparse matrix stays SciPy's
             components = jnp.asarray(components)
     indices = Indices(Index(label, upper) for label, upper in entries)
-    node = session.graph.const(components, TensorType(indices, tuple(spaces)), span)
-    session.globals.bind(name, TensorBinding(node, indices))
+    return session.graph.const(components, TensorType(indices, tuple(spaces)), span), indices
 
 
 def _rank_of(value: Any) -> int:

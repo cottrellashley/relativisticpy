@@ -113,7 +113,8 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   are the bases of spaces, a SciPy sparse matrix sparse data, an xarray DataArray data
   over its named dimensions, a SymPy expression an expression in the program's symbols, a
   list a vector or a matrix, and a function a function, called on numbers and on data
-  elementwise. Data from two objects meets by label, never by position, as data bound
+  elementwise. Written with indices, `\texttt{signal}_t`, an object is data with them.
+  Data from two objects meets by label, never by position, as data bound
   with `wb["P_{ta}"] = frame` now does too. `show(source, signal=signal)` and
   `Editor(wb, scope=...)` read objects, the editor's going to its worker as data; a
   document checked and a program sent to the MCP server have no scope, and refuse a

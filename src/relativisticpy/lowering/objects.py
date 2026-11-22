@@ -27,7 +27,7 @@ import sympy
 from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import Context, Scope, VariableBinding
 from relativisticpy.compiler.session import Session
-from relativisticpy.errors import CompileError, RelativisticPyError
+from relativisticpy.errors import CompileError, IndexNotationError, RelativisticPyError
 from relativisticpy.integrations._objects import (
     Array,
     Becomes,
@@ -43,9 +43,10 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.transforms import Transforms
 from relativisticpy.tensors import Index, Indices, Space, numerical
+from relativisticpy.typing.syntax import _plain_label
 
-#: How a reference to a Python object is written.
-_TEXTTT = re.compile(r"\\texttt(?![A-Za-z])")
+#: The name the lexer gives a Python object: the command, and what its braces hold.
+_WRITTEN = re.compile(r"\\texttt\{(?P<written>.*)\}", re.DOTALL)
 
 #: Where a program reaches nothing in Python, and why.
 NO_SCOPE = (
@@ -78,11 +79,33 @@ class PythonObjects(Transforms):
         finally:
             self._objects_read.pop(id(value), None)
 
+    def _check_statistic_name(self, factor: ast.Expr, scope: Scope) -> None:
+        r"""A Python object with a subscript, as ``\texttt{cov}_{ab}``, is no statistic
+        misspelt, nor an operator: it is read as data with its indices."""
+        if not (isinstance(factor, ast.Scripted) and _named_object(factor.base)):
+            super()._check_statistic_name(factor, scope)
+
     # -- reading ------------------------------------------------------------------------
 
     def _python_object(self, node: ast.Expr, scope: Scope, ctx: Context) -> Term | None:
-        """``node`` read as a Python object, if it names one, called or not, or calls a name
-        defined as a Python function; ``None`` for anything else."""
+        """``node`` read as a Python object, if it names one, called or not, written with
+        indices, or calls a name defined as a Python function; ``None`` for anything else."""
+        if _decorated(node):
+            raise CompileError(
+                f"{node.span.text}: a prime or an accent on a Python object is not read",
+                span=node.span,
+                hint=r"write what is meant, as \frac{d}{dx} \texttt{f} for a derivative, or "
+                "give it a name of its own in Python",
+            )
+        joined = node.func if isinstance(node, ast.Call) else node
+        if _joined_object(joined):  # \texttt{J}_0(x), joined as J_0(x) is
+            raise CompileError(
+                f"{joined.span.text}: what follows a Python object's name is not part of it",
+                span=joined.span,
+                hint=r"write its whole name inside the braces, as \texttt{J_0}",
+            )
+        if isinstance(node, ast.Scripted) and _named_object(node.base):
+            return self._object_scripted(node, scope, ctx)
         if _named_object(node):
             assert isinstance(node, ast.Name)
             made = self._objects_read.pop(id(node), None)
@@ -109,7 +132,9 @@ class PythonObjects(Transforms):
     def _read_object(self, node: ast.Name) -> tuple[Reference, Becomes]:
         r"""The object ``\texttt{...}`` names, and what it becomes, from the workbook's scope;
         refused, saying how to give one, where there is none."""
-        written = reference(node.id, node.span)
+        held = written_object(node)
+        assert held is not None
+        written = reference(held, node.span)
         reader = self.session.objects
         if reader is None:
             raise CompileError(
@@ -168,7 +193,8 @@ class PythonObjects(Transforms):
         for axis, (size, basis, name) in enumerate(
             zip(made.shape, made.bases, made.names, strict=True)
         ):
-            space = self._object_space(node.id, axis, rank, size, basis, name, field)
+            written = written_object(node) or node.span.text
+            space = self._object_space(written, axis, rank, size, basis, name, field)
             if basis is not None and space.basis is not None and basis != space.basis:
                 what = f"axis {axis + 1} of {node.span.text}"
                 components = _in_basis_order(components, axis, basis, space, what)
@@ -182,6 +208,63 @@ class PythonObjects(Transforms):
             components = jnp.asarray(components)
         indices = Indices(Index(_unwritten(axis)) for axis in range(rank))
         return self.graph.const(components, TensorType(indices, tuple(spaces)), node.span)
+
+    def _object_scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
+        r"""A Python object with scripts: data with the indices written on it, as
+        ``\texttt{signal}_t`` or ``\texttt{weights}^a``; and the power of anything else, as
+        ``\texttt{c}^2``. A subscript on what is no data is refused, never made a name."""
+        base = node.base
+        assert isinstance(base, ast.Name)
+        _, made = self._read_object(base)
+        below = any(script.kind == "_" for script in node.scripts)
+        labelled = all(
+            script.indices is not None and all(_plain_label(i) for i in script.indices.items)
+            for script in node.scripts
+        )
+        if isinstance(made, Data | Array) and (below or labelled):
+            return self._object_indexed(node, made)
+        if below:
+            raise CompileError(
+                f"{base.span.text} is {describe(made)}, which has no indices, so a subscript on "
+                "it is not read",
+                span=node.span,
+                hint=r"write its whole name inside the braces, as \texttt{c_1}",
+            )
+        self._objects_read[id(base)] = made  # its power reads it from here
+        try:
+            return super().term(node, scope, ctx)
+        finally:
+            self._objects_read.pop(id(base), None)
+
+    def _object_indexed(self, node: ast.Scripted, made: Data | Array) -> Node:
+        r"""``\texttt{signal}_t``: data read from an object, with the indices written on it,
+        each axis over a space as ``x_t := \texttt{signal}`` would have it; an index written
+        twice is summed, as on any tensor."""
+        from relativisticpy.workbook import _data_tensor
+
+        base = node.base
+        assert isinstance(base, ast.Name)
+        if isinstance(made, Array):
+            components = _numbers_or_symbols(made.value)
+            made = Data(components, (None,) * len(components.shape))
+        entries = self._entries(node, "the indices of a Python object")
+        if not all(_plain_label(item) for item, _ in entries):
+            raise IndexNotationError(
+                f"write index labels on {base.span.text}, as {base.span.text}_t; to take a "
+                r"component, define the data first, as x_t := \texttt{signal}, then x_{t=0}",
+                span=node.span,
+            )
+        written = [(str(item.label), upper) for item, upper in entries]
+        reader = self.session.objects
+        backend = reader.backend if reader is not None else "numpy"
+        data = (made.components, made.bases, made.names)
+        tensor, indices = _data_tensor(
+            self.session, node.span.text, base.id, written, data, backend, node.span, self._labels
+        )
+        assert isinstance(tensor.type, TensorType)
+        for index, space in zip(indices, tensor.type.spaces, strict=True):
+            self._check_label(index.name, space, node.span)
+        return self._trace(tensor, node.span)
 
     def _object_space(
         self,
@@ -317,11 +400,39 @@ class PythonObjects(Transforms):
         return self._call("python.call", [function, *aligned], first, span)
 
 
+def written_object(node: ast.Node) -> str | None:
+    r"""What the braces of ``\texttt{...}`` hold, where ``node`` is a name written so, which
+    names a Python object; ``None`` for any other node."""
+    if not (isinstance(node, ast.Name) and node.verbatim):
+        return None
+    whole = _WRITTEN.fullmatch(node.id)
+    return whole["written"] if whole is not None else None
+
+
 def _named_object(node: ast.Node) -> bool:
     r"""Whether ``node`` is a name written ``\texttt{...}``, which names a Python object."""
+    return written_object(node) is not None
+
+
+def _joined_object(node: ast.Node) -> bool:
+    r"""Whether ``node`` is a name the parser joined of a Python object's and what follows
+    it, as ``\texttt{J}_0`` of ``\texttt{J}_0(x)``, as it joins ``J_0`` of ``J_0(x)``."""
     return (
-        isinstance(node, ast.Name) and node.verbatim and _TEXTTT.match(node.span.text) is not None
+        isinstance(node, ast.Name)
+        and node.verbatim
+        and node.id.startswith("\\texttt{")
+        and written_object(node) is None
     )
+
+
+def _decorated(node: ast.Node) -> bool:
+    r"""Whether ``node`` is a Python object with a prime or an accent, as ``\texttt{f}'`` or
+    ``\hat{\texttt{x}}``, called or not, which the language would read as a name of its own."""
+    if isinstance(node, ast.Call):
+        node = node.func
+    if isinstance(node, ast.Prime):
+        return _named_object(node.func)
+    return isinstance(node, ast.Accent) and _named_object(node.base)
 
 
 def _function_of(node: Node) -> PythonFunction | None:

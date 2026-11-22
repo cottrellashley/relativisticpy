@@ -341,7 +341,7 @@ Given a tensor, these functions are linear algebra. They are written `\operatorn
 
 ### Python objects
 
-`\texttt{prices}` is the object called prices in the Python scope a workbook is given, `Workbook(scope=globals())`, or of the objects passed to `show`. Attributes, keys and positions follow, `\texttt{prices["NVDA"]}`, and are read, never run as Python. A document checked, and a program sent to the MCP server, have no scope. Defined with indices, `P_{ta} := \texttt{prices}`, data is bound as `wb["P_{ta}"] = prices` binds it, and meets other data by label. What an object becomes, by the object integrations:
+`\texttt{prices}` is the object called prices in the Python scope a workbook is given, `Workbook(scope=globals())`, or of the objects passed to `show`. Attributes, keys and positions follow, `\texttt{prices["NVDA"]}`, and are read, never run as Python. A document checked, and a program sent to the MCP server, have no scope. Defined with indices, `P_{ta} := \texttt{prices}`, data is bound as `wb["P_{ta}"] = prices` binds it, and meets other data by label; written with them, `\texttt{signal}_t`, it has them. What an object becomes, by the object integrations:
 
 | Object | Becomes |
 |---|---|

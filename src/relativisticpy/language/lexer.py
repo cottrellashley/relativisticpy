@@ -747,9 +747,10 @@ class Lexer:
     def _text_command(self, name: str, start: int) -> None:
         r"""``\text{otherwise}`` is the name ``otherwise``; ``\text{for all}`` a string. An
         operator's name is one name, however it is spaced: ``\operatorname{arg\,max}`` is
-        ``argmax``. ``\texttt{prices["NVDA"]}`` names a Python object, and is one name as it
-        is written, which the reader reads (see :mod:`relativisticpy.integrations._objects`),
-        so that it is called and raised to powers as a name is."""
+        ``argmax``. ``\texttt{prices["NVDA"]}`` names a Python object: one name, written with
+        its command, so that no name of the language's is ever taken for it, and so that it
+        is called and raised to powers as a name is; the compiler reads it first (see
+        :mod:`relativisticpy.lowering.objects`)."""
         if self._peek() == "*":  # \operatorname*{...}
             self.pos += 1
         example = "tr" if name == "operatorname" else "word"
@@ -758,7 +759,9 @@ class Lexer:
             contents = _OPERATOR_SPACING.sub("", contents)
         if not contents:
             self.space_before = True
-        elif _TEXT_NAME.fullmatch(contents) or name == "texttt":
+        elif name == "texttt":
+            self._emit(TokenKind.IDENT, f"\\texttt{{{contents}}}", start, self.pos, verbatim=True)
+        elif _TEXT_NAME.fullmatch(contents):
             self._emit(TokenKind.IDENT, contents, start, self.pos, verbatim=True)
         else:
             self._emit(TokenKind.STRING, contents, start, self.pos)
