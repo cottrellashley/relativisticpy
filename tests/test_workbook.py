@@ -381,4 +381,5 @@ def test_markdown_typesets_results_after_each_block():
 def test_latex():
     assert latex(x**2) == "x^{2}"
     tensor = Tensor([[1, 0], [0, 1]], "_{ab}", name="delta")
-    assert latex(tensor).startswith(r"\delta_{a b}")
+    lines = [r"\begin{aligned}", r"\delta_{0\,0} &= 1 \\", r"\delta_{1\,1} &= 1", r"\end{aligned}"]
+    assert latex(tensor) == "\n".join(lines)

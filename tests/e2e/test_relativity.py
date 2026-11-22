@@ -21,13 +21,13 @@ class TestMetric:
         g = schwarzschild.expr("g_{mu}_{nu}")
         assert isinstance(g, Tensor)
         assert same(g, SCHWARZSCHILD)
-        assert str(g.indices) == "_{mu}_{nu}"
+        assert str(g.indices) == r"_{\mu\nu}"
         assert g.coordinates == (t, r, theta, phi)
 
     def test_inverse(self, schwarzschild):
         g = schwarzschild.expr("g^{a}^{b}")
         assert same(g, Array(Matrix(SCHWARZSCHILD.tolist()).inv()))
-        assert str(g.indices) == "^{a}^{b}"
+        assert str(g.indices) == "^{ab}"
 
     def test_metric_times_its_inverse_is_the_identity(self, schwarzschild):
         delta = schwarzschild.expr("g_{a}_{b}*g^{b}^{c}")
@@ -63,7 +63,7 @@ class TestMetric:
         x = Symbol("x")
         result = schwarzschild.expr("g_{a}_{b}*f(x)")
         assert same(result, SCHWARZSCHILD * Function("f")(x))
-        assert str(result.indices) == "_{a}_{b}"
+        assert str(result.indices) == "_{ab}"
 
 
 class TestCurvature:
@@ -71,7 +71,7 @@ class TestCurvature:
         gamma = schwarzschild.expr("C^{a}_{b}_{c}")
         expected = spacetimes.schwarzschild(M, G=G).christoffel
         assert same(gamma, expected)
-        assert str(gamma.indices) == "^{a}_{b}_{c}"
+        assert str(gamma.indices) == "^{a}_{bc}"
 
     def test_christoffel_components(self, schwarzschild):
         results = schwarzschild.exe("C^{a:0}_{b:0}_{c:0}\nC^{a}_{b:0}_{c:0}\nC^{a:0}_{b}_{c:0}")
@@ -90,12 +90,12 @@ class TestCurvature:
             "T^{a}_{c f}"
         )
         assert zero(difference)
-        assert str(difference.indices) == "^{a}_{c}_{f}"
+        assert str(difference.indices) == "^{a}_{cf}"
 
     def test_riemann(self, schwarzschild):
         riemann = schwarzschild.expr("R^{a}_{b}_{c}_{h}")
         assert same(riemann, spacetimes.schwarzschild(M, G=G).riemann)
-        assert str(riemann.indices) == "^{a}_{b}_{c}_{h}"
+        assert str(riemann.indices) == "^{a}_{bch}"
 
     def test_riemann_components(self, schwarzschild):
         results = schwarzschild.exe(
@@ -111,7 +111,7 @@ class TestCurvature:
             " - d_{n}*C^{a}_{b m} - C^{a}_{n l}*C^{l}_{b m} )"
         )
         assert zero(difference)
-        assert str(difference.indices) == "^{a}_{m}_{b}_{n}"
+        assert str(difference.indices) == "^{a}_{mbn}"
 
     def test_definitions_reorder_indices(self, schwarzschild):
         result = schwarzschild.expr(
@@ -124,13 +124,13 @@ class TestCurvature:
     def test_ricci_is_zero_in_vacuum(self, schwarzschild):
         ricci = schwarzschild.expr("Ric_{a}_{b}")
         assert ricci.components == Array.zeros(4, 4)
-        assert str(ricci.indices) == "_{a}_{b}"
+        assert str(ricci.indices) == "_{ab}"
         assert schwarzschild.expr("R_{\\mu\\nu}").components == Array.zeros(4, 4)
 
     def test_ricci_from_contracting_riemann(self, schwarzschild):
         ricci = schwarzschild.expr("R^{a}_{b}_{a}_{h}")
         assert ricci.components == Array.zeros(4, 4)
-        assert str(ricci.indices) == "_{b}_{h}"
+        assert str(ricci.indices) == "_{bh}"
 
     def test_ricci_scalar(self, schwarzschild):
         assert schwarzschild.expr("Ric") == 0
@@ -146,12 +146,12 @@ class TestCurvature:
         )
         for result in results:
             assert result.components == Array.zeros(4, 4)
-            assert str(result.indices) == "_{a}_{b}"
+            assert str(result.indices) == "_{ab}"
 
     def test_the_metric_is_covariantly_constant(self, schwarzschild):
         result = schwarzschild.expr("D_{a}*g_{b c}")
         assert zero(result)
-        assert str(result.indices) == "_{a}_{b}_{c}"
+        assert str(result.indices) == "_{abc}"
         assert zero(schwarzschild.expr("T_{b}_{a}_{c} := D_{a}*g_{b}_{c}\nT_{b}_{a}_{c}"))
         assert zero(schwarzschild.expr(r"\nabla_\lambda g^{\mu\nu}"))
 

@@ -59,14 +59,14 @@ class TestBuiltInTensorNames:
     @pytest.mark.parametrize(
         ("source", "indices"),
         [
-            ("C^{a}_{bc}", "^{a}_{b}_{c}"),
-            (r"\Gamma^{a}_{bc}", "^{a}_{b}_{c}"),
-            ("R^{a}_{bcd}", "^{a}_{b}_{c}_{d}"),
-            ("R_{ab}", "_{a}_{b}"),
-            ("Ric_{ab}", "_{a}_{b}"),
-            ("G_{ab}", "_{a}_{b}"),
-            ("W_{abcd}", "_{a}_{b}_{c}_{d}"),
-            ("C_{abcd}", "_{a}_{b}_{c}_{d}"),
+            ("C^{a}_{bc}", "^{a}_{bc}"),
+            (r"\Gamma^{a}_{bc}", "^{a}_{bc}"),
+            ("R^{a}_{bcd}", "^{a}_{bcd}"),
+            ("R_{ab}", "_{ab}"),
+            ("Ric_{ab}", "_{ab}"),
+            ("G_{ab}", "_{ab}"),
+            ("W_{abcd}", "_{abcd}"),
+            ("C_{abcd}", "_{abcd}"),
             (r"\delta^{a}_{b}", "^{a}_{b}"),
         ],
     )

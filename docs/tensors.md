@@ -49,7 +49,11 @@ convention); the others are the result's free indices:
 
 ```python
 >>> wb.expr(r"g_{ab} g^{bc}")
-Tensor('_{a}^{c}', [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+g_{ab} g^{bc} in (t, r, θ, φ): 4 of 16 components non-zero
+  g_{tb} g^{bt} = 1
+  g_{rb} g^{br} = 1
+  g_{θb} g^{bθ} = 1
+  g_{φb} g^{bφ} = 1
 >>> wb.expr(r"g_{ab} g^{ab}")
 4
 
@@ -128,7 +132,7 @@ checks that it is the contraction of the Riemann tensor:
 ...     R = 0
 ...     R_{\mu\nu} \equiv R^\alpha{}_{\mu\alpha\nu}
 ... """)
-[True, TensorEquation(_{mu}_{nu}, 0 equations)]
+[True, R_{μν} = R^α{}_{μαν}: holds in all 10 components]
 
 ```
 
@@ -154,7 +158,8 @@ Fixing some indices and not others gives the rest as a tensor:
 
 ```python
 >>> print(wb.expr(r"\Gamma^{r}_{t b}"))
-[M*(-2*M + r)/r**3, 0, 0, 0]
+Γ^r_{t b} in (t, r, θ, φ): 1 of 4 components non-zero
+  Γ^r_{t t} = M (r − 2M)/r³
 
 ```
 
@@ -244,7 +249,7 @@ written:
 
 ```python
 >>> wb.expr(r"\nabla_{[\lambda} R_{\rho\sigma]\mu\nu} = 0")
-TensorEquation(_{lambda}_{rho}_{sigma}_{mu}_{nu}, 0 equations)
+∇_{[λ} R_{ρσ]μν} = 0: holds in all 200 components
 
 ```
 
@@ -324,7 +329,7 @@ vector, \(\partial L / \partial \dot x^\mu\), has an index of its own:
 ...     \frac{d}{d\tau} \frac{\partial L}{\partial \dot{x}^\mu} - \frac{\partial L}{\partial x^\mu}
 ... """)
 >>> euler_lagrange.indices
-Indices('_{mu}')
+Indices('_{\\mu}')
 
 ```
 

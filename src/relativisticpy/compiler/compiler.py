@@ -3042,7 +3042,9 @@ class Compiler:
         for current in _used(node):
             if isinstance(current, ast.Name):
                 binding = scope.lookup(current.id)
-                notation = isinstance(binding, VariableBinding) and _notation_of(binding.node)
+                notation = (
+                    isinstance(binding, VariableBinding) and _notation_of(binding.node) is not None
+                )
                 # With a metric, notation is computed where it meets components.
                 if notation and (operation or self.session.metric is None):
                     return True
@@ -3188,7 +3190,10 @@ class Compiler:
                 return None
             if isinstance(node, ast.Name):
                 binding = scope.lookup(node.id)
-                if isinstance(binding, VariableBinding) and (kept := _notation_of(binding.node)):
+                if (
+                    isinstance(binding, VariableBinding)
+                    and (kept := _notation_of(binding.node)) is not None
+                ):
                     if isinstance(kept, IndexEquation):
                         return None
                     return [(index.name, index.is_up) for index in abstract.free(kept.value)]
@@ -3217,7 +3222,10 @@ class Compiler:
         space = self.session.algebra()
         if isinstance(node, ast.Name):
             binding = scope.lookup(node.id)
-            if isinstance(binding, VariableBinding) and (found := self._kept(binding.node)):
+            if (
+                isinstance(binding, VariableBinding)
+                and (found := self._kept(binding.node)) is not None
+            ):
                 return found
         if (
             isinstance(node, ast.Call)
@@ -3341,7 +3349,10 @@ class Compiler:
             return self._abstract_tensor(pattern, scope, node.span)
         if isinstance(node, ast.Name):
             binding = scope.lookup(node.id)
-            if isinstance(binding, VariableBinding) and (found := self._kept(binding.node)):
+            if (
+                isinstance(binding, VariableBinding)
+                and (found := self._kept(binding.node)) is not None
+            ):
                 if isinstance(found, IndexEquation):
                     raise CompileError(f"{node.id} is an equation", span=node.span)
                 return found.value
@@ -3409,7 +3420,7 @@ class Compiler:
         name, entries = pattern
         space = self.session.algebra()
         binding = scope.lookup(name)
-        if isinstance(binding, VariableBinding) and _notation_of(binding.node):
+        if isinstance(binding, VariableBinding) and _notation_of(binding.node) is not None:
             raise IndexNotationError(
                 f"{name} stands for notation, whose indices are its own",
                 span=span,

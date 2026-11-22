@@ -15,11 +15,11 @@ once there is a metric.
 >>> wb.exe(r"EFE := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}")
 []
 >>> wb.expr("EFE")
-IndexEquation(G_{\mu\nu} + \Lambda g_{\mu\nu} = 8 \pi G T_{\mu\nu})
+IndexEquation(G_{μν} + Λ g_{μν} = 8π G T_{μν})
 >>> wb.expr(r"solve(EFE, T_{\mu\nu})")
-IndexEquation(T_{\mu\nu} = \frac{G_{\mu\nu} + \Lambda g_{\mu\nu}}{8 \pi G})
+IndexEquation(T_{μν} = (G_{μν} + Λ g_{μν})/(8π G))
 >>> wb.expr(r"solve(EFE, T^{\mu\nu})")
-IndexEquation(T^{\mu\nu} = \frac{G^{\mu\nu} + \Lambda g^{\mu\nu}}{8 \pi G})
+IndexEquation(T^{μν} = (G^{μν} + Λ g^{μν})/(8π G))
 
 ```
 
@@ -30,9 +30,9 @@ substitutes it back. This is trace reversal:
 
 ```python
 >>> wb.expr("trace(EFE)")
-IndexEquation(4 \Lambda - R = 8 \pi G T)
+IndexEquation(4Λ − R = 8π G T)
 >>> wb.expr(r"solve(EFE, R_{\mu\nu})")
-IndexEquation(R_{\mu\nu} = 8 \pi G T_{\mu\nu} + \left(\Lambda - 4 \pi G T\right) g_{\mu\nu})
+IndexEquation(R_{μν} = 8π G T_{μν} + (Λ − 4π G T) g_{μν})
 
 ```
 
@@ -61,7 +61,7 @@ position. It may be a definition, such as that of the Einstein tensor:
 
 ```python
 >>> wb.expr(r"subs(EFE, G_{ab} = R_{ab} - \frac{1}{2} R g_{ab})")
-IndexEquation(R_{\mu\nu} + \left(\Lambda - \frac{1}{2} R\right) g_{\mu\nu} = 8 \pi G T_{\mu\nu})
+IndexEquation(R_{μν} + (Λ − R/2) g_{μν} = 8π G T_{μν})
 
 ```
 
@@ -69,7 +69,7 @@ A rule for a scalar puts its value into the coefficients:
 
 ```python
 >>> wb.expr(r"subs(EFE, \Lambda = 0)")
-IndexEquation(G_{\mu\nu} = 8 \pi G T_{\mu\nu})
+IndexEquation(G_{μν} = 8π G T_{μν})
 
 ```
 
@@ -79,7 +79,7 @@ with a perfect fluid measures:
 ```python
 >>> fluid = r"((\rho + p) u^\mu u^\nu + p g^{\mu\nu}) u_\nu"
 >>> wb.expr(rf"subs({fluid}, u^\alpha u_\alpha = -1)")
-IndexExpression(- \rho u^{\mu})
+IndexExpression(−ρ u^μ)
 
 ```
 
@@ -105,7 +105,7 @@ IndexExpression(0)
 >>> wb.expr(r"simplify(R^{\alpha}{}_{\mu\alpha\nu} - R_{\nu\mu})")
 IndexExpression(0)
 >>> wb.expr(r"simplify(G^\mu{}_\mu)")
-IndexExpression(- R)
+IndexExpression(−R)
 
 ```
 
@@ -174,7 +174,7 @@ component by component:
 
 ```python
 >>> cosmos.expr(r"R_{\mu\nu} = RHS(solve(EFE, R_{\mu\nu}))")
-TensorEquation(_{mu}_{nu}, 0 equations)
+R_{μν} = RHS(solve(EFE, R_{μν})): holds in all 10 components
 
 ```
 

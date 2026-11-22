@@ -635,12 +635,14 @@ class _PlainPrinter(StrPrinter):  # type: ignore[misc]
         return self._big_operator("∏", "prod", expr)
 
     def _print_Limit(self, expr: Any) -> str:
-        # As the language reads it in either form: lim_{x→0⁺} is not read.
+        # As the language reads it in either form: lim_{x→0⁺} is not read, and text in
+        # quotes is no value, so a limit from both sides is written as LaTeX is.
         function, variable, point, direction = expr.args
         arguments = [self._print(function), self._print(variable), self._print(point)]
-        if str(direction) != "+":
-            arguments.append(f'"{direction}"')
-        return f"limit({', '.join(arguments)})"
+        if str(direction) == "+":
+            return f"limit({', '.join(arguments)})"
+        side = {"-": "^-", "+-": ""}.get(str(direction), "")
+        return rf"\lim_{{{arguments[1]} \to {arguments[2]}{side}}} {arguments[0]}"
 
     def _print_Piecewise(self, expr: Any) -> str:
         pieces = []

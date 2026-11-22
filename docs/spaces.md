@@ -200,7 +200,9 @@ form's space. Symbolic components give exact results:
 >>> spins.exe(r"H^{i}{}_{j} := [[\epsilon, \Delta], [\Delta, -\epsilon]]")
 []
 >>> spins.expr(r"\operatorname{spec}(H^i{}_j)")
-Tensor('_{k}', [-sqrt(Delta**2 + epsilon**2), sqrt(Delta**2 + epsilon**2)])
+spec(H^i{}_j) over eigenvectors of H^i{}_j: 2 components non-zero
+  (spec(H^i{}_j))_0 = −√(Δ² + ε²)
+  (spec(H^i{}_j))_1 = √(Δ² + ε²)
 
 ```
 

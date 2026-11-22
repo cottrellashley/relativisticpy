@@ -18,7 +18,7 @@ def test_file(tmp_path, capsys):
     program = tmp_path / "flat.relpy"
     program.write_text(r"g_{\mu\nu} := Minkowski()" "\n" r"R_{\mu\nu}" "\n")
     assert main([str(program)]) == 0
-    assert capsys.readouterr().out == "R_{mu}_{nu} = 0\n"
+    assert capsys.readouterr().out == "R_{μν} = 0\n"
 
 
 def test_markdown(tmp_path, capsys):
@@ -93,8 +93,8 @@ def test_ctrl_c_leaves_the_interactive_session(monkeypatch):
 
 def test_display():
     tensor = Tensor([[1, 0], [0, 2]], "_{ab}", name="h")
-    assert display(tensor) == "h_{a}_{b}:\n  [0, 0] = 1\n  [1, 1] = 2"
-    assert display(Tensor([[0, 0], [0, 0]], "_{ab}")) == "T_{a}_{b} = 0"
+    assert display(tensor) == "h_{ab}: 2 of 4 components non-zero\n  h_{0 0} = 1\n  h_{1 1} = 2"
+    assert display(Tensor([[0, 0], [0, 0]], "_{ab}")) == "_{ab} = 0"  # never named T
     assert display(3) == "3"
 
 

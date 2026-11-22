@@ -231,7 +231,8 @@ class TestStatistics:
     def test_the_expectation_of_a_sum_is_taken_term_by_term(self, market):
         written = r"\mathbb{E}_t[R_{ta} R_{tb} - 2 \mu_a \mu_b] + \mu_a \mu_b"
         kinds = [line.split()[-1] for line in market.ir(written).splitlines() if "Tensor" in line]
-        assert max(kind.count("{") for kind in kinds) == 2  # nothing of days, assets and assets
+        labels = [re.sub(r"[^a-z]", "", kind.removeprefix("Tensor")) for kind in kinds]
+        assert max(map(len, labels)) == 2  # nothing of days, assets and assets
         assert np.allclose(market.expr(written).to_numpy(), COVARIANCE)
 
     def test_a_declared_measure_weights_the_expectation(self, wb):
@@ -643,6 +644,7 @@ def test_results_are_tensors_with_their_spaces(market):
     assert isinstance(sigma, Tensor)
     assert sigma.numerical
     assert [space.name for space in sigma.spaces] == ["the space of a", "the space of a"]
-    assert market["R"].latex() == r"R_{t a} \in \mathbb{R}^{300 \times 5}"
+    assert market["R"].latex().startswith(r"R_{ta} \in \mathbb{R}^{300 \times 5},")  # and a summary
     first = f"{MEAN[0]:.6g}"  # six significant figures
-    assert market.expr(r"\mu_a").latex().startswith(rf"\mu_{{a}} = \left[\begin{{matrix}}{first}")
+    # named as it was written
+    assert market.expr(r"\mu_a").latex().startswith(rf"\mu_a = \begin{{bmatrix}} {first}")

@@ -31,9 +31,9 @@ You can watch the pipeline at work:
 %3 = pow(%1, %2)                                         Scalar
 %4 = call diag(%0, %3)                                   Value
 %5 = to-array (2, 2)(%4)                                 Value
-%6 = metric(%5)                                          Tensor_{a}_{b}
-%7 = inverse(%6)                                         Tensor^{a}^{b}
-%10 = christoffel(%6, %7)                                Tensor^{#v0}_{#v1}_{#v2}
+%6 = metric(%5)                                          Tensor_{ab}
+%7 = inverse(%6)                                         Tensor^{ab}
+%10 = christoffel(%6, %7)                                Tensor^{#v0}_{#v1 #v2}
 %11 = select 0=0, 1=1, 2=1(%10)                          Scalar
 out %11
 

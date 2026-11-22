@@ -289,8 +289,9 @@ class Tensor:
 
     def _sliced_source(self, fixed: dict[int, int]) -> str | None:
         """The written form of a slice: the name with the indices it fixes, such as
-        ``\\Gamma^{r}_{tb}``."""
-        if self.name is None or self.source is not None:
+        ``\\Gamma^{r}_{tb}``. A result without a name, such as ``2 R_{\\mu\\nu}``, has
+        none to write."""
+        if self.name is None:
             return None
         from relativisticpy.display import component_label, text_name
         from relativisticpy.tensors.indices import text_label

@@ -62,7 +62,7 @@ def test_metric_from_a_tensor(wb):
 
 def test_a_metric_from_a_tensor_takes_it_as_written(wb):
     wb.exe("Coordinates := [x, y]\nh_{ab} := [[-1, 0], [0, 4]]")
-    with pytest.raises(IndexNotationError, match=r"must agree: \^\{a\}\^\{b\} and _\{a\}_\{b\}"):
+    with pytest.raises(IndexNotationError, match=r"must agree: \^\{ab\} and _\{ab\}"):
         wb.exe("g^{ab} := h_{ab}")  # h has its indices down
     with pytest.raises(IndexNotationError, match="must agree"):
         wb.exe(r"g_{\mu\nu} := h_{ab}")
@@ -92,7 +92,8 @@ def test_builtins_that_take_tensors(plane):
     assert plane.expr("trace([[1, 2], [3, x]])") == 1 + x  # a plain matrix's is its diagonal's
     assert plane.expr("inverse(g_{ab})") == Array([[1, 0], [0, 1 / x**2]])
     assert plane.expr("transpose(V_{a} V_{b})") == plane.expr("V_{b} V_{a}").components
-    assert plane.expr("latex(V^{a})") == r"T^{a} = \left[\begin{matrix}y & x\end{matrix}\right]"
+    unnamed = "\\begin{aligned}\n{}^{x} &= y \\\\\n{}^{y} &= x\n\\end{aligned}"  # never named T
+    assert plane.expr("latex(V^{a})") == unnamed
     assert plane.expr("det(5)") == 5
     with pytest.raises(CompileError, match="cannot pass a tensor to f"):
         plane.expr("f(V^{a})")
@@ -293,9 +294,10 @@ class TestTensorEquations:
         assert not equation
 
     def test_display(self, equation):
-        assert str(equation) == "x: Eq(y, 0)\ny: Eq(x, 0)"
-        assert repr(equation) == "TensorEquation(^{a}, 2 equations)"
-        assert equation.latex() == r"\begin{aligned}^{x}: &\; y = 0 \\ ^{y}: &\; x = 0\end{aligned}"
+        shown = "V^a = 0: differs in 2 of 2 components\n  V^x = y, not 0\n  V^y = x, not 0"
+        assert str(equation) == repr(equation) == shown
+        assert equation.latex().startswith(r"\begin{aligned}")
+        assert r"V^{x} &= y \neq 0" in equation.latex()
         assert equation._repr_latex_().startswith("$")
 
     def test_comparison(self, plane, equation):
@@ -306,8 +308,8 @@ class TestTensorEquations:
     def test_substitution(self, plane):
         solved = plane.expr("V^{a} = 0 |_{x=0, y=0}")
         assert solved == True  # noqa: E712
-        assert str(solved) == "True"
-        assert solved.latex() == r"\mathrm{True}"
+        assert str(solved).endswith("holds in all 2 components")
+        assert solved.latex().endswith(r"\tag*{holds in all 2 components}")
 
 
 def test_tensor_values(plane):
@@ -315,4 +317,4 @@ def test_tensor_values(plane):
     assert list(tensor) == [y, x]
     assert len(Tensor(5, "")) == 1
     assert Tensor(5, "").dim == 0
-    assert tensor.latex() == r"V^{a} = \left[\begin{matrix}y & x\end{matrix}\right]"
+    assert tensor.latex() == "\\begin{aligned}\nV^{x} &= y \\\\\nV^{y} &= x\n\\end{aligned}"

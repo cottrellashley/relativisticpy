@@ -23,12 +23,12 @@ from pathlib import Path
 from typing import Any, TextIO
 
 from relativisticpy import __version__
+from relativisticpy import display as shown
 from relativisticpy.checking import Verdict
 from relativisticpy.documents import math_blocks
 from relativisticpy.errors import RelativisticPyError
 from relativisticpy.language import Source
-from relativisticpy.tensors import Tensor
-from relativisticpy.workbook import Workbook, latex
+from relativisticpy.workbook import Workbook
 
 _OPENING, _CLOSING = "([{", ")]}"
 
@@ -179,19 +179,9 @@ def _seconds(text: str) -> float:
 
 
 def display(value: Any, *, latex_output: bool = False) -> str:
-    """How a result prints: tensors as their nonzero components, LaTeX on request."""
-    if latex_output:
-        return latex(value)
-    if isinstance(value, Tensor) and value.rank > 0:
-        head = (value.name or "T") + str(value.indices)
-        nonzero = value.nonzero()
-        if not nonzero:
-            return f"{head} = 0"
-        lines = [f"{head}:"]
-        for labels, component in nonzero.items():
-            lines.append(f"  [{', '.join(labels)}] = {component}")
-        return "\n".join(lines)
-    return str(value)
+    """How a result prints, as :mod:`relativisticpy.display` shows it: mathematics for a
+    terminal, or LaTeX on request."""
+    return shown.latex(value) if latex_output else shown.unicode(value)
 
 
 def interact(

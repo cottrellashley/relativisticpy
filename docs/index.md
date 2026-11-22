@@ -13,7 +13,7 @@ way they look in a paper, or paste the LaTeX, and compute them.
 >>> wb.expr(r"\Gamma^{r}_{tt}")
 M*(-2*M + r)/r**3
 >>> wb.expr(r"G_{\mu\nu} = 0")
-TensorEquation(_{mu}_{nu}, 0 equations)
+G_{μν} = 0: holds in all 10 components
 >>> wb.expr(r"R_{abcd} R^{abcd}")
 48*M**2/r**6
 

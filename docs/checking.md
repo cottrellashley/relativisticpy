@@ -54,7 +54,7 @@ paper.tex: 4 equations, 6 statements, checked in ... s
   = defines             1   definitions
 <BLANKLINE>
 paper.tex:12:5: ✗ differs  R_{22} = e^{-2\beta}[r(\partial_1\alpha - \partial_1\beta) - 1] + 1
-    the left side minus the right is (-2*r*Derivative(alpha(r), r) + 2*r*Derivative(beta(r), r))*exp(-2*beta(r))
+    the left side minus the right is (2r β'(r) − 2r α'(r)) e^(−2 β(r))
 <BLANKLINE>
 Not listed: 3 holds, 1 relates, 1 defines. --all lists every statement.
 
@@ -114,15 +114,19 @@ unless the report is given the width of a terminal, to wrap its lines to.
 ```python
 >>> print(report.describe(all=True))
 paper.tex: 4 equations, 6 statements, checked in ... s
-...
+  ✓ holds               3   proven equal
+  ✗ differs             1   of known quantities, whose sides are not equal: a mistake, or a condition
+  ↔ relates             1   relations between quantities nothing defines, not identities
+  = defines             1   definitions
+<BLANKLINE>
 paper.tex:5:5: = defines  ds^2 = -e^{2\alpha(r)}{\rm d} t^2 + e^{2\beta(r)}{\rm d} r^2 + r^2 d\Omega^2
 paper.tex:8:3: ✓ holds  \Gamma^1_{00} &=& e^{2(\alpha-\beta)}\partial_1\alpha
 paper.tex:9:3: ✓ holds  \Gamma^1_{22} &=& -r e^{-2\beta}
 paper.tex:9:47: ✓ holds  \Gamma^3_{23} = {\cos\theta \over \sin\theta}
 paper.tex:12:5: ✗ differs  R_{22} = e^{-2\beta}[r(\partial_1\alpha - \partial_1\beta) - 1] + 1
-    the left side minus the right is (-2*r*Derivative(alpha(r), r) + 2*r*Derivative(beta(r), r))*exp(-2*beta(r))
+    the left side minus the right is (2r β'(r) − 2r α'(r)) e^(−2 β(r))
 paper.tex:14:5: ↔ relates  \omega^2 = \frac{G M}{r^3}
-    nothing defines G, M and omega: the left side minus the right is -G*M/r**3 + omega**2
+    nothing defines G, M and ω: the left side minus the right is ω² − G M/r³
 
 ```
 

@@ -76,7 +76,7 @@ CORPUS = [
     "x^2 + y^2 = 1", "x != y", "x <= 1", "x >= y + 1", "True", "False",
     # containers
     "[1, 2, 3]", "[x, y^2]", "[[1, 2], [3, 4]]", r"\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}",
-    '"hello"', "solve(x^2 = 4, x)",
+    "solve(x^2 = 4, x)",
 ]  # fmt: skip
 
 #: Where a form does not read back yet, and why: what the parser would need to learn.
@@ -86,7 +86,6 @@ GAPS = {
     ("unicode", r"\dot a"): "combining accents (ȧ, x̂) are not read",
     ("unicode", r"\hat{x}"): "combining accents (ȧ, x̂) are not read",
     ("unicode", "Mr theta"): "beside Unicode, a name of several letters reads as a product",
-    ("latex", '"hello"'): r"\text{hello} reads as the symbol hello, not a string",
 }
 
 
@@ -379,8 +378,12 @@ def test_an_equation_says_whether_it_holds_and_where_not(schwarzschild):  # API-
 
 
 def test_an_equation_without_its_source_still_says_where(schwarzschild):
-    fails = schwarzschild.expr(r"\Gamma^{a}_{bc} = 0")
-    lines = display.unicode(fails).splitlines()
+    from relativisticpy.tensors.equation import TensorEquation
+
+    fails = schwarzschild.expr(r"\Gamma^{a}_{bc} = 0")  # a workbook names it as written
+    assert display.unicode(fails).splitlines()[0] == "Γ^a_{bc} = 0: differs in 9 of 40 components"
+    bare = TensorEquation(fails.lhs, fails.rhs, fails.indices, fails.coordinates, fails.spaces)
+    lines = display.unicode(bare).splitlines()
     assert lines[0] == "equation ^a_{bc}: differs in 9 of 40 components"
     assert lines[1] == "  ^t_{tr}: M/(r (r − 2M)) ≠ 0"
 
@@ -392,7 +395,7 @@ def test_a_large_equation_is_shown_in_milliseconds():  # API-3
     start = time.perf_counter()
     shown, typeset = repr(equation), display.latex(equation)
     assert time.perf_counter() - start < 1.0
-    assert shown.splitlines()[0].startswith("equation _{ij}: differs in 249,500 of 250,000")
+    assert shown.splitlines()[0].startswith("P_{ij} = P_{ji}: differs in 249,500 of 250,000")
     assert len(shown.splitlines()) <= 22
     assert len(typeset) < 5000
 

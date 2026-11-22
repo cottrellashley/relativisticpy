@@ -39,7 +39,7 @@ and ask it anything, in the same notation:
 >>> wb.expr(r"\Gamma^{r}_{tt}")
 G*M*(-2*G*M + c**2*r)/(c**2*r**3)
 >>> wb.expr(r"R_{\mu\nu} = 0")          # the vacuum field equations hold
-TensorEquation(_{mu}_{nu}, 0 equations)
+R_{μν} = 0: holds in all 10 components
 >>> wb.expr(r"R_{abcd} R^{abcd}")       # the Kretschmann scalar
 48*G**2*M**2/(c**4*r**6)
 
@@ -99,7 +99,7 @@ the same thing.
   >>> wb.expr(r"R_{\mu\nu} + g^{\mu\nu}")
   Traceback (most recent call last):
     ...
-  relativisticpy.errors.IndexNotationError: the free indices of a sum must agree: _{mu}_{nu} and ^{mu}^{nu}
+  relativisticpy.errors.IndexNotationError: the free indices of a sum must agree: _{\mu\nu} and ^{\mu\nu}
    --> <input>:1:14
     |
   1 | R_{\mu\nu} + g^{\mu\nu}
@@ -162,7 +162,7 @@ the same thing.
   >>> wb.exe(r"EFE := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}")
   []
   >>> wb.expr(r"solve(EFE, R_{\mu\nu})")
-  IndexEquation(R_{\mu\nu} = 8 \pi G T_{\mu\nu} + \left(\Lambda - 4 \pi G T\right) g_{\mu\nu})
+  IndexEquation(R_{μν} = 8π G T_{μν} + (Λ − 4π G T) g_{μν})
 
   ```
 

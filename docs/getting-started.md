@@ -37,7 +37,7 @@ Scalars come back as SymPy expressions. Tensors come back as
 ```python
 >>> christoffel = wb.expr(r"\Gamma^{a}_{bc}")
 >>> christoffel.indices
-Indices('^{a}_{b}_{c}')
+Indices('^{a}_{bc}')
 >>> christoffel.nonzero()[("theta", "phi", "phi")]
 -sin(theta)*cos(theta)
 

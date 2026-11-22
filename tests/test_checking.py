@@ -112,7 +112,7 @@ def test_index_notation_is_checked_as_notation():
     )
     # DOC-11: a law in index notation relates tensors nothing defines, as one written
     # with components does
-    notation = r"index notation, not an identity: G_{\mu\nu} = 8 \pi G T_{\mu\nu}"
+    notation = "index notation, not an identity: G_{μν} = 8π G T_{μν}"
     assert [(finding.verdict, finding.detail) for finding in report.findings] == [
         (Verdict.HOLDS, "an identity of index notation"),
         (Verdict.RELATES, f"nothing defines T: {notation}"),
@@ -618,7 +618,7 @@ class TestFindings:
         report = Workbook().check(Document("$$ x := 10000! $$\n$$ x $$"))
         finding = report.findings[1]
         assert finding.verdict is Verdict.COMPUTES
-        assert "35660 digits" in finding.detail or "35 660" in finding.detail
+        assert "an integer of 35,660 digits" in finding.detail
 
     def test_a_finding_is_data(self):
         # AGT-12, ERR-33: every finding and the whole report as JSON

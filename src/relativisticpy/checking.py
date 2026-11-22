@@ -685,7 +685,7 @@ def _judge(value: Any, session: Workbook, state: _State) -> tuple[Verdict, str, 
         detail = f"index notation, not an identity: {_shown(value)}"
         return Verdict.RELATES, f"nothing defines {_listed(unknown)}: {detail}", None
     if isinstance(value, TensorEquation):
-        if value:
+        if value.holds():  # bool() would refuse an equation that is not decided
             return Verdict.HOLDS, "", None
         return _tensor_differs(value, session, state)
     if isinstance(value, sympy.Equality):

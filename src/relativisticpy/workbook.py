@@ -741,6 +741,7 @@ class Workbook:
                     coordinates,
                     name=output.name,
                     spaces=kind.spaces,
+                    source=output.span.text,
                 )
             if isinstance(kind, EquationType) and isinstance(kind.of, TensorType):
                 assert isinstance(value, TensorEquation)
@@ -751,6 +752,7 @@ class Workbook:
                     coordinates,
                     kind.of.spaces,
                     scale=value.scale,
+                    source=output.span.text,
                 )
             if numerical.is_numerical(value) and getattr(value, "shape", ()) == ():
                 return value.item()  # a plain Python number
@@ -1148,10 +1150,8 @@ def _pieces(statement: ast.Statement) -> list[ast.Statement]:
 
 
 def latex(value: Any) -> str:
-    """Typeset a result: a tensor, a tensor equation, or any SymPy value."""
-    if hasattr(value, "latex") and callable(value.latex):
-        return str(value.latex())
-    return str(sympy.latex(value))
+    """Typeset a result, as :func:`relativisticpy.display.latex` does."""
+    return display.latex(value)
 
 
 def _nowhere() -> Span:
