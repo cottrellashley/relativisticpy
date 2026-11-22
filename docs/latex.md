@@ -98,8 +98,8 @@ evaluation bar.
 |---|---|
 | `matrix`, `pmatrix`, `bmatrix`, `Bmatrix`, `smallmatrix`, `array` | a matrix |
 | `vmatrix` | a determinant |
-| `cases` | a piecewise function, with `\text{if}` and `\text{otherwise}`; so is an `array` in `\left\{ ... \right.` |
-| `align`, `flalign`, `equation`, `gather`, `split` and starred forms | statements separated by `\\`; in `align`, each pair of columns is an equation |
+| `cases`, `dcases` | a piecewise function, with `\text{if}` and `\text{otherwise}`; so is an `array` in `\left\{ ... \right.` |
+| `equation`, `align`, `gather`, `split`, `eqnarray`, `flalign`, `alignat`, `aligned`, `gathered`, `math`, breqn's `dmath` and `dgroup`, IEEEtrantools' `IEEEeqnarray`, and their starred forms | statements separated by `\\`; in `align`, each pair of columns is an equation |
 | `multline` | one equation, broken over rows |
 
 ```python
@@ -141,6 +141,23 @@ relativisticpy.errors.ParseError: unknown LaTeX command \farc
 1 | \farc{1}{2}
   | ^^^^^
 hint: did you mean \frac?
+
+```
+
+A command of LaTeX or of a package that RelativisticPy does not read, such as
+the physics package's `\abs` or `\dd`, says what to write instead, and an
+unknown environment lists the environments there are:
+
+```python
+>>> wb.expr(r"\abs{x}")
+Traceback (most recent call last):
+  ...
+relativisticpy.errors.ParseError: \abs, the physics package's absolute value, is not supported
+ --> <input>:1:1
+  |
+1 | \abs{x}
+  | ^^^^
+hint: write |x|, or \left| x \right|
 
 ```
 

@@ -103,16 +103,33 @@ _RIGHT_DOT = re.compile(r"\\right\s*\.")
 _DIFFERENTIAL = re.compile(
     r"d(?:" + "|".join(sorted(vocab.GREEK, key=len, reverse=True)) + r"|[A-Za-z][0-9]*)"
 )
-_KNOWN_COMMANDS = sorted(
-    {"frac", "dfrac", "tfrac", "cfrac", "sqrt", "sum", "prod", "lim", "partial", "nabla"}
-    | {"Box", "square", "pounds", "over", "choose"}
-    | {"pdv", "dv", "binom", "dbinom", "tbinom", "lfloor", "lceil", "begin", "end"}
-    | set(_INTEGRALS)
-    | set(vocab.FUNCTION_COMMANDS)
-    | set(vocab.SYMBOL_COMMANDS)
-    | set(vocab.OPERATOR_COMMANDS)
-    | set(vocab.ACCENT_COMMANDS)
-)
+# Where "did you mean" looks: every command, and every environment, the language reads.
+# A suggestion must be this close, so that \top is not taken for \to.
+_KNOWN_COMMANDS = sorted(vocab.COMMANDS)
+_ENVIRONMENTS = sorted(set().union(*vocab.ENVIRONMENTS.values()))
+_CLOSE = 0.75
+
+
+# The commonest environments first, when they are listed.
+_FIRST = (
+    "matrix", "pmatrix", "bmatrix", "Bmatrix", "vmatrix", "Vmatrix", "smallmatrix", "array",
+    "equation", "align", "gather", "multline", "split", "eqnarray", "flalign", "alignat",
+)  # fmt: skip
+
+
+def _environment_list() -> str:
+    """The environments a program may use, by kind, for a note."""
+    kinds = []
+    for kind, names in vocab.ENVIRONMENTS.items():
+        plain = [name for name in names if not name.endswith("*")]
+        plain.sort(key=lambda name: (_FIRST.index(name) if name in _FIRST else len(_FIRST), name))
+        listed = ", ".join(plain[:-1]) + f" and {plain[-1]}"
+        starred = ", with their starred forms" if any(name.endswith("*") for name in names) else ""
+        kinds.append(f"{listed} for {kind}{starred}")
+    return "the supported environments are " + "; ".join(kinds)
+
+
+_ENVIRONMENT_LIST = _environment_list()
 
 
 def parse(source: str | Source) -> ast.Program:
@@ -1334,7 +1351,10 @@ class Parser:
             return self._function()
         if name in vocab.ACCENT_COMMANDS:
             return self._accent()
-        close = difflib.get_close_matches(name, _KNOWN_COMMANDS, n=1)
+        if (unsupported := vocab.UNSUPPORTED_COMMANDS.get(name)) is not None:
+            message, hint = unsupported
+            raise ParseError(message, span=token.span, hint=hint)
+        close = difflib.get_close_matches(name, _KNOWN_COMMANDS, n=1, cutoff=_CLOSE)
         raise ParseError(
             f"unknown LaTeX command \\{name}",
             span=token.span,
@@ -1827,7 +1847,13 @@ class Parser:
                 "inside an expression",
                 span=begin.span,
             )
-        raise ParseError(f"unsupported environment {environment!r}", span=begin.span)
+        close = difflib.get_close_matches(environment, _ENVIRONMENTS, n=1, cutoff=_CLOSE)
+        raise ParseError(
+            f"unsupported environment {environment}",
+            span=begin.span,
+            notes=(_ENVIRONMENT_LIST,),
+            hint=f"did you mean {close[0]}?" if close else None,
+        )
 
     def _matrix(self) -> ast.Matrix:
         begin = self.advance()

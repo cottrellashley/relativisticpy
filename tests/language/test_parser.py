@@ -509,6 +509,53 @@ class TestFractionsRootsAndFunctions:
         assert r"unknown LaTeX command \farc" in message
         assert r"did you mean \frac?" in message
 
+    @pytest.mark.parametrize(
+        ("typo", "meant"),
+        [
+            ("mathrn", "mathrm"),
+            ("approxx", "approx"),
+            ("displaystile", "displaystyle"),
+            ("boldsimbol", "boldsymbol"),
+            ("oepratorname", "operatorname"),
+            ("Rigtharrow", "Rightarrow"),
+            ("nabal", "nabla"),
+        ],
+    )
+    def test_every_command_can_be_suggested(self, typo, meant):
+        # these are read by the lexer, so a list of the parser's commands missed them
+        assert error(f"x + \\{typo} y").hint == f"did you mean \\{meant}?"
+
+    @pytest.mark.parametrize("name", ["top", "let", "mod", "foo", "inf"])
+    def test_no_unrelated_suggestion(self, name):
+        # \top is not \to, and \foo is not \lfloor
+        assert "did you mean" not in str(error(f"A^\\{name}"))
+
+    @pytest.mark.parametrize(
+        ("text", "message", "hint"),
+        [
+            (r"\newcommand{\R}{R}", r"\newcommand defines a macro, which a program cannot",
+             "relativisticpy check reads the macros of a document"),
+            (r"\abs{x}", r"\abs, the physics package's absolute value, is not supported",
+             r"write |x|, or \left| x \right|"),
+            (r"A^\top", r"the transpose, \top, is not supported yet",
+             "the transpose of A_{ab} is A_{ba}"),
+            (r"\dd x", r"\dd, the physics package's differential, is not supported",
+             r"write d x, or \mathrm{d} x"),
+        ],
+    )  # fmt: skip
+    def test_real_latex_that_is_not_supported_says_so(self, text, message, hint):
+        caught = error(text)
+        assert caught.message == message
+        assert caught.hint is not None
+        assert caught.hint.endswith(hint)
+
+    def test_an_unknown_environment_lists_the_supported_ones(self):
+        caught = error(r"\begin{pmatrx} 1 \end{pmatrx}")
+        assert caught.message == "unsupported environment pmatrx"
+        assert caught.hint == "did you mean pmatrix?"
+        assert caught.notes[0].startswith("the supported environments are matrix, pmatrix")
+        assert "cases and dcases for cases" in caught.notes[0]
+
 
 class TestDerivatives:
     @pytest.mark.parametrize(
@@ -1127,7 +1174,7 @@ class TestMoreErrors:
             (r"\lfloor x", r"expected \rfloor to close \lfloor"),
             (r"\sin^{} x", "empty superscript"),
             (r"\sin + 1", r"\sin needs an argument"),
-            (r"\begin{tabular} x \end{tabular}", "unsupported environment 'tabular'"),
+            (r"\begin{tabular} x \end{tabular}", "unsupported environment tabular"),
             (r"\begin{matrix} 1 , 2 \end{matrix}", r"expected '&', '\\' or \end{matrix}"),
             (r"\begin{matrix} \end{matrix}", "a matrix needs at least one entry"),
             (r"\begin{cases} 1 & x > 0 , 2 \end{cases}", r"expected '\\' or \end{cases}"),
