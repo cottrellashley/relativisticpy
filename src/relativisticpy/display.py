@@ -951,12 +951,30 @@ def tensor_head(tensor: Any, form: Form, labels: Sequence[str] | None = None) ->
     expression is written as that expression, and one with neither a name nor an
     expression as its indices alone; ``None`` for such a tensor's own head."""
     if tensor.source:
+        if labels is not None and not _writes(tensor.source, tensor.indices.names):
+            # spec(H^i{}_j) has an index k of its own: name its components after it
+            whole = _source(tensor.source, tensor.indices.names, form, None)
+            opening, closing = ("\\left(", "\\right)") if form == "latex" else ("(", ")")
+            return opening + whole + closing + _indices_in(tensor.indices, form, labels)
         return _source(tensor.source, tensor.indices.names, form, labels)
     if tensor.name:
         return _tensor_name(tensor.name, form) + _indices_in(tensor.indices, form, labels)
     if labels is None:
         return None
     return ("{}" if form == "latex" else "") + _indices_in(tensor.indices, form, labels)
+
+
+def _writes(source: str, labels: Sequence[str]) -> bool:
+    """Whether an expression as written has each of the labels as an index."""
+    from relativisticpy.errors import RelativisticPyError
+    from relativisticpy.language.parser import parse_expression
+
+    try:
+        node = parse_expression(source)
+    except RelativisticPyError:
+        return False
+    written = {str(item.label) for item in _index_items(node) if item.label is not None}
+    return set(labels) <= written
 
 
 def _indices_in(indices: Any, form: Form, labels: Sequence[str] | None = None) -> str:
@@ -968,6 +986,7 @@ def _indices_in(indices: Any, form: Form, labels: Sequence[str] | None = None) -
 
 
 _COMMAND = re.compile(r"\\([A-Za-z]+)")
+_UPRIGHT = re.compile(r"\\(?:operatorname|mathrm|text|textrm|mathit)\{([^{}]*)\}")
 
 
 def _source(
@@ -1073,6 +1092,7 @@ def _converted(written: str, form: Form) -> str:
                 return ""
             return _UNICODE_COMMANDS.get(name, match.group(0))
 
+        written = _UPRIGHT.sub(r"\1", written)  # \operatorname{spec} is spec
         shown = _COMMAND.sub(letter, written).replace("\\,", " ").replace("\\;", " ")
         return shown.replace("\\!", "").replace("-", _MINUS).replace("*", "·")
     pieces = []

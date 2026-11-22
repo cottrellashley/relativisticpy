@@ -270,6 +270,18 @@ def test_an_unnamed_result_is_never_given_a_name(schwarzschild):  # API-26, CLI-
     assert display.unicode(written).splitlines()[1].startswith("  2 R_{tt} + g_{tt} = ")
 
 
+def test_a_result_with_an_index_of_its_own_names_components_after_it():
+    delta, epsilon = symbols("Delta epsilon")
+    root = sympy.sqrt(delta**2 + epsilon**2)
+    spectrum = Tensor([-root, root], "_{k}", spaces=[Space("eigenvectors", 2)],
+                      source=r"\operatorname{spec}(H^i{}_j)")  # fmt: skip
+    assert display.unicode(spectrum).splitlines() == [
+        "spec(H^i{}_j) over eigenvectors: 2 components non-zero",
+        "  (spec(H^i{}_j))_0 = −√(Δ² + ε²)",
+        "  (spec(H^i{}_j))_1 = √(Δ² + ε²)",
+    ]
+
+
 def test_a_name_with_a_subscript_is_set_apart(schwarzschild):  # API-10
     tensor = Tensor([1, x], "_{a}", (sympy.Symbol("t"), x), name="A_0")
     assert display.latex(tensor).splitlines()[1].startswith("{A_{0}}_{t}")
