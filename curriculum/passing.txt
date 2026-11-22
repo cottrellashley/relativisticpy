@@ -40,6 +40,7 @@ chem.spectroscopy.nmr-populations
 chem.spectroscopy.rotational-maximum
 cm.central.kepler-period
 cm.central.kepler-third-law
+cm.hamiltonian.legendre
 cm.oscillations.angular-momentum
 cm.oscillations.mismatched-index
 cm.oscillations.pendulum-period
@@ -65,7 +66,9 @@ data.objects.column
 data.objects.constants
 data.objects.dataframe
 data.objects.function
+data.objects.key
 data.objects.sympy
+data.portfolio.argmin
 data.portfolio.minimum-variance
 data.portfolio.tangency
 data.portfolio.variance
@@ -106,7 +109,9 @@ dyn.maps.period-two
 econ.bonds.duration
 econ.bonds.price
 econ.capm.alpha
+econ.consumer.cobb-douglas
 econ.demand.arc-elasticity
+econ.games.minimax
 econ.games.mixed-equilibrium
 econ.interest.continuous-equivalent
 econ.interest.continuous-limit
@@ -151,6 +156,7 @@ fluid.viscous.terminal-velocity
 fluid.vorticity.line-vortex
 fluid.vorticity.shear-flow
 geom.balls.five-ball
+geom.balls.largest
 geom.balls.sphere-area
 geom.curves.ellipse-vertex
 geom.gauss-bonnet.chern-four-sphere
@@ -241,9 +247,20 @@ num.quadrature.simpson
 num.quadrature.trapezoid-asymptotics
 num.roots.bisection-count
 num.roots.quadratic-convergence
+opt.constrained.circle
+opt.constrained.closed-interval
+opt.constrained.dual-function
 opt.constrained.kkt-system
+opt.convex.positive-definite
+opt.integer.knapsack
+opt.least-squares.argmin
 opt.least-squares.gauss-newton
+opt.least-squares.least-norm
 opt.least-squares.pseudoinverse
+opt.linear.duality
+opt.linear.wyndor
+opt.unconstrained.argmax
+opt.unconstrained.minimum-value
 prob.bayes.memoryless
 prob.bayes.rare-disease
 prob.bayes.rule-of-succession
