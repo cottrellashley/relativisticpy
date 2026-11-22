@@ -727,6 +727,7 @@ class Expressions(LinearAlgebra):
             expr = self._applied(expr, binding, node)
         elif isinstance(expr, ast.Name) and self._undefined(expr, scope):
             by = [v for v, _ in node.variables if isinstance(v, ast.Name)]
+            self._check_tied(expr, by, node.span)  # dy/dx after x^3 + y^3 = 6xy
             written = list(dict.fromkeys(v.span.text for v in by))
             if written and expr.id not in {v.id for v in by}:
                 shown = expr.span.text
@@ -762,6 +763,8 @@ class Expressions(LinearAlgebra):
                 "integrals over regions of spacetime, as in d^4x, are not supported yet",
                 span=node.span,
             )
+        if node.span.text.lstrip().startswith(("\\oint", "∮")):  # \oint p\, dq
+            raise self._closed_integral(node)
         inner = scope.child()
         limits = []
         for bound in node.bounds:

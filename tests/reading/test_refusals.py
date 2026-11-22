@@ -450,3 +450,43 @@ class TestOperatorsReadWithAnotherMeaning:
         assert error(wb, r"\{K_1, K_2\}").hint == "for the anticommutator, write K_1 K_2 + K_2 K_1"
         commutator = wb.expr("K_1 K_2 - K_2 K_1")  # the hint works
         assert sympy.Matrix(commutator) == sympy.Matrix([[2 * sympy.I, 0], [0, -2 * sympy.I]])
+
+
+class TestConstrainedSymbols:
+    """Guard 6: the derivative of a name nothing defines by one an earlier equation ties it
+    to is refused, where it was the derivative of a constant, 0; and so is \\oint with no
+    path, which was the indefinite integral."""
+
+    def test_an_implicit_derivative(self, wb):
+        (step,) = list(wb.each("x^3 + y^3 = 6xy"))
+        assert step.error is None
+        found = error(wb, r"\frac{dy}{dx}")
+        assert found.message == (
+            r"\frac{dy}{dx} is not 0: y is tied to x by the equation on line 1, x^3 + y^3 = 6xy"
+        )
+        assert found.hint == (
+            r"write y(x) for y in the equation, and solve its derivative, as in "
+            r"solve(\frac{d}{dx}(...) = 0, y'(x))"
+        )
+        x, y = sympy.symbols("x y")
+        (slope,) = wb.expr(r"solve(\frac{d}{dx}(x^3 + y(x)^3 - 6 x y(x)) = 0, y'(x))")
+        expected = (2 * y - x**2) / (y**2 - 2 * x)
+        assert sympy.simplify(slope.subs(sympy.Function("y")(x), y) - expected) == 0
+
+    def test_a_derivative_at_a_point(self, wb):
+        wb.exe(r"m = \tanh\left(\frac{z J m + h}{k T}\right)")
+        found = error(wb, r"\left. \frac{\partial m}{\partial h} \right|_{h = 0, m = 0}")
+        assert found.message.startswith(
+            r"\frac{\partial m}{\partial h} is not 0: m is tied to h by the equation on line 1"
+        )
+
+    def test_a_name_no_equation_ties_is_a_constant(self, wb):
+        wb.exe("x^2 + y^2 = 1")
+        assert wb.expr(r"\frac{dz}{dx}") == 0
+
+    def test_a_contour_integral_with_no_path(self, wb):
+        found = error(wb, r"J = \oint p\, dq")
+        assert (
+            found.message == r"\oint p\, dq is an integral around a closed path, which is not given"
+        )
+        assert wb.expr(r"\int_0^1 p \, dq") == sympy.Symbol("p")

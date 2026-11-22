@@ -993,6 +993,62 @@ class Reader(Typer):
             current = current.parent
         return None
 
+    def _relate(self, equation: Node, span: Span, scope: Scope) -> None:
+        """Remember an equation stated between names nothing defines, as x^3 + y^3 = 6xy,
+        by the names it relates: it ties each to the others (guard 6 of wave 0)."""
+        coordinates = {c.name for c in self.session.coordinates or ()}
+        names = frozenset(
+            name
+            for name in _written_with(equation)
+            if scope.lookup(name) is None and name not in coordinates
+        )
+        if len(names) > 1:
+            self.session.relations.append((names, span))
+
+    def _check_tied(self, expr: ast.Name, by: Sequence[ast.Name], span: Span) -> None:
+        """Refuse the derivative of a name nothing defines by one an earlier equation ties
+        it to, as dy/dx after x^3 + y^3 = 6xy: read as written, y is a constant, and the
+        derivative 0, where the book means y as the function of x the equation makes it."""
+        for names, where in reversed(self.session.relations):
+            if expr.id not in names:
+                continue
+            tied = [variable for variable in by if variable.id in names and variable.id != expr.id]
+            if not tied:
+                continue
+            shown, variable = expr.span.text, tied[0].span.text
+            written = span.text.removeprefix("\\left.").removesuffix("\\right|").strip()
+            why = f"the equation on line {where.line} ties {shown} to {variable}"
+            self._decide("constant or symbol", expr.span, f"a function of {variable}", why)
+            raise CompileError(
+                f"{written} is not 0: {shown} is tied to {variable} by the equation on line "
+                f"{where.line}, {' '.join(where.text.split())}",
+                span=span,
+                notes=[
+                    f"read as written, {shown} would be a constant, and its derivative 0; "
+                    "differentiating a name an equation defines implicitly is not supported yet"
+                ],
+                hint=f"write {shown}({variable}) for {shown} in the equation, and solve its "
+                f"derivative, as in solve(\\frac{{d}}{{d{variable}}}(...) = 0, "
+                f"{shown}'({variable}))",
+            )
+
+    def _closed_integral(self, node: ast.Integral) -> CompileError:
+        """``\\oint p\\, dq``: an integral around a closed path, which none is given for;
+        read as written, it would be the indefinite integral, p q."""
+        variables = [bound.variable.span.text for bound in node.bounds]
+        self._decide("product or call", node.span, "an indefinite integral", "\\oint names no path")
+        return CompileError(
+            f"{node.span.text} is an integral around a closed path, which is not given",
+            span=node.span,
+            notes=[
+                "read as written, it would be the indefinite integral; integrals around a "
+                "path are not supported yet"
+            ],
+            hint=f"write it as definite integrals along the path, as in \\int_{{a}}^{{b}} ... "
+            f"\\, d{variables[0] if variables else 'q'}, with the integrand in terms of "
+            f"{variables[0] if variables else 'q'}",
+        )
+
     def _check_order(self, node: ast.Scripted, scope: Scope) -> None:
         """Refuse ``f^{(4)}`` where f is a function the program defined: read as written, it
         is a name of its own, f^(4), so that ``f^{(4)}(0)`` was f^(4) times 0, which is 0."""

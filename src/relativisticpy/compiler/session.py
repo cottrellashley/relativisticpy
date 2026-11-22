@@ -108,6 +108,10 @@ class Session:
     # The names written as factors so far, as \rho is in p = w\rho: a symbol, so that
     # \rho(1 + 3w) later is a product, not a function.
     factors: set[str] = field(default_factory=set)
+    # The equations stated so far between names nothing defines, as x^3 + y^3 = 6xy, by
+    # the names each relates and where it is written: they tie y to x, so that a later
+    # dy/dx is not the derivative of a constant.
+    relations: list[tuple[frozenset[str], Span]] = field(default_factory=list)
     # Spaces other than spacetime, by name, and the index labels declared to range over
     # them, as by a, b \in \mathcal{A}. A space may be given a metric, by the node of
     # the tensor that is its metric, and a measure, by the node of its weights.
@@ -145,6 +149,7 @@ class Session:
             names=dict(self.names),
             functions=dict(self.functions),
             factors=set(self.factors),
+            relations=list(self.relations),
             spaces=dict(self.spaces),
             labels=dict(self.labels),
             space_metrics=dict(self.space_metrics),

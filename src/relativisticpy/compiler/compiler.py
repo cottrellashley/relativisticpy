@@ -265,7 +265,9 @@ class Compiler(Definitions):
             return []
         if reading == "notation" or self._is_notation(equation, scope, ctx, equation=True):
             return [Output(self._notation(equation, scope, ctx), equation.span, note=note)]
-        return [Output(self.value(equation, scope, ctx), equation.span, note=note)]
+        node = self.value(equation, scope, ctx)
+        self._relate(node, equation.span, scope)  # x^3 + y^3 = 6xy ties y to x
+        return [Output(node, equation.span, note=note)]
 
     def _read_as_product(self, lhs: ast.Expr, scope: Scope, ctx: Context) -> bool:
         """Whether the left side of an equation is read as a product, as
