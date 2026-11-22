@@ -45,7 +45,7 @@ from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.reading.labels import _WORD, Labels, label_name
+from relativisticpy.reading.labels import _WORD, Labels, _raised, label_name
 from relativisticpy.reading.names import (
     _a_member,
     _mentions_symbol,
@@ -96,18 +96,39 @@ class Family(ast.FunctionDefinition):
 
 def _family_target(target: ast.Expr) -> tuple[str, str, int] | None:
     """The base, the label and the shift of a name a family may be defined with:
-    ``("c", "n", 0)`` of ``c_n`` and ``c_{n}``, ``("a", "n", 2)`` of ``a_{n+2}``;
+    ``("c", "n", 0)`` of ``c_n`` and ``c_{n}``, ``("a", "n", 2)`` of ``a_{n+2}``, and
+    ``("E^(0)", "n", 0)`` of ``E^{(0)}_n`` and ``E_n^{(0)}``, an order raised on it;
     ``None`` for any other name."""
-    named = _subscripted(target)
+    named = _subscripted(target) or _ordered(target)
     if named is None:
         return None
     if isinstance(target, ast.Scripted) and _WORD.search(target.scripts[0].span.text):
         return None  # C_\mathrm{A}: a word, never a label that takes values
     base, subscript = named
     match = _LABEL.fullmatch(subscript)
-    if match is None or not re.fullmatch(r"[A-Za-z]+", base):
+    if match is None or not re.fullmatch(r"[A-Za-z]+", base.partition("^")[0]):
         return None
     return base, match["label"], int(match["shift"] or 0)
+
+
+def _ordered(node: ast.Expr) -> tuple[str, str] | None:
+    """A name with an order raised on it and one subscript, as ``E^{(0)}_n`` and
+    ``E_n^{(0)}``, which TeX sets alike: the name with its order, E^(0), and the subscript
+    as written, n; ``None`` for any other name."""
+    if not (isinstance(node, ast.Scripted) and isinstance(node.base, ast.Name)):
+        return None
+    lowered = [s for s in node.scripts if s.kind == "_"]
+    marks = [_raised(s) for s in node.scripts if s.kind == "^"]
+    if not marks or any(mark is None for mark in marks):
+        return None
+    head, _, joined = node.base.id.partition("_")
+    if len(lowered) == 1 and not joined:
+        subscript = lowered[0].span.text.lstrip("_").strip("{}").replace(" ", "")
+    elif not lowered and joined:
+        subscript = joined
+    else:
+        return None
+    return head + "".join(f"^{mark}" for mark in marks), subscript
 
 
 def _fixed_members(value: ast.Expr, base: str) -> frozenset[str]:
@@ -567,6 +588,8 @@ class Families(Labels):
         lowered = [s for s in node.scripts if s.kind == "_"]
         raised = [s for s in node.scripts if s.kind == "^"]
         base = node.base
+        if (member := self._ordered_member(node, scope, ctx)) is not None:  # E^{(0)}_1
+            return member
         if len(lowered) != 1 or not isinstance(base, ast.Name) or "_" in base.id:
             return super()._labelled(node, scope, ctx)
         name = label_name(node, raised=False)
@@ -583,6 +606,21 @@ class Families(Labels):
                 return super()._labelled(node, scope, ctx)
             member = self._power(member, self.value(script.body, scope, ctx), node.span)
         return member
+
+    def _ordered_member(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
+        """``E^{(0)}_1`` or ``E_1^{(0)}``: a member of a family with an order raised on it,
+        as ``E^{(0)}_n := ...`` defines; ``None`` for any other name."""
+        ordered = _ordered(node)
+        if ordered is None or self._family_of(ordered[0], scope) is None:
+            return None
+        base, at = ordered
+        if scope.lookup(f"{base}_{at}") is not None:
+            return None  # a member the program names, a name of its own
+        lowered = [s for s in node.scripts if s.kind == "_"]
+        subscript = lowered[0].body if lowered else _subscript_written(at, node.span)
+        if subscript is None:
+            return None
+        return self._member_written(node, base, subscript, None, scope, ctx, at)
 
     def _member_call(self, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
         """A call of a member of a family of functions, as ``\\psi_3(x)``, which the parser

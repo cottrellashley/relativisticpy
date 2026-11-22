@@ -176,9 +176,12 @@ def _several(label: str, form: IndexForm) -> bool:
 
 def latex_label(name: str) -> str:
     """A symbol name as LaTeX: Greek names gain a backslash, ``x_0`` becomes ``x_{0}``
-    and ``mu'`` becomes ``\\mu'``."""
+    and ``mu'`` becomes ``\\mu'``; a name of two, as the change ``Delta x``, ``\\Delta x``."""
     if name in GREEK:
         return "\\" + name
+    head, space, rest = name.partition(" ")
+    if space:
+        return f"{latex_label(head)} {latex_label(rest)}"
     unprimed = name.rstrip("'")
     if unprimed and unprimed != name:
         return latex_label(unprimed) + name[len(unprimed) :]

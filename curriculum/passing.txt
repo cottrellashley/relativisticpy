@@ -69,6 +69,7 @@ data.fft.named
 data.fft.sampled-tone
 data.finance.compounding
 data.finance.continuous-compounding
+data.grids.uniform
 data.learning.anscombe-regression
 data.learning.cross-entropy
 data.learning.least-squares-gradient
@@ -206,6 +207,7 @@ gr.geodesics.circular-orbits
 gr.geodesics.isco
 gr.geodesics.isco-energy
 gr.geodesics.light-deflection-sun
+gr.geodesics.mercury-perihelion
 gr.schwarzschild.g-tt
 gr.schwarzschild.killing-time
 gr.schwarzschild.kretschmann
@@ -387,6 +389,7 @@ special.zeta.two
 sr.four-momentum.antiproton-threshold
 sr.four-momentum.compton
 sr.four-momentum.mass-shell
+sr.four-momentum.two-photon-mass
 sr.four-momentum.two-upper-indices
 sr.kinematics.doppler
 sr.kinematics.length-contraction

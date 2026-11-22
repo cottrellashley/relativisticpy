@@ -34,15 +34,16 @@ class TestColonEqualsDefinesOrRefuses:
         assert wb.expr(r"Y_2^1(\theta, 0)") == sympy.sin(theta)
 
     def test_a_product_of_names(self, wb):
-        found = error(wb, r"\Delta\phi := 2")
+        found = error(wb, r"\alpha\phi := 2")
         assert found.message == (
-            r"cannot define \Delta\phi, which is read as the product \Delta times \phi"
+            r"cannot define \alpha\phi, which is read as the product \alpha times \phi"
         )
         assert found.notes == [
             ":= gives a value to a name, a tensor or a function, not to a product"
         ]
-        assert found.hint == r"to name one quantity, write one name, as in \Delta_{\phi} := ..."
-        assert wb.expr(r"\Delta_{\phi} := 2" "\n" r"3 \Delta_{\phi}") == 6
+        assert found.hint == r"to name one quantity, write one name, as in \alpha_{\phi} := ..."
+        assert wb.expr(r"\alpha_{\phi} := 2" "\n" r"3 \alpha_{\phi}") == 6
+        # \Delta\phi, the change in \phi, is one name (tests/reading/test_labels.py)
 
     def test_a_product_of_subscripted_names(self, wb):
         found = error(wb, r"\omega_e x_e := 52.8")
@@ -250,9 +251,10 @@ class TestPairsAreNotScalars:
 class TestScriptedNamesWhoseBaseIsDefined:
     """Guard 3: a subscripted name nothing defines, whose base is defined so that it means
     an element, is refused, where it was a symbol of its own: x_i of a list summed over i,
-    f^{(4)} of a function, k_{1\\mu} beside k_1^\\mu, and a recurrence in a label that means
-    something already. A member of a family, and a recurrence, are read
-    (tests/reading/test_families.py)."""
+    f^{(2)} of a function of several variables, and a recurrence in a label that means
+    something already. A member of a family, a recurrence, f^{(4)} of a function of one
+    variable and k_{1\\mu} beside k_1^\\mu are read (tests/reading/test_families.py,
+    test_functions.py and test_labels.py)."""
 
     def test_names_that_are_no_members_are_symbols(self, wb):
         x_0, v, y = sympy.symbols("x_0 v x")
@@ -302,14 +304,11 @@ class TestScriptedNamesWhoseBaseIsDefined:
         )
         assert wb.expr("E^{(2)} := 3\nE^{(2)} + 1") == 4  # an order on a value is a label
 
-    def test_an_index_on_a_numbered_tensor(self, wb):
+    def test_an_index_on_a_numbered_tensor_is_read(self, wb):
+        # a label, then an index, in one subscript: k_{1\mu} is k_1 with its index \mu
         wb.exe("ds^2 = -dt^2 + dx^2 + dy^2 + dz^2\nk_1^\\mu := (E_1, E_1, 0, 0)")
-        found = error(wb, r"k_1^\mu k_{1\mu}")
-        assert found.message == (
-            r"k_{1\mu} is read as one symbol, not as the tensor k_1 with its index \mu"
-        )
-        assert found.hint == r"write k_1{}_{\mu}"
-        assert wb.expr(r"k_1^\mu k_1{}_{\mu}") == 0  # the hint works: a null vector
+        assert wb.expr(r"k_1^\mu k_{1\mu}") == 0  # a null vector
+        assert wb.expr(r"k_1^\mu k_1{}_{\mu}") == 0
 
 
 class TestOperatorsReadWithAnotherMeaning:

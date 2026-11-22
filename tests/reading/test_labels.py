@@ -105,6 +105,54 @@ class TestSubscriptsThatLabel:
         assert not any("operatorname" in note for note in step.notes)
 
 
+class TestCompoundNames:
+    def test_a_change_written_with_delta_is_one_name(self, wb):
+        wb.exe(r"\Delta x := 0.1" "\n" r"\Delta t := 0.01")
+        assert abs(wb.expr(r"\frac{\Delta x}{\Delta t}") - 10) < 1e-12
+        assert wb.expr(r"\Delta\phi + \Delta\tau_1") == sympy.Symbol("Delta phi") + sympy.Symbol(
+            "Delta tau_1"
+        )
+
+    def test_it_is_said_in_a_note(self, wb):
+        (step,) = list(wb.each(r"\Delta x := 0.1"))
+        assert step.notes == [r"\Delta x is defined as one name, the change in x"]
+        (step,) = list(wb.each(r"2 \Delta t"))
+        assert step.notes == [r"\Delta t is read as one name, the change in t"]
+
+    def test_it_is_shown_as_books_write_it(self, wb):
+        from relativisticpy import display
+
+        assert display.unicode(sympy.Symbol("Delta x")) == "Δx"
+        assert display.latex(sympy.Symbol("Delta tau_1")) == r"\Delta \tau_{1}"
+
+    def test_a_delta_with_a_value_multiplies(self, wb):
+        wb.exe(r"\Delta := 3")
+        assert wb.expr(r"\Delta x") == 3 * x
+
+    def test_before_a_function_it_is_the_laplacian(self, wb):
+        wb.exe("f(x) := x^2")
+        with pytest.raises(CompileError, match="is its Laplacian, which is not supported yet"):
+            wb.expr(r"\Delta f")
+
+    def test_in_a_line_element_it_multiplies_a_differential(self, wb):
+        wb.exe(r"ds^2 = -\Delta {\rm d} t^2 + \Delta^{-1}{\rm d} r^2")
+        assert wb.expr("g_{tt}") == -sympy.Symbol("Delta")
+
+
+class TestLabelsBeforeIndices:
+    def test_a_label_then_an_index(self, wb):
+        # k_{1\mu} is the vector k_1 with its index \mu (label-index-subscript)
+        wb.exe(
+            "ds^2 = -dt^2 + dx^2 + dy^2 + dz^2\n"
+            r"k_1^\mu := (E_1, E_1, 0, 0)"
+            "\n"
+            r"k_2^\mu := (E_2, E_2 \cos\theta, E_2 \sin\theta, 0)"
+        )
+        E_1, E_2, theta = sympy.symbols("E_1 E_2 theta")
+        mass = wb.expr(r"-(k_1^\mu + k_2^\mu)(k_{1\mu} + k_{2\mu})")
+        assert sympy.simplify(mass - 2 * E_1 * E_2 * (1 - sympy.cos(theta))) == 0
+
+
 class TestRunsOfLetters:
     def test_a_subscript_binds_to_the_last_letter_of_a_run(self, wb):
         # in TeX, iE_1 is i times E_1 (decision 5.7)

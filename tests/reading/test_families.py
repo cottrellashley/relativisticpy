@@ -74,6 +74,11 @@ class TestFamilies:
         assert wb.expr("c_1") == 8 * sympy.sqrt(15) / sympy.pi**3
         assert wb.expr("c_2") == 0
 
+    def test_a_family_with_an_order_raised_on_it(self, wb):
+        # E^{(0)}_n and E_n^{(0)}, as TeX sets them alike: the unperturbed energies
+        wb.exe(r"E^{(0)}_n := \frac{n^2 \pi^2}{2}")
+        assert wb.expr(r"E^{(0)}_2 - E_1^{(0)}") == 3 * sympy.pi**2 / 2
+
     def test_a_family_of_functions_in_plain_text(self, wb):
         wb.exe("psi_n(x) := sin(n*x)")
         assert wb.expr("psi_2(x)") == sympy.sin(2 * x)

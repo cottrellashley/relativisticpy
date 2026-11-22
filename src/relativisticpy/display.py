@@ -148,7 +148,10 @@ def _unicode_word(word: str) -> str:
 
 def unicode_name(name: str) -> str:
     """A symbol's name in Unicode: ``theta`` → ``θ``, ``x_0`` → ``x₀``, ``adot`` → ``ȧ``,
-    ``M_odot`` → ``M_⊙``."""
+    ``M_odot`` → ``M_⊙``, and a name of two, the change in x, ``Delta x`` → ``Δx``."""
+    head, space, rest = name.partition(" ")
+    if space:
+        return unicode_name(head) + unicode_name(rest)
     if name in GREEK_LETTERS:
         return GREEK_LETTERS[name]
     if name[:1] == "d" and name[1:] in GREEK_LETTERS:  # the differential of a coordinate
@@ -180,7 +183,10 @@ def _latex_word(word: str, *, upright: bool) -> str:
 def latex_name(name: str) -> str:
     r"""A symbol's name in LaTeX that the language reads back as that name:
     ``rho_vac`` → ``\rho_{\mathrm{vac}}``, ``M_odot`` → ``M_{\odot}``, ``adot`` →
-    ``\dot{a}``, ``Kretschmann`` → ``\mathrm{Kretschmann}``."""
+    ``\dot{a}``, ``Kretschmann`` → ``\mathrm{Kretschmann}``, ``Delta x`` → ``\Delta x``."""
+    head, space, rest = name.partition(" ")
+    if space:
+        return f"{latex_name(head)} {latex_name(rest)}"
     if name[:1] == "d" and name[1:] in GREEK:  # the differential of a coordinate, dtheta
         return "d\\" + name[1:]
     parts = Name(name)
@@ -199,7 +205,11 @@ def text_name(name: str, *, latex_mode: bool = False) -> str:
     r"""A symbol's name as plain text that the language reads back as that name. A Greek
     letter is its LaTeX command, ``\theta``; any other name is written as it is, except
     that in a statement read as LaTeX, where ``Mr`` is M times r, a name of several
-    letters is ``\mathrm{Mr}``."""
+    letters is ``\mathrm{Mr}``; a name of two, as ``Delta x``, is the two, ``\Delta x``."""
+    head, space, rest = name.partition(" ")
+    if space:
+        latex = latex_mode or head in GREEK
+        return f"{text_name(head, latex_mode=latex)} {text_name(rest, latex_mode=latex)}"
     if name in GREEK:
         return "\\" + name
     if name in ("hbar", "ell", "varpi"):

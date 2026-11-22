@@ -307,6 +307,7 @@ class Expressions(LinearAlgebra):
         if ctx.latex:
             factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]
+        factors = self._compound_names(factors, scope, ctx)  # \Delta x, one name
         factors = self._calls_of_names(factors, scope)  # \psi_n(x), of the program's own
         factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call
         grouped = self._statistic_factors(factors, scope, ctx)

@@ -96,6 +96,64 @@ is `r_s`.
 
 ```
 
+A subscript that labels a quantity is part of its name, whatever it is written with:
+`\lambda_1`, `\delta_0`, `V_{10}`, `M_\odot`, `r_+` and `\sigma_x` are names of their own,
+and a name the program defines wins over a built-in tensor, as `R_\odot` does over the
+Ricci tensor. An index of a tensor in force, a label declared over a space, and a
+built-in tensor with its indices stay indices, as in `T_{\mu\nu}` and `g_{tt}`. On the
+left of `:=` a number or an order raised on a name is part of it, as in `\sigma^2 := ...`,
+and `\Delta x` is one name, the change in x:
+
+```python
+>>> names = Workbook()
+>>> names.exe(r"""
+...     \lambda_1 := 2
+...     \sigma^2 := \frac{1}{4}
+...     \Delta x := \frac{1}{2}
+...     \lambda_1^2 + \sigma^2 + \Delta x
+... """)
+[19/4]
+
+```
+
+A one-letter subscript that the value of a name being defined is written with makes a
+family, and a member is the family at its subscript. A family written with its own
+members is a recurrence: given its first members, a member is computed one after
+another, or in closed form where SymPy finds one:
+
+```python
+>>> names.exe(r"""
+...     c_n := \frac{1}{n^2}
+...     F_0 := 0
+...     F_1 := 1
+...     F_{n+2} := F_{n+1} + F_n
+...     c_1 + c_2
+...     F_{10}
+... """)
+[5/4, 55]
+
+```
+
+A name with scripts, then names in brackets, defines a function, and so does a primed
+name on the left of `:=`. Of a function of one variable, `f^{(4)}` is the fourth
+derivative, and a function named without its argument is the function at its
+parameters, as y is in `\frac{dy}{dx}`:
+
+```python
+>>> names.exe(r"""
+...     R_{nl}(r) := r^2 e^{-r}
+...     H'(x) := 2 x
+...     y(x) := x^3
+...     R_{nl}(1) + H'(3)
+...     y^{(2)}(1) + \frac{dy}{dx}
+... """)
+[exp(-1) + 6, 3*x**2 + 6]
+
+```
+
+`Workbook.explain` says how each was read, and a note says so where another reading was
+possible.
+
 State what a symbol is as books do, with a relation on its name alone: `a > 0`,
 `0 < x < 1`, `a, b > 0`, `x \in \mathbb{R}`, `n \in \mathbb{N}` or `n \in \mathbb{Z}_{>0}`.
 It is an assumption for the rest of the program, shows nothing, and SymPy simplifies

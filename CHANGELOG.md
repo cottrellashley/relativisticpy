@@ -217,6 +217,16 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   parameters positive, as books take them. The conformance suite checks that an optimum
   reported is feasible, that the KKT conditions hold at it, and that exact and numeric
   optimizers agree. `A \succ 0` and `w \succeq 0` are generalized inequalities.
+- Names read as books write them. A subscript that labels is part of the name,
+  as in `\lambda_1`, `M_\odot`, `r_+` and `\sigma_x`, and so is a number or an
+  order raised on a name being defined, as in `\sigma^2 :=`; `\Delta x` is one
+  name, the change in x. A one-letter subscript the value is written with makes
+  a family, `c_n := ...` or `\psi_n(x) := ...`, which `c_1`, `a_{n+1}` and
+  `\psi_3(x)` evaluate, and a recurrence with its first members given is
+  computed. A name with scripts or a prime defines a function, as `R_{nl}(r) :=`
+  and `H'(x) :=` do, `f^{(4)}(0)` is a derivative, and a function named without
+  its argument is the function at its parameters. Each reading is recorded for
+  `Workbook.explain`, with a note where another was possible.
 
 ### Changed
 

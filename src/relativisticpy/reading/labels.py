@@ -29,7 +29,7 @@ from relativisticpy.compiler.scope import (
     TensorBinding,
     VariableBinding,
 )
-from relativisticpy.errors import IndexNotationError
+from relativisticpy.errors import CompileError, IndexNotationError
 from relativisticpy.ir import SCALAR, Node, TensorType
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
@@ -138,6 +138,34 @@ def _an_index_label(label: str) -> bool:
         return False
     letters = re.sub(r"[0-9']", "", label.partition("_")[0])
     return (len(letters) == 1 and letters.isascii() and letters.isalpha()) or letters in GREEK
+
+
+#: The names written before another to name a change in it, as \Delta x is the change in x.
+_INCREMENTS = frozenset({"Delta"})
+
+
+def compound_name(increment: ast.Expr, operand: ast.Expr) -> str | None:
+    """The name ``\\Delta x`` makes, written as one quantity, the change in x: ``Delta x``,
+    with a space, which no name written can have; ``Delta tau_1`` of ``\\Delta\\tau_1`` and
+    ``Delta x'`` of ``\\Delta x'``. ``None`` for anything else, as ``\\Delta \\cdot x``, or
+    ``\\Delta x^\\mu``, a vector of changes."""
+    if not (isinstance(increment, ast.Name) and increment.id in _INCREMENTS):
+        return None
+    if not _written_as_letter(increment):
+        return None
+    if increment.span.source.text[increment.span.end : operand.span.start].strip():
+        return None  # \Delta \cdot x, \Delta\, x
+    if isinstance(operand, ast.Name) and operand.id == "d":
+        return None  # \Delta {\rm d} t^2: \Delta times a differential
+    if isinstance(operand, ast.Name):
+        changed: str | None = operand.id
+    elif isinstance(operand, ast.Prime):
+        changed = operand.func.id + "'" * operand.order
+    elif isinstance(operand, ast.Scripted) and all(s.kind == "_" for s in operand.scripts):
+        changed = label_name(operand)
+    else:
+        changed = None
+    return f"{increment.id} {changed}" if changed is not None else None
 
 
 def _index_like(script: ast.Script) -> bool:
@@ -251,6 +279,8 @@ class Labels(Matrices):
         its subscripts for nothing else, as ``R_\\odot`` without a metric, or whose base
         is an accent, as ``\\hat\\beta_1``. ``None`` where the scripts are read otherwise:
         as indices, an element or a power, or, of a name nothing defines, as before."""
+        if (numbered := self._numbered_tensor(node, scope, ctx)) is not None:  # k_{1\mu}
+            return numbered
         lowered = any(script.kind == "_" for script in node.scripts)
         readings = [raised for raised in (True, False) if raised or lowered]
         for raised in readings:  # \sigma^2 or \lambda_1^2 as the program names them
@@ -275,6 +305,36 @@ class Labels(Matrices):
             return None
         rest = tuple(s for s in node.scripts if s.kind == "^")
         return self._named_label(node, name, rest, scope, ctx)
+
+    def _numbered_tensor(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term | None:
+        """``k_{1\\mu}`` beside a tensor k_1: a label, then an index, in one subscript, as
+        books write the momentum k_1 with its index \\mu (label-index-subscript of
+        curriculum/ROADMAP.md); ``None`` for any other name."""
+        base = node.base
+        if not isinstance(base, ast.Name) or len(node.scripts) != 1:
+            return None
+        script = node.scripts[0]
+        items = script.indices.items if script.indices is not None else ()
+        if script.kind != "_" or len(items) < 2 or not isinstance(items[0].value, ast.Number):
+            return None
+        rest = items[1:]
+        if items[0].label is not None or not all(map(_plain_label, rest)):
+            return None
+        tensor = f"{base.id}_{items[0].value.text}"
+        binding = scope.lookup(tensor)
+        defined = isinstance(binding, TensorBinding) or (
+            isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType)
+        )
+        if not defined:
+            return None
+        labels = "".join(self._written_label(str(item.label)) for item in rest)
+        written = f"{base.span.text}_{items[0].value.text}"
+        why = f"{written} is a tensor{self._line_of(binding)}, and {labels} no number"
+        self._decide(LABEL, node.span, f"the tensor {written} with its index {labels}", why)
+        indices = ast.IndexList(tuple(rest), span=script.span)
+        lowered = ast.Script("_", None, indices, span=script.span)
+        named = ast.Name(tensor, verbatim=True, span=base.span)
+        return self.term(ast.Scripted(named, (lowered,), span=node.span), scope, ctx)
 
     def _named_label(
         self,
@@ -352,6 +412,90 @@ class Labels(Matrices):
             return f" on line {binding.node.span.line}"
         return ""
 
+    # -- compound names -----------------------------------------------------------------
+
+    def _compound_names(
+        self, factors: list[ast.Expr], scope: Scope, ctx: Context
+    ) -> list[ast.Expr]:
+        """Factors with \\Delta and a name written right after it made one name, the change
+        in it, as ``\\Delta x`` and ``\\Delta\\phi`` are (decision 4 of
+        design/notation.md's roadmap, compound names), where it is so defined or \\Delta
+        means nothing; \\Delta with a value multiplies, as the Δ of Kerr's metric does."""
+        if ctx.line_element:  # -\Delta dt^2: \Delta times a differential
+            return factors
+        merged: list[ast.Expr] = []
+        position = 0
+        while position < len(factors):
+            factor = factors[position]
+            following = factors[position + 1] if position + 1 < len(factors) else None
+            name = compound_name(factor, following) if following is not None else None
+            if (
+                following is not None
+                and name is not None
+                and self._reads_compound(factor, following, name, scope)
+            ):
+                merged.append(ast.Name(name, verbatim=True, span=factor.span.to(following.span)))
+                position += 2
+                continue
+            merged.append(factor)
+            position += 1
+        return merged
+
+    def _reads_compound(
+        self, increment: ast.Expr, operand: ast.Expr, name: str, scope: Scope
+    ) -> bool:
+        """Whether ``\\Delta x`` is one name, the change in x: defined so, or where \\Delta
+        means nothing. Before a function, \\Delta is its Laplacian, which is refused."""
+        span = increment.span.to(operand.span)
+        written = span.text
+        binding = scope.lookup(name)
+        if binding is not None:
+            why = f"{written} is defined{self._line_of(binding)}"
+            self._decide(LABEL, span, f"the name {written}", why)
+            return True
+        delta = increment.id if isinstance(increment, ast.Name) else ""
+        session = self.session
+        if scope.lookup(delta) is not None or delta in session.assumptions:
+            return False  # \Delta has a value: \Delta times x
+        if delta in session.functions or (session.metric and delta in session.metric.names):
+            return False
+        changed = operand.span.text
+        if isinstance(operand, ast.Name) and (
+            isinstance(scope.lookup(operand.id), FunctionBinding) or operand.id in session.functions
+        ):
+            raise CompileError(
+                f"{written}, with {changed} a function, is its Laplacian, which is not "
+                "supported yet",
+                span=span,
+                hint=f"write its second derivatives out, as in \\frac{{\\partial^2 {changed}}}"
+                f"{{\\partial x^2}} + \\frac{{\\partial^2 {changed}}}{{\\partial y^2}}",
+            )
+        note = f"{written} is read as one name, the change in {changed}"
+        why = f"{increment.span.text} means nothing here, and before a name writes a change in it"
+        self._decide(LABEL, span, f"the name {written}", why, note)
+        self._note(note)
+        return True
+
+    def _define_compound(
+        self, target: ast.Binary, value: ast.Expr, scope: Scope, ctx: Context
+    ) -> bool:
+        """``\\Delta x := 0.1``: the change in x, one name, defined as a name is."""
+        name = compound_name(target.left, target.right) if target.op == "*" else None
+        if name is None:
+            return False
+        operand = target.right
+        if isinstance(operand, ast.Name) and isinstance(scope.lookup(operand.id), FunctionBinding):
+            return False  # \Delta f, of a function: its Laplacian, which := cannot define
+        written = target.span.text
+        note = f"{written} is defined as one name, the change in {operand.span.text}"
+        why = "\\Delta before a name writes a change in it"
+        self._decide(LABEL, target.span, f"the name {written}", why, note, written=written)
+        self._note(note)
+        scope.bind(
+            name, VariableBinding(self._value_or_notation(value, scope, ctx, definition=True))
+        )
+        return True
+
     # -- definitions --------------------------------------------------------------------
 
     def _define_labelled(
@@ -362,6 +506,8 @@ class Labels(Matrices):
         ``\\hat\\beta_1 := ...``, and ``\\sigma_x := ...`` with no space declared for x. A
         definition whose scripts are indices, as of ``T^{\\mu\\nu}`` or of ``v_a`` with a
         declared over a space, is a tensor's, and left to it: ``False`` then."""
+        if isinstance(target, ast.Binary):  # \Delta x := ...
+            return self._define_compound(target, value, scope, ctx)
         if not isinstance(target, ast.Scripted):
             return False
         base = _base_name(target.base)

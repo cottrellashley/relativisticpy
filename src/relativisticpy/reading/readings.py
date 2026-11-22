@@ -71,6 +71,8 @@ KINDS = (
     "notation or components",
     "product or call",
     "index or power",
+    "label or index",
+    "family or name",
     "letters",
     "constant or symbol",
     "function named alone",
