@@ -25,7 +25,6 @@ import itertools
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
 
 import sympy
 
@@ -315,7 +314,7 @@ class VectorCalculus(Vectors, Probability):
         span = nabla.span.to(_span_of(operand, nabla.span))
         if isinstance(operand, Operator | _Along):
             raise CompileError(
-                f"{nabla.span.text} acts on a value, not on {operand_written(operand)}",
+                f"{nabla.span.text} acts on a value, not on {_written(operand)}",
                 span=span,
             )
         if kind != "∇":
@@ -519,7 +518,8 @@ class VectorCalculus(Vectors, Probability):
     def _not_a_vector(self, operand: _Item, value: Node, span: Span, what: str) -> CompileError:
         written = operand.span.text if isinstance(operand, ast.Expr) else "this"
         notes = []
-        if isinstance(operand, ast.Expr) and bold(operand) and value.type == SCALAR:
+        symbol = isinstance(value.op, ops.Const) and isinstance(value.op.value, sympy.Symbol)
+        if isinstance(operand, ast.Expr) and bold(operand) and symbol:
             notes.append(f"{written} names nothing, so it is a number, not a vector")
         return CompileError(
             f"{span.text} is {what}, which is of a vector, and {written} is no vector",
@@ -1197,7 +1197,7 @@ class VectorCalculus(Vectors, Probability):
     def _array(self, components: Sequence[Node], span: Span) -> Node:
         return self.graph.add(ops.MakeArray((len(components),)), list(components), VALUE, span)
 
-    # -- integrals over a region -----------------------------------------------------------
+    # -- integrals over a region or along a curve ------------------------------------------
 
     def _Integral(self, node: ast.Integral, scope: Scope, ctx: Context) -> Node:
         if node.domain is not None and not node.bounds:
@@ -1535,17 +1535,18 @@ def _product_of(factors: Sequence[ast.Expr]) -> ast.Expr:
     return product
 
 
-def _span_of(item: Any, default: Span | None) -> Span:
-    span = getattr(item, "span", None)
+def _span_of(item: _Item, default: Span | None) -> Span:
+    """Where an item of a product is written, or ``default`` for a value made of none."""
+    span: Span | None = item.span
     if span is None:
         assert default is not None
         return default
-    return span  # type: ignore[no-any-return]
+    return span
 
 
-def operand_written(item: Any) -> str:
+def _written(item: _Item) -> str:
     """What an operator acts on, as written, for messages."""
-    span = getattr(item, "span", None)
+    span: Span | None = item.span
     return span.text if span is not None else "an operator"
 
 

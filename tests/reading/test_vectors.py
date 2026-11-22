@@ -68,6 +68,14 @@ class TestAlgebra:
         assert wb.expr(r"\|\mathbf{v}\|") == sympy.sqrt(14)
         assert wb.expr(r"\mathbf{v}^2") == 14  # its dot product with itself
 
+    def test_unicode_and_arrows_write_them_too(self, wb):
+        wb.exe("v := [1, 2, 3]\nw := [4, 5, 6]")
+        assert wb.expr("v · w") == 32
+        assert list(wb.expr("v × w")) == [-3, 6, -3]
+        assert wb.expr("∇ · [x y, y z, z x]") == x + y + z
+        wb.exe(r"\vec{a} := (1, 2, 3)" "\n" r"\vec{b} := (0, 0, 1)")
+        assert list(wb.expr(r"\vec{a} \times \vec{b}")) == [2, -1, 0]
+
     def test_between_numbers_the_signs_multiply(self, wb):
         assert wb.expr(r"3 \times 4") == 12
         assert wb.expr(r"3 \cdot 4") == 12
@@ -247,6 +255,8 @@ class TestOperators:
     def test_the_divergence_of_what_is_no_vector_is_refused(self, wb):
         found = error(wb, r"\nabla \cdot \mathbf{E} = 4\pi\rho")
         assert found.notes == [r"\mathbf{E} names nothing, so it is a number, not a vector"]
+        wb.exe(r"\mathbf{E} := 5")
+        assert error(wb, r"\nabla \cdot \mathbf{E}").notes == []  # a number, defined so
 
     def test_with_a_metric_of_spacetime_nabla_squared_is_the_dalembertian(self, wb):
         wb.exe(r"ds^2 = -dt^2 + dx^2 + dy^2 + dz^2")
