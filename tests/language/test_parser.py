@@ -1007,6 +1007,7 @@ class TestPythonHabits:
         [
             "x [1, 2]",  # a product, with a space
             "subs(x^2, x=2)",  # a substitution: x is in the other argument
+            "solve(x=2)",  # the first argument is what is acted on
             "solve(x^2 = 4, x)",
             r"\delta S[\phi] = 0",  # a functional, in LaTeX
             r"e^{-2\beta}[r - 1]",

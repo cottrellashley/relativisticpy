@@ -311,5 +311,6 @@ hint: a component is written with indices, as in V^{0}; for a product, put a spa
 ```
 
 An equation in a call is an equation, as in `subs(x^2, x = 2)` or
-`solve(x^2 = 4, x)`: a name set to a value with no space around `=`, and used
-by no other argument, is taken for a keyword argument.
+`solve(x^2 = 4, x)`: only after the first argument, a name set to a value with
+no space around `=`, and used by no other argument, is taken for a keyword
+argument.

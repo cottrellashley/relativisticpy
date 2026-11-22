@@ -2203,10 +2203,11 @@ def _walk(node: ast.Node) -> Iterator[ast.Node]:
 
 
 def _keyword_arguments(call: ast.Call) -> None:
-    """Raise for Python's keyword argument, ``n=5``: a name and a value with ``=`` between
-    them and no space, where the name is in no other argument. An equation, as a
-    substitution in ``subs(x^2, x=2)`` is, names what the other arguments hold."""
-    for argument in call.args:
+    """Raise for Python's keyword argument, ``n=5``: after the first argument, a name and a
+    value with ``=`` between them and no space, where the name is in no other argument.
+    An equation, as a substitution in ``subs(x^2, x=2)`` is, names what the other
+    arguments hold, and a first argument, as in ``solve(x=2)``, is what is acted on."""
+    for argument in call.args[1:]:
         if not (isinstance(argument, ast.Equation) and isinstance(argument.lhs, ast.Name)):
             continue
         name, value = argument.lhs, argument.rhs
