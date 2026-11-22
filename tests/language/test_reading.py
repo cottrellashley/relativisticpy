@@ -63,6 +63,24 @@ class TestScripts:
             )
 
 
+class TestIntegrals:
+    @pytest.mark.parametrize(
+        ("text", "value"),
+        [
+            # the differential in a numerator ends the integral, so - \pi is outside it
+            (r"\int_1^\infty \frac{dr}{r^2} - \pi", 1 - sympy.pi),
+            (r"\int_0^1 \frac{d\theta}{1 + \theta^2}", sympy.pi / 4),
+            (r"\int_0^1 \frac{x_1 \, dx_1}{2}", sympy.Rational(1, 4)),
+            # an evaluation bar before the differential is inside the integrand
+            (r"\int_0^{\pi} \left. \sin(x y) \right|_{y=1} dx", 2),
+            (r"\int_0^1 \int_0^1 \left. x y z \right|_{z=2} \, dx \, dy", sympy.Rational(1, 2)),
+        ],
+    )
+    def test_where_an_integral_ends(self, text, value):
+        with Workbook() as wb:
+            assert sympy.simplify(wb.expr(text) - value) == 0
+
+
 t, r, x, theta = sympy.symbols("t r x theta")
 a, f, A = (sympy.Function(name) for name in ("a", "f", "A"))
 

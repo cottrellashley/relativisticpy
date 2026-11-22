@@ -611,7 +611,8 @@ class _Printer:
 
     def _Integral(self, node: Integral) -> str:
         if node.domain is not None:
-            return f"(int {self.render(node.integrand)} over {self.render(node.domain)})"
+            measure = f" {self._many(node.bounds)}" if node.bounds else ""
+            return f"(int {self.render(node.integrand)}{measure} over {self.render(node.domain)})"
         return f"(int {self.render(node.integrand)} {self._many(node.bounds)})"
 
     def _BigOperator(self, node: BigOperator) -> str:

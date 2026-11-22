@@ -717,6 +717,70 @@ class TestSumsLimitsIntegrals:
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
+            # the integral ends with the term whose numerator holds its differential
+            (r"\int_1^\infty \frac{dr}{r^2} - \pi", "(- (int (/ 1 (^ r 2)) (r 1 infty)) pi)"),
+            (r"\int \frac{dx}{x} + C", "(+ (int (/ 1 x) x) C)"),
+            (r"\int \frac{dr}{r^2} f(r) - g", "(- (int (* (/ 1 (^ r 2)) (call f r)) r) g)"),
+            (r"\int \frac{x\,dx}{1 + x^2} = 1", "(= (int (/ x (+ 1 (^ x 2))) x) 1)"),
+            # a differential written apart from its variable, or upright
+            (r"\int \frac{d\theta}{\sin\theta}", "(int (/ 1 (call sin theta)) theta)"),
+            (r"\int_0^1 \frac{\mathrm{d}x}{1 + x}", "(int (/ 1 (+ 1 x)) (x 0 1))"),
+            # products of fractions, and volume elements, as physics writes them
+            (
+                r"\int \frac{d^3 p}{(2\pi)^3} \frac{1}{2E}",
+                "(int (* (/ 1 (^ (* 2 pi) 3)) (/ 1 (* 2 E))) (d^3 p))",
+            ),
+            (
+                r"\int \frac{dp^0}{2\pi} f(p^0)",
+                "(int (* (/ 1 (* 2 pi)) (call f (^ p 0))) (^ p 0))",
+            ),
+            # without a differential in a numerator, the integrand runs to its differential
+            (r"\int x^2 + \frac{1}{x} \, dx", "(int (+ (^ x 2) (/ 1 x)) x)"),
+        ],
+    )
+    def test_a_differential_in_a_numerator(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # an evaluation bar before the differential is inside the integrand
+            (r"\int_0^1 \left. f(x, y) \right|_{x=0} dy", "(int (at (call f x y) (x 0)) (y 0 1))"),
+            (
+                r"\int_0^{\pi} \left. \sqrt{g} \right|_{r = r_+} d\theta",
+                "(int (at (sqrt g) (r (r _+))) (theta 0 pi))",
+            ),
+            # and after it, outside
+            (r"\int_0^1 x y \, dx \Big|_{y=2}", "(at (int (* x y) (x 0 1)) (y 2))"),
+            (r"\left. \int_0^1 x y \, dx \right|_{y=2}", "(at (int (* x y) (x 0 1)) (y 2))"),
+        ],
+    )
+    def test_an_evaluation_bar_in_an_integral(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # a subscript or a script written against the region: no limit, but a region
+            (
+                r"\iint_{x^2 + y^2 \le 1} f \, dA",
+                "(int f A over (<= (+ (^ x 2) (^ y 2)) 1))",
+            ),
+            (r"\iiint_V \rho \, dV", "(int rho V over V)"),
+            (r"\iint_S \omega", "(int omega over S)"),
+        ],
+    )
+    def test_a_multiple_integral_over_a_region(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_a_differential_of_a_process_is_not_read_as_one_of_a_variable(self):
+        # dB_s, of Brownian motion, makes an Ito integral, which ordinary calculus would get
+        # wrong: unread, it is refused rather than computed as an integral over B_s
+        assert "expected a differential" in str(error(r"\int_0^t B_s \, dB_s"))
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
             (r"\int_0^L dx", "(int 1 (x 0 L))"),  # a differential alone integrates 1
             (r"\int d^4x", "(int 1 (d^4 x))"),
             (r"\int d^{4}x \sqrt{-g}", "(int (sqrt (- g)) (d^4 x))"),
@@ -727,6 +791,11 @@ class TestSumsLimitsIntegrals:
             (r"\int_M d\omega", "(int (* d omega) over M)"),  # still a form over a region
             (r"\frac{dx'}{dt}", "(d/dt x')"),
             (r"\frac{dx}{dt'}", "(d/dt' x)"),
+            # of a numbered variable, and of a component, not a volume element d^m u
+            (r"\int f(x_1) \, dx_1", "(int (call f x_1) x_1)"),
+            (r"\frac{dy}{dx_1}", "(d/dx_1 y)"),
+            (r"\int A_\mu dx^\mu", "(int (A _[mu]) (x ^[mu]))"),
+            (r"\int dp^0 f(p^0)", "(int (call f (^ p 0)) (^ p 0))"),
         ],
     )
     def test_differentials(self, text, expected):

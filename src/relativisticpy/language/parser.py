@@ -99,9 +99,11 @@ _TEXT_COMMAND = re.compile(r"\\(?:text[a-z]*|mbox|hbox)(?![A-Za-z])")
 # The halves of old-style cases, \left\{ \begin{array} ... \end{array} \right.
 _LEFT_BRACE = re.compile(r"\\left\s*(?:\\\{|\\lbrace)")
 _RIGHT_DOT = re.compile(r"\\right\s*\.")
-# A name that reads as a differential inside an integral or a derivative: dx, dtheta, dx1.
+# A name that reads as a differential inside an integral or a derivative: dx, dtheta, dx1,
+# and dx_1, of a variable numbered as x_1 is.
 _DIFFERENTIAL = re.compile(
     r"d(?:" + "|".join(sorted(vocab.GREEK, key=len, reverse=True)) + r"|[A-Za-z][0-9]*)"
+    r"(?:_[0-9]+)?"
 )
 # Where "did you mean" looks: every command, and every environment, the language reads.
 # A suggestion must be this close, so that \top is not taken for \to.
@@ -644,7 +646,10 @@ class Parser:
     # -- expressions ----------------------------------------------------------
 
     def expression(self, min_power: int = Power.NONE) -> ast.Expr:
-        left = self._prefix()
+        return self._operations(self._prefix(), min_power)
+
+    def _operations(self, left: ast.Expr, min_power: int) -> ast.Expr:
+        """The operations that follow ``left``, as far as ``min_power`` lets them go."""
         while True:
             if self._continues():
                 self._skip_newlines()
@@ -1696,7 +1701,11 @@ class Parser:
             while self._at_differential():
                 variables.append(self._integration_variable())
             if not variables:
-                integrand = self.expression(Power.COMPARISON)
+                # \int x^2 + 1 \, dx runs to its differential, but with the differential in
+                # a numerator, \int \frac{dr}{r^2} - \pi ends with its term
+                integrand = self.expression(Power.SUM)
+                if not self._at_differential() and not _take_differentials(integrand)[1]:
+                    integrand = self._operations(integrand, Power.COMPARISON)
             elif self._starts_operand(self.peek()):
                 integrand = self.expression(Power.SUM)
             elif count == 1 and lower is not None and upper is None:
@@ -1708,12 +1717,21 @@ class Parser:
                 integrand = ast.Number("1", span=differentials)
             while len(variables) < count and self._at_differential():
                 variables.append(self._integration_variable())
+            if len(variables) < count and (evaluated := self._evaluated_integrand(integrand)):
+                integrand = evaluated  # \int \left. f \right|_{r = r_+} d\theta
+                while len(variables) < count and self._at_differential():
+                    variables.append(self._integration_variable())
             if len(variables) < count:  # \int \frac{dr}{1 - 2M/r}: the differential is on top
-                integrand, found = _take_differentials(integrand, count - len(variables))
-                variables.extend((variable, None) for variable in found)
-            if not variables and count == 1 and lower is not None and upper is None:
-                # \int_M \omega: a form over a region, with no differential
-                return ast.Integral(integrand, (), lower, span=self._span(command))
+                integrand, found = _take_differentials(integrand)
+                variables.extend(found)
+            if len(variables) < count and lower is not None and upper is None:
+                # \int_M \omega: a form over a region, with no differential, and
+                # \iint_{x^2 + y^2 \le 1} f \, dA, over a region with its element of area
+                region = tuple(
+                    ast.Bound(variable, dimension=dimension, span=variable.span)
+                    for variable, dimension in variables
+                )
+                return ast.Integral(integrand, region, lower, span=self._span(command))
             if len(variables) < count:
                 token = self.peek()
                 raise ParseError(
@@ -1770,9 +1788,23 @@ class Parser:
             len(dimension.value) == 2 or (len(dimension.value) == 1 and after.kind is K.IDENT)
         )
 
+    def _evaluated_integrand(self, integrand: ast.Expr) -> ast.Expr | None:
+        """An evaluation bar between the integrand and its differential, as in
+        ``\\int \\left. \\sqrt{g} \\right|_{r = r_+} d\\theta``, evaluates the integrand: the
+        integrand evaluated, when a differential follows the bar; otherwise ``None``, having
+        read nothing."""
+        if self._abs_depth or not (self.check(K.BAR) and self.peek(1).kind is K.UNDERSCORE):
+            return None
+        before = self.pos, self.previous
+        evaluated, _ = self._attempt(lambda: self._substitution(integrand))
+        if evaluated is not None and self._at_differential():
+            return evaluated
+        self.pos, self.previous = before
+        return None
+
     def _integration_variable(self) -> tuple[ast.Expr, ast.Expr | None]:
         """The variable of a differential, and its dimension if it is a volume element."""
-        if not self._at_volume_element():
+        if self.peek().value != "d" or not self._at_volume_element():
             return self._differential(), None
         self.advance()  # d
         self.advance()  # ^
@@ -1803,7 +1835,7 @@ class Parser:
         if token.value != "d":  # dx, and dt' whose variable is t'
             primes = self._primes()
             span = Span(self.source, token.span.start + 1, self.previous.span.end)
-            return ast.Name(token.value[1:] + primes, span=span)
+            return self._scripted(ast.Name(token.value[1:] + primes, span=span))
         if self.check(K.LBRACE):
             opener = self.advance()
             with self._nested():
@@ -1812,7 +1844,15 @@ class Parser:
             return variable
         name = self.advance()
         primes = self._primes()
-        return ast.Name(name.value + primes, name.verbatim, span=self._span(name))
+        return self._scripted(ast.Name(name.value + primes, name.verbatim, span=self._span(name)))
+
+    def _scripted(self, variable: ast.Name) -> ast.Expr:
+        """A differential's variable with the scripts written against it: ``dx^\\mu`` is the
+        differential of ``x^\\mu``, and ``dp^0`` of ``p^0``, as a line integral writes them."""
+        node: ast.Expr = variable
+        while self.peek().kind in (K.CARET, K.UNDERSCORE) and not self.peek().space_before:
+            node = self._attach_script(node, extend=True)
+        return node
 
     def _primes(self) -> str:
         """Primes directly after a name, as in ``dt'``."""
@@ -2530,23 +2570,82 @@ def _leibniz_denominator(node: ast.Expr) -> tuple[bool, list[tuple[ast.Expr, int
     return kinds.pop(), variables
 
 
-def _take_differentials(integrand: ast.Expr, count: int) -> tuple[ast.Expr, list[ast.Expr]]:
-    """Take up to ``count`` differentials out of the numerator of a fraction:
-    ``\\frac{r^2 dr}{f(r)}`` is ``r^2 / f(r)`` integrated over ``r``."""
-    if not (isinstance(integrand, ast.Binary) and integrand.op == "/"):
-        return integrand, []
-    kept: list[ast.Expr] = []
-    variables: list[ast.Expr] = []
-    for factor in _factors(integrand.left):
-        joined = _joined_differential(factor)
-        if joined is not None and isinstance(joined, ast.Name) and len(variables) < count:
-            variables.append(joined)
-        else:
-            kept.append(factor)
+def _take_differentials(
+    integrand: ast.Expr,
+) -> tuple[ast.Expr, list[tuple[ast.Expr, ast.Expr | None]]]:
+    """Take the differentials out of the numerators of the fractions an integrand is a
+    product of, with the dimension of each that is a volume element: ``\\frac{r^2 dr}{f(r)}``
+    is ``r^2 / f(r)`` integrated over ``r``, and ``\\frac{d^3 p}{(2\\pi)^3} \\frac{1}{2E}``
+    is integrated over the three dimensions of ``p``."""
+    factors: list[ast.Expr] = []
+    variables: list[tuple[ast.Expr, ast.Expr | None]] = []
+    for factor in _factors(integrand):
+        if isinstance(factor, ast.Binary) and factor.op == "/":
+            numerator, found = _numerator_differentials(factor.left)
+            if found:
+                variables.extend(found)
+                numerator = numerator or ast.Number("1", span=factor.left.span)
+                factor = ast.Binary("/", numerator, factor.right, span=factor.span)
+        factors.append(factor)
     if not variables:
         return integrand, []
-    numerator = _product(kept) or ast.Number("1", span=integrand.left.span)
-    return ast.Binary("/", numerator, integrand.right, span=integrand.span), variables
+    product = _product(factors)
+    assert product is not None
+    return product, variables
+
+
+def _numerator_differentials(
+    numerator: ast.Expr,
+) -> tuple[ast.Expr | None, list[tuple[ast.Expr, ast.Expr | None]]]:
+    """The factors of a numerator that are not differentials, and the variable and
+    dimension of each that is: ``dr``, ``d\\theta``, ``dp^0``, or ``d^3 p``."""
+    factors = _factors(numerator)
+    kept: list[ast.Expr] = []
+    found: list[tuple[ast.Expr, ast.Expr | None]] = []
+    index = 0
+    while index < len(factors):
+        factor = factors[index]
+        following = factors[index + 1] if index + 1 < len(factors) else None
+        joined = _joined_differential(factor)
+        dimension = _volume_dimension(factor)
+        if joined is not None:  # dr, dp^0
+            found.append((joined, None))
+        elif following is not None and _variable(following) and _is_d(factor):  # d\theta
+            found.append((following, None))
+            index += 1
+        elif following is not None and _variable(following) and dimension is not None:
+            found.append((following, dimension))  # d^3 p
+            index += 1
+        else:
+            kept.append(factor)
+        index += 1
+    return _product(kept), found
+
+
+def _is_d(node: ast.Expr) -> bool:
+    """The ``d`` of a differential written apart from its variable: ``d\\theta``,
+    ``\\mathrm{d}x``."""
+    return isinstance(node, ast.Name) and node.id == "d"
+
+
+def _volume_dimension(node: ast.Expr) -> ast.Expr | None:
+    """The dimension of a volume element's ``d^n``, as in ``d^3 p`` or ``d^d \\ell``."""
+    if not (isinstance(node, ast.Scripted) and _is_d(node.base) and len(node.scripts) == 1):
+        return None
+    script = node.scripts[0]
+    dimension = script.body
+    if script.kind != "^" or not isinstance(dimension, ast.Number | ast.Name):
+        return None
+    if isinstance(dimension, ast.Number) and not dimension.text.isdigit():
+        return None
+    return dimension
+
+
+def _variable(node: ast.Expr) -> bool:
+    """A name, maybe with indices, that a differential can be of: ``x``, ``p_1``, ``p^0``."""
+    if isinstance(node, ast.Scripted):
+        return isinstance(node.base, ast.Name) and all(s.indices for s in node.scripts)
+    return isinstance(node, ast.Name)
 
 
 def _check_brackets(items: list[ast.IndexItem]) -> None:
