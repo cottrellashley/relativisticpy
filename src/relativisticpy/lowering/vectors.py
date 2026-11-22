@@ -481,9 +481,9 @@ class VectorCalculus(Vectors, Probability):
         0: books mean a function of position, as \\Phi is in ``\\nabla \\Phi``; and of a
         function written in r, θ or φ where they are no coordinates, as -GM/r is, whose
         dependence on x, y and z would be lost."""
-        self._check_written_in_the_frame([value], operand, frame, span, what)
         symbol = value.op.value if isinstance(value.op, ops.Const) else None
         if not isinstance(symbol, sympy.Symbol) or symbol in frame.coordinates:
+            self._check_written_in_the_frame([value], operand, frame, span, what)
             return
         written = operand.span.text if isinstance(operand, ast.Expr) else str(symbol)
         variables = ", ".join(self._written_label(name) for name in frame.names)
@@ -1277,7 +1277,8 @@ class VectorCalculus(Vectors, Probability):
         self._decide(VECTOR, node.span, f"an integral along {curve.written}", why)
         lower, upper = curve.limits
         args = [integrand, curve.parameter, lower, upper]
-        return self._call("vectors.along", args, SCALAR, node.span)
+        attributes = (("inside", True),) if saved else ()  # \oint_{r_1} \oint_{r_2}
+        return self._call("vectors.along", args, SCALAR, node.span, attributes)
 
     def _over_a_region(self, node: ast.Integral, scope: Scope, ctx: Context) -> Node | None:
         """``\\iint_{x^2 + y^2 \\le 1} f\\,dA`` or ``\\iiint_{[0, 1]^3} f\\,dV``: an integral

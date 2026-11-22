@@ -170,12 +170,24 @@ def hessian(f: Any, *, coordinates: tuple[Symbol, ...]) -> ImmutableDenseNDimArr
     )
 
 
-def along(f: Any, parameter: Symbol, lower: Any, upper: Any) -> Any:
+def along(f: Any, parameter: Symbol, lower: Any, upper: Any, *, inside: bool = False) -> Any:
     """The integral of ``f`` over the parameter of a curve, from ``lower`` to ``upper``: in
     closed form, where SymPy finds one in the time a sum is given; otherwise, where nothing
     but the parameters of curves is left in it, numerically, said in a note; otherwise as it
-    is written."""
+    is written. One ``inside`` another along a curve is left as it is written, for that one
+    to compute with it: SymPy, asked for the closed form of an integral of an integral, can
+    run past any time it is given, in arithmetic no signal interrupts."""
     written = sympy.Integral(f, (parameter, lower, upper))
+    if inside:
+        return written
+    nested = sympy.sympify(f).has(sympy.Integral)
+    if nested and not written.free_symbols:
+        value = _numerically(written)
+        if value is not None:
+            assumptions.remark(
+                "the integrals along the curves, one inside the other, are computed numerically"
+            )
+            return value
     try:
         with core._budget(core._CLOSED_FORM_BUDGET):
             found = written.doit()

@@ -364,6 +364,21 @@ class TestCurves:
             "form of it in 5 s"
         )
 
+    def test_one_inside_another_numerically(self, wb):
+        wb.exe(
+            r"\mathbf{r}_1(s) := (\cos s, \sin s, 0), \quad 0 \le s \le 2\pi"
+            "\n"
+            r"\mathbf{r}_2(t) := (1 + \cos t, 0, \sin t), \quad 0 \le t \le 2\pi"
+        )
+        linking = (
+            r"\oint_{\mathbf{r}_1} \oint_{\mathbf{r}_2} \frac{(\mathbf{r}_1 - \mathbf{r}_2) "
+            r"\cdot (d\mathbf{r}_1 \times d\mathbf{r}_2)}{|\mathbf{r}_1 - \mathbf{r}_2|^3}"
+        )
+        assert abs(wb.expr(linking) + 4 * sympy.pi) < 1e-9  # Gauss: linked once
+        assert notes(wb, linking)[-1] == (
+            "the integrals along the curves, one inside the other, are computed numerically"
+        )
+
     def test_a_curve_without_a_range_is_refused(self, wb):
         wb.exe(r"C(t) := (\cos t, \sin t, 0)")
         found = error(wb, r"\oint_C \mathbf{F} \cdot d\mathbf{r}")
