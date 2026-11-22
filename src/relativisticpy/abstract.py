@@ -722,10 +722,6 @@ class _Printer(_LatexPrinter):
         super().__init__({"symbol_names": names})
         self._ranks = ranks or {}
 
-    def factored(self, coefficients: dict[Symbol, Expr]) -> Expr:
-        """See :func:`_factored`."""
-        return _factored(coefficients, self._order)
-
     def _as_ordered_terms(self, expr: Expr, order: Any = None) -> list[Expr]:
         return sorted(LatexPrinter._as_ordered_terms(self, expr, order=order), key=self._order)
 

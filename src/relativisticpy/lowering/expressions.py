@@ -86,7 +86,7 @@ from relativisticpy.typing.syntax import (
     _tensor_pattern_of_one,
     _walk,
 )
-from relativisticpy.typing.typer import TensorSource, _indices, _listed, _public
+from relativisticpy.typing.typer import TensorSource, _indices, _listed, shown_indices
 
 
 class Expressions(LinearAlgebra):
@@ -654,7 +654,10 @@ class Expressions(LinearAlgebra):
         """The attributes of an operation that gives tensor components to a function that
         wants a :class:`~relativisticpy.tensors.Tensor`: its indices, as they are shown,
         and the coordinates."""
-        return (("indices", _public(indices)), ("coordinates", self.session.coordinates or ()))
+        return (
+            ("indices", shown_indices(indices)),
+            ("coordinates", self.session.coordinates or ()),
+        )
 
     def _inline(self, binding: FunctionBinding, args: list[Node], span: Span, ctx: Context) -> Node:
         definition = binding.definition

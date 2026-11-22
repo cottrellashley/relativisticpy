@@ -202,7 +202,7 @@ def _mathjax(latex: str) -> str:
     return "\\[" + html.escape(latex, quote=False) + "\\]"
 
 
-def _written(step: Step) -> str:
+def typeset(step: Step) -> str:
     """The LaTeX a statement is typeset from: as it is written, as ``--render`` leaves
     it, in an alignment where it has one, as a row of ``\\begin{aligned}`` has."""
     text = step.span.text
@@ -218,7 +218,7 @@ def _step_html(step: Step, defines: str | None, formula: Callable[[str], str]) -
     if type(step.statement) is ast.Statement:  # a statement that could not be read
         parts.append(f"<div class='rp-code'>{html.escape(step.span.text)}</div>")
     else:
-        parts.append(f"<div class='rp-written'>{formula(_written(step))}</div>")
+        parts.append(f"<div class='rp-written'>{formula(typeset(step))}</div>")
     for value in step.values or []:
         parts.append(f"<div class='rp-value'>{_value_html(value, formula)}</div>")
     if defines:

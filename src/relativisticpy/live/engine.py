@@ -30,7 +30,7 @@ from relativisticpy.errors import (
 )
 from relativisticpy.language import Source, Span, parse
 from relativisticpy.language import syntax as ast
-from relativisticpy.live import _written
+from relativisticpy.live import typeset
 from relativisticpy.steps import (
     Snapshot,
     as_data,
@@ -296,7 +296,7 @@ def _entry(step: Step, after: Snapshot, before: Snapshot) -> dict[str, Any]:
         step = Step(step.span, step.statement, error=failure)
     entry["start"], entry["end"] = step.span.start, step.span.end
     entry["read"] = type(step.statement) is not ast.Statement
-    entry["typeset"] = _written(step)
+    entry["typeset"] = typeset(step)
     entry["definition"] = in_words(defined, "unicode") if defined else None
     if step.error is not None:
         entry["error"] = _error(step.error, step.span)
@@ -360,16 +360,16 @@ def _trimmed(text: str, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
-def _nodes(node: Any) -> Iterator[ast.Node]:
+def nodes(node: Any) -> Iterator[ast.Node]:
     """Every node of a syntax tree, from its root."""
     if isinstance(node, ast.Node):
         yield node
         for field in dataclasses.fields(node):
             if field.name != "span":
-                yield from _nodes(getattr(node, field.name))
+                yield from nodes(getattr(node, field.name))
     elif isinstance(node, tuple | list):
         for item in node:
-            yield from _nodes(item)
+            yield from nodes(item)
 
 
 def _part(step: Step, start: int, end: int) -> Span:
@@ -377,7 +377,7 @@ def _part(step: Step, start: int, end: int) -> Span:
     if none does, the value of a definition, or else the statement."""
     statement = step.statement
     best = step.span
-    for node in _nodes(statement):
+    for node in nodes(statement):
         span = node.span
         if not isinstance(node, ast.Expr) or span.source is not step.span.source:
             continue

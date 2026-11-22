@@ -481,7 +481,7 @@ def _relation(relation: Any) -> bool | None:
             equal = _numbers_equal(lhs, rhs)
         elif _shown_equal(lhs, rhs):
             equal = True
-        elif _asymptotic(relation):  # e^x \sin x = x + ... + O(x^5): no number decides it
+        elif asymptotic(relation):  # e^x \sin x = x + ... + O(x^5): no number decides it
             equal = None
         else:
             shown = _differs(lhs, rhs)
@@ -495,7 +495,7 @@ def _relation(relation: Any) -> bool | None:
     return None
 
 
-def _asymptotic(relation: Any) -> bool:
+def asymptotic(relation: Any) -> bool:
     """Whether a relation has an order term, SymPy's or Landau's O written as a function,
     as ``O(x^5)``: it says how a remainder grows, which no value at a point decides."""
     if relation.has(sympy.Order):

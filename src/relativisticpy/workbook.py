@@ -64,11 +64,11 @@ from relativisticpy.runtime import Executor
 from relativisticpy.runtime.kernels import differs
 from relativisticpy.steps import steps_of
 from relativisticpy.tensors import Indices, Space, Tensor, arrays, numerical
-from relativisticpy.tensors.equation import TensorEquation, UndecidedError, _asymptotic, holds
+from relativisticpy.tensors.equation import TensorEquation, UndecidedError, asymptotic, holds
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.numerical import double_precision as _double_precision
 from relativisticpy.tensors.simplification import is_zero, tidy
-from relativisticpy.typing.typer import _public
+from relativisticpy.typing.typer import shown_indices
 
 _F = TypeVar("_F", bound=Callable[..., Any])
 _T = TypeVar("_T")
@@ -668,7 +668,7 @@ class Workbook:
         indices = Indices(index.flip() for index in binding.indices)
         return Tensor(
             numerical.numpy().asarray(gradient),
-            _public(indices),
+            shown_indices(indices),
             name=f"grad {wrt}",
             spaces=binding.node.type.spaces,
         )
@@ -889,7 +889,7 @@ class Workbook:
                 components = value if numerical.is_numerical(value) else arrays.apply(value, tidy)
                 return Tensor(
                     components,
-                    _public(kind.indices),
+                    shown_indices(kind.indices),
                     coordinates,
                     name=output.name,
                     spaces=kind.spaces,
@@ -900,7 +900,7 @@ class Workbook:
                 return TensorEquation(
                     value.lhs,
                     value.rhs,
-                    _public(kind.of.indices),
+                    shown_indices(kind.of.indices),
                     coordinates,
                     kind.of.spaces,
                     scale=value.scale,
@@ -1003,9 +1003,11 @@ def _definition(name: str, binding: Any) -> Definition:
         return Definition("function", f"{written}({parameters})", definition.span)
     span = binding.node.span
     if isinstance(binding, TensorBinding):
-        return Definition("tensor", written + _public(binding.indices).latex(), span)
+        return Definition("tensor", written + shown_indices(binding.indices).latex(), span)
     if isinstance(binding.node.type, TensorType):
-        return Definition("tensor", written + _public(binding.node.type.indices).latex(), span)
+        return Definition(
+            "tensor", written + shown_indices(binding.node.type.indices).latex(), span
+        )
     return Definition("value", written, span)
 
 
@@ -1231,7 +1233,7 @@ def _undecided(output: Output, value: Any) -> UndecidedError | None:
             f"in {analysis.failing} of {analysis.total} components, SymPy could not show the "
             "sides equal, nor numbers that they differ"
         )
-    elif isinstance(value, sympy.Equality) and _asymptotic(value):
+    elif isinstance(value, sympy.Equality) and asymptotic(value):
         why = "it has an order term, O(...), which no value at a point decides"
     elif isinstance(value, sympy.Equality) and differs(value.lhs, value.rhs) is False:
         why = "the sides agree numerically, but this was not proven"

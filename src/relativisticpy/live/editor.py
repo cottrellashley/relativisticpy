@@ -28,7 +28,7 @@ import traitlets
 from relativisticpy.errors import RelativisticPyError, UsageError
 from relativisticpy.integrations._objects import Carried, PythonScope, Reference, reference
 from relativisticpy.language import Source, parse
-from relativisticpy.live.engine import _nodes
+from relativisticpy.live.engine import nodes
 from relativisticpy.live.worker import (
     GRACE,
     MEMORY_LIMIT,
@@ -247,7 +247,7 @@ def _references(text: str) -> list[Reference]:
     except RelativisticPyError:
         return []
     found: dict[str, Reference] = {}
-    for node in _nodes(program):
+    for node in nodes(program):
         held = written_object(node)
         if held is None:
             continue

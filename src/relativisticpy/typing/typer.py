@@ -708,7 +708,9 @@ def _complex(kind: TensorType) -> bool:
     return any(space.field == "complex" for space in kind.spaces)
 
 
-def _public(indices: Indices) -> Indices:
+def shown_indices(indices: Indices) -> Indices:
+    """Indices as they are shown: each label without the ``#`` of one no one wrote, as
+    the axes of data are."""
     return Indices(Index(_display(i.name), i.upper) for i in indices)
 
 
