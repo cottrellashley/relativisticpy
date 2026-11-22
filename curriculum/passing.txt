@@ -99,6 +99,7 @@ fluid.viscous.reynolds-number
 fluid.viscous.terminal-velocity
 fluid.vorticity.line-vortex
 fluid.vorticity.shear-flow
+geom.balls.five-ball
 geom.curves.ellipse-vertex
 geom.gauss-bonnet.chern-four-sphere
 geom.gauss-bonnet.geodesic-triangle
@@ -179,6 +180,8 @@ sig.windows.coherent-gain
 special.erf.derivative
 special.erf.normal
 special.erf.series
+special.gamma.half
+special.gamma.reflection
 special.legendre.rodrigues
 sr.four-momentum.antiproton-threshold
 sr.four-momentum.mass-shell

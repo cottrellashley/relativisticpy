@@ -44,6 +44,37 @@ takes, and their names in the reference. A library is imported inside the method
 at the top of the module, so that the language runs without it; when it is missing, the
 user is told what to install.
 
+## Written forms
+
+A capability is called by its name in plain text, `gamma(x)`, and is written in books in
+forms of its own, which it declares in the language itself: `latex=r"\Gamma(x)"` and
+`unicode="Γ(x)"`. Each form is parsed once, by the language's own parser, into a pattern:
+the name it is written with and how that name is set, its scripts, and its arguments,
+each named after a parameter of `exact`. A program that writes the same shape is read as
+the capability, and a result prints in the first form, so that it reads back:
+
+```python
+>>> from relativisticpy import Workbook, display
+>>> wb = Workbook()
+>>> wb.expr(r"\Gamma\left(\tfrac{1}{2}\right)")
+sqrt(pi)
+>>> display.latex(wb.expr(r"\Gamma(x)"))
+'\\Gamma\\left(x\\right)'
+
+```
+
+The reader follows the notation decisions of the project (`design/notation.md`, 15): a
+definition in the program always wins, a script that is an index label is an index, so
+that `\Gamma^{\lambda}_{\mu\nu}` stays the Christoffel symbol, and a name of one letter
+called with the coordinates, as the lapse `N(t)` in a metric, is a function of them.
+`Workbook.explain` shows each reading, and a note says where a name of one letter could
+have meant a function of the program's own.
+
+A name books write for a function no integration provides yet is *reserved* in
+`integrations/book_names.py`, with what it is: a program that writes it is refused,
+saying so, rather than reading it as an unknown function. A capability of the same name
+retires the reservation.
+
 ## Adding one, step by step
 
 1. **Find the gap.** `uv run python benchmarks/curriculum.py --failures` names what the

@@ -93,6 +93,12 @@ class Capability:
         return (self.name, *self.aliases)
 
     @property
+    def brief(self) -> str:
+        """What it is, as a note says it: its summary up to a semicolon, without the marks
+        of code the reference shows."""
+        return self.summary.split(";")[0].replace("`", "").strip()
+
+    @property
     def exact(self) -> Callable[..., Any]:
         """What computes it with SymPy."""
         method: Callable[..., Any] = self.implementation.exact
@@ -301,17 +307,20 @@ def _positional(parameter: inspect.Parameter) -> bool:
 
 @dataclass(frozen=True)
 class Reservation:
-    """A name books write for something no integration provides yet: ``what`` it is, and
-    the forms it is ``written`` in. A program that writes it is refused, saying what it is,
-    rather than reading it as an unknown function or a symbol. A capability that provides
-    it, by its name or by every one of its forms, retires it."""
+    """A name books write for something no integration provides yet: ``what`` it is, the
+    forms it is ``written`` in, and what to write ``instead``, if anything. A program that
+    writes it is refused, saying what it is, rather than reading it as an unknown function
+    or a symbol. A capability with its name retires it."""
 
     name: str
     what: str
     written: tuple[str, ...]
+    instead: str | None = None
 
 
-def reserved(name: str, *, what: str, written: str | Sequence[str]) -> Reservation:
+def reserved(
+    name: str, *, what: str, written: str | Sequence[str], instead: str | None = None
+) -> Reservation:
     """Reserve a book name until an integration provides it."""
     forms = (written,) if isinstance(written, str) else tuple(written)
-    return Reservation(name, what, forms)
+    return Reservation(name, what, forms, instead)

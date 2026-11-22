@@ -73,6 +73,7 @@ KINDS = (
     "letters",
     "constant or symbol",
     "function named alone",
+    "book name",
 )
 
 

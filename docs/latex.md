@@ -171,6 +171,19 @@ name is a name of its own, which a definition gives a value, as in
 | Symbols | all Greek letters and their `\var` forms, `\infty`, `\hbar`, `\ell` |
 | Text and style | `\text` `\mathrm` `\mathbf` `\mathcal` `\boldsymbol` and friends |
 
+A function is also read as books write it, by the forms its integration declares:
+`\Gamma(x)`, with one argument and no indices, is Euler's gamma function, while
+`\Gamma^{\lambda}_{\mu\nu}` stays the Christoffel symbol, and a definition of the name in
+the program always comes first. A book name that no integration provides yet is refused
+as not supported yet, saying what it is, rather than read as an unknown function
+([Integrations](integrations.md#written-forms)):
+
+```python
+>>> wb.expr(r"\Gamma\left(\tfrac{1}{2}\right)")
+sqrt(pi)
+
+```
+
 [The language reference](reference.md#commands) lists every command, with what it
 means. An unknown command is an error, with a suggestion:
 
@@ -246,8 +259,8 @@ separate them, as do `\Rightarrow`, `\implies` and `\iff`, and words such as
 `\text{and}`, `\text{or}` and `\text{where}`:
 
 ```python
->>> wb.exe(r"{\rm Tr}\,M + {n \choose 2} \qquad r_+ + r^* \qquad \hbar\omega \ .")
-[M*Tr + binomial(n, 2), r^* + r_+, hbar*omega]
+>>> wb.exe(r"{\rm GM}/r + {n \choose 2} \qquad r_+ + r^* \qquad \hbar\omega \ .")
+[GM/r + binomial(n, 2), r^* + r_+, hbar*omega]
 >>> wb.exe(r"x \equiv 2, \quad y \equiv 3 \quad \text{and} \quad x + y")
 [5]
 

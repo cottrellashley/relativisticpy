@@ -285,6 +285,19 @@ def _is_unknown_function(expr: Any) -> bool:
     return isinstance(expr, AppliedUndef)
 
 
+def _book(
+    expr: Any, form: Literal["latex", "unicode"], show: Callable[[Any], str]
+) -> tuple[str, bool] | None:
+    """A call of a capability an integration declares written forms for, as the first of
+    them in ``form`` writes it, as ``J_{0}\\left(x\\right)``, with whether it is written
+    with scripts; ``None`` for anything else (see :mod:`relativisticpy.integrations`)."""
+    if not isinstance(expr, sympy.Function) or isinstance(expr, AppliedUndef):
+        return None
+    from relativisticpy.integrations import _forms
+
+    return _forms.printed(expr, form, show)
+
+
 def _lagrange(expr: Any) -> tuple[Any, int] | None:
     """The function and the order of a derivative written with primes, ``f''(x)``: an
     unknown function of one variable, differentiated by it at most three times."""
@@ -325,6 +338,13 @@ class _PlainPrinter(StrPrinter):  # type: ignore[misc]
 
     def _name(self, name: str) -> str:
         return unicode_name(name) if self.unicode else text_name(name, latex_mode=self.latex_mode)
+
+    def _print(self, expr: Any, **settings: Any) -> str:
+        """A call of a capability in its Unicode form, as ``Γ(x)``; anything else as the
+        printer's own methods print it."""
+        if self.unicode and (book := _book(expr, "unicode", self._print)) is not None:
+            return book[0]
+        return str(super()._print(expr, **settings))
 
     def _print_Symbol(self, expr: Any) -> str:
         if expr in self.names:
@@ -476,11 +496,16 @@ class _PlainPrinter(StrPrinter):  # type: ignore[misc]
         """The base of a power, in brackets unless it is a symbol, a positive integer or
         a function's value."""
         shown = self._print(base)
+        book = _book(base, "unicode", self._print) if self.unicode else None
         bare = (
             base.is_Symbol
             or (base.is_Integer and base >= 0)
             or base in (sympy.pi, sympy.E, sympy.I)
-            or (isinstance(base, sympy.Function) and not isinstance(base, sympy.factorial))
+            or (
+                isinstance(base, sympy.Function)
+                and not isinstance(base, sympy.factorial)
+                and not (book is not None and book[1])  # J_{1/2}(x), whose script binds first
+            )
             or (isinstance(base, sympy.Derivative) and _lagrange(base) is not None)
         )
         return shown if bare else f"({shown})"
@@ -815,9 +840,18 @@ class _LatexPrinter(LatexPrinter):  # type: ignore[misc]
             return self._unknown(expr, exp)
         return str(super()._print_Function(expr, exp))
 
-    def _print_gamma(self, expr: Any, exp: Any = None) -> str:
-        shown = f"\\operatorname{{gamma}}\\left({self._print(expr.args[0])}\\right)"
-        return f"{shown}^{{{exp}}}" if exp is not None else shown
+    def _print(self, expr: Any, **settings: Any) -> str:
+        """A call of a capability in its LaTeX form, as ``J_{0}\\left(x\\right)``, in
+        brackets before a power where it is written with scripts; anything else as SymPy's
+        printer, with this one's methods, prints it."""
+        book = _book(expr, "latex", self._print)
+        if book is None:
+            return str(super()._print(expr, **settings))
+        shown, scripted = book
+        power = settings.get("exp")
+        if power is None:
+            return shown
+        return f"\\left({shown}\\right)^{{{power}}}" if scripted else f"{shown}^{{{power}}}"
 
     def _print_atan2(self, expr: Any, exp: Any = None) -> str:
         arguments = ", ".join(self._print(a) for a in expr.args)

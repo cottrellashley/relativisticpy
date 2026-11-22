@@ -41,15 +41,38 @@ of the conformance suite.
 
 ### Written forms
 
-Every capability declares how it is written: in LaTeX (`J_{\nu}(x)`,
-`\operatorname{J}_{\nu}(x)`), in plain text (`besselj(nu, x)`) and in Unicode. The
-same declaration does two jobs:
+Every capability declares how it is written: in LaTeX (`latex=r"J_{\nu}(x)"`, and
+`\operatorname{J}_{\nu}(x)` too if books write it so) and in Unicode
+(`unicode="J_ν(x)"`). In plain text a capability is its name, called with its
+parameters, `besselj(nu, x)`: the name is the plain text, so there is nothing to keep in
+step. The same declaration does two jobs:
 
-- **Reading.** The parser reads the general forms (a command,
-  `\operatorname{name}_{sub}^{sup}(...)`, `\mathcal{F}\{f\}(\omega)`), so most
-  capabilities need no change to the parser.
+- **Reading.** Each form is written in the language and parsed once, by its own parser,
+  into a pattern: the name the call is written with and how it is set (upright, as
+  `\operatorname{erfc}` or `\mathrm{B}`, calligraphic, a Greek letter, or plainly), its
+  scripts before, below and above, and its arguments, each a variable named after a
+  parameter of `exact`. The reader takes a call a program writes apart in the same way,
+  whether the parser joined it into a name (`J_0(1)`), read it as a product
+  (`J_{\nu}(x)`), or as a bracket with a script (`(a)_n`), and reads it as the capability
+  whose pattern it has. The parser needs no change for most capabilities.
 - **Printing.** The printer writes a call the way it was declared, so every result
   reads back.
+
+The reader decides as `design/notation.md` says, and records each decision as a reading
+that `Workbook.explain` shows:
+
+- a user's definition always wins: a name given a value, or defined as a function;
+- index notation wins: a script that is an index label of the statement is an index,
+  and `\Gamma` with indices stays the Christoffel symbol, since no form has them;
+- a name of one letter called with the coordinates, as `N(t)` in a metric, is a function
+  of them;
+- a name of one letter written alone, as `\Gamma(x)` or `\Phi(x)`, is read as the
+  capability with a note, since a program could mean a function of its own.
+
+A book name no integration provides yet is reserved where integrations live
+(`integrations/book_names.py`), with what it is and its forms, and a program that writes
+it is refused as not supported yet, saying what it is, never read as an unknown function
+or a symbol. A capability with the reservation's name retires it.
 
 ## Large sets of numbers: Python objects
 

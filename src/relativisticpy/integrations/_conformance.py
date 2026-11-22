@@ -137,7 +137,7 @@ def declaration(capability: Capability) -> list[str]:
                 'directly, "scipy.special.jv(0, 1.5)"'
             )
     failures += _dependencies(capability)
-    failures += _forms(capability)
+    failures += _written(capability)
     return failures
 
 
@@ -208,22 +208,59 @@ def _dependencies(capability: Capability) -> list[str]:
     return failures
 
 
-def _forms(capability: Capability) -> list[str]:
-    """The plain text a capability is called with reads as a call of it."""
+def _written(capability: Capability) -> list[str]:
+    """The plain text a capability is called with reads as a call of it; each written form
+    parses, by the language's own parser, into a call written with the parameters of
+    exact, and reads as this capability and no other."""
+    from relativisticpy.integrations import _forms
     from relativisticpy.language import parse
     from relativisticpy.language import syntax as ast
 
+    name, failures = capability.name, []
     text = capability.text().replace(", ...)", ")")
     try:
         expr = _expression(parse(text).statements)
     except RelativisticPyError as error:
-        return [f"{capability.name}: its call, {text}, does not parse: {error.message}"]
+        return [f"{name}: its call, {text}, does not parse: {error.message}"]
     if not (isinstance(expr, ast.Call) and isinstance(expr.func, ast.Name)):
-        return [
-            f"{capability.name}: its call, {text}, reads as something else; name its "
-            "parameters after letters or words, as def exact(self, nu, x)"
-        ]
-    return []
+        failures.append(
+            f"{name}: its call, {text}, reads as something else; name its parameters after "
+            "letters or words, as def exact(self, nu, x)"
+        )
+    parameters = {*capability.parameters, *capability.keywords}
+    low, _ = capability.arity
+    with usable(capability):
+        for form, written in (("latex", capability.latex), ("unicode", capability.unicode)):
+            for each in written:
+                pattern = _forms.parse_form(capability, each, form)  # type: ignore[arg-type]
+                if pattern is None:
+                    failures.append(
+                        f"{name}: the {form} form {each} does not parse as a call, as "
+                        r"J_{\nu}(x) or \operatorname{erfc}(x) does; write it as books do"
+                    )
+                    continue
+                strange = [v for v in pattern.variables() if v not in parameters]
+                if strange:
+                    failures.append(
+                        f"{name}: the form {each} writes {', '.join(strange)}, which "
+                        f"{'is' if len(strange) == 1 else 'are'} no parameter of exact; "
+                        "name the variables of a form as exact names its parameters, as "
+                        f"{capability.text()}"
+                    )
+                needed = [p for p in capability.parameters[:low] if p not in pattern.variables()]
+                if needed:
+                    failures.append(
+                        f"{name}: the form {each} leaves out {', '.join(needed)}, which exact "
+                        "needs; write every parameter in it"
+                    )
+                found = _forms.matching(pattern.shape)
+                if found is None or found.pattern.owner is not capability:
+                    other = getattr(found.pattern.owner, "name", "nothing") if found else "nothing"
+                    failures.append(
+                        f"{name}: the form {each} reads as {other}, not as {name}; write it so "
+                        "that it is this capability's alone"
+                    )
+    return failures
 
 
 # -- 2. examples -------------------------------------------------------------------------
@@ -504,13 +541,13 @@ def display(capability: Capability) -> list[str]:
             except RelativisticPyError as error:
                 failures.append(
                     f"{name}: {_value(value)} prints in {form} as {shown}, which does not read "
-                    f"back: {error.message}; declare a {form} form the language reads"
+                    f"back: {error.message}; {_to_read(capability, value, form)}"
                 )
                 continue
             if not _same(back, value, 1e-12):
                 failures.append(
                     f"{name}: {_value(value)} prints in {form} as {shown}, which reads back as "
-                    f"{_read_as(back)}; declare a {form} form the language reads as {name}"
+                    f"{_read_as(back)}; {_to_read(capability, value, form)}"
                 )
         described = show.data(value)
         try:
@@ -518,6 +555,18 @@ def display(capability: Capability) -> list[str]:
         except TypeError as error:
             failures.append(f"{name}: the data form of {_value(value)} is not JSON: {error}")
     return failures
+
+
+def _to_read(capability: Capability, value: Any, form: str) -> str:
+    """What makes a call print as the language reads it back: in text, the name it prints
+    with, called; in LaTeX and Unicode, a form of the capability's own."""
+    if form == "text":
+        printed = type(value).__name__ if isinstance(value, sympy.Function) else None
+        if printed and printed != capability.name:
+            return f"name the capability {printed}, as its calls print, or give it that alias"
+        return f"make exact give a call that prints as {capability.text()}"
+    example = r"J_{\nu}(x)" if form == "latex" else "J_ν(x)"
+    return f'declare a {form} form the language reads as {capability.name}, as {form}="{example}"'
 
 
 def _call(capability: Capability) -> Any:
@@ -552,8 +601,8 @@ def reference(capability: Capability) -> list[str]:
             f"the reference cannot be written with {capability.name}: {error}; write its "
             "summary without a bar, |, which a table of the reference cannot hold"
         ]
-    wanted = [f"`{capability.text()}`", *(f"`{alias}`" for alias in capability.aliases)]
-    wanted.append(capability.summary)
+    named = (capability.text(), *capability.aliases, *capability.latex)
+    wanted = [*(f"`{name}`" for name in named), capability.summary]
     missing = [item for item in wanted if item not in page]
     if not missing:
         return []

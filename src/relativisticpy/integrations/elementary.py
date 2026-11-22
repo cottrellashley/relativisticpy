@@ -507,6 +507,8 @@ class DoubleFactorial:
 
 @function(
     "gamma",
+    latex=r"\Gamma(x)",
+    unicode="Γ(x)",
     summary=r"Euler's gamma function; `\gamma` is the letter",
     examples=[
         Example("gamma(5)", 24, "DLMF 5.4.1"),

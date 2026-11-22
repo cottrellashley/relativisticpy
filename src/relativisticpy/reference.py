@@ -481,8 +481,9 @@ def _functions() -> list[str]:
         "## Functions",
         "",
         "A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, "
-        "`\\sin x`. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies "
-        "every component. Each is a capability of an integration, a module of "
+        "`\\sin x`, or as books write it, `\\Gamma(x)`: a definition of the name in the "
+        "program comes first. Most apply to each component of a tensor: `simplify(R_{abcd})` "
+        "simplifies every component. Each is a capability of an integration, a module of "
         "`relativisticpy.integrations` ([Integrations](integrations.md)), from whose "
         "declaration this list is written.",
     ]
@@ -495,12 +496,25 @@ def _functions() -> list[str]:
         ]
         lines += ["", f"### {_title(module)}", ""]
         lines += _table(("Function", "Arguments", "Meaning"), rows)
+    reserved = [
+        f"{_code(reservation.written[0])}, {reservation.what}"
+        for reservation in integrations.reservations()
+    ]
+    lines += [
+        "",
+        "### Book names not supported yet",
+        "",
+        "A name books write for a function no integration provides is refused, saying what it "
+        "is, never read as an unknown function or a symbol: " + "; ".join(reserved) + ".",
+    ]
     return lines
 
 
 def _called(capability: integrations.Capability) -> str:
-    """How a capability is written: called by its name, then its other names."""
-    return " ".join(_code(name) for name in (capability.text(), *capability.aliases))
+    """How a capability is written: called by its name, then its other names, then the
+    forms books write it in."""
+    written = (capability.text(), *capability.aliases, *capability.latex)
+    return " ".join(_code(name) for name in written)
 
 
 def _data() -> list[str]:

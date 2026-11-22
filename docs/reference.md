@@ -105,7 +105,7 @@ Each is a function that gives a metric, as in `g_{\mu\nu} := Schwarzschild(M)`. 
 
 ## Functions
 
-A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component. Each is a capability of an integration, a module of `relativisticpy.integrations` ([Integrations](integrations.md)), from whose declaration this list is written.
+A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`, or as books write it, `\Gamma(x)`: a definition of the name in the program comes first. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component. Each is a capability of an integration, a module of `relativisticpy.integrations` ([Integrations](integrations.md)), from whose declaration this list is written.
 
 ### Algebra and calculus
 
@@ -167,7 +167,7 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `ceiling(x)` | 1 | rounded up; `\lceil x \rceil` too |
 | `factorial(x)` | 1 | the factorial; `n!` too |
 | `factorial2(x)` | 1 | the double factorial; `n!!` too |
-| `gamma(x)` | 1 | Euler's gamma function; `\gamma` is the letter |
+| `gamma(x)` `\Gamma(x)` | 1 | Euler's gamma function; `\gamma` is the letter |
 | `re(x)` `Re` | 1 | the real part; `\Re` too |
 | `im(x)` `Im` | 1 | the imaginary part; `\Im` too |
 | `conjugate(x)` `conj` | 1 | the complex conjugate |
@@ -208,6 +208,10 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | `max(first, ...)` `Max` | 1 or more | the greatest of the arguments |
 | `gcd(a, b, ...)` | 2 or more | the greatest common divisor |
 | `lcm(a, b, ...)` | 2 or more | the least common multiple |
+
+### Book names not supported yet
+
+A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\mathrm{B}(a, b)`, the Beta function; `\zeta(s)`, Riemann's zeta function; `J_{\nu}(x)`, the Bessel function of the first kind; `P_n(x)`, the Legendre polynomial; `H_n(x)`, the Hermite polynomial; `Y_l^m(\theta, \phi)`, the spherical harmonic; `\operatorname{erfc}(x)`, the complementary error function; `\operatorname{Log}(z)`, the principal branch of the logarithm; `\Phi(x)`, the standard normal distribution function; `Heaviside(x)`, the unit step; `DiracDelta(x)`, the Dirac delta; `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{tr} A`, the trace of a matrix written as an operator; `\operatorname{rank} A`, the rank of a matrix; `\operatorname{Var}(X)`, the variance of a random variable; `\mathcal{L}\{f\}`, the Laplace transform; `\mathcal{F}\{f\}`, the Fourier transform; `\epsilon_{ijk}`, the Levi-Civita symbol.
 
 ## Data, statistics and linear algebra
 

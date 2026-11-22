@@ -12,9 +12,11 @@ from __future__ import annotations
 import inspect
 import re
 from collections.abc import Sequence
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from functools import reduce
 from typing import Any, Literal
+
+import sympy
 
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS, Builtin
 from relativisticpy.compiler.passes import Term
@@ -30,6 +32,8 @@ from relativisticpy.compiler.scope import (
 )
 from relativisticpy.compiler.session import GEOMETRY_POSITIONS, describe
 from relativisticpy.errors import CompileError, IndexNotationError, ParseError, RelativisticPyError
+from relativisticpy.integrations import Capability, Reservation
+from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
@@ -81,6 +85,20 @@ from relativisticpy.typing.syntax import (
     _written,
 )
 from relativisticpy.typing.typer import _EXAMPLE_LABELS, TensorSource, Typer, _listed
+
+#: The decision of what a name books write for a function means.
+BOOK = "book name"
+
+
+@dataclass(frozen=True)
+class BookCall:
+    """A call written as books write a capability, read as a call of it: the
+    ``capability``, its ``arguments``, in the order ``exact`` takes them, and its
+    ``keywords``, the parameters a form gives by name, known when the program is read."""
+
+    capability: Capability
+    arguments: tuple[ast.Expr, ...]
+    keywords: ops.Attributes = ()
 
 
 class Reader(Typer):
@@ -1002,7 +1020,7 @@ class Reader(Typer):
         if name in self._factors:
             return f"{name} is written as a factor in this statement"
         written = name in self.session.factors and name not in self.session.functions
-        if written and len(names) != len(args):
+        if written and len(names) != len(args) and not _in_books(func, args):
             return f"{name} was written as a factor before"
         one_name = len(args) == 1 and isinstance(args[0], ast.Name)
         return self._a_factor(name, args, one_name) if ctx.latex else None
@@ -1166,6 +1184,140 @@ class Reader(Typer):
                 "unknown function"
             )
 
+    def _book_call(self, node: ast.Call, scope: Scope) -> BookCall | None:
+        """``\\Gamma(x)``, ``J_0(1)`` or ``J_{\\nu}(x)``: a call written as books write a
+        capability, read as a call of it (see :meth:`_book_name`)."""
+        shape = forms.call_shape(node)
+        if shape is None:
+            return None
+        return self._book_name(shape, node, node.func.span.text, scope)
+
+    def _book_factors(self, factors: list[ast.Expr], scope: Scope) -> list[ast.Expr]:
+        """Factors with each name written with scripts and then, right after it, its
+        arguments in brackets, as ``J_{\\nu}(x)``, which the parser reads as a product,
+        made one call where it is written as books write a capability; and an operator
+        reserved, as ``\\operatorname{tr} A``, refused."""
+        merged: list[ast.Expr] = []
+        position = 0
+        while position < len(factors):
+            factor = factors[position]
+            following = factors[position + 1] if position + 1 < len(factors) else None
+            if isinstance(factor, ast.Name | ast.Scripted) and following is not None:
+                shape = forms.pair_shape(factor, following) or forms.operator_shape(
+                    factor, following
+                )
+                if shape is not None:
+                    span = factor.span.to(following.span)
+                    call = ast.Call(factor, shape.arguments, span=span)
+                    if self._book_name(shape, call, factor.span.text, scope) is not None:
+                        merged.append(call)
+                        position += 2
+                        continue
+            merged.append(factor)
+            position += 1
+        return merged
+
+    def _book_scripted(self, node: ast.Scripted, scope: Scope) -> BookCall | None:
+        """``(a)_n``, the Pochhammer symbol, written as a bracket with a subscript; and a
+        name with indices reserved, as ``\\epsilon_{ijk}``, refused."""
+        shape = forms.scripted_shape(node)
+        if shape is None:
+            return None
+        return self._book_name(shape, node, node.span.text, scope)
+
+    def _book_name(
+        self, shape: forms.Shape, node: ast.Expr, written: str, scope: Scope
+    ) -> BookCall | None:
+        """What a name books write for a function means, written as ``shape``: a call of
+        the capability whose written form it has (``design/notation.md``, 15).
+
+        A user's definition always wins: a name the program gives a value, or defines as a
+        function, is its own. Index notation wins too: a script that is an index label of
+        the statement, written both up and down or ranging over a space, is an index, and
+        ``\\Gamma`` with indices stays the Christoffel symbol, as no form of a function has
+        them. A name of one letter called with the coordinates, as N(t) in a metric, is a
+        function of them. A name no integration provides yet, but reserved, is refused,
+        saying what it is. ``None`` for anything else, and the reading is recorded, with a
+        note where the name is one letter that a program could mean otherwise."""
+        match = forms.matching(shape)
+        if match is None or self._own_book_name(shape, node, scope):
+            return None
+        owner = match.pattern.owner
+        if any(self._an_index_label(slot) for slot in shape.scripts):
+            return None
+        if not shape.head and any(self._names_tensor(arg, scope) for arg in shape.arguments):
+            return None  # (A + B)_{\mu}: a tensor's index
+        meant = owner.what if isinstance(owner, Reservation) else owner.brief
+        alone = not shape.scripts and (len(shape.head) == 1 or shape.head in GREEK)
+        if alone and self._called_with_coordinates(shape):
+            said = (
+                f"{node.span.text} is read as a function of the coordinates; elsewhere, "
+                f"{match.pattern.written} is {meant}"
+            )
+            why = "it is called with the coordinates, as a function of them is"
+            self._decide(BOOK, node.span, "a function of the coordinates", why, said)
+            self._note(said)
+            return None
+        if isinstance(owner, Reservation):
+            raise CompileError(
+                f"{written}, {owner.what}, is not supported yet",
+                span=node.span,
+                hint=owner.instead
+                or "no integration provides it yet; relativisticpy help integrations says "
+                "how to add one",
+            )
+        bound = _bound(owner, match)
+        if bound is None:
+            return None
+        arguments, keywords = bound
+        note: str | None = None
+        if not shape.head:  # (a)_n
+            note = (
+                f"{node.span.text} is read as {owner.brief}, {owner.name}; for a symbol with "
+                "a subscript, write it without brackets"
+            )
+        elif alone:  # \Gamma(x), \Phi(x)
+            note = (
+                f"{written} is read as {owner.brief}, {owner.name}; for a function of your "
+                f"own, define {written} first"
+            )
+        if note is not None:
+            self._note(note)
+        why = f"{match.pattern.written} is how books write it, and nothing defines {written}"
+        self._decide(BOOK, node.span, f"{owner.name}, {owner.brief}", why, note)
+        return BookCall(owner, arguments, keywords)
+
+    def _own_book_name(self, shape: forms.Shape, node: ast.Expr, scope: Scope) -> bool:
+        """Whether the program gives a book name a meaning of its own: a value or a
+        function, a function of the coordinates it wrote before, or a declared symbol,
+        under the name or the name with its subscript, as ``J_0``."""
+        names = {shape.head}
+        func = node.func if isinstance(node, ast.Call) else None
+        if isinstance(func, ast.Name):
+            names.add(func.id)
+        session = self.session
+        return any(
+            scope.lookup(name) is not None
+            or name in session.functions
+            or name in session.assumptions
+            for name in names
+        )
+
+    def _an_index_label(self, slot: ast.Node) -> bool:
+        """Whether a script is an index label of the statement: written both as a
+        subscript and as a superscript, or ranging over a space."""
+        if not isinstance(slot, ast.Name):
+            return False
+        label = slot.id
+        written = self._scripts["_"][label] and self._scripts["^"][label]
+        return bool(written) or label in self._labels or label in self.session.labels
+
+    def _called_with_coordinates(self, shape: forms.Shape) -> bool:
+        coordinates = {c.name for c in self.session.coordinates or ()}
+        return bool(coordinates) and all(
+            isinstance(arg, ast.Name) and arg.id in coordinates for arg in shape.arguments
+        )
+
     def _check_keywords(self, builtin: Builtin, node: ast.Call) -> None:
         """Refuse an argument given by name, as n=5 in series(sin(x), x, 0, n=5), which
         would be an equation passed in its place: arguments are given in order."""
@@ -1277,3 +1429,41 @@ class Reader(Typer):
                 f"apply it, write {reference.describe()}(...)"
             )
         return self.graph.const(self.session.symbol(name), SCALAR, reference.span)
+
+
+def _in_books(func: ast.Name, args: tuple[ast.Expr, ...]) -> bool:
+    """Whether a call is written as books write a function, as \\Gamma(5) is, which the
+    name's use as a factor before does not make a product: \\Gamma^{t}_{tr} before it is
+    the Christoffel symbol, and \\Gamma(5) Euler's gamma function."""
+    shape = forms.call_shape(ast.Call(func, args, span=func.span))
+    return shape is not None and forms.matching(shape) is not None
+
+
+def _bound(
+    capability: Capability, match: forms.Match
+) -> tuple[tuple[ast.Expr, ...], ops.Attributes] | None:
+    """The arguments of a call read as ``capability``, from what its form binds: those
+    ``exact`` takes in order, up to the last the form gives, and the parameters given by
+    name, each a number or a name; ``None`` where the form leaves one it needs."""
+    bindings = match.bindings
+    arguments: list[ast.Expr] = []
+    skipped = False
+    for parameter in capability.signature.parameters.values():
+        if parameter.kind not in (parameter.POSITIONAL_ONLY, parameter.POSITIONAL_OR_KEYWORD):
+            continue
+        if parameter.name in bindings and not skipped:
+            arguments.append(bindings[parameter.name])  # type: ignore[arg-type]
+        elif parameter.name in bindings or parameter.default is parameter.empty:
+            return None  # one it needs left, or one given after one left
+        else:
+            skipped = True
+    keywords: list[tuple[str, Any]] = []
+    for name in capability.keywords:
+        slot = bindings.get(name)
+        if isinstance(slot, ast.Number):
+            keywords.append((name, sympy.sympify(slot.text)))
+        elif isinstance(slot, ast.Name):
+            keywords.append((name, slot.id))
+        elif slot is not None:
+            return None
+    return tuple(arguments), tuple(keywords)

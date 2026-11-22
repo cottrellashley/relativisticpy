@@ -24,13 +24,13 @@ from relativisticpy.integrations import Example, function
 
 @function(
     "brokenj",
-    summary="the Bessel function |J_0|.",
+    summary="the Fresnel integral |S|.",
     requires="scipyy",
     examples=[Example("brokenj(0)", 2, "")],
 )
 class BrokenJ:
     def exact(self, x):
-        return sympy.besselj(0, x)
+        return sympy.fresnels(x)
 
     def numeric(self, xp, x):
         return xp.cos(x)
@@ -88,7 +88,7 @@ def test_the_declaration_is_told_what_it_lacks(broken):
 def test_an_example_with_the_wrong_answer_is_told(broken):
     (failure,) = integrations.check(broken.BrokenJ, ["examples"])["examples"]
     assert failure == (
-        "brokenj's example brokenj(0) gives 1, not 2: fix exact, or the example's answer"
+        "brokenj's example brokenj(0) gives 0, not 2: fix exact, or the example's answer"
     )
 
 
@@ -117,8 +117,10 @@ def test_the_wrong_kind_of_argument_that_fails_inside_is_told(broken):
 
 def test_a_call_that_does_not_read_back_is_told(broken):
     failures = integrations.check(broken.BrokenJ, ["display"])["display"]
-    assert told(failures, "prints in text as besselj(0, x), which reads back as")
-    assert told(failures, "declare a text form the language reads as brokenj")
+    assert told(failures, "prints in text as fresnels(x), which reads back as fresnels(x), in")
+    assert told(failures, "fresnels is a function the language does not know")
+    assert told(failures, "name the capability fresnels, as its calls print, or give it that alias")
+    assert told(failures, "declare a latex form the language reads as brokenj")
 
 
 def test_a_summary_the_reference_cannot_hold_is_told(broken):

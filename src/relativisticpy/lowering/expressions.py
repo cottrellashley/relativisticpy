@@ -58,6 +58,7 @@ from relativisticpy.reading.names import (
     _splittable,
     _unprimed,
 )
+from relativisticpy.reading.reader import BookCall
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.typing.notation import _passed
 from relativisticpy.typing.syntax import (
@@ -278,6 +279,7 @@ class Expressions(LinearAlgebra):
         if ctx.latex:
             factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]
+        factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call
         grouped = self._statistic_factors(factors, scope, ctx)
         if len(grouped) == 1 and isinstance(grouped[0], Node):
             return grouped[0]
@@ -425,7 +427,10 @@ class Expressions(LinearAlgebra):
         func = node.func
         if isinstance(func, ast.Prime):
             return self._prime(func, node.args, node.span, scope, ctx)
-        assert isinstance(func, ast.Name)
+        if not isinstance(func, ast.Name):  # J_{\nu}(x), made one call by the reader
+            book = self._book_call(node, scope)
+            assert book is not None
+            return self._capability(book, node.span, scope, ctx)
         if func.id in _NOTATION_OPERATIONS and self._is_notation(node, scope, ctx, operation=True):
             return self._notation(node, scope, ctx)
         name = func.id
@@ -477,6 +482,8 @@ class Expressions(LinearAlgebra):
                 hint=f"for example {name}(\\Sigma^{{a}}{{}}_{{b}})",
             )
         builtin = _names_builtin(func, latex=ctx.latex)  # \gamma(r) is an unknown function
+        if not builtin and (book := self._book_call(node, scope)) is not None:
+            return self._capability(book, node.span, scope, ctx)  # \Gamma(x), J_0(x)
         if builtin:
             self._check_keywords(BUILTINS[name], node)
         if ctx.latex and binding is None and not builtin and _splittable(func):
@@ -537,16 +544,24 @@ class Expressions(LinearAlgebra):
         paired = Indices([indices[0], Index(indices[0].name, indices[1].upper)])
         return self._trace(self.graph.retype(node, node.type.with_indices(paired)), argument.span)
 
-    def _builtin(self, builtin: Builtin, args: list[Node], span: Span) -> Node:
+    def _builtin(
+        self, builtin: Builtin, args: list[Node], span: Span, attributes: ops.Attributes = ()
+    ) -> Node:
         if message := builtin.check_arity(len(args)):
             raise CompileError(message, span=span)
         first = args[0] if args else None
         if builtin.componentwise and first is not None and isinstance(first.type, TensorType):
-            op = ops.Map(builtin.name)
+            op = ops.Map(builtin.name, attributes)
             return self.graph.add(op, args, first.type, span)
         args = [self._as_object(arg) for arg in args]
         kind = SCALAR if builtin.scalar and all(a.type == SCALAR for a in args) else VALUE
-        return self._call(builtin.name, args, kind, span)
+        return self._call(builtin.name, args, kind, span, attributes)
+
+    def _capability(self, book: BookCall, span: Span, scope: Scope, ctx: Context) -> Node:
+        """A call written as books write a capability, as ``J_{\\nu}(x)``, lowered as a
+        call of it by its name, with the parameters its form gives by name."""
+        args = [self.value(arg, scope, ctx) for arg in book.arguments]
+        return self._builtin(BUILTINS[book.capability.name], args, span, book.keywords)
 
     def _as_object(self, node: Node) -> Node:
         """Wrap tensor components in a :class:`Tensor` for a function that wants one."""
@@ -911,6 +926,8 @@ class Expressions(LinearAlgebra):
         return self.graph.const(self.session.symbol(primed), SCALAR, node.span)
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
+        if (book := self._book_scripted(node, scope)) is not None:  # (a)_n
+            return self._capability(book, node.span, scope, ctx)
         if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
             node = named  # R'_{\mu\nu}: the tensor R'
         decorated = _named(node)

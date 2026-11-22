@@ -72,8 +72,8 @@ def test_the_meanings_of_definitions_are_given():
 
 
 def test_an_agent_reads_it_at_once():
-    # About 8,000 tokens: a token of this page is about three characters.
-    assert len(PAGE) < 28_000
+    # About 10,000 tokens: a token of this page is about three characters.
+    assert len(PAGE) < 32_000
 
 
 def test_its_tables_are_well_formed():
