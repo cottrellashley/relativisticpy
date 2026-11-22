@@ -179,12 +179,13 @@ rather than tens of minutes.
 
 ## Extending RelativisticPy
 
-- **A function**: add it to the table in `relativisticpy/compiler/builtins.py`,
-  marking whether it works component-wise on tensors.
+- **A function**: add it to a table in `relativisticpy/runtime/functions.py`, from
+  which `relativisticpy/runtime/registry.py` registers it under its name, marking
+  whether it works component-wise on tensors.
 - **A LaTeX command or symbol**: add it to `relativisticpy/language/vocabulary.py`;
   structural commands need a case in the parser's `_command`.
-- **A spacetime**: add a function to `relativisticpy/spacetimes.py` and register
-  it in the builtins table.
+- **A spacetime**: add a function to `relativisticpy/spacetimes.py` and list it with
+  the spacetimes in `relativisticpy/runtime/functions.py`.
 - **An operation**: add an op to `relativisticpy/ir/ops.py`, a kernel to
   `relativisticpy/runtime/kernels.py`, and have the compiler emit it.
 
