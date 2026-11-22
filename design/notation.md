@@ -123,7 +123,7 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 
 **Why it is open.** Books write `A - \lambda I`, `\mathbf{1}`, `\mathbb{1}`, and the Dirac `(\gamma^0 E - \gamma^3 p - m)`. Today `I` is a plain symbol (the imaginary unit is `i`), and a number added to a matrix is refused.
 
-**Recommendation.** An undefined `I`, `\mathbf{1}`, `\mathbb{1}` or 𝟙 in matrix arithmetic is the identity of the matching size, with a note; a defined `I` keeps its value. A number added to a square matrix inside a matrix equation is that multiple of the identity, with a note.
+**Recommendation.** An undefined `I`, `\mathbf{1}`, `\mathbb{1}` or 𝟙 in matrix arithmetic is the identity of the matching size, with a note; a defined `I` keeps its value. A number added to a square matrix inside a matrix equation is that multiple of the identity, with a note. Where `\mathbf{1}` meets a vector rather than a matrix, it is the vector of ones (decision 23).
 
 ## 13. Brackets
 
@@ -232,3 +232,92 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 
 **Recommendation.** Keep them refused until a design exists. The first step worth taking is 'for all x in a set' as a claim decided as identities and inequalities are.
 
+## 23. The vector of ones
+
+**Added** on 22 November 2026, from the domains of optimization, statistics and graphs.
+
+**Waiting on it:** `ones-vector` (6).
+
+**Why it is open.** In optimization, statistics and finance, a bold one is the vector of ones: `\mathbf{1}^T w = 1`, `\mathbf{1}^T \Sigma^{-1} \mathbf{1}`, the degrees `A\mathbf{1}`. Decision 12 makes it the identity.
+
+**Recommendation.** Decide by the operands, as decision 13 does for brackets. `\mathbf{1}` is the identity where it is added to or subtracted from a square matrix, as in `A - \lambda\mathbf{1}`. Everywhere else it is the vector of ones, sized by what it meets: transposed, in a product with a matrix or a vector, and in `\mathbf{1}\mathbf{1}^T`, the matrix of ones. `\mathbb{1}` and 𝟙 stay the identity; with a set as a subscript, `\mathbb{1}_A(x)` is the indicator function. Either way, say which in a note.
+
+## 24. The imaginary unit j
+
+**Added** on 22 November 2026, from signal processing and control.
+
+**Waiting on it:** `imaginary-j` (8).
+
+**Why it is open.** Engineers write j for √−1, as in `H(e^{j\omega})` and `e^{-j\omega n}`, where mathematicians write i. Elsewhere j is an index, a current density or a quantum number.
+
+**Recommendation.** j is a name. A program that uses j for √−1 says so once, as engineering books do in their conventions: `j := \sqrt{-1}`. Where a result holds an undefined j in an exponent beside i-free mathematics, a note suggests the declaration.
+
+## 25. ∇² and ∇ of a function of a vector
+
+**Added** on 22 November 2026, from optimization and machine learning.
+
+**Waiting on it:** `hessian-notation` (3).
+
+**Why it is open.** In physics `\nabla^2 f` is the Laplacian, a scalar. In optimization it is the Hessian matrix of f, and `\nabla f(a)` is the gradient at the point a.
+
+**Recommendation.** Decide by the function's argument. A function of one vector, `f(x)` with x in ℝⁿ, has a gradient vector and a Hessian matrix, and `\nabla f(a)` is the gradient at a. A function of coordinates, or of several scalar variables, has the Laplacian. `\Delta f` is always the Laplacian, and `\operatorname{Hess} f` always the Hessian. Say which in a note.
+
+## 26. Functions that books define as they go
+
+**Added** on 22 November 2026, from machine learning and signal processing.
+
+**Waiting on it:** `ml-functions` (2), and part of `special-functions`.
+
+**Why it is open.** σ(x) is the logistic function in machine learning, but σ is a standard deviation or a cross-section elsewhere. Books disagree on whether sinc x is sin(x)/x or sin(πx)/(πx). ReLU, softmax and fl(x) are defined where they are used.
+
+**Recommendation.** These are not book names. A program defines them, as the book does where it introduces them: `\sigma(a) := \frac{1}{1 + e^{-a}}`. Calling one that is not defined leaves an unknown function, and a result that holds one carries a note saying so, so that it is never mistaken for a value.
+
+## 27. `*` between signals
+
+**Added** on 22 November 2026, from signal processing. **Proposed, not adopted:** it changes how a common symbol reads.
+
+**Waiting on it:** `convolution-operator` (2).
+
+**Why it is open.** In signal processing, `x[n] * h[n]` and `f(t) * g(t)` are convolutions. Elsewhere `*` is multiplication, in plain text above all, and `z^*` is a conjugate.
+
+**Recommendation.** `\ast` and `*` between two applied functions of the same free variable, or two sequences of the same index, are convolution, with a note. Between anything else, `*` is multiplication. `\circledast` is circular convolution. The cost is that `f(t) * g(t)`, meant as a product in plain text, becomes a convolution. That is why this waits for a decision.
+
+## 28. A variable followed by brackets
+
+**Added** on 22 November 2026, from dynamical systems.
+
+**Waiting on it:** `call-or-product` (1, and more where systems of ODEs are written).
+
+**Why it is open.** `\dot x = x(3 - x - 2y)` multiplies x by a bracket. It does not call a function x. Today an undefined name followed by brackets is a call.
+
+**Recommendation.** A name followed by brackets is a call when the name is a function: defined as one, declared as one, or written elsewhere only with arguments. It is a product when the name is used as a variable in the same statement or in an earlier one, as x is inside its own bracket here. Say which in a note when the name is undefined.
+
+## 29. `\log` without a base
+
+**Added** on 22 November 2026, from chemistry.
+
+**Waiting on it:** `builtin-redefinition` (1).
+
+**Why it is open.** Mathematics and physics write log for the natural logarithm. Chemistry and engineering often mean log₁₀, as in pH and the Nernst equation.
+
+**Recommendation.** A bare `\log` is the natural logarithm. A program that means base 10 writes `\log_{10}`, or says so once: `\log x := \log_{10} x`. That redefinition must work: a user's definition wins, and inside its own body `\log_{10}` still means the built-in.
+
+## 30. Congruences and remainders
+
+**Added** on 22 November 2026, from number theory.
+
+**Waiting on it:** `congruences` (3), `remainder` (2).
+
+**Why it is open.** `a \equiv b \pmod{m}` is a congruence, but `\equiv` alone defines (decision 3).
+
+**Recommendation.** `\equiv` with `\pmod{m}` or `\bmod m` on its right is a congruence: a claim, decided by the remainder of a − b. `a \bmod m` is the remainder, and `a^{-1} \bmod m` is the inverse modulo m. `\equiv` without a modulus still defines.
+
+## 31. Sequences written with square brackets
+
+**Added** on 22 November 2026, from signal processing.
+
+**Waiting on it:** `bracket-sequences` (9).
+
+**Why it is open.** Oppenheim and Schafer write discrete signals as `x[n]`, `\delta[n]` and `u[n]`. In the language, square brackets after a name index a list or a tensor.
+
+**Recommendation.** `x[n] := \ldots` defines a sequence: a function of an integer. `x[n - 1]` evaluates it, and `y[n] = \sum_k x[k] h[n - k]` is an equation of sequences. An undefined `\delta[n]` is the unit impulse and `u[n]` the unit step, with a note. Brackets after a list or a tensor still index it.
