@@ -223,8 +223,6 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
     try:
         with _beside(case):
             workbook = _workbook(case)
-    except TypeError as error:  # the workbook takes no Python scope yet
-        return Result(case, "refused", f"the workbook cannot be given a Python scope: {error}")
     except Exception as error:
         return Result(case, "broken", f"the scope fails: {type(error).__name__}: {error}")
     try:
@@ -278,7 +276,7 @@ def _workbook(case: Case) -> Workbook:
     namespace: dict[str, Any] = {}
     exec(compile(case.scope, case.where, "exec"), namespace)
     namespace.pop("__builtins__", None)
-    return Workbook(scope=namespace)  # type: ignore[call-arg]
+    return Workbook(scope=namespace)
 
 
 def _is_error(error: RelativisticPyError, wanted: str, message: str | None) -> bool:

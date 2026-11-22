@@ -198,12 +198,18 @@ def test_programs_get_no_python():
     payload = f'__import__("pathlib").Path("{marker.as_posix()}").touch()'
 
     async def test(client, pool):
-        name = await call(client, "compute", source=r"\texttt{os} + 1")
+        named = await call(client, "compute", source=r"\texttt{os} + 1")
+        reached = await call(client, "compute", source=r"\texttt{os.path.sep}", session="one")
         quoted = await call(client, "compute", source=f"simplify('{payload}')")
-        return name, quoted
+        return named, reached, quoted
 
-    name, quoted = serve(test)
-    assert values(name) == [["os + 1"]]  # a name, not Python's module
+    named, reached, quoted = serve(test)
+    for refused in (named, reached):  # no Python scope: the program reaches nothing in Python
+        error = refused["statements"][0]["error"]
+        assert error["type"] == "CompileError"
+        assert "names a Python object, but no Python scope was given" in error["message"]
+        assert "MCP server" in " ".join(error["notes"])
+        assert error["hint"].startswith("give the workbook one, as Workbook(scope=globals())")
     assert (
         quoted["statements"][0]["error"]["message"]
         == "text in quotes is not a value to compute with"

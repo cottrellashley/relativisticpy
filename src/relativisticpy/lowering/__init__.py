@@ -11,5 +11,7 @@ lowering one kind of thing and using those below it:
 - :mod:`~relativisticpy.lowering.statistics`: statistics over an index;
 - :mod:`~relativisticpy.lowering.linalg`: linear algebra on tensors;
 - :mod:`~relativisticpy.lowering.expressions`: the walk of an expression;
-- :mod:`~relativisticpy.lowering.definitions`: definitions.
+- :mod:`~relativisticpy.lowering.definitions`: definitions;
+- :mod:`~relativisticpy.lowering.objects`: the Python objects a program names, as
+  ``\\texttt{prices}``, read first of all.
 """

@@ -53,6 +53,7 @@ from relativisticpy.errors import (
     UnknownNameError,
     UsageError,
 )
+from relativisticpy.integrations._objects import shown_type
 from relativisticpy.language import vocabulary as vocab
 from relativisticpy.tensors.equation import UndecidedError
 
@@ -574,6 +575,26 @@ def _data() -> list[str]:
         ("Function", "Meaning"),
         ((" ".join(_code(name) for name in same), meaning) for meaning, same in names.items()),
     )
+    lines += [
+        "",
+        "### Python objects",
+        "",
+        "`\\texttt{prices}` is the object called prices in the Python scope a workbook is "
+        "given, `Workbook(scope=globals())`, or of the objects passed to `show`. Attributes, "
+        'keys and positions follow, `\\texttt{prices["NVDA"]}`, and are read, never run as '
+        "Python. A document checked, and a program sent to the MCP server, have no scope. "
+        "Defined with indices, `P_{ta} := \\texttt{prices}`, data is bound as "
+        '`wb["P_{ta}"] = prices` binds it, and meets other data by label. What an object '
+        "becomes, by the object integrations:",
+        "",
+    ]
+    lines += _table(
+        ("Object", "Becomes"),
+        (
+            (" ".join(_code(shown_type(taken)) for taken in conversion.takes), conversion.summary)
+            for conversion in integrations.conversions()
+        ),
+    )
     return lines
 
 
@@ -620,8 +641,10 @@ def _latex() -> list[str]:
          r"them run, but not computed; `\in` also declares index labels"),
         (_commands(vocab.CONNECTIVE_COMMANDS), "between equations, each side a statement"),
         (_commands(vocab.ELLIPSIS_COMMANDS), "terms not written: read, not computed"),
-        (_commands(vocab.TEXT_COMMANDS), r"text: one name, as `\text{otherwise}`; "
+        (_commands(vocab.TEXT_COMMANDS - {"texttt"}), r"text: one name, as `\text{otherwise}`; "
          r"`\operatorname{name}` names a function"),
+        (_command("texttt"), r"a Python object, read by name from the workbook's scope: "
+         r"`\texttt{prices}` (see Python objects)"),
         (_commands(vocab.STYLE_COMMANDS), r"typefaces: what they hold is read as it is, so "
          r"`\mathrm{d}x` is `d x`"),
         (_commands(vocab.FONT_DECLARATIONS), r"plain TeX's typefaces, for the rest of the "

@@ -4,7 +4,7 @@ symbols and the names of the built-in tensors."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import sympy
 from sympy import Symbol
@@ -15,6 +15,9 @@ from relativisticpy.ir import SCALAR, Graph, Node, NotationAlgebra, TensorType, 
 from relativisticpy.language.source import Span
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space, spacetime
+
+if TYPE_CHECKING:
+    from relativisticpy.integrations._objects import ObjectReader
 
 #: The names of the built-in tensors and derivatives, by role, and the
 #: statement that renames each: ``MetricSymbol := G`` makes the metric ``G``.
@@ -125,6 +128,9 @@ class Session:
     # The conventions a program states, by what they are of: a Fourier transform defined
     # by its integral, \mathcal{F}\{f\}(\omega) := \int ... e^{-i\omega t} dt.
     conventions: dict[str, Any] = field(default_factory=dict)
+    # What reads the Python objects a program names, as \texttt{prices}: the scope the
+    # workbook was given, or none (see relativisticpy.integrations._objects).
+    objects: ObjectReader | None = field(default=None, repr=False)
     _algebra: NotationAlgebra | None = field(default=None, repr=False)
     _algebras: int = field(default=0, repr=False)
 

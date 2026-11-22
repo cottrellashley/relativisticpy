@@ -1,7 +1,8 @@
 """Finding the integrations, and computing what they declare.
 
 Every module of this package is an integration, but for those whose name starts with an
-underscore, which make the framework; adding the file is enough. Packages outside
+underscore, which make the framework; adding the file is enough. An integration declares
+capabilities, book names reserved, and what Python objects become. Packages outside
 RelativisticPy contribute through the entry-point group ``relativisticpy.integrations``,
 Python's standard mechanism: each entry point names a module, a capability, or a list of
 them. The catalogue is found once, the first time it is asked for.
@@ -30,6 +31,7 @@ import sympy
 
 from relativisticpy.errors import EvaluationError, RelativisticPyError, _known_failure
 from relativisticpy.integrations._declarations import Capability, Function, Reservation
+from relativisticpy.integrations._objects import ObjectConversion
 
 #: The entry-point group through which packages outside RelativisticPy contribute
 #: integrations.
@@ -37,13 +39,26 @@ GROUP = "relativisticpy.integrations"
 
 
 class Catalogue:
-    """The capabilities every integration declares, by each of their names, and the book
-    names still reserved: those no capability provides by its name."""
+    """The capabilities every integration declares, by each of their names, the book names
+    still reserved, those no capability provides by its name, and what Python objects
+    become, by the object integrations."""
 
     def __init__(
-        self, capabilities: Iterable[Capability], reservations: Iterable[Reservation] = ()
+        self,
+        capabilities: Iterable[Capability],
+        reservations: Iterable[Reservation] = (),
+        objects: Iterable[ObjectConversion] = (),
     ) -> None:
         self.capabilities = tuple(capabilities)
+        self.objects = tuple(objects)
+        named: dict[str, ObjectConversion] = {}
+        for conversion in self.objects:
+            first = named.setdefault(conversion.name, conversion)
+            if first is not conversion:
+                raise ValueError(
+                    f"two object integrations are called {conversion.name!r}: {first.module} "
+                    f"and {conversion.module}; rename one of them"
+                )
         self._by_name: dict[str, Capability] = {}
         for capability in self.capabilities:
             for name in capability.names:
@@ -91,6 +106,12 @@ def reservations() -> tuple[Reservation, ...]:
     return catalogue().reservations
 
 
+def conversions() -> tuple[ObjectConversion, ...]:
+    """What Python objects become, by every object integration, in the order of the
+    modules that declare them, by name, and then of their declarations."""
+    return catalogue().objects
+
+
 def find(name: str) -> Capability:
     """The capability called ``name``."""
     return catalogue().find(name)
@@ -103,12 +124,16 @@ def on_change(listener: Callable[[], None]) -> None:
 
 
 @contextlib.contextmanager
-def installed(*added: Capability) -> Iterator[None]:
+def installed(*added: Capability | ObjectConversion) -> Iterator[None]:
     """The language with the capabilities ``added`` besides those the integrations
     declare, while the block runs: to check one before it is part of an integration."""
     global _catalogue
     before = catalogue()
-    _catalogue = Catalogue([*before.capabilities, *added], before.declared)
+    capabilities = [each for each in added if isinstance(each, Capability)]
+    objects = [each for each in added if isinstance(each, ObjectConversion)]
+    _catalogue = Catalogue(
+        [*before.capabilities, *capabilities], before.declared, [*before.objects, *objects]
+    )
     _changed()
     try:
         yield
@@ -125,13 +150,16 @@ def _changed() -> None:
 def _discover() -> Catalogue:
     found: list[Capability] = []
     reserved: list[Reservation] = []
+    objects: list[ObjectConversion] = []
     for declarations in _declarations():
         for value in declarations:
             if isinstance(value, Capability) and not any(value is c for c in found):
                 found.append(value)
             elif isinstance(value, Reservation) and value not in reserved:
                 reserved.append(value)
-    return Catalogue(found, reserved)
+            elif isinstance(value, ObjectConversion) and not any(value is o for o in objects):
+                objects.append(value)
+    return Catalogue(found, reserved, objects)
 
 
 def _declarations() -> Iterator[Iterable[Any]]:
@@ -155,7 +183,7 @@ def _declarations() -> Iterator[Iterable[Any]]:
             continue
         if isinstance(loaded, types.ModuleType):
             yield list(vars(loaded).values())
-        elif isinstance(loaded, Capability | Reservation):
+        elif isinstance(loaded, Capability | Reservation | ObjectConversion):
             yield [loaded]
         else:
             yield list(loaded)

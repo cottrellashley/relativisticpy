@@ -30,6 +30,7 @@ from typing import Any, Literal
 
 from relativisticpy import integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
+from relativisticpy.integrations import _objects as objects
 from relativisticpy.runtime import core, notation
 from relativisticpy.tensors import linalg
 
@@ -228,6 +229,8 @@ def _core() -> Iterator[Implementation]:
     yield entry("linalg.ones", core.ones_beside, "value", 1, 1)
     yield entry("linalg.entry", core.entry, "scalar", 3, 3)
     yield entry("stats.ledoit_wolf", core.ledoit_wolf, "tensor", 1, 1)
+    # Python's functions, called on the values of a program
+    yield entry("python.call", objects.call, "value", 1)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

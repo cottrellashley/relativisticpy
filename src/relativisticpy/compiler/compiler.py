@@ -28,7 +28,7 @@ from relativisticpy.compiler.session import Saved
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
-from relativisticpy.lowering.transforms import Transforms
+from relativisticpy.lowering.objects import PythonObjects
 
 # The tables of the language, which its reference reads from here.
 from relativisticpy.reading.names import _BUILTIN_TENSORS as _BUILTIN_TENSORS
@@ -58,7 +58,7 @@ _READ_AS = {
 }
 
 
-class Compiler(Transforms):
+class Compiler(PythonObjects):
     """Compiles programs against a :class:`Session`, which it updates as it goes."""
 
     # ======================================================================

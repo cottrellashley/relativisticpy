@@ -339,6 +339,21 @@ Given a tensor, these functions are linear algebra. They are written `\operatorn
 | `svd` | `U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})`: the singular values and vectors |
 | `tr` `trace` | the trace of a map |
 
+### Python objects
+
+`\texttt{prices}` is the object called prices in the Python scope a workbook is given, `Workbook(scope=globals())`, or of the objects passed to `show`. Attributes, keys and positions follow, `\texttt{prices["NVDA"]}`, and are read, never run as Python. A document checked, and a program sent to the MCP server, have no scope. Defined with indices, `P_{ta} := \texttt{prices}`, data is bound as `wb["P_{ta}"] = prices` binds it, and meets other data by label. What an object becomes, by the object integrations:
+
+| Object | Becomes |
+|---|---|
+| `numpy.ndarray` `numpy.generic` `anything with __array__` `anything with __array_namespace__` `anything with __dlpack__` | an array, or anything NumPy reads: data, each axis over a space of its size; a NumPy number is a scalar |
+| `pandas.DataFrame` `pandas.Series` | a DataFrame or Series: labelled data, its index and columns the bases of spaces named after its axes |
+| `int` `float` `complex` `bool` `fractions.Fraction` `decimal.Decimal` `numbers.Number` | a number: a scalar, exact where Python's is, as an integer or a fraction |
+| `list` `tuple` | a list or tuple of numbers, or of lists of them: a vector or a matrix, as the language's own lists are |
+| `anything callable` | a function, or anything called: called in a program, on numbers, and on data elementwise |
+| `scipy.sparse.spmatrix` `scipy.sparse.sparray` | a SciPy sparse matrix or array: sparse data, never made dense |
+| `sympy.Basic` `sympy.matrices.MatrixBase` `sympy.NDimArray` `anything with _sympy_` | a SymPy expression, or anything with _sympy_: an expression, its symbols the program's by name; a SymPy matrix is a matrix |
+| `xarray.DataArray` | a DataArray: data over its named dimensions, labelled by their coordinates |
+
 ## LaTeX
 
 Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and the `&` of alignments. Every statement inside a display is LaTeX, however it is written. An unknown command is an error that suggests the closest one.
@@ -365,7 +380,8 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\approx \asymp \cong \doteq \gg \in \leftrightarrow \ll \longleftrightarrow \notin \propto \sim \simeq \subset \subseteq \supset \supseteq` | relations, read so that the equations around them run, but not computed; `\in` also declares index labels |
 | `\iff \implies \Leftrightarrow \Longleftrightarrow \Longrightarrow \Rightarrow` | between equations, each side a statement |
 | `\cdots \ddots \dots \dotsb \dotsc \dotsi \dotsm \dotso \ldots \vdots` | terms not written: read, not computed |
-| `\hbox \mbox \operatorname \text \textbf \textit \textnormal \textrm \textsf \texttt \textup` | text: one name, as `\text{otherwise}`; `\operatorname{name}` names a function |
+| `\hbox \mbox \operatorname \text \textbf \textit \textnormal \textrm \textsf \textup` | text: one name, as `\text{otherwise}`; `\operatorname{name}` names a function |
+| `\texttt` | a Python object, read by name from the workbook's scope: `\texttt{prices}` (see Python objects) |
 | `\bm \boldsymbol \lefteqn \mathbb \mathbf \mathbin \mathcal \mathclose \mathfrak \mathinner \mathit \mathnormal \mathop \mathopen \mathord \mathpunct \mathrel \mathrm \mathscr \mathsf \mathtt \pmb \substack` | typefaces: what they hold is read as it is, so `\mathrm{d}x` is `d x` |
 | `\bf \bfseries \boldmath \cal \em \it \itshape \mdseries \mit \normalfont \rm \rmfamily \sc \sf \sl \tt \upshape` | plain TeX's typefaces, for the rest of the group: `{\rm d}x` |
 | `\aftergroup \allowbreak \centering \displaybreak \displaystyle \enspace \hfill \hline \hphantom \hspace \label \limits \medspace \negmedspace \negthickspace \negthinspace \noindent \nolimits \nonumber \notag \phantom \qquad \quad \scriptscriptstyle \scriptstyle \tag \textstyle \thickspace \thinspace \vphantom \vspace` | layout, ignored; `\quad` and `\qquad` also separate equations |

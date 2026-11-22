@@ -17,6 +17,8 @@ The kinds are:
   transform; or data over an index in, data over a new space out, as the FFT;
 - :func:`rewrite`: a faster computation of what a program writes, as the discrete Fourier
   transform written as its sum, computed as an FFT.
+- :func:`python_object`: what a Python object becomes when a program reads it by name, as
+  ``\texttt{prices}`` reads a DataFrame as labelled data.
 
 Each capability gives :class:`Example`\ s, programs whose answers are known from outside
 the integration, and the conformance suite, ``tests/integrations``, holds every capability
@@ -50,37 +52,55 @@ from relativisticpy.integrations._discovery import (
     Exactly,
     Numerically,
     capabilities,
+    conversions,
     find,
     installed,
     on_change,
     reservations,
+)
+from relativisticpy.integrations._objects import (
+    Array,
+    Data,
+    ObjectConversion,
+    PythonFunction,
+    PythonScope,
+    Scalar,
+    python_object,
 )
 from relativisticpy.integrations._transforms import Rewrite, Transform, rewrite, transform
 
 __all__ = [
     "CHECKS",
     "GROUP",
+    "Array",
     "Capability",
     "Check",
     "Constructor",
+    "Data",
     "Exactly",
     "Example",
     "Function",
     "MapFunction",
     "Numerically",
+    "ObjectConversion",
+    "PythonFunction",
+    "PythonScope",
     "Reservation",
     "Rewrite",
+    "Scalar",
     "Solver",
     "Transform",
     "applies",
     "capabilities",
     "check",
     "constructor",
+    "conversions",
     "find",
     "function",
     "installed",
     "map_function",
     "on_change",
+    "python_object",
     "reservations",
     "reserved",
     "rewrite",

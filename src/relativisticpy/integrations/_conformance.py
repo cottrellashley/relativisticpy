@@ -41,7 +41,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.errors import InternalError, RelativisticPyError
-from relativisticpy.integrations import _transforms
+from relativisticpy.integrations import _objects, _transforms
 from relativisticpy.integrations._declarations import Capability, Example, Function, MapFunction
 from relativisticpy.integrations._discovery import (
     Exactly,
@@ -50,6 +50,7 @@ from relativisticpy.integrations._discovery import (
     extra_for,
     installed,
 )
+from relativisticpy.integrations._objects import ObjectConversion
 
 #: The points a function is checked at when it declares none, each argument the same.
 DEFAULT_POINTS = (0.3, 0.7, 1.6)
@@ -69,9 +70,14 @@ class Check:
     runs: Callable[[Capability], list[str]]
 
 
-def check(capability: Capability, names: Sequence[str] | None = None) -> dict[str, list[str]]:
+def check(
+    capability: Capability | ObjectConversion, names: Sequence[str] | None = None
+) -> dict[str, list[str]]:
     """The failures of ``capability`` in each check that applies to it, or in those
-    ``names``: an empty list for each it passes."""
+    ``names``: an empty list for each it passes. An object integration is held to the
+    checks of its kind (:data:`relativisticpy.integrations._objects.CHECKS`)."""
+    if isinstance(capability, ObjectConversion):
+        return _objects.check(capability, names)
     return {
         each.name: each.runs(capability)
         for each in CHECKS
@@ -79,8 +85,10 @@ def check(capability: Capability, names: Sequence[str] | None = None) -> dict[st
     }
 
 
-def applies(name: str, capability: Capability) -> bool:
+def applies(name: str, capability: Capability | ObjectConversion) -> bool:
     """Whether the check called ``name`` applies to ``capability``."""
+    if isinstance(capability, ObjectConversion):
+        return name in _objects.CHECKS
     return next(each for each in CHECKS if each.name == name).applies(capability)
 
 

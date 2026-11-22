@@ -782,6 +782,18 @@ def test_check_reads_standard_input(capsys, piped):
     assert "<stdin>:1:18: ✓ holds" in out
 
 
+def test_a_document_checked_reaches_nothing_in_python(capsys, piped):
+    piped("\\begin{equation} x = \\texttt{os.sep} \\end{equation}\n")
+    status, out, _ = run(capsys, "check", "-", "--all")
+    assert status == 0
+    assert "? not understood" in out
+    assert r"\texttt{os.sep} names a Python object, but no Python scope was given" in out
+    assert "hint: give the workbook one, as Workbook(scope=globals())" in out
+    status, out, err = run(capsys, "-c", r"\texttt{os}")
+    assert status == 1
+    assert "no Python scope was given" in out + err
+
+
 def test_options_before_the_command(capsys, paper):
     # AGT-25: relativisticpy -j 2 check paper.tex
     assert run(capsys, "-j", "2", "check", str(paper))[0] == 0

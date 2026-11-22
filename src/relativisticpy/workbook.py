@@ -2,10 +2,11 @@ r"""The :class:`Workbook`: a session in which RelativisticPy programs run."""
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import numbers
 import re
-from collections.abc import Callable, Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import TracebackType
@@ -44,6 +45,7 @@ from relativisticpy.errors import (
     place,
     translate,
 )
+from relativisticpy.integrations._objects import PythonScope
 from relativisticpy.ir import SCALAR, EquationType, ScalarType, TensorType, ops, render
 from relativisticpy.language import Source, Span, parse, tokenize
 from relativisticpy.language import syntax as ast
@@ -136,6 +138,12 @@ class Workbook:
     their indices and coordinates. Every error is a
     :class:`~relativisticpy.errors.RelativisticPyError`.
 
+    ``scope`` is where a program reads Python objects by name: ``\texttt{prices}`` is the
+    object called ``prices`` in it, and ``\texttt{prices["NVDA"]}`` its key, read as data,
+    a number, an expression or a function (see :mod:`relativisticpy.integrations._objects`).
+    It is a mapping, as ``globals()`` or a dict, or a module or any object whose attributes
+    are read. Without one, a program reaches nothing in Python.
+
     ``workers`` sets how many processes share component-wise work such as
     simplification (``None`` means one per CPU). Batches of a few components or more
     use them. ``backend="jax"`` keeps data bound from Python as JAX arrays, so that it
@@ -143,7 +151,9 @@ class Workbook:
     It turns on JAX's 64-bit numbers, ``jax_enable_x64``, for the whole process.
     """
 
-    def __init__(self, *, workers: int | None = 1, backend: str = "numpy") -> None:
+    def __init__(
+        self, *, workers: int | None = 1, backend: str = "numpy", scope: Any = None
+    ) -> None:
         if backend not in ("numpy", "jax"):
             raise UsageError(f"the backend is numpy or jax, not {backend!r}")
         if workers is not None and not isinstance(workers, int):
@@ -151,7 +161,8 @@ class Workbook:
         self._backend = backend
         self._workers = workers
         self._executor = Executor(workers)
-        self._session = Session()
+        objects = PythonScope(scope, backend=backend) if scope is not None else None
+        self._session = Session(objects=objects)
         self._compiler = Compiler(self._session)
         self._metric: tuple[Any, Metric] | None = None  # the metric in force, by its node
         self._revision = 0  # counts what may have changed what it defines, for its copies
@@ -531,6 +542,8 @@ class Workbook:
 
         - the space of its index, if the index was declared, as by
           ``a, b \in \mathcal{A}`` or :meth:`space`;
+        - the space whose elements are the axis's labels, if data already bound ranges
+          over one: labelled data meets labelled data by label, never by position;
         - the space a pandas axis's name names, if there is one;
         - the space of a like index of the same data: both indices of a covariance
           :math:`\Sigma_{ab}` range over one space, but :math:`t` and :math:`a` of
@@ -559,54 +572,15 @@ class Workbook:
         if not isinstance(written, str):
             raise UsageError(f"a name is a str, as in wb['x'] = 2, not {_kind(written)}")
         self._revision += 1
-        target = _written(written)
-        session = self._session
-        if isinstance(target, ast.Name) and "_" in target.id and _rank_of(value):
-            base, _, tail = target.id.partition("_")  # y_t: the tensor y, with index t
-            target = (base, [(label, False) for label in split_index_labels(tail)])
-        if isinstance(target, ast.Name):
-            session.globals.bind(target.id, VariableBinding(self._scalar(written, value)))
+        tensor = _tensor_written(written, _rank_of(value))
+        if tensor is None:
+            target = _written(written)
+            assert isinstance(target, ast.Name)
+            self._session.globals.bind(target.id, VariableBinding(self._scalar(written, value)))
             return
-        name, entries = target
-        components, bases, axis_names = _data(value, written)
-        shape = tuple(getattr(components, "shape", ()))
-        if len(shape) != len(entries):
-            raise DataError(
-                f"{written} has {_count(len(entries), 'index', 'indices')}, but the data "
-                f"has {_count(len(shape), 'axis', 'axes')}",
-                hint="write one index for each axis of the data, as in R_{ta} for a table",
-            )
-        complex_data = numerical.is_numerical(components) and numerical.numpy().iscomplexobj(
-            components
-        )
-        field: Literal["real", "complex"] = "complex" if complex_data else "real"
-        spaces: list[Space] = []
-        for axis, ((label, _), size, basis, axis_name) in enumerate(
-            zip(entries, shape, bases, axis_names, strict=True)
-        ):
-            earlier = [(entries[k][0], space) for k, space in enumerate(spaces)]
-            space = _axis_space(session, name, label, size, basis, axis_name, field, earlier)
-            if space.dim != size:
-                raise DataError(
-                    f"the index {label} ranges over {space}, of dimension {space.dim}, "
-                    f"but this axis of the data has {size} components"
-                )
-            if space.name == axis_name:  # a space a pandas axis names, for later data
-                session.spaces.setdefault(axis_name, space)
-            if basis is not None and space.basis is not None and basis != space.basis:
-                what = f"axis {axis + 1} of {written}"
-                components = _in_basis_order(components, axis, basis, space, what)
-            spaces.append(space)
-        if self._backend == "jax" and numerical.is_numerical(components):
-            import jax
-            import jax.numpy as jnp
-
-            _double_precision(jax)
-            if not numerical.is_sparse(components):  # a sparse matrix stays SciPy's
-                components = jnp.asarray(components)
-        indices = Indices(Index(label, upper) for label, upper in entries)
-        node = session.graph.const(components, TensorType(indices, tuple(spaces)))
-        session.globals.bind(name, TensorBinding(node, indices))
+        name, entries = tensor
+        data = _data(value, written)
+        _bind_data(self._session, written, name, entries, data, self._backend)
 
     def _scalar(self, written: str, value: Any) -> Any:
         """The node of a value bound to a name from Python: a number or a SymPy
@@ -801,6 +775,18 @@ class Workbook:
                 scope.bind(name, FunctionBinding(binding.definition, scope))
         return copied
 
+    @contextlib.contextmanager
+    def _given(self, objects: Mapping[str, Any]) -> Iterator[None]:
+        """Read the Python ``objects`` by name while the block runs, before the scope the
+        workbook was given, as :func:`~relativisticpy.live.show` gives a program the
+        objects passed to it."""
+        before = self._session.objects
+        self._session.objects = PythonScope(objects, then=before, backend=self._backend)
+        try:
+            yield
+        finally:
+            self._session.objects = before
+
     def _portable(self) -> tuple[str, Session, dict[Any, Any]]:
         """What another process needs to carry on from this workbook as it is: its backend,
         its session and the values it has computed, by computation (see :meth:`_carried`)."""
@@ -816,10 +802,10 @@ class Workbook:
         return workbook
 
     def reset(self) -> None:
-        """Forget every definition."""
+        """Forget every definition; the Python scope stays."""
         self._executor.close()
         self._executor = Executor(self._workers)
-        self._session = Session()
+        self._session = Session(objects=self._session.objects)
         self._compiler = Compiler(self._session)
         self._metric = None
         self._revision += 1
@@ -1287,6 +1273,69 @@ def _written(written: str) -> ast.Name | tuple[str, list[tuple[str, bool]]]:
     )
 
 
+def _tensor_written(written: str, rank: int) -> tuple[str, list[tuple[str, bool]]] | None:
+    """The tensor ``wb[written] = data`` binds data of ``rank`` axes to, with its index
+    labels: ``R_{ta}``, or ``y_t`` for data with axes; ``None`` for a name bound to a value."""
+    target = _written(written)
+    if isinstance(target, ast.Name) and "_" in target.id and rank:
+        base, _, tail = target.id.partition("_")  # y_t: the tensor y, with index t
+        return base, [(label, False) for label in split_index_labels(tail)]
+    return None if isinstance(target, ast.Name) else target
+
+
+def _bind_data(
+    session: Session,
+    written: str,
+    name: str,
+    entries: Sequence[tuple[str, bool]],
+    data: tuple[Any, Sequence[tuple[str, ...] | None], Sequence[str | None]],
+    backend: str,
+    span: Span | None = None,
+) -> None:
+    r"""Bind data to the tensor ``name`` with the index labels ``entries``, as
+    ``wb[written] = data`` binds it, and as a definition binds the data of a Python object,
+    as in ``P_{ta} := \texttt{prices}``: ``data`` is the components, the names of each
+    axis's elements and each axis's own name, and each axis ranges over a space by the rules
+    of :meth:`Workbook.__setitem__`. ``span`` is where a definition writes it."""
+    components, bases, axis_names = data
+    shape = tuple(getattr(components, "shape", ()))
+    if len(shape) != len(entries):
+        raise DataError(
+            f"{written} has {_count(len(entries), 'index', 'indices')}, but the data "
+            f"has {_count(len(shape), 'axis', 'axes')}",
+            hint="write one index for each axis of the data, as in R_{ta} for a table",
+        )
+    complex_data = numerical.is_numerical(components) and numerical.numpy().iscomplexobj(components)
+    field: Literal["real", "complex"] = "complex" if complex_data else "real"
+    spaces: list[Space] = []
+    for axis, ((label, _), size, basis, axis_name) in enumerate(
+        zip(entries, shape, bases, axis_names, strict=True)
+    ):
+        earlier = [(entries[k][0], space) for k, space in enumerate(spaces)]
+        space = _axis_space(session, name, label, size, basis, axis_name, field, earlier)
+        if space.dim != size:
+            raise DataError(
+                f"the index {label} ranges over {space}, of dimension {space.dim}, "
+                f"but this axis of the data has {size} components"
+            )
+        if space.name == axis_name:  # a space a pandas axis names, for later data
+            session.spaces.setdefault(axis_name, space)
+        if basis is not None and space.basis is not None and basis != space.basis:
+            what = f"axis {axis + 1} of {written}"
+            components = _in_basis_order(components, axis, basis, space, what)
+        spaces.append(space)
+    if backend == "jax" and numerical.is_numerical(components):
+        import jax
+        import jax.numpy as jnp
+
+        _double_precision(jax)
+        if not numerical.is_sparse(components):  # a sparse matrix stays SciPy's
+            components = jnp.asarray(components)
+    indices = Indices(Index(label, upper) for label, upper in entries)
+    node = session.graph.const(components, TensorType(indices, tuple(spaces)), span)
+    session.globals.bind(name, TensorBinding(node, indices))
+
+
 def _rank_of(value: Any) -> int:
     shape = getattr(value, "shape", None)
     if shape is None and isinstance(value, list | tuple):
@@ -1399,6 +1448,10 @@ def _axis_space(
     declared = session.labels.get(label)
     if declared is not None:
         return declared
+    if basis is not None:  # labelled data meets labelled data by label, never by position
+        for space in _labelled_spaces(session, name, label, earlier):
+            if space.dim == size and sorted(space.basis or ()) == sorted(basis):
+                return space
     if axis_name is not None:
         named = session.spaces.get(axis_name)
         return named if named is not None else Space(axis_name, size, basis=basis, field=field)
@@ -1438,6 +1491,25 @@ def _spaces_of_label(scope: Scope, name: str, label: str) -> list[Space]:
         for index, space in zip(binding.indices, binding.node.type.spaces, strict=True)
         if index.name == label and not space.spacetime
     ]
+
+
+def _labelled_spaces(
+    session: Session, name: str, label: str, earlier: Sequence[tuple[str, Space]]
+) -> list[Space]:
+    """The spaces with a basis that data bound now may meet by label: those of the earlier
+    axes of the same data, those of the same label on the tensors already bound, then those
+    of every other axis already bound, and those named."""
+    candidates = [space for _, space in earlier]
+    candidates += _spaces_of_label(session.globals, name, label)
+    candidates += [
+        space
+        for _, binding in session.globals.bindings()
+        if isinstance(binding, TensorBinding) and isinstance(binding.node.type, TensorType)
+        for space in binding.node.type.spaces
+        if not space.spacetime
+    ]
+    candidates += session.spaces.values()
+    return [space for space in candidates if space.basis is not None]
 
 
 def _same_elements(one: tuple[str, ...] | None, other: tuple[str, ...] | None) -> bool:

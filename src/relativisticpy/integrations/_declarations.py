@@ -32,7 +32,7 @@ JAX's. A capability is checked by the conformance suite, ``tests/integrations``.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cached_property
 from typing import Any, ClassVar, TypeVar
@@ -45,12 +45,15 @@ class Example:
     """A program that uses a capability, and the value of its last output, known from
     outside the integration: ``source`` says where it comes from, a closed form's place in a
     book, as ``"DLMF 10.8.1"``, or the library called directly, as
-    ``"scipy.special.jv(0, 1.5)"``. Numbers agree to ``tolerance``, relatively."""
+    ``"scipy.special.jv(0, 1.5)"``. Numbers agree to ``tolerance``, relatively. ``given``
+    makes the Python objects the program reads by name, as ``\\texttt{prices}``, for an
+    object integration's example."""
 
     program: str
     answer: Any
     source: str
     tolerance: float = 1e-12
+    given: Callable[[], Mapping[str, Any]] | None = None
 
 
 @dataclass(frozen=True, eq=False)

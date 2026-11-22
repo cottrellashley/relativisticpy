@@ -302,8 +302,8 @@ limit.
 The server is for an agent to drive on its own, so it keeps these bounds:
 
 - **No Python.** Workbooks are given no Python scope, and the language never runs Python:
-  text in quotes is never evaluated, and `\texttt{os}` is a name. No tool binds data from
-  a client, and no tool writes a file.
+  text in quotes is never evaluated, and `\texttt{os}`, which names a Python object, is
+  refused, saying so. No tool binds data from a client, and no tool writes a file.
 - **Files only where allowed.** `check` reads a file only if the server was started with
   `--allow-files`, and only in those folders, after symbolic links and `..` are followed.
   The files a document reads in, by `\input`, `\include` or `\usepackage`, are held to the
