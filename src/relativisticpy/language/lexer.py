@@ -552,6 +552,8 @@ class Lexer:
             self._emit(TokenKind.COMMAND, command, start, start + 1)
         elif (kind := vocab.UNICODE_OPERATORS.get(char)) is not None:
             self._emit(kind, kind.value, start, start + 1)
+        elif (mark := vocab.UNICODE_MARKS.get(char)) is not None:
+            self._mark(mark)
         elif char in vocab.UNICODE_SUPERSCRIPTS:
             self._script_run(vocab.UNICODE_SUPERSCRIPTS, TokenKind.CARET)
         elif char in vocab.UNICODE_SUBSCRIPTS:
@@ -589,6 +591,13 @@ class Lexer:
             return self._error(f"unexpected character '{char}'", start)
         shown = f"'{char}' " if char.isprintable() and not char.isspace() else ""
         return self._error(f"unexpected character {shown}({described})", start, hint=hint)
+
+    def _mark(self, name: str) -> None:
+        """A mark set as a superscript after what it marks: ``A†`` lexes as ``A^\\dagger``."""
+        start = self.pos
+        if not (self.tokens and self.tokens[-1].kind is TokenKind.CARET):
+            self._emit(TokenKind.CARET, TokenKind.CARET.value, start, start + 1)
+        self._emit(TokenKind.IDENT, name, start, start + 1, verbatim=True)
 
     def _script_run(self, table: Mapping[str, str], kind: TokenKind) -> None:
         """Spell out a run of Unicode super/subscripts: ``x⁻¹`` lexes as ``x^{-1}``."""

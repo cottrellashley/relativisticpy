@@ -211,11 +211,31 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 
 | Function | Arguments | Meaning |
 |---|---|---|
-| `diag(first, ...)` | 1 or more | `diag(a, b, ...)`, a diagonal matrix |
-| `det(matrix)` | 1 | the determinant |
-| `inverse(matrix)` `inv` | 1 | the inverse of a matrix |
-| `transpose(matrix)` | 1 | the transpose of a matrix |
-| `trace(matrix)` | 1 | the trace of a matrix; of an equation between tensors, its contraction |
+| `diag(first, ...)` | 1 or more | `diag(a, b, ...)`, a diagonal matrix; of a vector, the matrix with it on its diagonal |
+| `det(matrix)` | 1 | the determinant, `\det A` |
+| `inverse(matrix)` `inv` | 1 | the inverse of a matrix, `A^{-1}` |
+| `pinv(matrix)` | 1 | the pseudoinverse of a matrix, `A^+`, Moore and Penrose's |
+| `transpose(matrix)` | 1 | the transpose of a matrix, `A^T` |
+| `ctranspose(matrix)` | 1 | the conjugate transpose of a matrix, `A^\dagger` or `A^*` |
+| `trace(A)` `tr` `Tr` `\operatorname{tr} A` `\operatorname{tr}(A)` `\operatorname{Tr} A` `\operatorname{Tr}(A)` | 1 | the trace of a matrix; of an equation between tensors, its contraction |
+| `rank(A)` `\operatorname{rank} A` `\operatorname{rank}(A)` | 1 | the rank of a matrix, the dimension of the space its columns span |
+| `adjugate(A)` `adj` `\operatorname{adj} A` `\operatorname{adj}(A)` | 1 | the adjugate of a matrix, the transpose of its cofactors, `\operatorname{adj} A` |
+| `null(A)` `\operatorname{null} A` `\operatorname{null}(A)` | 1 | the null space of a matrix, `\ker A`: a basis of it, as the columns of a matrix |
+| `dim(V)` | 1 | the dimension of the space the columns of a matrix span, as `\dim \ker A`, the dimension of its null space |
+| `vec(A)` `\operatorname{vec} A` `\operatorname{vec}(A)` | 1 | the columns of a matrix stacked into one, `\operatorname{vec} A` |
+| `norm(x, p)` | 1 to 2 | the norm of a matrix or a vector, written between double bars with its order p as a subscript: 1, 2, `\infty`, or F for Frobenius's |
+| `cond(A, p)` `\kappa(A)` `\kappa_p(A)` | 1 to 2 | the condition number of a matrix, `\kappa(A)`, its norm times its inverse's, of order 2, or another p |
+| `spectral_radius(A)` `\rho(A)` | 1 | the spectral radius of a matrix, `\rho(A)`, the largest modulus of its eigenvalues; ρ of anything else is not |
+| `lambda_max(A)` `\lambda_{\max}(A)` `\lambda_{\max} A` | 1 | the largest eigenvalue of a matrix, by its real part, `\lambda_{\max}(A)` |
+| `lambda_min(A)` `\lambda_{\min}(A)` `\lambda_{\min} A` | 1 | the smallest eigenvalue of a matrix, by its real part, `\lambda_{\min}(A)` |
+| `eigenvalue(k, A)` `\lambda_k(A)` | 2 | the eigenvalues of a matrix counted from the smallest, `\lambda_k(A)`: `\lambda_1(A)` is the smallest, as for a graph's Laplacian |
+| `spec(A)` | 1 | the spectrum of a matrix, `\operatorname{spec}(A)`: its eigenvalues, each as often as it is one, from the smallest |
+| `expm(A)` | 1 | the exponential of a matrix, `e^{A}` or `\exp(A)` of a matrix A |
+| `logm(A)` | 1 | the logarithm of a matrix, `\log A` of a matrix A, the principal one |
+| `sqrtm(A)` | 1 | the square root of a matrix, `\sqrt{A}` or `A^{1/2}` of a matrix A, the principal one |
+| `matrix_power(A, p)` | 2 | a matrix to a power, `A^k`, for a power that is no whole number: a symbol, or a fraction |
+| `kron(A, B)` | 2 | the Kronecker product of two matrices, `A \otimes B` |
+| `direct_sum(A, ...)` | 1 or more | the direct sum of matrices, `A \oplus B`, the block diagonal matrix of them |
 
 ### Numbers
 
@@ -285,7 +305,7 @@ What a program writes, computed faster by another capability, to the same number
 
 ### Book names not supported yet
 
-A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{tr} A`, the trace of a matrix written as an operator; `\operatorname{rank} A`, the rank of a matrix; `\operatorname{Var}(X)`, the variance of a random variable; `\epsilon_{ijk}`, the Levi-Civita symbol.
+A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{Var}(X)`, the variance of a random variable; `\epsilon_{ijk}`, the Levi-Civita symbol.
 
 ## Data, statistics and linear algebra
 
@@ -329,15 +349,15 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 |---|---|
 | `\alpha \beta \chi \Delta \delta \epsilon \eta \Gamma \gamma \iota \kappa \Lambda \lambda \mu \nu \Omega \omega \omicron \Phi \phi \Pi \pi \Psi \psi \rho \Sigma \sigma \tau \Theta \theta \Upsilon \upsilon \Xi \xi \zeta` | Greek letters, each one symbol |
 | `\varDelta \varepsilon \varGamma \varkappa \varLambda \varOmega \varPhi \varphi \varPi \varPsi \varrho \varSigma \varsigma \varTheta \vartheta \varUpsilon \varXi` | variant letterforms: each the letter after `var` |
-| `\ell \hbar \infty \odot \star \varpi` | symbols; `\odot` is the Sun, as in `M_\odot`, and between tensors the elementwise product |
-| `\arccos \arccot \arcsin \arctan \arg \cos \cosh \cot \coth \csc \csch \det \exp \gcd \Im \ln \log \max \min \Re \sec \sech \sgn \sin \sinh \tan \tanh` | functions, each calling the builtin of its name, except that `\arccos` calls `acos`, `\arccot` calls `acot`, `\arcsin` calls `asin`, `\arctan` calls `atan`, `\Im` calls `im`, `\Re` calls `re`, `\sgn` calls `sign`; `\sin^{-1}` is the inverse, and only `\log` takes a subscript, its base |
+| `\dagger \ell \hbar \infty \intercal \odot \oplus \star \top \varpi` | symbols; `\odot` is the Sun, as in `M_\odot`, and between tensors the elementwise product; `\oplus` between matrices is their direct sum, and `A^\top`, `A^\intercal` and `A^\dagger` of a matrix its transpose and its conjugate transpose |
+| `\arccos \arccot \arcsin \arctan \arg \cos \cosh \cot \coth \csc \csch \det \dim \exp \gcd \Im \ker \ln \log \max \min \Re \sec \sech \sgn \sin \sinh \tan \tanh` | functions, each calling the builtin of its name, except that `\arccos` calls `acos`, `\arccot` calls `acot`, `\arcsin` calls `asin`, `\arctan` calls `atan`, `\Im` calls `im`, `\ker` calls `null`, `\Re` calls `re`, `\sgn` calls `sign`; `\sin^{-1}` is the inverse, and only `\log` takes a subscript, its base |
 | `\bar \breve \check \ddot \dot \hat \overline \tilde \vec \widehat \widetilde` | accents: `\dot{a}` and `\ddot{a}` are time derivatives of a function of one variable; the others name a new symbol |
-| `\ast \cdot \otimes \times` | multiplication, `*`; between tensors, their product |
+| `\ast \cdot \otimes \times` | multiplication, `*`; between tensors, their product, and `\otimes` between matrices their Kronecker product |
 | `\div` | division, `/` |
 | `\lt \gt \le \leq \leqslant \ge \geq \geqslant \ne \neq` | comparisons, in this order: `<`, `>`, `<=` (three spellings), `>=` (three), `!=` (two) |
 | `\longrightarrow \mapsto \rightarrow \to` | an arrow, as in `\lim_{x \to 0}` |
 | `\coloneq \coloneqq \defeq \equiv \triangleq` | a definition, `:=` |
-| `\lvert \mid \rvert \vert` | a bar: absolute values, norms and evaluation bars |
+| `\Vert \lVert \lvert \mid \rVert \rvert \vert` | a bar: absolute values, norms and evaluation bars |
 | `\langle \rangle` | brackets: `\langle x \rangle` groups |
 | `\pm \mp` | both signs, so two values |
 | `\wedge` | the wedge product |
@@ -388,14 +408,12 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 - `\abs`: the physics package's absolute value, is not supported; write `|x|`, or `\left| x \right|`.
 - `\bmod \mod \pmod`: the remainder is not supported yet; write `x - n \lfloor x/n \rfloor`.
 - `\bra \braket \ket`: dirac's notation is not supported; write a state as a list of its components.
-- `\dagger`: the Hermitian conjugate is not supported yet; write `conjugate(A_{ba})`.
 - `\dd`: the physics package's differential, is not supported; write `d x`, or `\mathrm{d} x`.
 - `\def \let \newcommand \providecommand \renewcommand`: defines a macro, which a program cannot; write what it stands for; relativisticpy check reads the macros of a document.
 - `\eval`: the physics package's evaluation bar, is not supported; write `\left. f \right|_{x=0}`.
 - `\exists`: the quantifier is not supported; write `\text{there is}`.
 - `\forall`: the quantifier is not supported; write `\text{for all}`.
 - `\inf`: the infimum is not supported; write `\min`, or the value.
-- `\intercal \top`: the transpose is not supported yet; the transpose of `A_{ab}` is `A_{ba}`.
 - `\liminf \limsup`: is not supported; write `\lim_{x \to a}` for a limit.
 - `\norm`: the physics package's norm, is not supported; write `\| x \|`.
 - `\not`: is not supported; write `\neq` for not equal, or `\notin`.
@@ -409,7 +427,7 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 
 ### Unicode
 
-Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`. The operators · ⋅ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
+Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`. The operators · ⋅ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
 
 ## Verdicts of a check
 

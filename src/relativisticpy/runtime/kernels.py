@@ -264,7 +264,61 @@ def _map(op: ops.Map, args: list[Any], executor: Executor) -> Any:
 
 @execute.register(ops.MakeArray)
 def _make_array(op: ops.MakeArray, args: list[Any], executor: Executor) -> Any:
+    cells = [_arithmetic(arg) for arg in args]
+    if len(op.shape) == 2 and any(_shape(cell) for cell in cells):
+        return _blocks(op.shape, cells)
     return ImmutableDenseNDimArray([sympy.sympify(a) for a in args], op.shape)
+
+
+def _blocks(shape: tuple[int, ...], cells: list[Any]) -> Any:
+    """A matrix written in blocks, as ``\\begin{pmatrix} B & AB \\end{pmatrix}`` and
+    ``\\begin{pmatrix} P & A^T \\\\ A & 0 \\end{pmatrix}``: each block a matrix, or a number,
+    which is as tall as the blocks of its row and as wide as those of its column, and must
+    be 0 where that is more than one entry."""
+    rows, columns = shape
+    grid = [cells[row * columns : (row + 1) * columns] for row in range(rows)]
+    if any(len(_shape(cell)) not in (0, 2) for cell in cells):
+        raise EvaluationError(
+            "a block of a matrix is a matrix or a number, not a list",
+            hint="write a column as one: \\begin{pmatrix} 1 \\\\ 2 \\end{pmatrix}",
+        )
+    heights = [next((cell.shape[0] for cell in row if _shape(cell)), 1) for row in grid]
+    widths = [
+        next((row[column].shape[1] for row in grid if _shape(row[column])), 1)
+        for column in range(columns)
+    ]
+    numeric = numerical.involves(cells)
+    blocks: list[list[Any]] = []
+    for row, height in zip(grid, heights, strict=True):
+        blocks.append([])
+        for cell, width in zip(row, widths, strict=True):
+            if _shape(cell) and tuple(cell.shape) != (height, width):
+                raise EvaluationError(
+                    f"the blocks of a matrix line up, but a {cell.shape[0]}×{cell.shape[1]} "
+                    f"block stands where a {height}×{width} one fits"
+                )
+            if not _shape(cell) and (height, width) != (1, 1) and cell != 0:
+                raise EvaluationError(
+                    f"the number {display.unicode(cell)} stands for a {height}×{width} block of "
+                    "a matrix, which only 0 can"
+                )
+            blocks[-1].append(_block(cell, height, width, numeric))
+    if numeric:
+        return numerical.numpy().block(blocks)
+    matrix = sympy.Matrix.vstack(*(sympy.Matrix.hstack(*row) for row in blocks))
+    return arrays.to_array(matrix)
+
+
+def _block(cell: Any, height: int, width: int, numeric: bool) -> Any:
+    """A block as a matrix: a number fills a block of its size, as 0 does."""
+    if numeric:
+        np = numerical.numpy()
+        if _shape(cell):
+            return numerical.dense(numerical.as_array(cell))
+        return np.full((height, width), numerical.number(cell))
+    if _shape(cell):
+        return sympy.Matrix(cell.tolist())
+    return sympy.Matrix(height, width, [sympy.sympify(cell)] * (height * width))
 
 
 @execute.register(ops.ToArray)

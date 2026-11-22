@@ -139,7 +139,7 @@ def _builtins() -> Iterator[Implementation]:
                 result,
                 low,
                 high,
-                componentwise=capability.lifts,
+                componentwise=capability.lifts and isinstance(capability, integrations.Function),
                 builtin=True,
                 takes_names=capability.takes_names,
                 parameters=capability.parameters if spacetime else (),
@@ -222,6 +222,11 @@ def _core() -> Iterator[Implementation]:
     yield entry("linalg.det", linalg.det, "scalar", 2, 2)
     yield entry("linalg.trace", linalg.trace, "scalar", 2, 2)
     yield entry("linalg.function", core.matrix_function, "tensor", 3, 3)
+    yield entry("linalg.of_a_map", core.of_a_map, "tensor", 1)
+    yield entry("linalg.number_of_a_map", core.of_a_map, "scalar", 1)
+    yield entry("linalg.identity", core.identity_beside, "value", 1, 1)
+    yield entry("linalg.ones", core.ones_beside, "value", 1, 1)
+    yield entry("linalg.entry", core.entry, "scalar", 3, 3)
     yield entry("stats.ledoit_wolf", core.ledoit_wolf, "tensor", 1, 1)
 
 

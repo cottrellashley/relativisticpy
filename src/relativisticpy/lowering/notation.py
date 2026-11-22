@@ -37,8 +37,8 @@ from relativisticpy.ir import SCALAR, VALUE, Graph, Node, NotationType, TensorTy
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
+from relativisticpy.reading.matrices import Matrices
 from relativisticpy.reading.names import _names_builtin
-from relativisticpy.reading.reader import Reader
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space
 from relativisticpy.typing import notation as rules
@@ -53,7 +53,7 @@ from relativisticpy.typing.syntax import (
 from relativisticpy.typing.typer import _is_zero
 
 
-class Notation(Reader):
+class Notation(Matrices):
     """The lowering of abstract index notation, and of its components."""
 
     def _value_or_notation(

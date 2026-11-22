@@ -101,6 +101,8 @@ _OTHERWISE = frozenset({"otherwise", "else"})
 # \operatorname*{arg\,max}_k.
 _OPTIMA = frozenset({"max", "min"})
 _ARG_OPTIMA = frozenset({"argmax", "argmin"})
+# The commands that are a label in a script, as \max is in \lambda_{\max}.
+_LABEL_COMMANDS = _OPTIMA
 # A command whose argument is prose, as in \text{where}.
 _TEXT_COMMAND = re.compile(r"\\(?:text[a-z]*|mbox|hbox)(?![A-Za-z])")
 # The halves of old-style cases, \left\{ \begin{array} ... \end{array} \right.
@@ -737,7 +739,7 @@ class Parser:
             return Power.AND
         if kind in _COMPARISONS:
             return Power.COMPARISON
-        if kind in (K.PLUS, K.MINUS, K.PLUS_MINUS, K.MINUS_PLUS):
+        if kind in (K.PLUS, K.MINUS, K.PLUS_MINUS, K.MINUS_PLUS) or self._direct_sum(token):
             return Power.SUM
         if kind in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE) or self._hadamard(token):
             return Power.PRODUCT
@@ -755,6 +757,10 @@ class Parser:
             self.advance()
             right = self._elementwise_operand()
             return ast.Binary("⊙", left, right, span=left.span.to(right.span))
+        if self._direct_sum(token):
+            self.advance()
+            right = self.expression(Power.SUM)
+            return ast.Binary("⊕", left, right, span=left.span.to(right.span))
         if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
             self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)
@@ -797,6 +803,17 @@ class Parser:
             return self._starts_operand(self.peek(2))
         return self._starts_operand(follower)
 
+    def _direct_sum(self, token: Token) -> bool:
+        """``A \\oplus B`` or ``A ⊕ B``: the direct sum, where ``\\oplus`` stands between two
+        operands, and binds as a sum does."""
+        return (
+            token.kind is K.IDENT
+            and token.value == "oplus"
+            and _is_latex(token)
+            and not self._in_script
+            and self._starts_operand(self.peek(1))
+        )
+
     def _numbers_apart(self, token: Token) -> None:
         """Juxtaposed numbers, ``10 000`` or ``2\\,3``, are not a product: say so."""
         if token.kind is K.NUMBER and self.previous.kind is K.NUMBER:
@@ -819,6 +836,7 @@ class Parser:
             self._starts_operand(token := self.peek())
             and not self._at_wide_space()
             and not self._hadamard(token)
+            and not self._direct_sum(token)
         ):
             self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)
@@ -1362,10 +1380,11 @@ class Parser:
             self.advance()
             star = ast.Name("*", verbatim=True, span=token.span)
             return ast.Script(kind, star, None, span=marker.span.to(token.span))
-        if token.kind is K.IDENT:
+        if token.kind is K.IDENT or (token.kind is K.COMMAND and token.value in _LABEL_COMMANDS):
             self.advance()
-            name = ast.Name(token.value, token.verbatim, span=token.span)
-            labels = [token.value] if token.verbatim else split_index_labels(token.value)
+            verbatim = token.verbatim or token.kind is K.COMMAND  # \lambda_\max: a label
+            name = ast.Name(token.value, verbatim, span=token.span)
+            labels = [token.value] if verbatim else split_index_labels(token.value)
             items = self._items_from_labels(labels, token)
             indices = ast.IndexList(items, span=token.span)
             return ast.Script(kind, name, indices, span=marker.span.to(token.span))
@@ -1416,6 +1435,15 @@ class Parser:
             and label.kind in (K.PLUS, K.MINUS)
         )
 
+    def _braced_label(self) -> bool:
+        """Whether the braces of a script hold a label alone: a sign, as the + of the
+        pseudoinverse ``A^{+}`` and of ``r_{+}``, or ``\\max`` or ``\\min``, as in
+        ``\\lambda_{\\max}``."""
+        token, closer = self.peek(), self.peek(1)
+        signs = (K.PLUS, K.MINUS, K.STAR, K.PLUS_MINUS, K.MINUS_PLUS)
+        label = token.kind in signs or (token.kind is K.COMMAND and token.value in _LABEL_COMMANDS)
+        return label and closer.kind is K.RBRACE
+
     def _braced_script(self, kind: Literal["^", "_"], marker: Token) -> ast.Script:
         """A braced script, read both as an index list and as an expression."""
         what = "superscript" if kind == "^" else "subscript"
@@ -1436,6 +1464,10 @@ class Parser:
                 span=opener.span.labelled("this '{' is never closed"),
                 hint=f"add '}}' where the {what} ends{example}",
             )
+        if self._braced_label():  # A^{+}, \lambda_{\max}: a label, as A^+ and \lambda_\max are
+            label = self._script(kind, marker)
+            closer = self.advance()
+            return replace(label, span=marker.span.to(closer.span))
         start = (self.pos, self.previous)
         indices, index_error = self._attempt(lambda: self._index_list(opener))
         after_indices = (self.pos, self.previous)
@@ -2180,7 +2212,7 @@ class Parser:
                 break
             if self._at_differential() or (token.kind is K.IDENT and token.value == "d"):
                 break
-            if self._hadamard(token):  # \sin x \odot y: the product of sin x and y
+            if self._hadamard(token) or self._direct_sum(token):  # \sin x \odot y
                 break
             self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)

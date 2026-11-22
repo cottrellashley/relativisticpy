@@ -20,7 +20,7 @@ how the language treats it:
 | Kind | What it is | Examples |
 |---|---|---|
 | `function` | scalar in, scalar out; applied to each component of a tensor, and to data | `sin`, `simplify`, `gamma` |
-| `map_function` | a function of a matrix | `det`, `inverse`, `trace` |
+| `map_function` | a function of a matrix; given a map written with its indices, of its matrix of components | `det`, `rank`, `expm` |
 | `solver` | equations in, solutions out | `solve`, `dsolve` |
 | `constructor` | builds an object the language works with | `Schwarzschild`, `Eq`, `symbols` |
 | `transform` | a function of a variable in, a function of another out; or data over an index in, data over a new space out | `LaplaceTransform`, `FourierTransform`, `fft` |
@@ -37,7 +37,11 @@ The decorator takes, by name:
 - `aliases`: other names it is called by, as `arcsin` for `asin`;
 - for a function, `points`: arguments it is checked at, where it has a value. Without
   them, each argument takes 0.3, 0.7 and 1.6. And `lifts=False` for a function that takes
-  its arguments whole, as `min` does.
+  its arguments whole, as `min` does;
+- for a function of a matrix, `points` too, each matrix a list of its rows, as
+  `points=[([[2, 1], [1, 3]],)]`, and `scalar=True` where its value is a number, as a
+  trace's. It acts on a map written with its indices, `A^{a}{}_{b}`, unless `lifts=False`,
+  where its value is over other spaces, as a Kronecker product's is.
 
 The class has an `exact` method, which computes with SymPy, and may have a `numeric`
 method, which computes with arrays: `xp` is the array module of the data, NumPy's or
@@ -87,7 +91,12 @@ definition in the program always wins, a script that is an index label is an ind
 that `\Gamma^{\lambda}_{\mu\nu}` stays the Christoffel symbol, and a name of one letter
 called with the coordinates, as the lapse `N(t)` in a metric, is a function of them.
 `Workbook.explain` shows each reading, and a note says where a name of one letter could
-have meant a function of the program's own.
+have meant a function of the program's own. A function of a matrix written with one letter,
+as the spectral radius `\rho(A)`, is read so only where its argument is written as a
+matrix, so that `\rho(1 + 3w)` stays a density's; and a form may write the name of a
+function as its command, as the `\max` of `\lambda_{\max}(A)`, which a call writes as it
+is. The notation of matrices that is no call, as `A^T` and `e^{A t}`, is read in
+`reading/matrices.py`, by its operands.
 
 A name books write for a function no integration provides yet is *reserved* in
 `integrations/book_names.py`, with what it is: a program that writes it is refused,
@@ -157,9 +166,11 @@ applies to its kind. A failure names the capability and says what to do:
    it needs, which is imported only when it is used.
 2. **Examples.** Each runs in the language, calls the capability, and gives its answer.
 3. **Agreement.** `exact` and `numeric` agree at each point, `numeric` takes arrays of the
-   points at once, and JAX agrees with NumPy where it is installed.
+   points at once, and JAX agrees with NumPy where it is installed; of a function of a
+   matrix, entry by entry, at each matrix.
 4. **Lifting.** A function applied to a tensor, or to data, gives its value at each
-   component, over the same space.
+   component, over the same space; a function of a matrix, applied to a map, gives its
+   value at the map's matrix, a number or a map over the same space.
 5. **Errors.** The wrong number of arguments and a missing library are refused, saying
    what to do; the wrong kind of argument, a list to a function or text in quotes to
    anything else, never fails inside RelativisticPy.

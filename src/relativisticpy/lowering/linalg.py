@@ -10,6 +10,7 @@ from collections.abc import Sequence
 
 import sympy
 
+from relativisticpy import integrations
 from relativisticpy.compiler.scope import Context, Scope
 from relativisticpy.errors import CompileError, IndexNotationError
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, Type, ops
@@ -159,6 +160,42 @@ class LinearAlgebra(Statistics):
         parts = self._eig(operator, rows, metric, node, scope, ctx, values_only=True)
         return parts[0]
 
+    def _map_function(self, name: str, args: Sequence[Node], span: Span) -> Node | None:
+        """A function of a matrix: of matrices and numbers, a scalar where it gives one, as
+        the trace does, and a value otherwise; given a map written with its indices, as
+        ``\\operatorname{rank}(A^a{}_b)``, of its components as a matrix, its upper indices
+        the rows, and its value a scalar or a map over the same spaces. ``None`` for any
+        other function, or argument, as an equation between tensors."""
+        capability = integrations.find(name)
+        if not isinstance(capability, integrations.MapFunction):
+            return None
+        if all(arg.type in (SCALAR, VALUE) for arg in args):
+            symbols = [arg for arg in args if arg.type == SCALAR and not _a_number(arg)]
+            if capability.name == "trace" and symbols:  # \operatorname{tr} M, M no matrix
+                self._note(
+                    f"{span.text} is the trace of what is no matrix, so it is that itself, as "
+                    "of a 1 × 1 matrix; for the trace of a matrix, define the matrix first"
+                )
+            value = SCALAR if capability.scalar else VALUE
+            return self.graph.add(ops.Call(name), args, value, span)
+        position = next((k for k, arg in enumerate(args) if isinstance(arg.type, TensorType)), None)
+        if position is None or not capability.lifts:
+            return None
+        operator, rows, _ = self._as_map(args[position], span, form=False)
+        assert isinstance(operator.type, TensorType)
+        spaces = operator.type.spaces
+        if not capability.scalar and spaces[:rows] != spaces[rows:]:
+            raise IndexNotationError(
+                f"{name} acts on a map of a space to itself, as A^{{a}}{{}}_{{b}} is, and its "
+                "value is a map of the same space",
+                span=span,
+            )
+        kind = SCALAR if capability.scalar else operator.type
+        rest = [arg for k, arg in enumerate(args) if k != position]
+        attributes = (("name", capability.name), ("position", position), ("rows", rows))
+        named = "linalg.number_of_a_map" if capability.scalar else "linalg.of_a_map"
+        return self.graph.add(ops.Call(named, attributes), [operator, *rest], kind, span)
+
     def _as_map(
         self, tensor: Node, span: Span, *, form: bool = True
     ) -> tuple[Node, int, Node | None]:
@@ -289,3 +326,9 @@ class LinearAlgebra(Statistics):
     def _part(self, whole: Node, position: int, kind: Type, span: Span) -> Node:
         index = self.graph.const(position, VALUE)
         return self.graph.add(ops.Call("core.part"), (whole, index), kind, span)
+
+
+def _a_number(node: Node) -> bool:
+    """Whether a value is a number written as one, as 2 is, rather than a symbol."""
+    value = node.op.value if isinstance(node.op, ops.Const) else None
+    return bool(getattr(value, "is_number", False))

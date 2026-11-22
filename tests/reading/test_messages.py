@@ -95,12 +95,14 @@ class TestWhatIsNotATensor:
         assert found.hint == r"to name a symbol, write T_{\rm eff} or T_{\text{eff}}"
         assert str(wb.expr(r"T_{\rm eff}")) == "T_eff"  # the hint works
 
-    def test_a_tensor_defined_without_indices_is_not_transposed_by_a_power(self, wb):
-        wb.exe(r"A := \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}")
+    def test_a_list_is_not_transposed_by_a_power(self, wb):
+        wb.exe(r"A := [1, 2]")
         found = error(wb, "A^T")
         assert found.message == "A^T is read as A to the power T"
         assert re.search(r"transpose\(A\)", found.hint)
-        assert wb.expr("transpose(A)").tolist() == [[1, 3], [2, 4]]  # the hint works
+        assert wb.expr("transpose(A)").tolist() == [[1, 2]]  # the hint works
+        wb.exe(r"B := \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}")
+        assert wb.expr("B^T").tolist() == [[1, 3], [2, 4]]  # a matrix's transpose
 
     @pytest.mark.parametrize(
         ("source", "message"), [("x_{}", "subscript"), ("x^{}", "superscript")]

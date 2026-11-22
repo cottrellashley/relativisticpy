@@ -10,6 +10,7 @@ note. The lowerer asks the reader as it walks a statement.
 from __future__ import annotations
 
 import inspect
+import itertools
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
@@ -32,7 +33,7 @@ from relativisticpy.compiler.scope import (
 )
 from relativisticpy.compiler.session import GEOMETRY_POSITIONS, describe
 from relativisticpy.errors import CompileError, IndexNotationError, ParseError, RelativisticPyError
-from relativisticpy.integrations import Capability, Reservation
+from relativisticpy.integrations import Capability, MapFunction, Reservation
 from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
 from relativisticpy.language import syntax as ast
@@ -52,7 +53,6 @@ from relativisticpy.reading.names import (
     _STATISTICS,
     _TRANSPOSES,
     INNER_PRODUCT,
-    _a_matrix,
     _a_member,
     _a_name,
     _a_pair,
@@ -84,8 +84,10 @@ from relativisticpy.reading.names import (
     _styled,
     _subscripted,
     _subscripted_name,
+    _subscripted_symbol,
     _unprimed,
     _with_arguments,
+    _writes_a_matrix,
     _writes_tensor,
     _written_as_letter,
     _written_with,
@@ -531,6 +533,9 @@ class Reader(Typer):
                 "a relation between differentials such as {\\rm d}t is read but not computed",
                 span=node.span,
             )
+        if self._identity is not None and name in ("I", "𝟙"):  # A - \lambda I: the identity
+            self._resolve(node.span, "the identity")
+            return self._identity
         session = self.session
         if name == "Coordinates" and session.coordinates is not None:
             self._resolve(node.span, "the coordinates", list(session.coordinates))
@@ -1384,8 +1389,9 @@ class Reader(Typer):
         )
 
     def _not_a_name(self, target: ast.Tuple | ast.List | ast.Number) -> CompileError:
-        """``\\langle p, q \\rangle := ...``, ``[\\mathrm{ES}] := ...`` or ``\\mathbf{1} := ...``:
-        a pair, a list or a number, which := cannot give a value."""
+        """``\\langle p, q \\rangle := ...``, ``[\\mathrm{ES}] := ...`` or ``\\mathbf{2} := ...``:
+        a pair, a list or a number, which := cannot give a value. ``\\mathbf{1}``, the vector
+        of ones, can be given one (:mod:`relativisticpy.reading.matrices`)."""
         written = target.span.text
         one = "to name one quantity, give it one name, and write that name where it is used"
         if isinstance(target, ast.Number):
@@ -1491,54 +1497,39 @@ class Reader(Typer):
 
     def _check_product_signs(self, node: ast.Binary, scope: Scope, ctx: Context) -> None:
         """Refuse the products whose sign means something else, which the lexer reads as a
-        product: ``\\otimes`` between matrices, their matrix product rather than their
-        Kronecker product, and ``\\times`` between vectors written with unit vectors that
-        nothing defines, as in ``\\mathbf{E} \\times \\mathbf{B}`` with \\hat{\\mathbf{x}}, a
-        product of symbols rather than a cross product (guard 4 of wave 0)."""
+        product: ``\\times`` between vectors written with unit vectors that nothing defines,
+        as in ``\\mathbf{E} \\times \\mathbf{B}`` with \\hat{\\mathbf{x}}, a product of
+        symbols rather than a cross product (guard 4 of wave 0). Between matrices,
+        ``\\otimes`` is their Kronecker product (:mod:`relativisticpy.reading.matrices`)."""
         for left, right, sign in _operators_written(node):
-            if sign not in ("\\otimes", "⊗", "\\times", "×"):
+            if sign not in ("\\times", "×"):
                 continue
             try:
                 values = [self.value(side, scope, ctx) for side in (left, right)]
             except RelativisticPyError:  # an operator, as \nabla in \nabla \times B: said later
                 continue
-            if sign in ("\\otimes", "⊗"):
-                if all(_a_matrix(value) for value in values):
-                    reading = "their matrix product"
-                    why = "\\otimes is read as a product"
-                    self._decide("product or call", node.span, reading, why)
-                    raise CompileError(
-                        f"{left.span.text} {sign} {right.span.text} is read as {reading}, not as "
-                        "their Kronecker product",
-                        span=node.span,
-                        notes=["the Kronecker product of matrices is not supported yet"],
-                        hint="with indices, A_{ab} B_{cd} is the tensor product of A and B",
-                    )
-            else:
-                units = sorted(
-                    name
-                    for value in values
-                    for name in _written_with(value)
-                    if name.endswith("hat") and len(name) > 3 and scope.lookup(name) is None
+            units = sorted(
+                name
+                for value in values
+                for name in _written_with(value)
+                if name.endswith("hat") and len(name) > 3 and scope.lookup(name) is None
+            )
+            if units:
+                shown = _listed([f"\\hat{{{name[:-3]}}}" for name in dict.fromkeys(units)])
+                self._decide(
+                    "product or call",
+                    node.span,
+                    "a product of symbols",
+                    f"{shown} name nothing",
                 )
-                if units:
-                    shown = _listed([f"\\hat{{{name[:-3]}}}" for name in dict.fromkeys(units)])
-                    self._decide(
-                        "product or call",
-                        node.span,
-                        "a product of symbols",
-                        f"{shown} name nothing",
-                    )
-                    raise CompileError(
-                        f"{left.span.text} {sign} {right.span.text} is read as a product of "
-                        f"symbols, not as a cross product: {shown} name nothing",
-                        span=node.span,
-                        notes=[
-                            "unit vectors and the cross product of vectors are not supported yet"
-                        ],
-                        hint="write each component of the cross product out, as in "
-                        "E_y B_z - E_z B_y for its x component",
-                    )
+                raise CompileError(
+                    f"{left.span.text} {sign} {right.span.text} is read as a product of "
+                    f"symbols, not as a cross product: {shown} name nothing",
+                    span=node.span,
+                    notes=["unit vectors and the cross product of vectors are not supported yet"],
+                    hint="write each component of the cross product out, as in "
+                    "E_y B_z - E_z B_y for its x component",
+                )
 
     def _derivative_of_a_list(
         self, expr: Node, variables: Sequence[Node], span: Span, by: str | None = None
@@ -1605,18 +1596,6 @@ class Reader(Typer):
                 hint="integrate over the angles: \\int_0^{2\\pi} \\int_0^{\\pi} f \\sin\\theta "
                 "\\, d\\theta \\, d\\phi",
             )
-
-    def _exponential_of_a_matrix(self, span: Span) -> CompileError:
-        """``\\exp(A)`` or ``e^{A}`` of a matrix A, which SymPy leaves as exp([[...]])."""
-        return CompileError(
-            f"{span.text} is the exponential of a matrix, which is not computed yet",
-            span=span,
-            notes=[
-                "read as written, SymPy would leave it as the exponential of a matrix, uncomputed"
-            ],
-            hint="for a matrix with eigenvalues, write it from them: P "
-            "\\operatorname{diag}(e^{\\lambda_1}, \\ldots) P^{-1}",
-        )
 
     def _matrices_in_brackets(self, node: ast.Expr, items: Sequence[ast.Expr]) -> CompileError:
         """``[K_1, K_2]`` of two matrices, read as a list of them rather than as their
@@ -1971,9 +1950,15 @@ class Reader(Typer):
                 if shape is not None:
                     span = factor.span.to(following.span)
                     call = ast.Call(factor, shape.arguments, span=span)
-                    if self._book_name(shape, call, factor.span.text, scope) is not None:
+                    if (book := self._book_name(shape, call, factor.span.text, scope)) is not None:
+                        run = 1
+                        if shape.kind == "operator" and isinstance(book.capability, MapFunction):
+                            run = _argument_run(factors[position + 1 :])  # tr A B is tr(AB)
+                        if run > 1:
+                            operand = reduce(_times, factors[position + 1 : position + 1 + run])
+                            call = ast.Call(factor, (operand,), span=factor.span.to(operand.span))
                         merged.append(call)
-                        position += 2
+                        position += 1 + run
                         continue
             merged.append(factor)
             position += 1
@@ -2014,6 +1999,12 @@ class Reader(Typer):
         # a program as often names a function of its own
         letter = len(shape.head) == 1 or shape.head in GREEK
         alone = letter and (not shape.scripts or shape.head.islower())
+        if (
+            letter
+            and isinstance(owner, MapFunction)
+            and not _writes_a_matrix(shape.arguments, scope)
+        ):  # \rho(A), but \rho(1 + 3w) is a density's
+            return None
         if alone and self._called_with_coordinates(shape):
             said = (
                 f"{node.span.text} is read as a function of the coordinates; elsewhere, "
@@ -2084,6 +2075,8 @@ class Reader(Typer):
         func = node.func if isinstance(node, ast.Call) else None
         if isinstance(func, ast.Name):
             names.add(func.id)
+        elif isinstance(func, ast.Scripted) and _subscripted_symbol(func):  # \lambda_{\max}
+            names.add(_subscripted_name(func))
         session = self.session
         return any(
             scope.lookup(name) is not None
@@ -2225,7 +2218,34 @@ def _in_books(func: ast.Name, args: tuple[ast.Expr, ...]) -> bool:
     name's use as a factor before does not make a product: \\Gamma^{t}_{tr} before it is
     the Christoffel symbol, and \\Gamma(5) Euler's gamma function."""
     shape = forms.call_shape(ast.Call(func, args, span=func.span))
-    return shape is not None and forms.matching(shape) is not None
+    match = forms.matching(shape) if shape is not None else None
+    return match is not None and not isinstance(match.pattern.owner, MapFunction)
+
+
+def _argument_run(factors: Sequence[ast.Expr]) -> int:
+    """How many of the factors after an operator written without brackets are its argument,
+    as books write it (design/notation.md, 11): the product of them up to explicit spacing,
+    an operator, a fraction, a derivative or another function, so that
+    ``\\operatorname{tr} A B`` is tr(AB) and ``\\operatorname{tr} A \\, B`` is tr(A) B."""
+    stoppers = (ast.Call, ast.Derivative, ast.Operator, ast.Integral, ast.BigOperator, ast.Limit)
+    run = 1
+    for before, factor in itertools.pairwise(factors):
+        between = Span(factor.span.source, before.span.end, factor.span.start).text
+        if "\\" in between or isinstance(factor, stoppers):
+            break
+        if isinstance(factor, ast.Binary) and factor.op == "/":
+            break
+        if isinstance(factor, ast.Scripted) and isinstance(factor.base, ast.Operator | ast.Call):
+            break
+        if isinstance(factor, ast.Name) and factor.verbatim and factor.id in BUILTINS:
+            break
+        run += 1
+    return run
+
+
+def _times(left: ast.Expr, right: ast.Expr) -> ast.Expr:
+    """The product of two factors written side by side."""
+    return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
 
 
 def _bound(

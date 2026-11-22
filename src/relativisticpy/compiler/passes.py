@@ -62,6 +62,8 @@ class Pass:
         # What the definitions compiled need of the values they make, for the workbook to
         # compute as their statements run.
         self._checks: list[Check] = []
+        # The identity a term of a sum beside a matrix is read with, as I is in A - \lambda I.
+        self._identity: Node | None = None
 
     def _call(
         self,
@@ -104,4 +106,8 @@ class Pass:
 
     def _kept(self, node: Node) -> Node | None:
         """The notation a node holds, if any, read in the algebra in force."""
+        raise NotImplementedError
+
+    def _components_of(self, node: Node, scope: Scope, ctx: Context, span: Span) -> Node:
+        """A value kept as notation, turned into components with the metric in force."""
         raise NotImplementedError

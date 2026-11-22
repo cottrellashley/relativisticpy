@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypeGuard
 
 import sympy
 from sympy.core.function import AppliedUndef
@@ -32,7 +32,7 @@ from relativisticpy.integrations._declarations import Capability, Function, Rese
 from relativisticpy.integrations._discovery import catalogue, on_change
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
-from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.language.vocabulary import FUNCTION_COMMANDS, GREEK
 
 #: How the name a function is written with is set: upright, as ``\operatorname{erfc}``
 #: and ``\mathrm{B}``; calligraphic, as ``\mathcal{L}``; a Greek letter written as one, as
@@ -91,7 +91,7 @@ class Pattern:
         """The names of the variables the form is written with, in order."""
         found: list[str] = []
         for slot in (*self.shape.scripts, *self.shape.arguments):
-            if isinstance(slot, ast.Name) and slot.id not in found:
+            if _variable(slot) and slot.id not in found:
                 found.append(slot.id)
         return found
 
@@ -385,7 +385,10 @@ def _binds(pattern: Pattern, shape: Shape) -> dict[str, ast.Node] | None:
     for place, (slot, written) in enumerate(
         zip((*form.scripts, *form.arguments), (*shape.scripts, *shape.arguments), strict=True)
     ):
-        if isinstance(slot, ast.Name):
+        if isinstance(slot, ast.Name) and not _variable(slot):  # the \max of \lambda_{\max}
+            if not (isinstance(written, ast.Name) and written.id == slot.id):
+                return None
+        elif isinstance(slot, ast.Name):
             if place < scripts and _a_label(written):
                 return None
             bound = bindings.setdefault(slot.id, written)
@@ -394,6 +397,15 @@ def _binds(pattern: Pattern, shape: Shape) -> dict[str, ast.Node] | None:
         elif slot != written:
             return None
     return bindings
+
+
+def _variable(slot: ast.Node) -> TypeGuard[ast.Name]:
+    """Whether a slot of a form is a variable, named after a parameter: a name, but for
+    the name of a function written as its command, as \\max in ``\\lambda_{\\max}(A)``,
+    which is written as it is."""
+    if not isinstance(slot, ast.Name):
+        return False
+    return not (slot.span.text.lstrip().startswith("\\") and slot.id in FUNCTION_COMMANDS)
 
 
 def _a_label(script: ast.Node) -> bool:
@@ -516,7 +528,7 @@ def _render(
     shape = pattern.shape
     parts: dict[int, str] = {}
     for slot in (*shape.scripts, *shape.arguments):
-        if isinstance(slot, ast.Name):
+        if _variable(slot):
             if slot.id not in values:
                 return None
             value = values[slot.id]

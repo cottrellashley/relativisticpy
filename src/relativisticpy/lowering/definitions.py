@@ -32,6 +32,8 @@ from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.expressions import Expressions
 from relativisticpy.reading.names import (
+    BOLD_ONE,
+    _bold_one,
     _indexed_target,
     _is_line_element,
     _late_note,
@@ -105,6 +107,10 @@ class Definitions(Expressions):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
             return
         target = _unprimed(target)
+        if _bold_one(target):  # \mathbf{1} := ..., the program's own, which wins (decision 23)
+            ones = self._value_or_notation(value, scope, ctx, definition=True)
+            scope.bind(BOLD_ONE, VariableBinding(ones))
+            return
         if isinstance(target, _UNDEFINABLE):  # \psi_n(x), \Delta\phi, \langle p, q \rangle
             raise self._cannot_define(target, value)
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):

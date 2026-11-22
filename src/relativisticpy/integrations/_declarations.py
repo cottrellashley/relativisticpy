@@ -77,7 +77,9 @@ class Capability:
     points: tuple[tuple[Any, ...], ...] = ()
     #: Whether a call gives a scalar where its arguments are scalars.
     scalar: bool = False
-    #: Whether it applies to each component of a tensor given as its first argument.
+    #: Whether it applies to each component of a tensor given as its first argument; of a
+    #: function of a matrix, whether it acts on a map written with its indices, over the
+    #: same spaces.
     lifts: bool = False
     #: Whether it reads text in quotes as names, as ``symbols('x y')`` does, never as Python.
     takes_names: bool = False
@@ -155,7 +157,9 @@ class Function(Capability):
 
 
 class MapFunction(Capability):
-    """A function of a matrix, as the determinant and the inverse are."""
+    """A function of a matrix, as the determinant and the inverse are: given a map written
+    with its indices, as A^a{}_b, it acts on the map, and its value is over the same
+    spaces."""
 
     kind = "map function"
     takes = "a matrix"
@@ -215,10 +219,14 @@ def map_function(
     latex: str | Sequence[str] = (),
     unicode: str | Sequence[str] = (),
     requires: str | None = None,
+    points: Sequence[Sequence[Any]] = (),
+    lifts: bool = True,
     scalar: bool = False,
 ) -> Callable[[type], MapFunction]:
     """Declare a function of a matrix, which gives a ``scalar``, as the trace does, or a
-    matrix."""
+    matrix. It ``lifts`` to a map written with its indices, acting on it, unless its value
+    is over other spaces, as a Kronecker product's is. ``points`` are the arguments it is
+    checked at, matrices written as lists of rows."""
     return _declare(
         MapFunction,
         name,
@@ -228,6 +236,8 @@ def map_function(
         latex=latex,
         unicode=unicode,
         requires=requires,
+        points=points,
+        lifts=lifts,
         scalar=scalar,
     )
 

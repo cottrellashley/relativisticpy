@@ -102,7 +102,8 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
 
 #: What the operator commands mean, by the kinds of token they are read as, in order.
 _OPERATORS: tuple[tuple[tuple[str, ...], str], ...] = (
-    (("STAR",), "multiplication, `*`; between tensors, their product"),
+    (("STAR",), "multiplication, `*`; between tensors, their product, and `\\otimes` between "
+     "matrices their Kronecker product"),
     (("SLASH",), "division, `/`"),
     (("LESS", "GREATER", "LESS_EQ", "GREATER_EQ", "NOT_EQ"),
      "comparisons, in this order: `<`, `>`, `<=` (three spellings), `>=` (three), `!=` (two)"),
@@ -596,7 +597,9 @@ def _latex() -> list[str]:
         (_commands(vocab.GREEK), "Greek letters, each one symbol"),
         (_commands(variants), "variant letterforms: each the letter after `var`"),
         (_commands(symbols), r"symbols; `\odot` is the Sun, as in `M_\odot`, and between "
-         "tensors the elementwise product"),
+         r"tensors the elementwise product; `\oplus` between matrices is their direct sum, and "
+         r"`A^\top`, `A^\intercal` and `A^\dagger` of a matrix its transpose and its conjugate "
+         "transpose"),
         (_commands(vocab.FUNCTION_COMMANDS), "functions, each calling the builtin of its name, "
          f"except that {renamed}; `\\sin^{{-1}}` is the inverse, and only `\\log` takes a "
          "subscript, its base"),
@@ -707,9 +710,10 @@ def _unicode() -> list[str]:
         "",
         "Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so "
         f"are {commands}. The operators {operators} and the relations {relations} are "
-        "LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}`, and the "
-        "double-struck letters, ℝ ℂ 𝔼 𝟙, are `\\mathbb`'s. A combining accent, as in ȧ, is "
-        "an error that names it: write the command, `\\dot{a}`.",
+        "LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is "
+        "`A^{T}`, † after a matrix is `^\\dagger`, ⊕ is `\\oplus`, and the double-struck "
+        "letters, ℝ ℂ 𝔼 𝟙, are `\\mathbb`'s. A combining accent, as in ȧ, is an error that "
+        "names it: write the command, `\\dot{a}`.",
     ]
 
 

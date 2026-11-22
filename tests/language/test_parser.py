@@ -646,9 +646,9 @@ class TestFractionsRootsAndFunctions:
         # these are read by the lexer, so a list of the parser's commands missed them
         assert error(f"x + \\{typo} y").hint == f"did you mean \\{meant}?"
 
-    @pytest.mark.parametrize("name", ["top", "let", "mod", "foo", "inf"])
+    @pytest.mark.parametrize("name", ["let", "mod", "foo", "inf"])
     def test_no_unrelated_suggestion(self, name):
-        # \top is not \to, and \foo is not \lfloor
+        # \foo is not \lfloor
         assert "did you mean" not in str(error(f"A^\\{name}"))
 
     @pytest.mark.parametrize(
@@ -658,8 +658,8 @@ class TestFractionsRootsAndFunctions:
              "relativisticpy check reads the macros of a document"),
             (r"\abs{x}", r"\abs, the physics package's absolute value, is not supported",
              r"write |x|, or \left| x \right|"),
-            (r"A^\top", r"the transpose, \top, is not supported yet",
-             "the transpose of A_{ab} is A_{ba}"),
+            (r"\norm{x}", r"\norm, the physics package's norm, is not supported",
+             r"write \| x \|"),
             (r"\dd x", r"\dd, the physics package's differential, is not supported",
              r"write d x, or \mathrm{d} x"),
         ],
@@ -1478,6 +1478,53 @@ class TestMoreNotation:
 
     def test_norm_bars(self):
         assert sexpr(r"\|x\|") == "(abs x)"
+        assert sexpr(r"\lVert A \rVert_2") == "((abs A) _[2])"
+        assert sexpr("‖x‖_1") == "((abs x) _[1])"
+
+
+class TestMatrixNotation:
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"A^\top", "(A ^[top])"),
+            (r"A^\intercal", "(A ^[intercal])"),
+            (r"A^\dagger", "(A ^[dagger])"),
+            ("Aᵀ", "(A ^[T])"),
+            ("A† B", "(* (A ^[dagger]) B)"),
+            ("A^† B", "(* (A ^[dagger]) B)"),
+        ],
+    )
+    def test_a_transpose_or_a_dagger_is_a_superscript(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("A^{+} b", "(* (^ A +) b)"),
+            ("r_{-}", "(r _-)"),
+            ("A^{*}", "(^ A *)"),
+            (r"\lambda_{\max}(A)", "(* (lambda _[max]) A)"),
+            (r"\lambda_\min(A)", "(* (lambda _[min]) A)"),
+        ],
+    )
+    def test_a_sign_or_an_extreme_alone_in_a_script_is_a_label(self, text, expected):
+        assert sexpr(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (r"A \oplus B", "(⊕ A B)"),
+            ("A ⊕ B C + D", "(+ (⊕ A (* B C)) D)"),
+            (r"\det A \oplus B", "(⊕ (call det A) B)"),
+            (r"M_\odot", "(M _[odot])"),
+        ],
+    )
+    def test_a_direct_sum_binds_as_a_sum(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_the_kernel_and_the_dimension_are_functions(self):
+        assert sexpr(r"\dim \ker A") == "(call dim (call null A))"
+        assert sexpr(r"\ker(A)") == "(call null A)"
 
 
 class TestMoreErrors:

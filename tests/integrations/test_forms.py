@@ -9,7 +9,7 @@ import sympy
 
 from relativisticpy import Workbook, display, integrations
 from relativisticpy.errors import CompileError, EvaluationError
-from relativisticpy.integrations import Example, _forms, map_function
+from relativisticpy.integrations import Example, _forms, function
 from relativisticpy.language import parse
 
 x, z = sympy.symbols("x z")
@@ -188,8 +188,6 @@ class TestReservations:
         ("source", "said"),
         [
             (r"\operatorname{Res}_{z=0} f(z)", "the residue of a function at a point"),
-            (r"\operatorname{tr} A", "the trace of a matrix written as an operator"),
-            (r"\operatorname{rank}(A)", "the rank of a matrix, is not supported yet"),
             (r"\operatorname{Var}(X)", "the variance of a random variable"),
             (r"\epsilon_{ijk}", r"\epsilon_{ijk}, the Levi-Civita symbol, is not supported yet"),
         ],
@@ -214,25 +212,26 @@ class TestReservations:
     def test_what_only_looks_like_a_book_name_is_read_as_before(self, wb, source):
         wb.expr(source)  # an unknown function, or a product
 
-    def test_a_definition_of_the_name_wins_over_its_reservation(self, wb):
+    def test_a_definition_of_the_name_wins_over_its_book_name(self, wb):
         wb.exe(r"\operatorname{rank}(A) := 2")
         assert wb.expr(r"\operatorname{rank}(B)") == 2
 
     def test_providing_a_capability_retires_its_reservation(self):
-        @map_function(
-            "rank",
-            latex=r"\operatorname{rank}(A)",
-            summary="the rank of a matrix",
-            examples=[Example(r"\operatorname{rank}([[1, 2], [2, 4]])", 1, "standard")] * 2,
+        @function(
+            "Res",
+            latex=r"\operatorname{Res}(f, a)",
+            summary="the residue of a function at a point",
+            examples=[Example(r"\operatorname{Res}(1/z, 0)", 1, "standard")] * 2,
+            lifts=False,
         )
-        class Rank:
-            def exact(self, matrix):
-                return sympy.Matrix(matrix).rank()
+        class Residue:
+            def exact(self, f, a):
+                return sympy.residue(f, z, a)
 
-        with integrations.installed(Rank):
-            assert "rank" not in {r.name for r in integrations.reservations()}
-            assert Workbook().expr(r"\operatorname{rank}([[1, 2], [2, 4]])") == 1
-        assert "rank" in {r.name for r in integrations.reservations()}
+        with integrations.installed(Residue):
+            assert "Res" not in {r.name for r in integrations.reservations()}
+            assert Workbook().expr(r"\operatorname{Res}(1/z, 0)") == 1
+        assert "Res" in {r.name for r in integrations.reservations()}
 
 
 class TestPrinting:

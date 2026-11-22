@@ -50,9 +50,11 @@ from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.linalg import LinearAlgebra
 from relativisticpy.reading.names import (
     _LINEAR_ALGEBRA,
+    BOLD_ONE,
     _a_matrix,
     _a_pair,
     _an_index,
+    _bold_one,
     _bracketed_order,
     _in_angle_brackets,
     _letter,
@@ -100,6 +102,13 @@ class Expressions(LinearAlgebra):
         return handler(node, scope, ctx)
 
     def _Number(self, node: ast.Number, scope: Scope, ctx: Context) -> Node:
+        if _bold_one(node):
+            defined = scope.lookup(BOLD_ONE)
+            if isinstance(defined, VariableBinding):  # \mathbf{1} := ..., the program's own
+                self._resolve_binding(node.span, defined)
+                return defined.node
+            if self._identity is not None:  # A - \lambda \mathbf{1}
+                return self._identity
         text = node.text
         number = (
             sympy.Integer(int(text)) if _INTEGER.fullmatch(text.lstrip("-")) else sympy.Float(text)
@@ -178,6 +187,8 @@ class Expressions(LinearAlgebra):
             raise CompileError("the composition of maps is not supported", span=node.span)
         if node.op == "⊙":
             return self._hadamard(node, scope, ctx)
+        if node.op == "⊕":
+            return self._direct_sum(node, scope, ctx)
         if node.op == "*":
             return self._product(node, scope, ctx)
         if node.op in ("and", "or"):
@@ -247,14 +258,7 @@ class Expressions(LinearAlgebra):
                 pending.append((sign, expr.left))
             else:
                 terms.append((sign, expr))
-        values = [
-            (
-                sign,
-                self._components_of(self.value(_operand(term), scope, ctx), scope, ctx, term.span),
-                term,
-            )
-            for sign, term in terms
-        ]
+        values = self._terms_of_a_sum(terms, scope, ctx)  # A - \lambda I
         tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         if not tensors:
             kind = VALUE if any(v.type == VALUE for _, v, _ in values) else SCALAR
@@ -279,11 +283,17 @@ class Expressions(LinearAlgebra):
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
         if _in_angle_brackets(node) and "|" in node.span.text:  # \langle 0 | T\{...\} | 0 \rangle
             raise self._bra_ket(node)
-        if any(sign in node.span.text for sign in ("times", "×", "⊗")):  # \otimes, \times
+        if (kronecker := self._kronecker(node, scope, ctx)) is not None:  # A \otimes B
+            return kronecker
+        if any(sign in node.span.text for sign in ("times", "×")):  # \times
             self._check_product_signs(node, scope, ctx)
         factors: list[ast.Expr] = []
         left: ast.Expr = node
-        while isinstance(left, ast.Binary) and left.op == "*":
+        while (
+            isinstance(left, ast.Binary)
+            and left.op == "*"
+            and not self._kronecker_written(left, scope, ctx)
+        ):
             factors.insert(0, left.right)
             left = left.left
         factors.insert(0, left)
@@ -293,6 +303,7 @@ class Expressions(LinearAlgebra):
         factors = [part for factor in factors for part in _unsigned(factor)]
         factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call
         grouped = self._statistic_factors(factors, scope, ctx)
+        grouped = self._ones_vectors(grouped, scope, ctx)  # \mathbf{1}^T A \mathbf{1}
         if len(grouped) == 1 and isinstance(grouped[0], Node):
             return grouped[0]
         terms: list[Term] = []
@@ -350,7 +361,7 @@ class Expressions(LinearAlgebra):
             else:
                 stack.append(term)
                 selected.append(selections)
-        result = self._multiply(stack[::-1], node.span)
+        result = self._one_by_one(self._multiply(stack[::-1], node.span), node.span)
         return self._spanning_brackets(factors, result, node.span)
 
     def _multiply(self, operands: Sequence[Node], span: Span) -> Node:
@@ -389,17 +400,15 @@ class Expressions(LinearAlgebra):
             )
         if isinstance(exponent.type, TensorType):
             raise IndexNotationError("cannot raise to the power of a tensor", span=span)
-        euler = isinstance(base.op, ops.Const) and base.op.value is sympy.E
-        if euler and _a_matrix(exponent):  # e^{A t} of a matrix A
-            raise self._exponential_of_a_matrix(span)
+        if (power := self._matrix_power(base, exponent, span)) is not None:  # e^{A t}, A^k
+            return power
         kind = (
             VALUE if any(isinstance(t, ValueType) for t in (base.type, exponent.type)) else SCALAR
         )
         return self.graph.add(ops.Pow(), (base, exponent), kind, span)
 
     def _Equation(self, node: ast.Equation, scope: Scope, ctx: Context) -> Node:
-        lhs = self._components_of(self.value(node.lhs, scope, ctx), scope, ctx, node.lhs.span)
-        rhs = self._components_of(self.value(node.rhs, scope, ctx), scope, ctx, node.rhs.span)
+        lhs, rhs = self._sides_of_an_equation(node, scope, ctx)  # U^\dagger U = I
         self._check_pair_and_scalar(node, lhs, rhs)
         tensor = next((v.type for v in (lhs, rhs) if isinstance(v.type, TensorType)), None)
         if tensor is not None:
@@ -456,11 +465,12 @@ class Expressions(LinearAlgebra):
             self._decide(CALL, node.span, f"a call of {name}", why)
             args = [self.value(a, scope, ctx) for a in node.args]
             return self._inline(binding, args, node.span, ctx)
-        trace = binding is None and name in ("trace", "tr") and len(node.args) == 1
+        trace = binding is None and name in ("trace", "tr", "Tr") and len(node.args) == 1
         if trace and (traced := self._metric_trace(node.args[0], scope, ctx)) is not None:
             return traced
-        if binding is None and name in _LINEAR_ALGEBRA and node.args:
-            done = self._linear_algebra(name, node, scope, ctx)
+        linear = {"Tr": "tr", "inverse": "inv"}.get(name, name)  # as \operatorname{tr}, inv
+        if binding is None and linear in _LINEAR_ALGEBRA and node.args:
+            done = self._linear_algebra(linear, node, scope, ctx)
             if done is not None:
                 return done
         names = {c.name for c in self.session.coordinates or ()}
@@ -490,7 +500,7 @@ class Expressions(LinearAlgebra):
                 span=node.span,
                 hint="in the language, geodesic_equations(\\tau) gives the equations they solve",
             )
-        if name in ("eig", "spec", "svd"):  # what _linear_algebra leaves: no tensor
+        if name in ("eig", "svd"):  # what _linear_algebra leaves: no tensor
             count = ", and how many eigenvalues if not all" if name != "svd" else ""
             raise CompileError(
                 f"{name}() takes a tensor written with its indices{count}",
@@ -568,8 +578,11 @@ class Expressions(LinearAlgebra):
         pair = next((arg for arg in args if _a_pair(arg)), None)
         if pair is not None and builtin.name in _of_numbers():  # \sqrt{(a, b)}
             raise self._function_of_a_pair(builtin.name, pair, span)
-        if builtin.name == "exp" and args and _a_matrix(args[0]):  # \exp of a matrix
-            raise self._exponential_of_a_matrix(span)
+        if (function := self._function_of_a_matrix(builtin.name, args, span)) is not None:
+            return function  # \exp, \log or \sqrt of a matrix
+        self._check_unknown_matrix(builtin.name, args, span)  # solve(A^T P + P A = -I, P)
+        if (lifted_map := self._map_function(builtin.name, args, span)) is not None:
+            return lifted_map  # \operatorname{rank} A^a{}_b, of a map
         if builtin.componentwise:  # each component of the first tensor among the arguments
             lifted = next((k for k, a in enumerate(args) if isinstance(a.type, TensorType)), None)
             if lifted is not None:
@@ -583,6 +596,11 @@ class Expressions(LinearAlgebra):
     def _capability(self, book: BookCall, span: Span, scope: Scope, ctx: Context) -> Node:
         """A call written as books write a capability, as ``J_{\\nu}(x)``, lowered as a
         call of it by its name, with the parameters its form gives by name."""
+        traced = None
+        if book.capability.name == "trace" and len(book.arguments) == 1:  # tr R_{\mu\nu}
+            traced = self._metric_trace(book.arguments[0], scope, ctx)
+        if traced is not None:
+            return traced
         args = [self.value(arg, scope, ctx) for arg in book.arguments]
         return self._builtin(BUILTINS[book.capability.name], args, span, book.keywords)
 
@@ -879,6 +897,8 @@ class Expressions(LinearAlgebra):
         operand = self.value(node.operand, scope, ctx)
         if isinstance(operand.type, TensorType) and operand.type.rank == 1:
             return self._norm(operand, node.span)
+        if (norm := self._norm_of(node, operand)) is not None:  # \|A\| of a matrix
+            return norm
         return self._builtin(BUILTINS["Abs"], [operand], node.span)
 
     def _norm(self, vector: Node, span: Span) -> Node:
@@ -1034,6 +1054,8 @@ class Expressions(LinearAlgebra):
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         if (book := self._book_scripted(node, scope)) is not None:  # (a)_n
             return self._capability(book, node.span, scope, ctx)
+        if (matrix := self._matrix_scripted(node, scope, ctx)) is not None:  # A^T, \|A\|_2
+            return matrix
         if isinstance(node.base, ast.Prime) and isinstance(named := _unprimed(node), ast.Scripted):
             node = named  # R'_{\mu\nu}: the tensor R'
         decorated = _named(node)

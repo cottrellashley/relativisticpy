@@ -9,6 +9,7 @@ its attributes, by name: module-level, so that a worker process can run it.
 from __future__ import annotations
 
 import itertools
+import math
 import re
 from collections.abc import Sequence
 from typing import Any
@@ -17,7 +18,7 @@ import sympy
 from sympy import Symbol
 from sympy.core.function import AppliedUndef
 
-from relativisticpy import display
+from relativisticpy import display, integrations
 from relativisticpy.diffgeom.metric import differential
 from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.tensors import Indices, Tensor, arrays, linalg, numerical
@@ -532,6 +533,75 @@ def real(value: Any) -> Any:
 def matrix_function(name: str, components: Any, rows: int) -> Any:
     """``exp``, ``sqrt`` or ``log``, called ``name``, of a map."""
     return linalg.function(name, components, rows)
+
+
+def of_a_map(components: Any, *rest: Any, name: str, position: int, rows: int) -> Any:
+    """The function of a matrix called ``name`` of the components of a map, as a matrix whose
+    rows are its first ``rows`` axes, given at ``position`` among the ``rest`` of its
+    arguments: computed with arrays where they are numbers, and with SymPy otherwise."""
+    capability = integrations.find(name)
+
+    def compute(matrix: Any) -> Any:
+        arguments = [*rest[:position], matrix, *rest[position:]]
+        if numerical.is_numerical(matrix) and capability.numeric is not None:
+            return integrations.Numerically(name)(numerical.xp(matrix), *arguments)
+        return integrations.Exactly(name)(*arguments)
+
+    return linalg.of_a_map(components, rows, compute, scalar=capability.scalar)
+
+
+def identity_beside(matrix: Any, *, ones: bool) -> Any:
+    """The identity of the size of a square matrix, as I is in A - \\lambda I; beside a
+    vector, where it is written \\mathbf{1}, the vector of ones of its shape
+    (design/notation.md, 12 and 23)."""
+    array = arrays.to_array(matrix)
+    shape = tuple(array.shape)
+    if len(shape) == 2 and shape[0] == shape[1]:
+        if numerical.is_numerical(array):
+            return numerical.xp(array).eye(shape[0])
+        return sympy.ImmutableDenseNDimArray(sympy.eye(shape[0]).tolist())
+    if ones and len(shape) == 2 and 1 in shape:
+        return _ones_of(array, shape)
+    what = "the identity" if not ones else "the identity, or the vector of ones,"
+    raise EvaluationError(
+        f"{what} is of the size of the matrix beside it, but a {_size(shape)} matrix is not square",
+        hint="write it beside a square matrix, as in A - \\lambda I",
+    )
+
+
+def ones_beside(matrix: Any, *, side: str, row: bool) -> Any:
+    """The vector of ones as long as a matrix has ``side``, rows or columns: a row, where
+    it is ``\\mathbf{1}^T``, or a column."""
+    array = arrays.to_array(matrix)
+    shape = tuple(array.shape)
+    if len(shape) != 2:
+        raise EvaluationError(f"the vector of ones meets a {_size(shape)} array, no matrix")
+    length = shape[0] if side == "rows" else shape[1]
+    return _ones_of(array, (1, length) if row else (length, 1))
+
+
+def _ones_of(like: Any, shape: tuple[int, ...]) -> Any:
+    """Ones in an array of ``shape``: of numbers where ``like`` is, and exact otherwise."""
+    if numerical.is_numerical(like):
+        return numerical.xp(like).ones(shape)
+    return sympy.ImmutableDenseNDimArray([1] * math.prod(shape), shape)
+
+
+def entry(matrix: Any, row: int, column: int) -> Any:
+    """The entry of a matrix in a row and a column, counted from 0."""
+    array = arrays.to_array(matrix)
+    shape = tuple(array.shape)
+    if len(shape) != 2 or row >= shape[0] or column >= shape[1]:
+        raise EvaluationError(
+            f"a {_size(shape)} matrix has no entry in row {row + 1} and column {column + 1}"
+        )
+    value = array[row, column]
+    return numerical.number(value) if numerical.is_numerical(array) else value
+
+
+def _size(shape: tuple[int, ...]) -> str:
+    """A shape as it is said, as 2×3."""
+    return "×".join(map(str, shape)) or "scalar"
 
 
 def ledoit_wolf(samples: Any) -> Any:

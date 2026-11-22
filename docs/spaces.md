@@ -198,6 +198,7 @@ True
 | `\operatorname{spec}(A)` | the eigenvalues; with a second argument `n`, the `n` largest, or smallest if negative, as for a large sparse matrix |
 | `\operatorname{svd}(X_{ta})` | `U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})`, so that \(X_{ta} = U_{tk} \operatorname{diag}(s)_{kl} V_{al}\) |
 | `\det`, `\operatorname{tr}` | of a map, or of a matrix of components |
+| `\operatorname{rank}`, `\rho`, `\lambda_{\max}`, `\kappa`, `expm`, `norm` | the [functions of a matrix](language.md#matrices), of a map's matrix of components: a number, or a map of the same space |
 | `\|v\|` | the length of a vector, with the metric of its space: \(\sqrt{g_{ab} \bar v^a v^b}\) |
 | `\operatorname{diag}(d)_{ab}` | the diagonal matrix of a vector |
 | `A_{ta} \odot B_{ta}` | the elementwise product, which index notation has no other way to write |

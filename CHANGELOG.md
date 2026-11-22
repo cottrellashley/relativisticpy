@@ -129,6 +129,21 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   `x_n := n\,h, \quad n = 0, \ldots, N-1`, declares the space of its index, and the
   definition is made for each of its values. A sum whose body writes its index on data,
   or on a list, runs over the whole of it, from its lower limit, as a contraction.
+- Matrices as books write them: the trace `\operatorname{tr} A` and the rank, unbracketed
+  as `\det A` is, `e^{A t}`, `\exp`, `\log` and `\sqrt` of a matrix, powers `\Lambda^k`
+  and `V^{1/2}`, the pseudoinverse `A^+`, the transpose `A^T`, `A^\top` or `Aᵀ` and the
+  conjugate transpose `A^\dagger`, the spectral radius `\rho(A)`, the eigenvalues
+  `\lambda_{\max}(A)` and `\lambda_k(A)`, the spectrum, the norms `\|A\|_2`, `\|A\|_F`
+  and `\|A\|_\infty`, the condition number `\kappa(A)`, the adjugate, `\ker A` and
+  `\dim \ker A`, `\operatorname{vec}`, entries `(A^3)_{12}`, the Kronecker product
+  `A \otimes B`, the direct sum `A \oplus B`, and matrices written in blocks. `I`,
+  `\mathbb{1}`, 𝟙 and `\mathbf{1}` added to a matrix are the identity, a number added to
+  a square one is a multiple of it, `\mathbf{1}` in a product is the vector of ones, unless
+  the program defines it, and a 1 × 1 product is the number it holds. Each is read by its
+  operands (`design/notation.md`, 6, 11, 12 and 23), recorded as a reading, with a note
+  where another was possible, and computed exactly with SymPy and numerically with NumPy
+  and SciPy, or JAX; given a map `A^a{}_b`, a function of a matrix acts on it, over its
+  space.
 - A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
   18 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs

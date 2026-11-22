@@ -15,6 +15,7 @@ components and NumPy and SciPy numerical work on numbers::
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from typing import Any
 
 import sympy
@@ -349,6 +350,14 @@ def function(name: str, components: Any, rows: int) -> Any:
     if name == "log":
         return _array(sympy.simplify(matrix.log()), shape)
     return _array(sympy.simplify(matrix.pow(sympy.Rational(1, 2))), shape)
+
+
+def of_a_map(components: Any, rows: int, compute: Callable[[Any], Any], *, scalar: bool) -> Any:
+    """``compute`` of the components of a map, as a matrix whose rows are its first ``rows``
+    axes: a scalar, or a matrix of the same shape, made the components of the map again."""
+    matrix, row_shape, column_shape = _square(components, rows)
+    value = compute(numerical.dense(matrix) if numerical.is_sparse(matrix) else matrix)
+    return value if scalar else _array(value, (*row_shape, *column_shape))
 
 
 def diag(vector: Any) -> Any:

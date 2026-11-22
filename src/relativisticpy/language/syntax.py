@@ -96,7 +96,7 @@ class Unary(Expr):
 class Binary(Expr):
     """A binary operation. ``implicit`` marks multiplication by juxtaposition (``2x``)."""
 
-    op: Literal["+", "-", "*", "/", "**", "and", "or", "∧", "±", "∓", "∘", "⊙"]
+    op: Literal["+", "-", "*", "/", "**", "and", "or", "∧", "±", "∓", "∘", "⊙", "⊕"]
     left: Expr
     right: Expr
     implicit: bool = False

@@ -37,9 +37,13 @@ class TestArity:
         assert error(wb, "solve()").message == "solve() takes at least 1 argument, not 0"
         assert error(wb, "log(1, 2, 3)").message == "log() takes 1 or 2 arguments, not 3"
 
-    @pytest.mark.parametrize("source", ["eig()", "eig(1, 2, 3)", "spec(x)"])
+    @pytest.mark.parametrize("source", ["eig()", "eig(1, 2, 3)"])
     def test_linear_algebra_takes_a_tensor(self, wb, source):
         assert "takes a tensor written with its indices" in error(wb, source).message
+
+    def test_the_spectrum_takes_a_matrix_or_a_tensor(self, wb):
+        found = error(wb, "spec(x)", EvaluationError)
+        assert found.message == "a spectrum takes a matrix, as [[1, 2], [3, 4]], not x"
 
     def test_an_argument_by_name(self, wb):
         found = error(wb, "series(sin(x), x, 0, n=5)", ParseError)  # refused as it is read

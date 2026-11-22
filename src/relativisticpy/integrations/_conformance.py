@@ -42,7 +42,7 @@ import sympy
 
 from relativisticpy.errors import InternalError, RelativisticPyError
 from relativisticpy.integrations import _transforms
-from relativisticpy.integrations._declarations import Capability, Example, Function
+from relativisticpy.integrations._declarations import Capability, Example, Function, MapFunction
 from relativisticpy.integrations._discovery import (
     Exactly,
     Numerically,
@@ -325,9 +325,12 @@ def _uses(ir: str, capability: Capability) -> bool:
 
 def agreement(capability: Capability) -> list[str]:
     """Exact and numeric agree at each point, numeric takes arrays of the points at once,
-    and JAX agrees with NumPy where it is installed."""
+    and JAX agrees with NumPy where it is installed; for a function of a matrix, entry by
+    entry, at matrices."""
     import numpy as np
 
+    if isinstance(capability, MapFunction):
+        return _map_agreement(capability)
     name, failures = capability.name, []
     points = _points(capability)
     computed = []
@@ -388,7 +391,9 @@ def _jax(capability: Capability, columns: list[Any], expected: Any) -> list[str]
 def lifting(capability: Capability) -> list[str]:
     """Applied to a tensor, and to data, in the place of any of its arguments that is a
     number or an expression at its points, it gives its results component by component,
-    over the space of the tensor."""
+    over the space of the tensor; a function of a matrix, applied to a map, acts on it."""
+    if isinstance(capability, MapFunction):
+        return _map_lifting(capability)
     points = _points(capability)
     places = [k for k in range(len(points[0])) if all(_scalar(point[k]) for point in points)]
     return [failure for place in places for failure in _lifted(capability, points, place)]
@@ -475,6 +480,177 @@ def _data(tensor: Any) -> bool:
     from relativisticpy.tensors.numerical import is_numerical
 
     return bool(is_numerical(tensor.components))
+
+
+# -- 3 and 4, of a function of a matrix ---------------------------------------------------
+
+
+def _map_agreement(capability: Capability) -> list[str]:
+    """Exact and numeric agree at each point, entry by entry, with NumPy and with JAX: a
+    function of a matrix takes each matrix whole."""
+    import numpy as np
+
+    name, failures = capability.name, []
+    for point in _points(capability):
+        exact = _entries(_exactly(capability, point))
+        if exact is None:
+            failures.append(
+                f"{name}: exact at {_at(capability, point)} is no number; declare points where "
+                "it is one, as points=[([[2, 1], [1, 3]],)]"
+            )
+            continue
+        numeric = np.asarray(_numerically(capability, point), dtype=complex)
+        if numeric.shape != exact.shape or not _close_entries(numeric, exact, AGREEMENT):
+            failures.append(
+                f"{name}: numeric and exact differ at {_at(capability, point)}: numeric gives "
+                f"{_shown_entries(numeric)}, exact {_shown_entries(exact)}; fix numeric, or, if "
+                "the point is outside where it is defined, declare points=[...] inside"
+            )
+            continue
+        failures += _map_jax(capability, point, numeric)
+    return failures
+
+
+def _map_jax(capability: Capability, point: tuple[Any, ...], expected: Any) -> list[str]:
+    """JAX agrees with NumPy at a point, in 64 bits, as the language computes with JAX."""
+    try:
+        import jax
+        import jax.numpy as jnp
+    except ImportError:  # pragma: no cover - JAX is a development dependency
+        return []
+    import numpy as np
+
+    from relativisticpy.workbook import _double_precision
+
+    _double_precision(jax)
+    arrays = tuple(jnp.asarray(np.asarray(value, dtype=float)) for value in point)
+    try:
+        found = np.asarray(_numerically(capability, arrays, jnp), dtype=complex)
+    except Exception as error:
+        return [
+            f"{capability.name}: numeric fails with JAX arrays ({type(error).__name__}: "
+            f"{error}); compute with xp, the array module it is given"
+        ]
+    if found.shape != expected.shape or not _close_entries(found, expected, 1e-5):
+        return [f"{capability.name}: numeric gives other values with JAX than with NumPy"]
+    return []
+
+
+def _map_lifting(capability: Capability) -> list[str]:
+    """Applied to a map, A^{a}{}_{b} over a space, written or bound as data, a function of
+    a matrix acts on its matrix of components: its value is the number exact gives, or a
+    map over the same space."""
+    import numpy as np
+
+    from relativisticpy import Workbook
+    from relativisticpy import display as show
+
+    name = capability.name
+    point = next((p for p in _points(capability) if _square_place(p) is not None), None)
+    if point is None:
+        return [
+            f"{name} acts on a map, but none of its points is a square matrix: declare one, "
+            "as points=[([[2, 1], [1, 3]],)], or lifts=False where its value is over other spaces"
+        ]
+    place = _square_place(point)
+    assert place is not None
+    matrix = point[place]
+    expected = _exactly(capability, point)
+    written = [show.text(value) for value in point]
+    written[place] = "A^{a}{}_{b}"
+    call = f"{name}({', '.join(written)})"
+    space = f"\\mathcal{{V}} := \\mathbb{{R}}^{{{len(matrix)}}}\na, b \\in \\mathcal{{V}}"
+    failures: list[str] = []
+    with usable(capability):
+        for what in ("a map", "data"):
+            try:
+                with Workbook() as wb:
+                    wb.exe(space)
+                    if what == "data":
+                        wb["A^{a}{}_{b}"] = np.asarray(matrix, dtype=float)
+                    else:
+                        wb.exe(f"A^{{a}}{{}}_{{b}} := {show.text(matrix)}")
+                    result = wb.expr(call)
+            except RelativisticPyError as error:
+                failures.append(f"{name} applied to {what} fails: {error.kind}: {error.message}")
+                continue
+            failures += _over_the_map(capability, result, expected, what)
+    return failures
+
+
+def _over_the_map(capability: Capability, result: Any, expected: Any, what: str) -> list[str]:
+    """The failures of the value of a function of a matrix applied to a map: a number where
+    it gives one, and otherwise a map over the same space, with exact's entries."""
+    import numpy as np
+
+    from relativisticpy.tensors import Tensor
+
+    name = capability.name
+    if not capability.scalar:
+        if not isinstance(result, Tensor):
+            return [f"{name} applied to {what} gives {_value(result)}, not a map over its space"]
+        if [space.name for space in result.spaces or ()] != ["V", "V"]:
+            return [f"{name} applied to {what} loses its space: its value is over {result.spaces}"]
+        result = result.to_numpy() if _data(result) else result.components
+    found, wanted = _entries(result), _entries(expected)
+    if found is None or wanted is None or found.shape != wanted.shape:
+        return [f"{name} applied to {what} gives {_value(result)}, not {_value(expected)}"]
+    if not np.allclose(found, wanted, rtol=1e-9, atol=1e-9 * max(1.0, float(np.abs(wanted).max()))):
+        return [
+            f"{name} applied to {what} gives {_shown_entries(found)}, not its value at the map's "
+            f"matrix, {_shown_entries(wanted)}; {_FROM_DATA if what == 'data' else _FROM_TENSOR}"
+        ]
+    return []
+
+
+def _square_place(point: tuple[Any, ...]) -> int | None:
+    """Which argument of a point is a square matrix, written as a list of its rows."""
+    for place, value in enumerate(point):
+        rows = value if isinstance(value, list) else None
+        if rows and all(isinstance(row, list) and len(row) == len(rows) for row in rows):
+            return place
+    return None
+
+
+def _entries(value: Any) -> Any:
+    """A value as an array of complex numbers: a number, or the entries of a matrix or an
+    array; ``None`` where it holds no number."""
+    import numpy as np
+
+    arrays = (sympy.NDimArray, sympy.MatrixBase, np.ndarray)
+    jax = hasattr(value, "tolist") and not isinstance(value, sympy.Basic)
+    if isinstance(value, arrays) or jax:
+        shape = tuple(np.shape(value)) if not isinstance(value, sympy.NDimArray) else value.shape
+        flat = list(sympy.flatten(value.tolist())) if shape else [value.tolist()]
+    elif isinstance(value, list | tuple):
+        shape = tuple(np.shape(value))
+        flat = list(sympy.flatten(value))
+    else:
+        shape, flat = (), [value]
+    try:
+        numbers = [complex(sympy.N(entry, 30)) for entry in flat]
+    except (TypeError, ValueError):
+        return None
+    return np.asarray(numbers, dtype=complex).reshape(shape)
+
+
+def _close_entries(found: Any, expected: Any, tolerance: float) -> bool:
+    """Whether the entries found are finite and close to those expected, relative to the
+    largest of them."""
+    import numpy as np
+
+    if not np.all(np.isfinite(found)):
+        return False
+    scale = max(1.0, float(np.abs(expected).max(initial=0.0)))
+    return bool(np.allclose(found, expected, rtol=tolerance, atol=tolerance * scale))
+
+
+def _shown_entries(values: Any) -> str:
+    """Entries as a failure shows them, on one line, real where they are."""
+    import numpy as np
+
+    shown = np.real_if_close(values, tol=1000)
+    return np.array2string(np.round(shown, 12), separator=", ").replace("\n", "")
 
 
 # -- 5. errors ---------------------------------------------------------------------------
@@ -649,15 +825,21 @@ def _function(capability: Capability) -> bool:
     return isinstance(capability, Function)
 
 
+def _computed(capability: Capability) -> bool:
+    """Whether a capability computes values of numbers, as a function and a function of a
+    matrix do."""
+    return isinstance(capability, Function | MapFunction)
+
+
 CHECKS: tuple[Check, ...] = (
     Check("declaration", "names, a summary, examples, its library, its forms",
           lambda capability: True, declaration),
     Check("examples", "each example gives its known answer", lambda capability: True, examples),
     Check("agreement", "exact and numeric agree at points",
-          lambda capability: _function(capability) and capability.numeric is not None,
+          lambda capability: _computed(capability) and capability.numeric is not None,
           agreement),
-    Check("lifting", "applied to a tensor or data, component by component",
-          lambda capability: _function(capability) and capability.lifts, lifting),
+    Check("lifting", "applied to a tensor or data, component by component, or to a map",
+          lambda capability: _computed(capability) and capability.lifts, lifting),
     Check("errors", "wrong arguments and a missing library are refused, saying what to do",
           lambda capability: not isinstance(capability, _transforms.Rewrite), errors),
     Check("display", "a call prints in every form, and each reads back",

@@ -2,7 +2,7 @@
 
 > **For:** everyone who writes RelativisticPy, whatever the field. **You will learn:**
 > statements, names, what `:=` and `=` mean, functions, equations, calculus and
-> matrices, and what the language makes of Python's habits. **Before this:**
+> matrices as books write them, and what the language makes of Python's habits. **Before this:**
 > [Getting started](getting-started.md).
 
 A RelativisticPy program is a sequence of statements: definitions, which
@@ -289,7 +289,8 @@ inverse and hyperbolic functions, `Abs`, `sign`, `floor`, `ceiling`,
 ...), algebra (`simplify`, `expand`, `factor`, `collect`, `cancel`, `apart`,
 `together`, `trigsimp`, `subs`, `N`), calculus (`diff`, `integrate`, `limit`,
 `series`, `doit`), equations (`solve`, `dsolve`, `RHS`, `LHS`, `Eq`), matrices
-(`diag`, `det`, `inverse`, `transpose`, `trace`), `latex`, `symbols`, and the
+(`det`, `trace`, `rank`, `inverse`, `expm`, `norm` and the rest of
+[Matrices](#matrices)), `latex`, `symbols`, and the
 [spacetimes](tensors.md#spacetimes). A function without parentheses applies to
 what follows it: `sin x` is `sin(x)`. In LaTeX it does so only when it is
 written as a command, `\sin x` or `\operatorname{sign} x`, and a function's
@@ -315,7 +316,10 @@ an unknown function such as \(A(r)\) in a metric.
 
 ```
 
-Matrices are written as LaTeX environments, and `vmatrix` is a determinant:
+## Matrices
+
+Matrices are written as LaTeX environments, or as lists of rows, and `vmatrix` is a
+determinant:
 
 ```python
 >>> wb.exe(r"""
@@ -328,7 +332,8 @@ Matrices are written as LaTeX environments, and `vmatrix` is a determinant:
 
 In arithmetic, lists and matrices are vectors and matrices: a number scales
 them, arrays of one shape add, matrices multiply as matrices, and a square
-matrix has integer powers, so \(A^{-1}\) is its inverse. Anything else, such as
+matrix has integer powers, so \(A^{-1}\) is its inverse. A matrix written in blocks,
+as `\begin{pmatrix} B & AB \end{pmatrix}`, is one matrix. Anything else, such as
 adding a number to a list, is an error.
 
 ```python
@@ -340,6 +345,60 @@ adding a number to a list, is an error.
 [[2, 5], [[u + 2*v], [3*u + 4*v]], [[-2, 1], [3/2, -1/2]]]
 
 ```
+
+The rest of the notation of matrices is read as books write it, by what it is written
+on: a superscript T is the transpose of a matrix and a power of a number, and
+\(\rho(A)\) is the spectral radius of a matrix, while \(\rho(1 + 3w)\) is not. Each
+reading is recorded, as `Workbook.explain` shows, with a note where another was
+possible, and a definition of the program's own always wins. The functions of a matrix
+are in the [reference](reference.md#matrices).
+
+| Written | Read as |
+|---|---|
+| `A^T`, `A^\top`, `A^\intercal`, `Aᵀ` | the transpose, where T has no value |
+| `A^\dagger`, `A^*`, `A^{-1}`, `A^+` | the conjugate transpose, the inverse and the pseudoinverse |
+| `\operatorname{tr} A`, `\det A`, `\operatorname{rank} A` | the trace, the determinant and the rank; without brackets, of the factors that follow, so `\operatorname{tr} A B` is tr(AB) |
+| `e^{A t}`, `\exp(A)`, `\log A`, `\sqrt{A}`, `A^{1/2}`, `A^k` | functions of the matrix, not of each entry |
+| `\rho(A)`, `\kappa(A)`, `\lambda_{\max}(A)`, `\lambda_k(A)` | the spectral radius, the condition number and the eigenvalues, counted from the smallest |
+| `\|A\|_2`, `\|A\|_F`, `\|A\|_\infty`, `\|x\|_1` | norms, of orders 2, Frobenius's, \(\infty\) and 1 |
+| `\operatorname{adj} A`, `\ker A`, `\dim \ker A`, `\operatorname{vec} A`, `(A^3)_{12}` | the adjugate, the null space and its dimension, the columns stacked, and an entry, counted from 1 |
+| `A \otimes B`, `A \oplus B` | the Kronecker product and the direct sum; between tensors, `\otimes` is their product |
+| `I`, `\mathbb{1}`, `𝟙`, `\mathbf{1}` | added to a matrix, the identity of its size; `\mathbf{1}` in a product, the vector of ones of the size it meets |
+
+A number added to a square matrix is that multiple of the identity, and a row times a
+matrix times a column, a 1 × 1 matrix, is the number it holds. Each says so in a note.
+
+```python
+>>> wb.exe(r"""
+...     A := \begin{pmatrix} 0 & 1 \\ -2 & -3 \end{pmatrix}
+...     B := \begin{pmatrix} 0 \\ 1 \end{pmatrix}
+...     C := \begin{pmatrix} 1 & 0 \end{pmatrix}
+...     \left(\operatorname{tr} A\right)^2 - 4 \det A
+...     \operatorname{rank} \begin{pmatrix} B & AB \end{pmatrix}
+...     C (s I - A)^{-1} B
+...     \lambda_{\max}(A) + \|A\|_\infty
+... """)
+[1, 2, 1/(s**2 + 3*s + 2), 4]
+>>> wb.exe(r"""
+...     R := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}
+...     e^{R t}
+...     R^T R + \rho(R)
+... """)
+[[[cos(t), sin(t)], [-sin(t), cos(t)]], [[2, 0], [0, 2]]]
+>>> print(wb.explain(r"R^T - \lambda I"))
+line 1: R^T - \lambda I
+  matrix or number: R^T is the transpose of R, since R is a matrix, and T has no value
+  matrix or number: I is the identity of the size of R^T, since nothing defines I, and it is added to the matrix R^T
+  R: a value, defined on line 2
+  \lambda: a symbol
+  I: the identity
+  note: I is read as the identity of the size of R^T, as it is added to it; to name it, define I
+
+```
+
+Given a map written with its indices, as `A^{a}{}_{b}`, a function of a matrix acts on
+its matrix of components, and its value is a number or a map of the same space (see
+[Beyond spacetime](spaces.md#linear-algebra)).
 
 ## Coming from Python
 

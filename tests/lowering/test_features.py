@@ -91,7 +91,7 @@ def test_builtins_that_take_tensors(plane):
     assert plane.expr("det(g_{ab})") == x**2
     assert plane.expr("trace(g_{ab})") == 2  # g^{ab} g_{ab}, not the diagonal's sum 1 + x^2
     assert plane.expr("trace([[1, 2], [3, x]])") == 1 + x  # a plain matrix's is its diagonal's
-    assert plane.expr("inverse(g_{ab})") == Array([[1, 0], [0, 1 / x**2]])
+    assert plane.expr("inverse(g_{ab})").components == Array([[1, 0], [0, 1 / x**2]])
     assert plane.expr("transpose(V_{a} V_{b})") == plane.expr("V_{b} V_{a}").components
     unnamed = "\\begin{aligned}\n{}^{x} &= y \\\\\n{}^{y} &= x\n\\end{aligned}"  # never named T
     assert plane.expr("latex(V^{a})") == unnamed

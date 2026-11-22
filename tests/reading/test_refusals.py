@@ -130,8 +130,8 @@ class TestColonEqualsDefinesOrRefuses:
             r"cannot define \langle p, q \rangle, which is read as the pair (p, q)"
         )
         assert found.hint == "for a function of p, q, define one, as in f(p, q) := ..."
-        found = error(wb, r"\mathbf{1} := \begin{pmatrix} 1 \\ 1 \end{pmatrix}")
-        assert found.message == r"cannot define \mathbf{1}, which is read as the number 1"
+        found = error(wb, r"\mathbf{2} := \begin{pmatrix} 2 \\ 2 \end{pmatrix}")
+        assert found.message == r"cannot define \mathbf{2}, which is read as the number 2"
 
     def test_a_primed_function_name(self, wb):
         found = error(wb, r"\rho'(x, t) := R e^{i(k x - \omega t)}")
@@ -372,20 +372,19 @@ class TestScriptedNamesWhoseBaseIsDefined:
 
 
 class TestOperatorsReadWithAnotherMeaning:
-    """Guard 4: an operator the lexer reads as a product, a measure, a derivative or an
-    exponential that would be computed with another meaning is refused until it is built:
-    \\otimes of matrices, \\times of unit vectors nothing defines, d\\Omega, the derivative of
-    a list, a Jacobian, the exponential of a matrix, and the bracket of two matrices."""
+    """Guard 4: an operator the lexer reads as a product, a measure or a derivative that
+    would be computed with another meaning is refused until it is built: \\times of unit
+    vectors nothing defines, d\\Omega, the derivative of a list, a Jacobian, and the bracket
+    of two matrices. The Kronecker product and the exponential of a matrix are built, and
+    read so."""
 
     SIGMA_X = r"\begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix}"
     SIGMA_Y = r"\begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix}"
 
     def test_a_kronecker_product(self, wb):
-        found = error(wb, rf"{self.SIGMA_X} \otimes {self.SIGMA_Y}")
-        assert found.message.endswith(
-            "is read as their matrix product, not as their Kronecker product"
-        )
-        assert found.notes == ["the Kronecker product of matrices is not supported yet"]
+        product = wb.expr(rf"{self.SIGMA_X} \otimes {self.SIGMA_Y}")
+        i = sympy.I
+        assert product.tolist() == [[0, 0, 0, -i], [0, 0, i, 0], [0, -i, 0, 0], [i, 0, 0, 0]]
         wb.exe("Coordinates := [t, x]\nA_{ab} := [[1, 2], [3, 4]]")
         assert wb.expr(r"A_{ab} \otimes A_{cd}").components.shape == (2, 2, 2, 2)  # with indices
 
@@ -442,10 +441,10 @@ class TestOperatorsReadWithAnotherMeaning:
 
     def test_the_exponential_of_a_matrix(self, wb):
         wb.exe(r"A := \begin{pmatrix} 0 & 1 \\ -1 & 0 \end{pmatrix}")
-        for written in (r"e^{A t}", r"\exp(2 A)"):
-            assert error(wb, written).message == (
-                f"{written} is the exponential of a matrix, which is not computed yet"
-            )
+        t = sympy.Symbol("t")
+        rotation = [[sympy.cos(t), sympy.sin(t)], [-sympy.sin(t), sympy.cos(t)]]
+        assert wb.expr(r"e^{A t}").tolist() == rotation
+        assert wb.expr(r"\exp(2 A)").tolist() == [[c.subs(t, 2) for c in row] for row in rotation]
 
     def test_the_bracket_of_two_matrices(self, wb):
         wb.exe(f"K_1 := {self.SIGMA_X}\nK_2 := {self.SIGMA_Y}")

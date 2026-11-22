@@ -18,9 +18,12 @@ from sympy.core.function import AppliedUndef
 
 from relativisticpy import spacetimes
 from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES
+from relativisticpy.compiler.scope import Scope, VariableBinding
 from relativisticpy.compiler.session import ASSUMPTION_STATEMENTS, RENAMING_STATEMENTS, MetricState
 from relativisticpy.errors import CompileError
-from relativisticpy.ir import Node, NotationType, TensorType, dependencies, ops
+from relativisticpy.integrations import MapFunction
+from relativisticpy.integrations._discovery import catalogue
+from relativisticpy.ir import SCALAR, Node, NotationType, TensorType, dependencies, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
@@ -757,21 +760,141 @@ def _a_name(node: ast.Expr) -> bool:
 
 
 def _a_matrix(node: Node) -> bool:
-    """Whether a value is a matrix, written as one, as ``\\begin{pmatrix} ...``, or made of
-    one by arithmetic, as ``-S_3`` or ``\\frac{2\\pi}{3} M`` are; known without computing."""
+    """Whether a value is a matrix, written as one, as ``\\begin{pmatrix} ...`` or a list of
+    rows, or made of one by arithmetic or a function of a matrix, as ``-S_3``,
+    ``\\frac{2\\pi}{3} M`` and ``A^T`` are; known without computing."""
     pending, seen = [node], set()
     while pending:
         current = pending.pop()
         if current.id in seen or isinstance(current.type, TensorType):  # A_{ab}: indices
             continue
+        if current.type == SCALAR:  # a number, and what it is made of
+            continue
         seen.add(current.id)
         if isinstance(current.op, ops.MakeArray):
             return len(current.op.shape) == 2
-        if isinstance(current.op, ops.Call) and current.op.name in ("diag", "transpose", "inverse"):
+        if _rows(current) is not None or _makes_a_matrix(current):
             return True
         if isinstance(current.op, ops.Mul | ops.Scale | ops.Add | ops.Pow):
             pending.extend(current.args)
     return False
+
+
+#: The operations whose value is a matrix, of the core.
+_MATRICES = frozenset({"linalg.identity", "linalg.ones"})
+
+
+def _makes_a_matrix(node: Node) -> bool:
+    """Whether a value is made by a function whose value is a matrix: one of a matrix that
+    is no number, as the inverse is and the spectrum, a list, is not, or the identity."""
+    if not isinstance(node.op, ops.Call):
+        return False
+    name = node.op.name
+    if name in _MATRICES:
+        return True
+    capability = catalogue().get(name)
+    return isinstance(capability, MapFunction) and not capability.scalar and name != "spec"
+
+
+def _rows(node: Node) -> list[Node] | None:
+    """The rows of a matrix written as a list of them, ``[[1, 2], [3, 4]]``: lists of as
+    many items each; ``None`` for anything else."""
+    if not (isinstance(node.op, ops.Call) and node.op.name == "core.list" and node.args):
+        return None
+    rows = list(node.args)
+    if not all(isinstance(row.op, ops.Call) and row.op.name == "core.list" for row in rows):
+        return None
+    return rows if len({len(row.args) for row in rows}) == 1 and rows[0].args else None
+
+
+#: The functions of a matrix whose value has the shape of their first argument, and of its
+#: transpose.
+_SAME_SHAPE = frozenset({"inverse", "inv", "adjugate", "adj", "expm", "logm", "sqrtm",
+                         "matrix_power", "linalg.identity"})  # fmt: skip
+_TRANSPOSED = frozenset({"transpose", "ctranspose", "pinv"})
+
+
+def _matrix_shape(node: Node) -> tuple[int | None, int | None] | None:
+    """The rows and the columns of a matrix, each where it is known without computing it,
+    as of a matrix written out, and of products and functions of one; ``None`` for a value
+    that is no matrix."""
+    if not _a_matrix(node):
+        return None
+    op, args = node.op, node.args
+    if isinstance(op, ops.MakeArray):
+        rows, columns = op.shape
+        return rows, columns
+    if (rows_written := _rows(node)) is not None:
+        return len(rows_written), len(rows_written[0].args)
+    if isinstance(op, ops.Mul):
+        shapes = [shape for arg in args if (shape := _matrix_shape(arg)) is not None]
+        return (shapes[0][0], shapes[-1][1]) if shapes else None
+    if isinstance(op, ops.Add | ops.Pow | ops.Scale):
+        shapes = [shape for arg in args if (shape := _matrix_shape(arg)) is not None]
+        return shapes[0] if shapes else None
+    if not isinstance(op, ops.Call) or not args:
+        return None, None
+    first = _matrix_shape(args[0])
+    if op.name in _SAME_SHAPE:
+        return first
+    if op.name in _TRANSPOSED and first is not None:
+        return first[1], first[0]
+    if op.name == "linalg.ones" and first is not None:
+        attributes = dict(op.attributes)
+        length = first[0] if attributes["side"] == "rows" else first[1]
+        return (1, length) if attributes["row"] else (length, 1)
+    return None, None
+
+
+def _writes_a_matrix(nodes: Iterable[ast.Expr], scope: Scope) -> bool:
+    """Whether what is written is a matrix, known from what is written and the names the
+    program defined: a matrix written out, a name whose value is one, as T_j is after
+    T_j := D^{-1}(D - A), or a map written with its indices, as A^a{}_b; but no symbol, as
+    the density in \\rho(1 + 3w), nor a form, as T_{\\mu\\nu} in \\kappa(T_{\\mu\\nu})."""
+    for node in nodes:
+        for current in _walk(node):
+            if isinstance(current, ast.Matrix) and current.environment != "vmatrix":
+                return True
+            pattern = _tensor_pattern(current) if isinstance(current, ast.Scripted) else None
+            if (
+                pattern is not None
+                and [upper for _, upper in pattern[1]] == [True, False]
+                and scope.lookup(pattern[0]) is not None
+            ):  # A^a{}_b, a map
+                return True
+            if isinstance(current, ast.List) and all(
+                isinstance(row, ast.List) for row in current.items
+            ):
+                return bool(current.items)
+            if isinstance(current, ast.Name):
+                binding = scope.lookup(current.id)
+                if isinstance(binding, VariableBinding) and _a_matrix(binding.node):
+                    return True
+    return False
+
+
+#: The commands that set a number in bold, as books write the vector of ones.
+_BOLD = ("\\mathbf", "\\boldsymbol", "\\bm", "\\pmb")
+
+#: The name a program's own ``\mathbf{1}`` is bound to, as ``\mathbf{1} := ...`` defines it,
+#: which no name written can be.
+BOLD_ONE = "\\mathbf{1}"
+
+
+def _bold_one(node: ast.Node) -> bool:
+    """Whether a number is a bold one, ``\\mathbf{1}`` or ``{\\bf 1}``, which books write for
+    the vector of ones, or the identity (design/notation.md, 12 and 23)."""
+    if not (isinstance(node, ast.Number) and node.text == "1"):
+        return False
+    if node.span.text.lstrip().startswith(_BOLD):
+        return True
+    return node.span.source.text[: node.span.start].rstrip().endswith("{\\bf")
+
+
+def _joined_by(node: ast.Binary) -> str:
+    """What is written between the two sides of a product, as ``\\otimes``, which the lexer
+    reads as a product's ``*``."""
+    return Span(node.span.source, node.left.span.end, node.right.span.start).text.strip()
 
 
 def _operators_written(node: ast.Binary) -> list[tuple[ast.Expr, ast.Expr, str]]:

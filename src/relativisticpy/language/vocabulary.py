@@ -52,6 +52,10 @@ SYMBOL_COMMANDS: Mapping[str, str] = MappingProxyType(
         "infty": "infty",
         "odot": "odot",  # the Sun, as in M_\odot
         "star": "star",  # as in N_\star
+        "oplus": "oplus",  # the direct sum, between two matrices
+        "top": "top",  # the transpose, as in A^\top
+        "intercal": "intercal",
+        "dagger": "dagger",  # the conjugate transpose, as in A^\dagger
     }
 )
 
@@ -64,7 +68,7 @@ FUNCTION_COMMANDS: Mapping[str, str] = MappingProxyType(
         "sech": "sech", "csch": "csch",
         "exp": "exp", "ln": "ln", "log": "log",
         "det": "det", "min": "min", "max": "max", "gcd": "gcd", "arg": "arg",
-        "Re": "re", "Im": "im", "sgn": "sign",
+        "Re": "re", "Im": "im", "sgn": "sign", "ker": "null", "dim": "dim",
     }
 )  # fmt: skip
 
@@ -120,6 +124,9 @@ OPERATOR_COMMANDS: Mapping[str, TokenKind] = MappingProxyType(
         "vert": TokenKind.BAR,
         "lvert": TokenKind.BAR,
         "rvert": TokenKind.BAR,
+        "Vert": TokenKind.BAR,
+        "lVert": TokenKind.BAR,
+        "rVert": TokenKind.BAR,
         "mid": TokenKind.BAR,
         "langle": TokenKind.LPAREN,  # \langle x \rangle groups, as brackets do
         "rangle": TokenKind.RPAREN,
@@ -289,7 +296,7 @@ UNICODE_LETTERS: Mapping[str, str] = MappingProxyType(
         "Ω": "Omega",
         "Α": "A", "Β": "B", "Ε": "E", "Ζ": "Z", "Η": "H", "Ι": "I", "Κ": "K",
         "Μ": "M", "Ν": "N", "Ο": "O", "Ρ": "P", "Τ": "T", "Χ": "X",
-        "∞": "infty", "ℏ": "hbar", "ℓ": "ell", "⊙": "odot",
+        "∞": "infty", "ℏ": "hbar", "ℓ": "ell", "⊙": "odot", "⊕": "oplus",
     }
 )  # fmt: skip
 
@@ -344,6 +351,7 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
         "∧": TokenKind.WEDGE,
         "∘": TokenKind.COMPOSE,
         "⊗": TokenKind.STAR,
+        "‖": TokenKind.BAR,
         "…": TokenKind.ELLIPSIS,
         "⋯": TokenKind.ELLIPSIS,
     }
@@ -359,8 +367,11 @@ UNICODE_RELATIONS: Mapping[str, str] = MappingProxyType(
 
 #: Unicode superscript characters (``r²``) and their plain equivalents.
 UNICODE_SUPERSCRIPTS: Mapping[str, str] = MappingProxyType(
-    dict(zip("⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿ", "0123456789+-n", strict=True))
+    dict(zip("⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿᵀ", "0123456789+-nT", strict=True))
 )
+
+#: Unicode marks set as a superscript after what they mark, as ``A†`` is ``A^\dagger``.
+UNICODE_MARKS: Mapping[str, str] = MappingProxyType({"†": "dagger"})
 
 #: Unicode subscript characters (``x₀``) and their plain equivalents.
 UNICODE_SUBSCRIPTS: Mapping[str, str] = MappingProxyType(
@@ -424,7 +435,6 @@ COMMANDS: frozenset[str] = frozenset().union(
 )
 
 _MACRO = "write what it stands for; relativisticpy check reads the macros of a document"
-_TRANSPOSE = "the transpose of A_{ab} is A_{ba}"
 _REMAINDER = r"write x - n \lfloor x/n \rfloor"
 _DIRAC = "write a state as a list of its components"
 
@@ -438,8 +448,6 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
         "providecommand": (r"\providecommand defines a macro, which a program cannot", _MACRO),
         "def": (r"\def defines a macro, which a program cannot", _MACRO),
         "let": (r"\let defines a macro, which a program cannot", _MACRO),
-        "top": (r"the transpose, \top, is not supported yet", _TRANSPOSE),
-        "intercal": (r"the transpose, \intercal, is not supported yet", _TRANSPOSE),
         "mod": (r"the remainder, \mod, is not supported yet", _REMAINDER),
         "bmod": (r"the remainder, \bmod, is not supported yet", _REMAINDER),
         "pmod": (r"the remainder, \pmod, is not supported yet", _REMAINDER),
@@ -463,8 +471,6 @@ UNSUPPORTED_COMMANDS: Mapping[str, tuple[str, str]] = MappingProxyType(
                   r"write the terms out, or \mathcal{O}(x^2) as a symbol"),
         "eval": (r"\eval, the physics package's evaluation bar, is not supported",
                  r"write \left. f \right|_{x=0}"),
-        "dagger": (r"the Hermitian conjugate, \dagger, is not supported yet",
-                   "write conjugate(A_{ba})"),
         "inf": (r"the infimum, \inf, is not supported", r"write \min, or the value"),
         "sup": (r"the supremum, \sup, is not supported", r"write \max, or the value"),
         "liminf": (r"\liminf is not supported", r"write \lim_{x \to a} for a limit"),
