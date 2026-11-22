@@ -37,7 +37,6 @@ rewritten as written.
 from __future__ import annotations
 
 import contextlib
-import itertools
 import math
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
@@ -492,38 +491,12 @@ def rewrites() -> list[Rewrite]:
 # -- frequencies --------------------------------------------------------------------------
 
 
-def frequencies(size: int, spacing: Any = 1) -> list[Any]:
-    """The frequencies of the bins of a discrete Fourier transform of ``size`` samples
-    ``spacing`` apart, in the order of its values, as ``numpy.fft.fftfreq`` gives them:
-    0, 1/(N d), ..., then the negative ones."""
-    step = sympy.nsimplify(spacing) if isinstance(spacing, float) else sympy.sympify(spacing)
-    half = (size - 1) // 2 + 1
-    bins = [*range(half), *range(-(size // 2), 0)]
-    return [sympy.Rational(k, size) / step for k in bins]
-
-
 def label(value: Any) -> str:
     """A number as a label of a space's basis: ``1/8``, ``-0.25``, ``3``."""
     value = sympy.sympify(value)
     if value.is_Rational:
         return str(value)
     return repr(float(value))
-
-
-def spacing(basis: Sequence[str] | None) -> Any:
-    """The step between the points of a space whose basis is evenly spaced numbers, as a
-    grid's is; 1, the step between samples, for any other basis."""
-    if not basis or len(basis) < 2:
-        return sympy.Integer(1)
-    try:
-        values = [sympy.nsimplify(sympy.sympify(name)) for name in basis]
-    except (sympy.SympifyError, TypeError, ValueError):
-        return sympy.Integer(1)
-    if not all(value.is_number and value.is_real for value in values):
-        return sympy.Integer(1)
-    step = values[1] - values[0]
-    evenly = all(sympy.simplify(b - a - step) == 0 for a, b in itertools.pairwise(values))
-    return step if evenly and step != 0 else sympy.Integer(1)
 
 
 # -- the checks of the conformance suite -------------------------------------------------

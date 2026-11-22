@@ -351,15 +351,16 @@ the data's space, from its lower limit, and binds the index, as a statistic does
 
 `\operatorname{fft}` is the discrete Fourier transform, \(X_k = \sum_n x_n e^{-2\pi i k
 n/N}\), by the fast algorithm, with NumPy, or JAX. Of data over an index, it gives data
-over a new space, the frequencies of the index, in cycles per step, labelled in the order
-of NumPy's `fftfreq`; `\operatorname{ifft}` gives back data over the samples' own space:
+over a new space, the frequencies of the index, labelled by their bins, k = 0, …, N − 1,
+as X_k is written: bin k holds the frequency k/(N d), for samples d apart, and (k − N)/(N d)
+from N/2 on. `\operatorname{ifft}` gives back data over the samples' own space:
 
 ```python
 >>> signal = Workbook()
 >>> signal["y_t"] = np.array([1.0, 2.0, 0.0, -1.0])
 >>> spectrum = signal.expr(r"\operatorname{fft}(y_t)")
 >>> spectrum.spaces[0].basis
-('0', '1/4', '-1/2', '-1/4')
+('0', '1', '2', '3')
 >>> spectrum.to_numpy().round(10).tolist()
 [(2+0j), (1-3j), 0j, (1+3j)]
 >>> signal.expr(r"\operatorname{ifft}(\operatorname{fft}(y_t))").spaces == signal["y"].spaces
