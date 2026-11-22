@@ -66,6 +66,14 @@ class TestRanges:
         with pytest.raises(CompileError, match="read but not computed"):
             wb.exe(r"n = 0, 1, 2, \ldots")
 
+    def test_data_numbered_from_one_is_not_a_range(self, wb):
+        # months numbered 1 to 6: r_f, the risk-free rate, is a name of its own, not r for
+        # each month, as only a range written in the program declares values for a label
+        pd = pytest.importorskip("pandas")
+        wb["r_t"] = pd.Series([0.01, 0.02, 0.03], index=pd.Index([1, 2, 3], name="month"))
+        wb.exe(r"r_f := 0.002")
+        assert wb.expr("r_f") == sympy.Float("0.002")
+
 
 class TestSumsOverAnIndexOfData:
     def test_a_sum_over_data_is_a_contraction_over_its_space(self, wb):

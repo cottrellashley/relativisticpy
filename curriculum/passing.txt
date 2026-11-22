@@ -42,6 +42,8 @@ complex.analytic.harmonic-conjugate
 complex.maps.principal-log
 complex.numbers.arithmetic
 complex.numbers.roots-of-unity
+data.fft.dft-sum
+data.fft.named
 data.finance.compounding
 data.finance.continuous-compounding
 data.learning.anscombe-regression
@@ -49,8 +51,10 @@ data.learning.cross-entropy
 data.learning.least-squares-gradient
 data.learning.pca
 data.objects.aligned
+data.objects.column
 data.objects.constants
 data.objects.dataframe
+data.objects.function
 data.objects.sympy
 data.portfolio.minimum-variance
 data.portfolio.tangency

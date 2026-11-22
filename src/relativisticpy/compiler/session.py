@@ -120,6 +120,9 @@ class Session:
     # the tensor that is its metric, and a measure, by the node of its weights.
     spaces: dict[str, Space] = field(default_factory=dict)
     labels: dict[str, Space] = field(default_factory=dict)
+    # The spaces a range of values declared, as n = 0, \ldots, N-1 does: a label that ranges
+    # over one stands for its values. A space of data whose elements are numbered is not one.
+    ranges: set[Space] = field(default_factory=set)
     space_metrics: dict[Space, Node] = field(default_factory=dict)
     measures: dict[Space, Node] = field(default_factory=dict)
     # The tensors of one's own that notation in each algebra is written with, by name and
@@ -161,6 +164,7 @@ class Session:
             relations=list(self.relations),
             spaces=dict(self.spaces),
             labels=dict(self.labels),
+            ranges=set(self.ranges),
             space_metrics=dict(self.space_metrics),
             measures=dict(self.measures),
             notation_tensors={key: set(value) for key, value in self.notation_tensors.items()},

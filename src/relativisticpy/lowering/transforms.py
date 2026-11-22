@@ -531,6 +531,7 @@ class Transforms(Definitions):
             raise CompileError(f"{relation.span.text} gives no values", span=relation.span)
         named = f"{', '.join(labels)} = {first}, …, {last}" if dots else relation.span.text
         space = Space(named, last - first + 1, tuple(str(v) for v in range(first, last + 1)))
+        self.session.ranges.add(space)
         where = self._labels if local else self.session.labels
         for label in labels:
             where[label] = space
@@ -540,10 +541,13 @@ class Transforms(Definitions):
         return True
 
     def _range_of(self, label: str) -> Space | None:
-        """The space a label ranges over where its elements are its values, consecutive
-        integers, as a range declares; ``None`` for any other."""
+        """The space a label ranges over where a range declared it, its elements its values,
+        consecutive integers; ``None`` for any other, as the months of data numbered 1 to 6,
+        over which r_f, after r_t, is not r for each month but a name of its own."""
         space = self._labels.get(label) or self.session.labels.get(label)
-        return space if space is not None and _first(space) is not None else None
+        if space is None or space not in self.session.ranges:
+            return None
+        return space if _first(space) is not None else None
 
     @contextlib.contextmanager
     def _over_ranges(self, statement: ast.Define) -> Iterator[None]:
