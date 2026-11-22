@@ -48,7 +48,8 @@ Each domain is a folder, and each topic within it a Markdown file. Examples:
 - `probability-and-statistics/`;
 - `statistical-mechanics/`;
 - `data/`;
-- `numerical-methods/`.
+- `numerical-methods/`;
+- `optimization/`.
 
 ## A case
 
