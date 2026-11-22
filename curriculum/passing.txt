@@ -104,6 +104,7 @@ de.series.airy
 dg.connections.contracted-bianchi
 dg.connections.polar-christoffel
 dg.forms.three-sphere-volume
+dg.index-notation.epsilon-delta
 dg.index-notation.free-indices
 dg.index-notation.index-position
 dg.index-notation.kronecker-trace
@@ -266,6 +267,7 @@ group.su3.decuplet
 la.eigen.characteristic
 la.eigen.powers
 la.eigen.spectral
+la.index.epsilon-delta
 la.index.free-indices
 la.index.thrice
 la.matrices.inverse
@@ -498,6 +500,7 @@ vc.integrals.line
 vc.integrals.stokes
 vc.integrals.volume
 vc.operators.curl
+vc.operators.curl-curl
 vc.operators.curl-cylindrical
 vc.operators.curl-grad
 vc.operators.divergence
