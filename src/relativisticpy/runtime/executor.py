@@ -9,7 +9,7 @@ from collections.abc import Callable, Hashable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any, TypeVar
 
-from relativisticpy.errors import EvaluationError, RelativisticPyError
+from relativisticpy.errors import InternalError, RelativisticPyError, debugging, translate
 from relativisticpy.ir import Node, ops
 from relativisticpy.runtime.kernels import execute
 from relativisticpy.tensors import numerical
@@ -43,6 +43,10 @@ class Executor:
     ``batch`` items or more are spread over a pool of worker processes, started when
     first needed. Even the ten components of a Ricci tensor are worth spreading: one
     of Kerr's takes seconds to simplify.
+
+    A failure of SymPy or NumPy while computing a node is a
+    :class:`~relativisticpy.errors.RelativisticPyError` where the node was written, in
+    RelativisticPy's own words (see :func:`~relativisticpy.errors.translate`).
     """
 
     def __init__(self, workers: int | None = 1, *, batch: int = 4) -> None:
@@ -83,10 +87,11 @@ class Executor:
                 if error.span is None:
                     error.span = current.span
                 raise
-            except Exception as error:
-                raise EvaluationError(
-                    str(error) or type(error).__name__, span=current.span
-                ) from error
+            except Exception as error:  # SymPy's or NumPy's text is never shown as it is
+                failure = translate(error, span=current.span)
+                if isinstance(failure, InternalError) or debugging():
+                    raise failure from error  # whose traceback a report needs
+                raise failure from None  # the library's exception is its cause
         return known[node.key]
 
     def map(self, func: Callable[[_T], _R], items: Sequence[_T]) -> list[_R]:

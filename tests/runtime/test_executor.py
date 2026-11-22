@@ -96,3 +96,12 @@ def test_symbolic_equations_need_no_numpy():
     )
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_two_numbers_are_never_left_unevaluated():
+    # API-01: 25.0 = 24 is false, not Eq(25.0, 24), whose truth Python cannot tell
+    wb = Workbook()
+    wb["v^a"] = [3.0, 4.0]
+    assert wb.expr(r"v^a v^b \delta_{ab} = 24") is sympy.false
+    assert wb.expr(r"v^a v^b \delta_{ab} = 25") is sympy.true
+    assert wb.expr(r"v^a v^b \delta_{ab} = x") == sympy.Eq(25.0, Symbol("x"))  # to solve

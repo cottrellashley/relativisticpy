@@ -19,9 +19,10 @@ from sympy.functions.elementary.hyperbolic import HyperbolicFunction
 from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.polys.monomials import itermonomials
 
+from relativisticpy import display
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
-from relativisticpy.errors import EvaluationError
+from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.ir import ops
 from relativisticpy.tensors import arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
@@ -192,20 +193,29 @@ def _make_array(op: ops.MakeArray, args: list[Any], executor: Executor) -> Any:
 @execute.register(ops.ToArray)
 def _to_array(op: ops.ToArray, args: list[Any], executor: Executor) -> Any:
     value = args[0]
+    expected = f"expected {_size(op.shape)} components"
     if numerical.is_numerical(value):
         if tuple(value.shape) != op.shape:
-            raise ValueError(f"expected components of shape {op.shape}, got {value.shape}")
+            raise EvaluationError(f"{expected}, but found {_size(tuple(value.shape))}")
         return value
     if isinstance(value, sympy.NDimArray | sympy.MatrixBase | list | tuple):
-        array = arrays.to_array(value)
+        try:
+            array = arrays.to_array(value)
+        except ValueError:
+            raise EvaluationError(f"{expected}, but these are ragged") from None
         if array.shape != op.shape and len(array) == len(ImmutableDenseNDimArray.zeros(*op.shape)):
             array = array.reshape(*op.shape)  # a 1×n matrix for a vector
         if array.shape == op.shape:
             return array
-        raise ValueError(f"expected components of shape {op.shape}, got {array.shape}")
+        raise EvaluationError(f"{expected}, but found {_size(tuple(array.shape))}")
     if value == 0:
         return arrays.zeros_of(op.shape)
-    raise ValueError(f"expected components of shape {op.shape}, got {value}")
+    raise EvaluationError(f"{expected}, but found the scalar {display.unicode(value)}")
+
+
+def _size(shape: tuple[int, ...]) -> str:
+    """A shape as messages write it: ``3``, ``4×4``."""
+    return "×".join(str(n) for n in shape) if shape else "no"
 
 
 @execute.register(ops.Equation)
@@ -214,7 +224,9 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
     if numerical.involves([lhs, rhs]):  # numbers agree to rounding error, or they differ
         if _shape(lhs) or _shape(rhs):
             return TensorEquation(lhs, rhs)
-        return sympy.true if numerical.close(lhs, rhs) else sympy.Eq(lhs, rhs, evaluate=False)
+        if _symbolic(lhs) or _symbolic(rhs):  # a number and a symbol: an equation to solve
+            return sympy.Eq(lhs, rhs, evaluate=False)
+        return sympy.true if numerical.close(lhs, rhs) else sympy.false  # never Eq(25.0, 24)
     if isinstance(lhs, sympy.NDimArray) or isinstance(rhs, sympy.NDimArray):
         array = lhs if isinstance(lhs, sympy.NDimArray) else rhs
         lhs = lhs if isinstance(lhs, sympy.NDimArray) else arrays.zeros_of(array.shape)
@@ -225,6 +237,11 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
         if decided is not None:
             return sympy.true if decided else sympy.false
     return sympy.Eq(lhs, rhs)
+
+
+def _symbolic(value: Any) -> bool:
+    """Whether a value has symbols in it, rather than being a number."""
+    return isinstance(value, sympy.Basic) and bool(value.free_symbols)
 
 
 @execute.register(ops.Inverse)
@@ -244,14 +261,20 @@ def _geometry(op: ops.Geometry, args: list[Any], executor: Executor) -> Any:
     quantity = op.quantity
     if quantity == "kronecker":
         return curvature.kronecker(len(coordinates))
-    if quantity == "metric":
-        matrix = curvature.metric_matrix(args[0])
+    if quantity == "metric":  # the same error as a Metric built in Python gives
+        try:
+            matrix = curvature.metric_matrix(args[0])
+        except ValueError as error:
+            raise MetricError(str(error)) from None
         if matrix.rows != len(coordinates):
-            raise ValueError(
+            raise MetricError(
                 f"a metric in {len(coordinates)} coordinates must be {len(coordinates)}×"
                 f"{len(coordinates)}, not {matrix.rows}×{matrix.cols}"
             )
-        curvature.check_metric(matrix)
+        try:
+            curvature.check_metric(matrix)
+        except ValueError as error:
+            raise MetricError(str(error)) from None
         return ImmutableDenseNDimArray(matrix.tolist())
     matrices = [ImmutableMatrix(a.tolist()) if _is_matrix(a) else a for a in args]
     if quantity == "inverse":

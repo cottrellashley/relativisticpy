@@ -20,7 +20,7 @@ from typing import Any
 import sympy
 from sympy import ImmutableDenseNDimArray
 
-from relativisticpy.errors import EvaluationError
+from relativisticpy.errors import NO_INVERSE, NOT_SQUARE, EvaluationError
 from relativisticpy.tensors import numerical
 
 
@@ -47,13 +47,26 @@ def _array(matrix: Any, shape: tuple[int, ...]) -> Any:
 
 
 def inverse(components: Any) -> Any:
-    """The inverse of a two-index tensor, as a matrix."""
+    """The inverse of a two-index tensor, as a matrix: one message for a matrix that
+    has none, symbolic or numerical, dense or sparse."""
+    _require_square(tuple(components.shape))
     if numerical.is_numerical(components):
-        return numerical.xp(components).linalg.inv(numerical.dense(components))
+        xp = numerical.xp(components)
+        try:
+            return xp.linalg.inv(numerical.dense(components))
+        except numerical.numpy().linalg.LinAlgError:
+            raise EvaluationError(NO_INVERSE) from None
     matrix, _, _ = _square(components, 1)
     if matrix.det() == 0:
-        raise EvaluationError("this tensor has no inverse: its determinant is zero")
+        raise EvaluationError(NO_INVERSE)
     return _array(matrix.inv(), tuple(components.shape))
+
+
+def _require_square(shape: tuple[int, ...]) -> None:
+    """Refuse the components of a map that is not square, whose rows and columns are
+    not as many: only a square matrix has a determinant, an inverse or a trace."""
+    if len(shape) == 2 and shape[0] != shape[1]:
+        raise EvaluationError(f"{NOT_SQUARE}, and this one is {shape[0]}×{shape[1]}")
 
 
 def solve(matrix: Any, rhs: Any, transpose: bool = False) -> Any:
@@ -306,6 +319,7 @@ def svd(components: Any, rows: int) -> tuple[Any, Any, Any]:
 
 def det(components: Any, rows: int) -> Any:
     matrix, _, _ = _square(components, rows)
+    _require_square(tuple(matrix.shape))
     if numerical.is_numerical(matrix):
         return numerical.xp(matrix).linalg.det(numerical.dense(matrix))
     return sympy.simplify(matrix.det())
