@@ -72,8 +72,10 @@ def test_the_meanings_of_definitions_are_given():
 
 
 def test_an_agent_reads_it_at_once():
-    # About 10,000 tokens: a token of this page is about three characters.
-    assert len(PAGE) < 32_000
+    # About 13,000 tokens, a token of this page being about three characters: room for the
+    # integrations that come next, each a line. A page longer than this should list the
+    # capabilities of a family together, not lose them.
+    assert len(PAGE) < 40_000
 
 
 def test_its_tables_are_well_formed():
