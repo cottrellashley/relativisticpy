@@ -29,6 +29,7 @@ from relativisticpy.compiler.scope import Context, Scope, TensorBinding, Variabl
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, VALUE, NotationType, ops
 from relativisticpy.language import syntax as ast
+from relativisticpy.language.source import Span
 from relativisticpy.reading.names import _mentions_symbol, _named
 
 if TYPE_CHECKING:
@@ -413,10 +414,14 @@ def assume(reader: Definitions, relation: ast.Expr, scope: Scope, ctx: Context) 
         for bound in applying.as_bounds(Symbol(name), facts)
     ]
     kept.extend(assumption.bounds)
+    _check_consistent(assumption, session.bounds, session.assumptions, relation.span)
     used = _used_before(reader, symbols, scope)
     for name, symbol in symbols.items():
         session.assumptions[name] = symbol
-    session.bounds.extend((bound, relation.span) for bound in kept)
+    current = tuple(session.assumptions.values())
+    session.bounds.extend(
+        (applying.substituted(bound, symbols=current), relation.span) for bound in kept
+    )
     _carry(reader, symbols, scope)
     if isinstance(relation, ast.Relation):
         why = "it says which numbers names nothing defines are, standing alone"
@@ -450,6 +455,34 @@ def assume(reader: Definitions, relation: ast.Expr, scope: Scope, ctx: Context) 
             "shown stays as it was"
         )
     return True
+
+
+def _check_consistent(
+    assumption: Assumption,
+    bounds: Sequence[tuple[Any, Span]],
+    symbols: dict[str, Symbol],
+    span: Span,
+) -> None:
+    """Refuse an assumption that contradicts a bound assumed before it, as x > 1 does
+    0 < x < 1; what contradicts the facts of a symbol SymPy refuses itself."""
+    before = applying.in_force(bounds, symbols)
+    stated = [bound for name, facts in assumption.facts.items()
+              for bound in applying.as_bounds(Symbol(name), facts)]  # fmt: skip
+    for relation in [*stated, *assumption.bounds]:
+        relation = applying.substituted(relation, symbols=tuple(symbols.values()))
+        if applying.holds(relation, before) is False:
+            earlier = next(
+                (where for bound, where in bounds if bound.free_symbols & relation.free_symbols),
+                None,
+            )
+            written = " ".join(span.text.split())
+            raise CompileError(
+                f"{written} contradicts what was assumed before",
+                span=span,
+                notes=[f"{' '.join(earlier.text.split())} was assumed on line {earlier.line}"]
+                if earlier is not None
+                else [],
+            )
 
 
 def _lone_name(reader: Definitions, operand: ast.Expr, scope: Scope, ctx: Context) -> str | None:

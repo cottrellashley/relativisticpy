@@ -9,13 +9,14 @@ from collections.abc import Callable, Hashable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any, TypeVar
 
+from relativisticpy.assumptions import Remark, remarks
 from relativisticpy.errors import (
     InternalError,
     RelativisticPyError,
     debugging,
     translate,
 )
-from relativisticpy.ir import Node, ops
+from relativisticpy.ir import Node, dependencies, ops
 from relativisticpy.runtime import registry
 from relativisticpy.runtime.kernels import execute, refuse_quoted, refuse_text
 from relativisticpy.tensors import numerical
@@ -83,6 +84,7 @@ class Executor:
         self.workers = (os.cpu_count() or 1) if workers is None else max(1, workers)
         self.batch = batch
         self._values: dict[Hashable, Any] = {}  # by computation key
+        self._remarks: dict[Hashable, list[Remark]] = {}  # what a computation said, by key
         self._pool: ProcessPoolExecutor | None = None
 
     def evaluate(self, node: Node) -> Any:
@@ -92,6 +94,15 @@ class Executor:
         value = self._evaluate(node, self._values)
         refuse_quoted(node, value)
         return value
+
+    def remarks(self, node: Node) -> list[Remark]:
+        """What the computations ``node``'s value is computed from said of their values, in
+        order (see :class:`~relativisticpy.assumptions.Remark`): that solve dropped what an
+        assumption rules out, or that a value is given under an assumption books make."""
+        found: dict[Remark, None] = {}
+        for each in dependencies([node]):
+            found.update(dict.fromkeys(self._remarks.get(each.key, ())))
+        return list(found)
 
     def evaluate_with(self, node: Node, values: dict[Hashable, Any]) -> Any:
         """The value of ``node`` with some nodes given ``values`` instead, by their keys,
@@ -114,16 +125,19 @@ class Executor:
             args = [known[arg.key] for arg in computed]
             try:
                 refuse_text(current.op, args, computed)  # SymPy would run it as Python
-                if entry is not None and entry.references:  # IR made with the nodes it names
-                    known[current.key] = execute(current.op, [*args, *current.args[1:]], self)
-                elif entry is not None and entry.evaluates:  # the value of IR computed
-                    known[current.key] = self._evaluate(args[0], known)
-                elif isinstance(current.op, ops.Equation) and numerical.involves(args):
-                    # numbers are decided to rounding error in what they were computed from
-                    with numerical.operands(_operand_scale(current, known)):
+                with remarks() as said:  # what the computation says of its value
+                    if entry is not None and entry.references:  # IR made with the nodes it names
+                        known[current.key] = execute(current.op, [*args, *current.args[1:]], self)
+                    elif entry is not None and entry.evaluates:  # the value of IR computed
+                        known[current.key] = self._evaluate(args[0], known)
+                    elif isinstance(current.op, ops.Equation) and numerical.involves(args):
+                        # numbers are decided to rounding error in what they were computed from
+                        with numerical.operands(_operand_scale(current, known)):
+                            known[current.key] = execute(current.op, args, self)
+                    else:
                         known[current.key] = execute(current.op, args, self)
-                else:
-                    known[current.key] = execute(current.op, args, self)
+                if said:
+                    self._remarks[current.key] = said
             except RelativisticPyError as error:
                 if error.span is None:
                     error.span = current.span

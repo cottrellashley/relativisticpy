@@ -7,16 +7,24 @@ keeps on a symbol, that it is positive, nonnegative, real or an integer, is put 
 symbol, and what was defined with the plain symbol takes it from then on. What SymPy cannot
 keep, a bound as x < 1 in 0 < x < 1 or a > r, is kept in the session, and given to what it
 decides: the solutions of ``solve``, the conditions of an integral, and inequalities.
+
+A computation says what it did to its value in a :class:`Remark`, which the workbook shows
+as a note: that ``solve`` dropped the solutions an assumption rules out, or that a value is
+given under an assumption books make, ``assuming a > 0``.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+import contextlib
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any
 
 import sympy
 from sympy import Symbol
 from sympy.core.facts import InconsistentAssumptions
+from sympy.core.relational import Relational
 
 from relativisticpy import display
 
@@ -37,6 +45,9 @@ _WORDS = {
 }
 #: The facts that order a value against zero, each of which says it is real.
 _ORDERED = ("positive", "nonnegative", "negative", "nonpositive")
+#: The operations a bound the program assumes decides something of, which are given the
+#: bounds in force as their attribute ``assuming``.
+DECIDED = frozenset({"solve", "core.lt", "core.gt", "core.le", "core.ge"})
 #: The relation each fact of a sign is, for a coordinate, whose symbol stays as it is.
 _SIGNS = {
     "positive": sympy.Gt,
@@ -119,10 +130,10 @@ def substituted(value: Any, *, symbols: tuple[Symbol, ...]) -> Any:
         }
         return expr.xreplace(found) if found else expr
 
-    return _each(value, put)
+    return mapped(value, put)
 
 
-def _each(value: Any, put: Any) -> Any:
+def mapped(value: Any, put: Callable[[Any], Any]) -> Any:
     """``value`` with ``put`` applied to each SymPy expression in it, through lists,
     tuples, dictionaries and arrays."""
     if isinstance(value, sympy.Basic):
@@ -130,7 +141,168 @@ def _each(value: Any, put: Any) -> Any:
     if isinstance(value, sympy.NDimArray | sympy.MatrixBase):
         return value.applyfunc(put)
     if isinstance(value, list | tuple):
-        return type(value)(_each(item, put) for item in value)
+        return type(value)(mapped(item, put) for item in value)
     if isinstance(value, dict):
-        return {_each(key, put): _each(item, put) for key, item in value.items()}
+        return {mapped(key, put): mapped(item, put) for key, item in value.items()}
     return value
+
+
+def in_force(bounds: Sequence[tuple[Any, Any]], symbols: Mapping[str, Symbol]) -> tuple[Any, ...]:
+    """The bounds a program assumes, as given with where each was stated, written with the
+    symbols in force: with what was assumed of their names since."""
+    return tuple(
+        substituted(bound, symbols=tuple(symbols.values())) for bound, _ in dict(bounds).items()
+    )
+
+
+# -- what a computation says of its value ----------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Remark:
+    """What a computation says of the value it gave, as a note: that ``solve`` dropped
+    the solutions an assumption rules out, or that a value is given under an assumption
+    books make, which ``assuming`` holds, as ``("a > 0",)``."""
+
+    note: str
+    assuming: tuple[str, ...] = ()
+
+
+_REMARKS: ContextVar[list[Remark] | None] = ContextVar("remarks", default=None)
+
+
+def remark(note: str, assuming: Sequence[str] = ()) -> None:
+    """Say ``note`` of the value being computed."""
+    found = _REMARKS.get()
+    said = Remark(note, tuple(assuming))
+    if found is not None and said not in found:
+        found.append(said)
+
+
+@contextlib.contextmanager
+def remarks() -> Iterator[list[Remark]]:
+    """Collect what the computations inside say of their values."""
+    found: list[Remark] = []
+    token = _REMARKS.set(found)
+    try:
+        yield found
+    finally:
+        _REMARKS.reset(token)
+
+
+# -- what the bounds decide ---------------------------------------------------------------
+
+
+def holds(relation: Any, bounds: Sequence[Any]) -> bool | None:
+    """Whether ``relation`` holds wherever ``bounds`` and what is assumed of its symbols
+    do: ``True`` or ``False``, or ``None`` where that is not decided."""
+    decided = sympy.sympify(relation).xreplace(within(bounds))
+    if decided in (sympy.true, sympy.false):
+        return bool(decided)
+    if isinstance(decided, Relational) and not isinstance(decided, sympy.Eq | sympy.Ne):
+        difference = sympy.factor(sympy.together(decided.lhs - decided.rhs))
+        settled = type(decided)(difference, 0)
+        if settled in (sympy.true, sympy.false):
+            return bool(settled)
+    return None
+
+
+def within(bounds: Sequence[Any]) -> dict[Any, Any]:
+    """Each symbol a bound limits, as an expression of new positive symbols whose values are
+    exactly those the bounds and its own assumptions allow, as far as that can be written:
+    x > 1 is 1 + p, a > r is r + p, and a positive x < 1 is 1/(1 + p). Where it cannot be,
+    the values written for are more than are allowed, never fewer, so that what holds of
+    them holds wherever the bounds do."""
+    lower: dict[Symbol, list[tuple[Any, bool]]] = {}
+    upper: dict[Symbol, list[tuple[Any, bool]]] = {}
+    for bound in bounds:
+        if not isinstance(bound, Relational) or isinstance(bound, sympy.Eq | sympy.Ne):
+            continue
+        small, large = (
+            (bound.lhs, bound.rhs) if bound.rel_op in ("<", "<=") else (bound.rhs, bound.lhs)
+        )
+        strict = bound.rel_op in ("<", ">")
+        if isinstance(large, Symbol):
+            lower.setdefault(large, []).append((small, strict))
+        if isinstance(small, Symbol) and not isinstance(large, Symbol):  # x < a is a > x
+            upper.setdefault(small, []).append((large, strict))
+    for name in [*lower, *upper]:  # and the sign each is assumed to have
+        if name.is_positive or name.is_nonnegative:
+            lower.setdefault(name, []).append((sympy.Integer(0), bool(name.is_positive)))
+        if name.is_negative or name.is_nonpositive:
+            upper.setdefault(name, []).append((sympy.Integer(0), bool(name.is_negative)))
+    substitution: dict[Any, Any] = {}
+    pending = list(dict.fromkeys([*lower, *upper]))
+    while pending:
+        ready = [
+            name
+            for name in pending
+            if not any(end in pending for end, _ in lower.get(name, ()) if end != name)
+        ]
+        if not ready:  # bounds that go round, as a > b > a, which say nothing to rely on
+            break
+        for name in ready:
+            pending.remove(name)
+            below, above = (
+                [(sympy.sympify(end).xreplace(substitution), strict) for end, strict in found]
+                for found in (lower.get(name, []), upper.get(name, []))
+            )
+            substitution[name] = _between(below, above, name)
+    return {name: value for name, value in substitution.items() if value is not name}
+
+
+def _between(lower: list[tuple[Any, bool]], upper: list[tuple[Any, bool]], name: Symbol) -> Any:
+    """A symbol between its first lower and upper bounds, each with whether it is strict,
+    as an expression of a new symbol, positive or nonnegative; beside a bound, where it has
+    one only. A closed interval is written for as the values from its lower end on."""
+    if lower and upper:
+        (bottom, open_below), (top, open_above) = lower[0], upper[0]
+        width = top - bottom
+        if open_below and open_above:  # (L, U)
+            return bottom + width / (1 + _step(name, strict=True))
+        if open_above:  # [L, U)
+            step = _step(name, strict=False)
+            return bottom + width * step / (1 + step)
+        if open_below:  # (L, U]
+            step = _step(name, strict=False)
+            return top - width * step / (1 + step)
+    if lower:
+        bottom, strict = lower[0]
+        return bottom + _step(name, strict=strict)
+    if upper:
+        top, strict = upper[0]
+        return top - _step(name, strict=strict)
+    return name
+
+
+def _step(name: Symbol, *, strict: bool) -> Any:
+    """A new symbol, positive or else nonnegative, named after ``name``."""
+    return (
+        sympy.Dummy(name.name, positive=True)
+        if strict
+        else sympy.Dummy(name.name, nonnegative=True)
+    )
+
+
+# -- what is assumed of the unknowns of solve -------------------------------------------------
+
+
+def ruled_out(solution: Mapping[Any, Any], bounds: Sequence[Any]) -> str | None:
+    """Why ``solution``, the values of the unknowns of an equation, is not one the program
+    allows: an unknown assumed positive that would be negative, or a bound that would not
+    hold. ``None`` where it is allowed, or where that cannot be decided."""
+    from sympy.core.assumptions import check_assumptions
+
+    for unknown, value in solution.items():
+        given: dict[str, bool] = dict(getattr(unknown, "_assumptions_orig", None) or {})
+        held = isinstance(unknown, Symbol) and bool(given)
+        if held and check_assumptions(sympy.sympify(value), **given) is False:
+            return f"{display.unicode(unknown)} is assumed {described(given)}"
+    unknowns = set(solution)
+    for bound in bounds:
+        if not bound.free_symbols & unknowns:
+            continue
+        others = [other for other in bounds if not other.free_symbols & unknowns]
+        if holds(bound.xreplace(dict(solution)), others) is False:
+            return f"{display.unicode(bound)} is assumed"
+    return None

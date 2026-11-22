@@ -31,6 +31,37 @@ assert expected == Rational(3, 8)
 assert simplify(a / (27 * b**2) * V_c / (R * T_c)) == Rational(3, 8)
 ```
 
+## The critical point of the Dieterici gas
+
+**Level 3** · `thermo.real-gases.dieterici-critical-point` · Pathria and Beale (2011), section 12.2
+
+Dieterici's equation of state, \(p = \frac{RT}{V - b} e^{-a/RTV}\), has its critical
+point where the isotherm is flat with an inflection: \(V_c = 2b\) and \(T_c = a/4Rb\).
+Solved for both at once, the case is also one where SymPy's own check of a solution fails
+under some orders of a set of symbols, so the answer must not depend on the run.
+
+```latex
+a, b, R > 0
+p(V, T) := \frac{R T}{V - b} e^{-\frac{a}{R T V}}
+solve\left([\frac{\partial p}{\partial V} = 0, \frac{\partial^2 p}{\partial V^2} = 0], [V, T]\right)
+```
+
+```python
+a, b, R, V, T = symbols("a b R V T", positive=True)
+p = R * T / (V - b) * exp(-a / (R * T * V))
+V_c, T_c = 2 * b, a / (4 * R * b)
+assert simplify(diff(p, V).subs({V: V_c, T: T_c})) == 0  # the isotherm is flat there
+assert simplify(diff(p, V, 2).subs({V: V_c, T: T_c})) == 0  # with an inflection
+expected = [(V_c, T_c)]
+# second route: p_V = 0 gives R T V^2 = a (V - b), and with p_VV = 0 the volume is 2b
+first = solve(Eq(R * T * V**2, a * (V - b)), T)[0]
+assert simplify(first.subs(V, V_c) - T_c) == 0
+# the critical pressure a / (4 e^2 b^2), and p_c V_c / R T_c = 2 / e^2, about 0.27
+p_c = simplify(p.subs({V: V_c, T: T_c}))
+assert simplify(p_c - a / (4 * E**2 * b**2)) == 0
+assert abs(float(p_c * V_c / (R * T_c)) - 0.2707) < 1e-4
+```
+
 ## The inversion temperature
 
 **Level 2** · `thermo.real-gases.inversion-temperature` · Reif (1965), chapter 5

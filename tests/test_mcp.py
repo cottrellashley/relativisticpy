@@ -82,7 +82,7 @@ def test_the_tools_say_what_they_take_and_what_they_give():
     statement = tools["compute"].output_schema["$defs"]["Statement"]["properties"]
     assert list(statement) == [
         "file", "line", "column", "end_line", "end_column", "statement", "values", "defines",
-        "notes", "error",
+        "notes", "assuming", "error",
     ]  # fmt: skip
     assert tools["help"].output_schema is None  # Markdown, to read
     assert tools["verify"].annotations.read_only_hint

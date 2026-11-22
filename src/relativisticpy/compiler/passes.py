@@ -16,6 +16,7 @@ import itertools
 from collections import Counter
 from collections.abc import Sequence
 
+from relativisticpy import assumptions
 from relativisticpy.compiler.scope import Check, Context, Operator, Output, Scope
 from relativisticpy.compiler.session import Session
 from relativisticpy.ir import Node, Type, ops
@@ -74,7 +75,11 @@ class Pass:
         attributes: ops.Attributes = (),
     ) -> Node:
         """The operation registered as ``name`` (see :mod:`relativisticpy.runtime.registry`)
-        applied to ``args``, with ``attributes``."""
+        applied to ``args``, with ``attributes``; one that the bounds a program assumes
+        decide something of is given them too, as ``assuming``."""
+        if name in assumptions.DECIDED and self.session.bounds:
+            bounds = assumptions.in_force(self.session.bounds, self.session.assumptions)
+            attributes = (*attributes, ("assuming", bounds))
         return self.graph.add(ops.Call(name, attributes), list(args), kind, span)
 
     def _geometry(self, quantity: str, span: Span) -> Node:

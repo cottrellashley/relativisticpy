@@ -193,8 +193,9 @@ class Statement(TypedDict):
     """One statement of a program and what came of it, as ``relativisticpy --format json``
     gives it: where it is, the statement as written, its values (each as
     ``relativisticpy.display.data`` describes it, with its ``text``, ``unicode`` and
-    ``latex`` forms), what it defined, notes on how it was read, and its error, if it
-    failed (``RelativisticPyError.to_dict()``: type, message, place, notes and hint)."""
+    ``latex`` forms), what it defined, notes on how it was read, what its values are given
+    under that books assume and the program did not say, as ``a > 0``, and its error, if
+    it failed (``RelativisticPyError.to_dict()``: type, message, place, notes and hint)."""
 
     file: str | None
     line: int | None
@@ -205,6 +206,7 @@ class Statement(TypedDict):
     values: list[dict[str, Any]]
     defines: list[Defined]
     notes: list[str]
+    assuming: list[str]
     error: dict[str, Any] | None
 
 
@@ -692,6 +694,7 @@ def _entry(step: Step, defined: list[dict[str, str]]) -> dict[str, Any]:
         "values": [],
         "defines": defined,
         "notes": list(step.notes),
+        "assuming": list(step.assuming),
         "error": step.error.to_dict() if step.error is not None else None,
     }
     try:
@@ -715,6 +718,7 @@ def _failed(error: RelativisticPyError) -> dict[str, Any]:
         "values": [],
         "defines": [],
         "notes": [],
+        "assuming": [],
         "error": error.to_dict(),
     }
 

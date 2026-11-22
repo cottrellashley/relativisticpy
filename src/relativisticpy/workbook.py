@@ -224,9 +224,19 @@ class Workbook:
                 yield Step(piece.span, piece, error=failure)
             else:
                 notes = [output.note for output in outputs if output.note]
+                said = [r for output in outputs for r in self._executor.remarks(output.node)]
+                notes += [remark.note for remark in dict.fromkeys(said)]
                 notes += [note for value in values for note in _left_undone(value)]
+                assuming = [each for remark in said for each in remark.assuming]
                 sides = self._sides(piece)
-                yield Step(piece.span, piece, values, sides=sides, notes=notes)
+                yield Step(
+                    piece.span,
+                    piece,
+                    values,
+                    sides=sides,
+                    notes=list(dict.fromkeys(notes)),
+                    assuming=list(dict.fromkeys(assuming)),
+                )
 
     def _sides(self, statement: ast.Statement) -> tuple[Any, Any] | None:
         """The values of an equation's two sides, for saying how they differ."""
@@ -959,6 +969,9 @@ class Step:
     error: RelativisticPyError | None = None
     sides: tuple[Any, Any] | None = None  # an equation's two sides, as computed
     notes: list[str] = field(default_factory=list)  # how the statement was read
+    # what its values are given under, which books assume and the program did not say, as
+    # "a > 0" (design/notation.md, decision 1)
+    assuming: list[str] = field(default_factory=list)
 
     @property
     def zero(self) -> bool:

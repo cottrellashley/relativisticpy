@@ -22,6 +22,11 @@ def reading(wb, source):
     return decisions, read.notes
 
 
+def bounds(wb):
+    """The bounds the session keeps, as text."""
+    return [str(bound) for bound, _ in wb._session.bounds]
+
+
 def facts(wb, name):
     """What the session assumes of a name, as SymPy was given it."""
     return wb._session.assumptions[name]._assumptions_orig
@@ -70,19 +75,15 @@ class TestWhatIsAnAssumption:
         assert notes == ["0 < x < 1 is an assumption: from here on, x is positive and x < 1"]
         wb.exe("0 < x < 1")
         assert facts(wb, "x") == {"positive": True, "real": True}
-        assert [bound for bound, _ in wb._session.bounds] == [x < 1]
+        assert bounds(wb) == ["x < 1"]
 
     def test_a_chain_bounds_each_name_by_the_nearest_constant(self, wb):
         wb.exe("a > r > 0")
         assert facts(wb, "a") == facts(wb, "r") == {"positive": True, "real": True}
-        assert [bound for bound, _ in wb._session.bounds] == [a > r]
+        assert bounds(wb) == ["a > r"]
         wb.exe(r"-\pi < \omega < \pi")
-        omega = sympy.Symbol("omega")
         assert facts(wb, "omega") == {"real": True}
-        assert [bound for bound, _ in wb._session.bounds][1:] == [
-            omega > -sympy.pi,
-            omega < sympy.pi,
-        ]
+        assert bounds(wb)[1:] == ["omega > -pi", "omega < pi"]
 
     def test_what_is_no_assumption_is_read_as_before(self, wb):
         t_h, t_c = sympy.symbols("T_h T_c")
@@ -152,7 +153,7 @@ class TestFromThenOn:
         ]
         wb.exe(r"0 \leq r < +\infty")
         assert wb.coordinates == sympy.symbols("t r")
-        assert [bound for bound, _ in wb._session.bounds] == [r >= 0]
+        assert bounds(wb) == ["r >= 0"]
 
     def test_an_assumption_before_the_coordinates_is_theirs(self, wb):
         wb.exe("r > 0\nCoordinates := [t, r]")

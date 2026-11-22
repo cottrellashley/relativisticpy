@@ -154,7 +154,9 @@ It gives one entry for each statement, in order, exactly as a line of
 `relativisticpy --format json` gives it (see [the command line](cli.md#forms-of-output)):
 where it is, the statement, its `values`, each as `relativisticpy.display.data`
 describes it, with its `text`, `unicode` and `latex` forms, what it `defines`, `notes` on
-how it was read, and its `error`. `ok` says whether every statement ran and none failed.
+how it was read, what its values are given `assuming`, as `a > 0`, where books assume it
+and the program did not say, and its `error`. `ok` says whether every statement ran and
+none failed.
 
 ```python
 >>> result = call("compute", source=r"g_{\mu\nu} := Schwarzschild(M); R_{abcd} R^{abcd}")

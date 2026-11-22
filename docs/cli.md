@@ -157,12 +157,13 @@ computed. Its keys:
 | `statement` | the statement as written |
 | `values` | each value it showed, as `relativisticpy.display.data` describes it: its `kind`, `text`, `unicode` and `latex` forms, and its structure |
 | `defines` | what it defined: each with its `name`, `kind` and how it is `written` |
-| `notes` | how it was read, where that could surprise |
+| `notes` | how it was read, where that could surprise, and what its computation did, as dropping the solutions an assumption rules out |
+| `assuming` | what its values are given under that books assume and the program did not say, as `a > 0` |
 | `error` | `null`, or the error as `RelativisticPyError.to_dict()` gives it: its `type`, `message`, place, `notes` and `hint` |
 
 ```python
 >>> main(["-c", "x := 2; x^3", "--format", "json"])
-{"file": "<command line>", "line": 1, "column": 1, "end_line": 1, "end_column": 7, "statement": "x := 2", "values": [], "defines": [{"name": "x", "kind": "value", "written": "x"}], "notes": [], "error": null}
+{"file": "<command line>", "line": 1, "column": 1, "end_line": 1, "end_column": 7, "statement": "x := 2", "values": [], "defines": [{"name": "x", "kind": "value", "written": "x"}], "notes": [], "assuming": [], "error": null}
 {"file": "<command line>", "line": 1, "column": 9, ..., "values": [{"kind": "number", "digits": 1, "value": 8, "text": "8", "unicode": "8", "latex": "8"}], ...}
 0
 

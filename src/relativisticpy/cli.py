@@ -687,6 +687,7 @@ def _record(step: Step, defined: list[_Defined]) -> dict[str, Any]:
         "values": [shown.data(value) for value in step.values or []],
         "defines": [{"name": d.name, "kind": d.kind, "written": d.written} for d in defined],
         "notes": list(step.notes),
+        "assuming": list(step.assuming),
         "error": step.error.to_dict() if step.error is not None else None,
     }
 

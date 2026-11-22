@@ -150,6 +150,7 @@ geom.surfaces.codazzi
 geom.topology.torus-triangulation
 gr.black-holes.hawking-temperature-sun
 gr.black-holes.kerr-ergosphere
+gr.black-holes.reissner-nordstrom-horizons
 gr.black-holes.surface-gravity-killing
 gr.cosmology.continuity-equation
 gr.cosmology.critical-density
@@ -317,6 +318,7 @@ thermo.potentials.gibbs-helmholtz
 thermo.real-gases.boyle-temperature
 thermo.real-gases.corresponding-states
 thermo.real-gases.critical-compressibility
+thermo.real-gases.dieterici-critical-point
 vc.integrals.volume
 vc.operators.laplacian-spherical
 vc.operators.scale-factor

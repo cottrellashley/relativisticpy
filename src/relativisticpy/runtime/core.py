@@ -17,8 +17,9 @@ from typing import Any
 import sympy
 from sympy import Symbol
 from sympy.core.function import AppliedUndef
+from sympy.core.relational import Relational
 
-from relativisticpy import display, integrations
+from relativisticpy import assumptions, display, integrations
 from relativisticpy.diffgeom.metric import differential
 from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.tensors import Indices, Tensor, arrays, linalg, numerical
@@ -237,20 +238,29 @@ def function(*args: Any, name: str) -> Any:
     return sympy.Function(name)(*args)
 
 
-def less(lhs: Any, rhs: Any) -> Any:
-    return sympy.Lt(lhs, rhs)
+def less(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
+    return _decided(sympy.Lt(lhs, rhs), assuming)
 
 
-def greater(lhs: Any, rhs: Any) -> Any:
-    return sympy.Gt(lhs, rhs)
+def greater(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
+    return _decided(sympy.Gt(lhs, rhs), assuming)
 
 
-def less_equal(lhs: Any, rhs: Any) -> Any:
-    return sympy.Le(lhs, rhs)
+def less_equal(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
+    return _decided(sympy.Le(lhs, rhs), assuming)
 
 
-def greater_equal(lhs: Any, rhs: Any) -> Any:
-    return sympy.Ge(lhs, rhs)
+def greater_equal(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
+    return _decided(sympy.Ge(lhs, rhs), assuming)
+
+
+def _decided(relation: Any, bounds: tuple[Any, ...]) -> Any:
+    """An inequality, decided where the bounds the program assumes decide it, as x < 2 is
+    where 0 < x < 1 is assumed."""
+    if not bounds or not isinstance(relation, Relational):
+        return relation
+    verdict = assumptions.holds(relation, bounds)
+    return relation if verdict is None else sympy.true if verdict else sympy.false
 
 
 def equal(lhs: Any, rhs: Any) -> Any:
