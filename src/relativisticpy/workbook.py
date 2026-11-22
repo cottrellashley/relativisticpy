@@ -205,14 +205,20 @@ class Workbook:
         self,
         document: str | Path | Document,
         *,
-        lines: tuple[int, int] | None = None,
+        lines: tuple[int | None, int | None] | int | None = None,
         time_limit: float | None = None,
     ) -> checking.Report:
         """Run the equations of a LaTeX document, or of a Markdown notebook, in order and
-        say what became of each: whether it holds, defines something, or could not be
-        read. ``lines`` limits the check to part of the document, such as one chapter,
-        and ``time_limit`` each statement's time in seconds.
-        See :mod:`relativisticpy.checking`."""
+        say what became of each: whether it holds, differs, defines something, or could
+        not be read.
+
+        ``document`` is a :class:`~relativisticpy.documents.Document`, the path of a file,
+        or the text of a document itself: text with a line break or a ``\\begin`` that
+        is not the path of a file. ``lines`` checks part of the document, such as one
+        chapter: ``(first, last)``, either of which may be ``None`` for an open end, or
+        one line; what comes before it still runs, so that its definitions are known.
+        ``time_limit`` is each statement's time in seconds. See
+        :mod:`relativisticpy.checking`."""
         return checking.check(self, document, lines=lines, time_limit=time_limit)
 
     @_from_python
@@ -379,6 +385,18 @@ class Workbook:
         if isinstance(target, ast.Name):
             return target.id, None
         return target
+
+    def _knows_tensor(self, name: str, rank: int) -> bool:
+        """Whether ``name`` with ``rank`` indices is a tensor this workbook knows: one a
+        program or Python defined, the metric, or a built-in one, as the Ricci tensor."""
+        binding = self._session.globals.lookup(name)
+        if isinstance(binding, TensorBinding):
+            return True
+        if isinstance(binding, VariableBinding):
+            return isinstance(binding.node.type, TensorType) or binding.node.type != SCALAR
+        if name == self._session.names["metric"]:
+            return rank == 2
+        return self._compiler._builtin_tensor(name, rank) is not None
 
     def _unknown(self, name: str, written: str) -> UnknownNameError:
         """The error for a name nothing in this workbook defines."""

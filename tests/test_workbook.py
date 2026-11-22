@@ -301,6 +301,17 @@ def test_a_step_shows_its_statement_and_what_became_of_it():
     assert repr(second) == f"Step(line 2: x + 1 → [{display.unicode(x + 1)}])"
 
 
+def test_check_reads_latex_text_as_a_document():
+    # API-15, DOC-41: the text of a document is not a path
+    report = Workbook().check(r"\begin{equation} 1 + 1 = 2 \end{equation}")
+    assert [finding.verdict for finding in report] == ["holds"]
+    report = Workbook().check("$$ x := 2 $$\n$$ x^2 = 4 $$")
+    assert [finding.verdict for finding in report] == ["defines", "holds"]
+    with pytest.raises(FileError, match=r"no file notes\.tex") as error:
+        Workbook().check("notes.tex")
+    assert "pass the text, or a Document" in error.value.hint
+
+
 def test_metric_and_coordinates():
     wb = Workbook()
     assert wb.metric is None
