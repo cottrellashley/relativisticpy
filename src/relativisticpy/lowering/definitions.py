@@ -100,6 +100,8 @@ class Definitions(Expressions):
             self._define_line_element(value, scope, ctx, target.span.to(value.span))
             return
         target = _unprimed(target)
+        if isinstance(target, ast.Binary | ast.Accent | ast.Call):  # \psi_n(x), \Delta\phi
+            raise self._cannot_define(target, value)
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
             raise CompileError("cannot define this", span=target.span)
         entries = self._entries(target, "a definition")

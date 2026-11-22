@@ -51,10 +51,12 @@ from relativisticpy.reading.names import (
     _STATISTIC_ALIASES,
     _STATISTICS,
     _TRANSPOSES,
+    _a_name,
     _a_word,
     _built_in,
     _close,
     _decoration,
+    _family_label,
     _greek_labels,
     _has_a_value,
     _is_line_element,
@@ -69,6 +71,7 @@ from relativisticpy.reading.names import (
     _styled,
     _subscripted_name,
     _unprimed,
+    _with_arguments,
     _writes_tensor,
     _written_as_letter,
     _written_with,
@@ -80,6 +83,8 @@ from relativisticpy.typing import notation as rules
 from relativisticpy.typing.syntax import (
     _indexed_name,
     _plain_label,
+    _product_factors,
+    _rank,
     _tensor_pattern,
     _used,
     _walk,
@@ -876,6 +881,118 @@ class Reader(Typer):
             f"{name} is not a tensor",
             span=node.span,
             hint=f"define it first, for example {name}{written} := [...]",
+        )
+
+    def _names_nothing(self, func: ast.Expr, scope: Scope) -> bool:
+        """Whether a name with subscripts, as ``U_{\\text{eff}}``, means nothing yet, so that
+        brackets after it, as in ``U_{\\text{eff}}(r) = ...``, can only make a function of it:
+        neither it nor its base is bound, and it is no built-in tensor."""
+        if not (isinstance(func, ast.Scripted) and _a_name(func)):
+            return False
+        base = func.base
+        assert isinstance(base, ast.Name)
+        rank = _rank(func)
+        return (
+            scope.lookup(base.id) is None
+            and scope.lookup(_subscripted_name(func)) is None
+            and self._builtin_tensor(base.id, rank) is None
+        )
+
+    def _cannot_define(
+        self, target: ast.Expr, value: ast.Expr, *, equals: bool = False
+    ) -> CompileError:
+        """The error for ``target := value`` where the left side is no name, tensor or
+        function, as it is read: ``\\psi_n(x)``, \\psi_n times x; ``\\Delta\\phi``, a
+        product; ``\\dot{x}``, the time derivative of x. ``:=`` defines, or is refused
+        saying how the left side was read; it never makes an equation. With ``equals``,
+        for ``U_{\\text{eff}}(r) = ...``, which = can neither define nor compare."""
+        written = target.span.text
+        if isinstance(target, ast.Call) and isinstance(target.func, ast.Name):  # H(e^{j\omega})
+            return self._parameters_not_names(target)
+        if isinstance(target, ast.Accent) and target.accent in ("dot", "ddot"):
+            name = target.base.span.text
+            why = f"a dot is the time derivative of {name}"
+            self._decide("index or power", target.span, f"the time derivative of {name}", why)
+            return CompileError(
+                f"cannot define {written}: it is the time derivative of {name}, which takes "
+                f"its value from {name}",
+                span=target.span,
+                hint=f"define {name} as a function of time, as in {name}(t) := ..., or give the "
+                "rate a name of its own, as in v := ...",
+            )
+        if (applied := _with_arguments(target)) is not None:
+            return self._not_a_function(target, *applied, value, equals)
+        product = isinstance(target, ast.Binary) and target.op == "*"
+        factors = _product_factors(target) if product else []
+        if factors and all(_a_name(factor) for factor in factors):
+            reading = " times ".join(factor.span.text for factor in factors)
+            why = "in LaTeX names written side by side multiply"
+            self._decide("product or call", target.span, reading, why)
+            first = factors[0]
+            hint = "to name one quantity, give it one name, and write that name where it is used"
+            if len(factors) == 2 and isinstance(first, ast.Name):
+                example = f"{first.span.text}_{{{factors[1].span.text}}}"
+                hint = f"to name one quantity, write one name, as in {example} := ..."
+            return CompileError(
+                f"cannot define {written}, which is read as the product {reading}",
+                span=target.span,
+                notes=[":= gives a value to a name, a tensor or a function, not to a product"],
+                hint=hint,
+            )
+        return CompileError(
+            f"cannot define {written}",
+            span=target.span,
+            hint="the left of := is a name (x), a tensor (T^{a}_{b}) or a function (f(x))",
+        )
+
+    def _not_a_function(
+        self, target: ast.Expr, func: ast.Expr, group: ast.Expr, value: ast.Expr, equals: bool
+    ) -> CompileError:
+        """``\\psi_n(x) := ...``, read as \\psi_n times x: a name with scripts is not yet a
+        function. Where its subscript is a letter its value is written with, it names a
+        family, which a function of that letter too stands for."""
+        written, arguments = target.span.text, group.span.text[1:-1]
+        factor = group.span.text if isinstance(group, ast.Tuple) else arguments
+        reading = f"{func.span.text} times {factor}"
+        why = f"{func.span.text} is not a function: a name with scripts is a symbol"
+        self._decide("product or call", target.span, reading, why)
+        base = func.base if isinstance(func, ast.Scripted) else func
+        assert isinstance(base, ast.Name)
+        short = base.span.text.partition("_")[0]  # Y of Y_2
+        family = _family_label(func, value)
+        hint = f"give the function a name without scripts, as in {short}({arguments}) := ..."
+        if family is not None:
+            hint = (
+                f"define a function of {family} too, as in {short}({family}, {arguments}) := "
+                f"..., and write {short}(1, {arguments}) for {short}_1({arguments})"
+            )
+        headline = f"cannot define {written}, which is read as {reading}"
+        if equals:  # J_{1/2}(x) = ...: no definition, and no claim about a function either
+            headline = f"{written} is read as {reading}, so = neither defines nor compares it"
+        return CompileError(
+            headline,
+            span=target.span,
+            notes=[
+                f"a name with a subscript or a superscript, as {func.span.text}, is not yet the "
+                "name of a function, nor of a family of them"
+            ],
+            hint=hint,
+        )
+
+    def _parameters_not_names(self, target: ast.Call) -> CompileError:
+        """``H(e^{j\\omega}) := ...``: a function is defined with names as its parameters."""
+        written = target.span.text
+        given = [arg.span.text for arg in target.args if not isinstance(arg, ast.Name)]
+        fresh = iter(p for p in ("z", "u", "v", "w") if all(p not in g for g in given))
+        parameters = [
+            arg.span.text if isinstance(arg, ast.Name) else next(fresh, "x") for arg in target.args
+        ]
+        return CompileError(
+            f"cannot define {written}: the parameters of a function are names, and "
+            f"{_listed(given)} {'is' if len(given) == 1 else 'are'} not",
+            span=target.span,
+            hint=f"define it with names as its parameters, as in {target.func.span.text}"
+            f"({', '.join(parameters)}) := ..., and then write {written}",
         )
 
     def _note_power(self, base: ast.Name, script: ast.Script) -> None:

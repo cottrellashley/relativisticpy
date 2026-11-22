@@ -700,6 +700,61 @@ def _symbol_names(value: Any) -> frozenset[str]:
     return frozenset(names)
 
 
+def _with_arguments(target: ast.Expr) -> tuple[ast.Expr, ast.Expr] | None:
+    """``\\psi_n(x)`` read as a product, \\psi_n times x: a name, maybe with scripts, and
+    names in brackets written right after it, as the arguments of a function are; the name
+    and the bracketed names. ``None`` for anything else."""
+    if not (isinstance(target, ast.Binary) and target.op == "*"):
+        return None
+    func, group = target.left, target.right
+    named = isinstance(func, ast.Name) or (
+        isinstance(func, ast.Scripted) and isinstance(func.base, ast.Name)
+    )
+    items = group.items if isinstance(group, ast.Tuple) else (group,)
+    if not named or not all(isinstance(item, ast.Name) for item in items):
+        return None
+    if not group.span.text.startswith("(") or group.span.start != func.span.end:
+        return None
+    return func, group
+
+
+def _family_label(func: ast.Expr, value: ast.Expr) -> str | None:
+    """The label of a family, as n is of ``\\psi_n(x) := \\sin(n x)``: the one letter
+    written as the subscript of the name being defined that its value is written with too,
+    as it is written; ``None`` where there is none."""
+    if not isinstance(func, ast.Scripted):
+        return None
+    subscripts = [script for script in func.scripts if script.kind == "_"]
+    if len(subscripts) != 1 or subscripts[0].indices is None:
+        return None
+    items = subscripts[0].indices.items
+    if len(items) != 1 or not _plain_label(items[0]):
+        return None
+    if str(items[0].label) not in _mentioned(value, latex=True):
+        return None
+    return subscripts[0].span.text.lstrip("_").strip("{}")
+
+
+_OPERATOR_FORM = re.compile(
+    r"\\(?:operatorname\*?|mathrm)\{[^{}]+\}(?:\s|\\[,;:!])*(?!\\left\b)(?:\\[A-Za-z]+|[A-Za-z])"
+)
+
+
+def _operator_form(written: str) -> str | None:
+    """The left side of a function defined as books write one, its argument after its name
+    without brackets, as ``\\operatorname{sinc} x`` of ``\\operatorname{sinc} x := ...``;
+    ``None`` for one written with brackets, as ``sinc(x) := ...``."""
+    match = _OPERATOR_FORM.match(written)
+    return match.group(0) if match is not None else None
+
+
+def _a_name(node: ast.Expr) -> bool:
+    """Whether ``node`` is a name, maybe with subscripts, as ``\\Delta`` and ``x_e`` are."""
+    if isinstance(node, ast.Scripted):
+        return isinstance(node.base, ast.Name) and all(s.kind == "_" for s in node.scripts)
+    return isinstance(node, ast.Name)
+
+
 def _subscripted_symbol(target: ast.Scripted) -> bool:
     """``r_{s}``: a single subscript, which may name a symbol."""
     return (

@@ -926,8 +926,9 @@ class TestStatements:
             # so is a name under an accent that is no time derivative
             (r"\hat{p} := 2", "(:= (hat p) 2)"),
             (r"\bar{x} \equiv \frac{a + b}{2}", "(:= (bar x) (/ (+ a b) 2))"),
-            # a dot is a time derivative, so that is an identity, as it was
-            (r"\dot{x} := v", "(≡ (dot x) v)"),
+            # a dot is a time derivative: := defines it or the compiler refuses, never an
+            # identity (see tests/reading/test_messages.py)
+            (r"\dot{x} := v", "(:= (dot x) v)"),
         ],
     )
     def test_decorated_names_are_defined(self, text, expected):

@@ -565,11 +565,18 @@ class Parser:
 
     def _definition(self, targets: list[ast.Expr], value: ast.Expr, define: Token) -> ast.Statement:
         span = targets[0].span.to(value.span)
-        # A \equiv B, or in LaTeX A := B, where A cannot be defined, states an identity.
-        identity = define.span.text in ("\\equiv", "≡") or "\\" in targets[0].span.text
-        if len(targets) == 1 and identity and not _definable(targets[0]):
-            identity_node = _identity(targets[0], value, span, define.span.text)
-            return ast.Evaluate(identity_node, span=span)
+        equiv = define.span.text in ("\\equiv", "≡")
+        if len(targets) == 1 and (applied := _operator_applied(targets[0])) is not None:
+            # \operatorname{sinc} x := ..., the argument written after the name as books
+            # write it, defines sinc as sinc(x) := ... does
+            name, param = applied
+            return ast.FunctionDefinition(name, (param,), value, span=span)
+        if len(targets) == 1 and not _definable(targets[0]):
+            if equiv:  # A \equiv B, where A cannot be defined, states an identity
+                identity_node = _identity(targets[0], value, span, define.span.text)
+                return ast.Evaluate(identity_node, span=span)
+            if "\\" in targets[0].span.text:  # := defines; the compiler says why it cannot
+                return ast.Define(tuple(targets), value, span=span)
         if len(targets) == 1 and isinstance(call := targets[0], ast.Call):
             if not isinstance(call.func, ast.Name):
                 raise ParseError("cannot define this", span=call.func.span)
@@ -3088,6 +3095,24 @@ def _definable(target: ast.Expr) -> bool:
             isinstance(arg, ast.Name) for arg in target.args
         )
     return isinstance(target, ast.Name | ast.Scripted) or _decorated(target)
+
+
+def _operator_applied(target: ast.Expr) -> tuple[str, str] | None:
+    """``\\operatorname{sinc} x``: a name written as an operator, followed by one name, its
+    argument, as books write a function they define (decision 11 of design/notation.md);
+    the name and the argument's name. ``None`` for anything else."""
+    if not (isinstance(target, ast.Binary) and target.op == "*"):
+        return None
+    func, argument = target.left, target.right
+    if not (isinstance(func, ast.Name) and isinstance(argument, ast.Name)):
+        return None
+    if not func.span.text.startswith(_OPERATOR_NAMES) or len(func.id) < 2:
+        return None  # \mathrm{d} x is a differential
+    return func.id, argument.id
+
+
+#: The commands that write a name as an operator's, as \operatorname{sinc} and \mathrm{sinc}.
+_OPERATOR_NAMES = ("\\operatorname", "\\mathrm")
 
 
 def _decorated(target: ast.Expr) -> bool:

@@ -26,7 +26,7 @@ from dataclasses import replace
 from relativisticpy.compiler.scope import Check, Context, FunctionBinding, Output, Scope
 from relativisticpy.compiler.session import Saved
 from relativisticpy.errors import CompileError, RelativisticPyError
-from relativisticpy.ir import SCALAR
+from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.lowering.definitions import Definitions
 
@@ -38,8 +38,10 @@ from relativisticpy.reading.names import (
     _bracketed,
     _factor_names,
     _is_line_element,
+    _operator_form,
     _script_labels,
     _unbracketed,
+    _with_arguments,
 )
 from relativisticpy.reading.readings import Reading
 from relativisticpy.typing.syntax import _NOTATION_OPERATIONS as _NOTATION_OPERATIONS
@@ -153,6 +155,10 @@ class Compiler(Definitions):
             written = f"{statement.name}({', '.join(statement.params)}) := ..."
             reading = "a definition of a function"
             self._decide(DEFINITION, statement.span, reading, why, written=written)
+            if (head := _operator_form(statement.span.text)) is not None:  # \operatorname{sinc} x
+                why = "a name written as an operator, with one name after it, is a function of it"
+                call = f"{statement.name}({', '.join(statement.params)})"
+                self._decide("product or call", statement.span, call, why, written=head)
             self._define_function(statement, scope, ctx)
             return []
         if isinstance(statement, ast.Define) and self._states_identity(statement, scope):
@@ -218,6 +224,13 @@ class Compiler(Definitions):
                 span=equation.span,
                 hint=f"to compute with it, write it without the brackets: {_unbracketed(equation)}",
             )
+        applied = _with_arguments(lhs)
+        if (
+            applied is not None
+            and self._names_nothing(applied[0], scope)
+            and self._read_as_product(lhs, scope, ctx)
+        ):  # U_{\text{eff}}(r) = ...: a function, which a name with scripts cannot be yet
+            raise self._cannot_define(lhs, rhs, equals=True)
         reading, note, why = self._reading(equation, scope, ctx)
         if reading == "function":
             assert isinstance(lhs, ast.Call)
@@ -251,6 +264,18 @@ class Compiler(Definitions):
         if reading == "notation" or self._is_notation(equation, scope, ctx, equation=True):
             return [Output(self._notation(equation, scope, ctx), equation.span, note=note)]
         return [Output(self.value(equation, scope, ctx), equation.span, note=note)]
+
+    def _read_as_product(self, lhs: ast.Expr, scope: Scope, ctx: Context) -> bool:
+        """Whether the left side of an equation is read as a product, as
+        ``U_{\\text{eff}}(r)`` is, U_eff times r, rather than as a call: compiled in a session
+        of its own, which leaves this one as it was."""
+        checker = Compiler(self.session.fork())
+        checker._depth = 1  # its notes are not this statement's
+        try:
+            node = checker.value(lhs, scope, ctx)
+        except RelativisticPyError:
+            return False
+        return isinstance(node.op, ops.Mul)
 
     def _fails_as_function(
         self, definition: ast.FunctionDefinition, scope: Scope, ctx: Context
