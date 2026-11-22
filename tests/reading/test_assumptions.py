@@ -187,3 +187,24 @@ class TestInAPaper:
     def test_a_list_of_defined_names_is_a_claim_about_each(self, wb):
         wb.exe("a := 1\nb := 2")
         assert wb.expr("a, b > 0") is sympy.true
+
+
+class TestTheNoteIsShown:
+    def test_a_step_says_how_it_was_read(self, wb):
+        (step,) = wb.each("a, b > 0")
+        assert (step.values, step.notes) == (
+            [],
+            ["a, b > 0 is an assumption: from here on, a and b are positive"],
+        )
+
+    def test_the_command_line_prints_it(self, capsys):
+        from relativisticpy.cli import main
+
+        assert main(["-c", "a > 0"]) == 0
+        assert (
+            "note: a > 0 is an assumption: from here on, a is positive" in capsys.readouterr().out
+        )
+
+    def test_a_note_is_its_own_statements(self, wb):
+        steps = list(wb.each("a > 0\nb := 2"))
+        assert steps[1].notes == []

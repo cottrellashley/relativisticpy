@@ -431,6 +431,7 @@ def assume(reader: Definitions, relation: ast.Expr, scope: Scope, ctx: Context) 
     said = applying.said(assumption.facts, assumption.bounds)
     note = f"{written} is an assumption: from here on, {said}"
     reader._decide(ASSUMPTION, relation.span, "an assumption", why, note, written=written)
+    reader._note(note)
     for name in assumption.names:
         operand = spans.get(name)
         facts = assumption.facts.get(name, {})

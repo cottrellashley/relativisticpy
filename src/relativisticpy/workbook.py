@@ -216,6 +216,7 @@ class Workbook:
                 yield Step(span, ast.Statement(span=span), error=piece)
                 continue
             try:
+                self._compiler.take_notes()  # what statements before left unsaid is theirs
                 compile = functools.partial(self._compiler.statement, piece, self._session.globals)
                 outputs = self._run(compile)
                 values = [self._present(output) for output in outputs]
@@ -224,6 +225,8 @@ class Workbook:
                 yield Step(piece.span, piece, error=failure)
             else:
                 notes = [output.note for output in outputs if output.note]
+                if not outputs:  # how a statement that shows nothing was read, as a > 0
+                    notes += self._compiler.take_notes()
                 said = [r for output in outputs for r in self._executor.remarks(output.node)]
                 notes += [remark.note for remark in dict.fromkeys(said)]
                 notes += [note for value in values for note in _left_undone(value)]
