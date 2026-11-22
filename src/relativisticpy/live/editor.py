@@ -32,6 +32,7 @@ from relativisticpy.live.worker import (
     STARTUP,
     TIME_LIMIT,
     Computations,
+    Deliver,
     InPlace,
     Job,
     portable,
@@ -169,7 +170,7 @@ class Editor(anywidget.AnyWidget):
             }
             self._submit("compute", arguments, self._answerer(ident))
 
-    def _answerer(self, ident: str) -> Any:
+    def _answerer(self, ident: str) -> Deliver:
         """Where the answer of a widget's request goes: back to the widget, with its id."""
 
         def deliver(kind: str, data: dict[str, Any]) -> None:
@@ -177,7 +178,7 @@ class Editor(anywidget.AnyWidget):
 
         return deliver
 
-    def _submit(self, kind: str, arguments: dict[str, Any], deliver: Any) -> None:
+    def _submit(self, kind: str, arguments: dict[str, Any], deliver: Deliver) -> None:
         """Ask for a job, with the workbook as it is, if it has changed since it was last
         given. It is taken here, in the thread a notebook runs its cells in, where nothing
         changes it while it is taken."""
