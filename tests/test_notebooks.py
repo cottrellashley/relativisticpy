@@ -130,3 +130,29 @@ def test_marimo_shows_the_typeset_value(shown):
     table = try_format(wb["w"])
     assert table.mimetype == "text/html"
     assert "<table>" in table.data
+
+
+def test_a_marimo_cell_that_passes_an_object_to_show_runs_again_when_it_changes():
+    marimo = pytest.importorskip("marimo", reason="marimo is a tool of the notebook tests")
+    from marimo._ast.compiler import compile_cell
+
+    cell = compile_cell(r'show(r"x_t := \texttt{signal}", signal=signal)', cell_id="shown")
+    assert "signal" in cell.refs  # marimo follows the name, so the cell runs when it changes
+    app = marimo.App()
+
+    @app.cell
+    def _():
+        import numpy
+
+        signal = numpy.array([1.0, 2.0, 6.0])
+        return (signal,)
+
+    @app.cell
+    def _(signal):
+        from relativisticpy.live import show
+
+        shown = show(r"x_t := \texttt{signal}" "\n" r"\mathbb{E}_t[x_t]", signal=signal)
+        return (shown,)
+
+    _, defined = app.run()
+    assert defined["shown"].values == [3.0]

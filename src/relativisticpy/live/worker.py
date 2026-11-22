@@ -9,7 +9,8 @@ as Ctrl-C interrupts one. Each job has a time limit, which the worker keeps soft
 reported. A computation that does not stop when asked, as one in a library's compiled
 code may not, has its worker stopped, and the next job starts another. The worker is
 given the workbook the editor was given, as it is, whenever it has changed: pickled, with
-the values it has computed.
+the values it has computed, and the Python objects its programs read, read in the
+notebook's process, as data (:func:`given`).
 
 Where no process can be started, as in a browser's Python, :class:`InPlace` computes in
 the notebook's own, with no time limit.
@@ -46,6 +47,7 @@ from relativisticpy.errors import (
     RelativisticPyError,
     internal_error,
 )
+from relativisticpy.integrations._objects import ObjectReader
 from relativisticpy.live.engine import Engine
 from relativisticpy.workbook import Workbook
 
@@ -93,14 +95,24 @@ class Job:
 # == the notebook's side =====================================================================
 
 
-def portable(workbook: Workbook) -> bytes:
+def portable(workbook: Workbook, objects: ObjectReader | None = None) -> bytes:
     """A workbook as it is, as bytes another process carries on from: its definitions and
-    what it has computed."""
+    what it has computed, reading the Python objects its programs name from ``objects``,
+    what was read of them in this process (see :func:`given`)."""
     buffer = io.BytesIO()
     pickler = pickle.Pickler(buffer, protocol=pickle.HIGHEST_PROTOCOL)
     pickler.dispatch_table = {**copyreg.dispatch_table, itertools.count: _count}
-    pickler.dump(workbook._portable())
+    pickler.dump(given(workbook, objects)._portable())
     return buffer.getvalue()
+
+
+def given(workbook: Workbook, objects: ObjectReader | None) -> Workbook:
+    """What an editor's programs run in: a copy of ``workbook`` that reads the Python
+    objects they name from ``objects``. What crosses to another process is data: what the
+    objects became when they were read, never the scope they were read from."""
+    copied = workbook.copy()
+    copied._session.objects = objects
+    return copied
 
 
 def _count(counter: Any) -> tuple[Any, tuple[Any, ...]]:
@@ -436,20 +448,26 @@ class InPlace:
     """Computes the editor's jobs in the notebook's own process, where no worker can be
     started, as in a browser's Python, or be given the workbook: at once, in the thread
     that asks, which a time limit stops only if it is the main thread. ``note`` says why,
-    under each run."""
+    under each run. ``objects`` is what the programs read Python objects from."""
 
     def __init__(
-        self, workbook: Workbook, *, time_limit: float = TIME_LIMIT, note: str | None = None
+        self,
+        workbook: Workbook,
+        *,
+        time_limit: float = TIME_LIMIT,
+        note: str | None = None,
+        objects: ObjectReader | None = None,
     ) -> None:
         self.workbook = workbook
         self.time_limit = time_limit
         self.note = note
-        self.engine = Engine(workbook)
-        self._loaded = workbook._revision
+        self.objects = objects
+        self.engine = Engine(given(workbook, objects))
+        self._loaded: int | None = None
 
     def submit(self, job: Job) -> None:
         if job.revision != self._loaded:
-            self.engine.load(self.workbook)
+            self.engine.load(given(self.workbook, self.objects))
             self._loaded = job.revision
         arguments = {**job.arguments, "limit": self.time_limit, "name": NAME}
         try:
@@ -491,6 +509,20 @@ def _read(wire: IO[bytes], size: int) -> bytes:
             raise EOFError("the other end has closed the pipe")
         data += chunk
     return data
+
+
+def _carried(state: bytes) -> Workbook:
+    """The workbook the notebook gave, to carry on from here; an error that says why where
+    it cannot be taken in, as where a Python function it calls cannot be imported here."""
+    try:
+        return Workbook._carried(*pickle.loads(state))
+    except Exception as error:
+        raise EvaluationError(
+            f"the editor's worker could not take the workbook in: {type(error).__name__}: {error}",
+            hint="a Python function a program calls goes to the worker by its module's name: "
+            "define it in a module that is installed, or the editor computes in the "
+            "notebook's process",
+        ) from error
 
 
 def _do(engine: Engine, kind: str, arguments: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -548,7 +580,7 @@ def main() -> None:
         reply: tuple[str, Any]
         try:
             if state is not None:
-                engine.load(Workbook._carried(*pickle.loads(state)))
+                engine.load(_carried(state))
             _computing = True
             try:
                 reply = _do(engine, kind, arguments)

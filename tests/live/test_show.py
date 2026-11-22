@@ -100,10 +100,21 @@ def test_named_programs_say_where_their_errors_are():
     assert "notes.md:12:" in show(source).errors[0].render()
 
 
-def test_python_objects_are_for_a_later_version():
-    with pytest.raises(UsageError, match="does not read Python objects yet") as raised:
-        show(r"\hat{x} := \mathcal{F}[\texttt{signal}]", signal=[1, 2, 3])
-    assert "wb['x_t'] = signal" in raised.value.hint
+def test_the_objects_passed_are_the_scope_of_the_program():
+    np = pytest.importorskip("numpy")
+    signal = np.array([1.0, 2.0, 6.0])
+    shown = show(r"x_t := \texttt{signal}" "\n" r"\mathbb{E}_t[x_t]", signal=signal)
+    assert shown.values == [3.0]
+    assert "x" in shown.workbook
+
+
+def test_the_objects_passed_come_before_the_workbooks_own_and_only_for_the_call():
+    wb = Workbook(scope={"G": 1, "c": 3})
+    assert show(r"\texttt{G} + \texttt{c}", workbook=wb, G=2).values == [5]
+    assert show(r"\texttt{G}", workbook=wb).values == [1]
+    (error,) = show(r"\texttt{h}", workbook=Workbook()).errors
+    assert "no Python scope was given" in error.message
+    assert show(r"\texttt{h} + 1", h=1).values == [2]
 
 
 def test_what_it_is_given_is_checked():

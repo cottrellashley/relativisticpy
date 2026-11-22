@@ -1,7 +1,9 @@
 r"""The editor's Python side, without a browser: from source to results, stale runs, errors
-with their spans, computing a part of a statement, time limits, and what it carries."""
+with their spans, computing a part of a statement, time limits, what it carries, and the
+Python objects its programs read."""
 
 import json
+import math
 import re
 import threading
 import time
@@ -216,7 +218,7 @@ def test_what_it_is_given_is_checked():
 
 
 def test_a_workbook_no_worker_can_take_is_computed_in_the_notebook(monkeypatch):
-    def refuse(workbook):
+    def refuse(workbook, objects=None):
         raise TypeError("cannot pickle 'generator' object")
 
     monkeypatch.setattr(editing, "portable", refuse)
@@ -229,6 +231,53 @@ def test_a_workbook_no_worker_can_take_is_computed_in_the_notebook(monkeypatch):
         assert isinstance(here._computations, working.InPlace)
     finally:
         here.close()
+
+
+# -- Python objects ---------------------------------------------------------------------------
+
+
+def quarter(n):
+    """A function of the notebook's own, which no other process can import."""
+    return n / 4
+
+
+def test_its_programs_read_python_objects_which_go_to_the_worker_as_data():
+    np = pytest.importorskip("numpy")
+    signal = np.array([1.0, 2.0, 6.0])
+    reading = Editor(scope={"signal": signal, "cos": math.cos})
+    try:
+        program = r"x_t := \texttt{signal}" "\n" r"\mathbb{E}_t[x_t]" "\n" r"\texttt{cos}(0)"
+        assert values(reading.run(program)) == [[], ["3.0"], ["1.0"]]
+        assert isinstance(reading._computations, working.Computations)  # cos goes by name
+        signal[0] = 4.0  # changed in place: read again as the next run starts
+        assert values(reading.run()) == [[], ["4.0"], ["1.0"]]
+    finally:
+        reading.close()
+
+
+def test_a_function_no_worker_can_import_is_computed_in_the_notebook_saying_why():
+    here = Editor(scope={"quarter": quarter})
+    try:
+        assert values(here.run(r"\texttt{quarter}(3)")) == [["0.75"]]
+        assert isinstance(here._computations, working.InPlace)
+        note = here._wait("run", {"text": "1"})["notes"][-1]
+        assert "cannot be sent to a worker" in note
+        assert r"the Python function \texttt{quarter} is defined in" in note
+    finally:
+        here.close()
+
+
+def test_the_workbooks_scope_is_read_where_the_editor_has_none():
+    with_scope = Editor(Workbook(scope={"G": 2}))
+    without = Editor()
+    try:
+        assert values(with_scope.run(r"\texttt{G} + 1")) == [["3"]]
+        (entry,) = without.run(r"\texttt{G} + 1")
+        assert "no Python scope was given" in entry["error"]["message"]
+        assert entry["error"]["hint"].startswith("give the workbook one")
+    finally:
+        with_scope.close()
+        without.close()
 
 
 def test_closing_it_stops_its_worker():

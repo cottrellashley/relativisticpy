@@ -20,6 +20,7 @@ live`` says more.
 
 from __future__ import annotations
 
+import contextlib
 import html
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -75,21 +76,15 @@ def show(
         >>> shown.values
         [5]
 
-    ``objects``, Python objects passed by keyword, as in
-    ``show(r"\hat{x} := \mathcal{F}[\texttt{signal}]", signal=signal)``, are the place
-    of a later version, in which ``\texttt{signal}`` reads the object called ``signal``
-    (see ``design/integrations.md``). This one does not read them yet, and refuses them,
-    rather than run a program that names them without them. Data from Python can be
-    bound to a workbook today, as in ``wb["x_t"] = signal``, and the workbook passed.
+    ``objects``, Python objects passed by keyword, are the scope the program reads them
+    from, before the workbook's own: ``\texttt{signal}`` is the object passed as
+    ``signal=signal`` (see :mod:`relativisticpy.integrations._objects`). In marimo, a cell
+    that passes it runs again whenever ``signal`` changes, since marimo follows the names a
+    cell uses::
+
+        >>> show(r"x_t := \texttt{signal}" "\n" r"\mathbb{E}_t[x_t]", signal=[1, 2, 6]).values
+        [3.0]
     """
-    if objects:
-        named = ", ".join(sorted(objects))
-        raise UsageError(
-            f"show does not read Python objects yet, so it cannot take {named}",
-            notes=[r"reading an object by name, as \texttt{signal}, comes in a later version"],
-            hint="bind the data to a workbook, as in wb['x_t'] = signal, and pass it: "
-            "show(source, workbook=wb)",
-        )
     if not isinstance(source, str | Source):
         raise UsageError(f"show takes the program as a str, not {type(source).__name__}")
     if workbook is not None and not isinstance(workbook, Workbook):
@@ -101,13 +96,14 @@ def show(
     steps: list[Step] = []
     defines: list[str | None] = []
     try:
-        before = _snapshot(workbook)
-        for step in workbook.each(text, recover=True):
-            after = _snapshot(workbook)
-            defined = _defined(before, after) if step.error is None else []
-            steps.append(step)
-            defines.append(_defines_text(defined, "unicode") if defined else None)
-            before = after
+        with workbook._given(objects) if objects else contextlib.nullcontext():
+            before = _snapshot(workbook)
+            for step in workbook.each(text, recover=True):
+                after = _snapshot(workbook)
+                defined = _defined(before, after) if step.error is None else []
+                steps.append(step)
+                defines.append(_defines_text(defined, "unicode") if defined else None)
+                before = after
     except RelativisticPyError as error:  # a program that cannot be run at all
         span = Span(text, 0, len(text.text))
         steps.append(Step(span, ast.Statement(span=span), error=error))

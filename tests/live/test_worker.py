@@ -1,16 +1,20 @@
 r"""The editor's worker: jobs computed in a process of its own, one at a time, with the
 workbook carried to it as it is; and what happens when the worker fails."""
 
+import math
 import os
 import pickle
 import subprocess
 import sys
 import threading
 import time
+import types
 
 import pytest
 
 from relativisticpy import Workbook
+from relativisticpy.errors import CompileError
+from relativisticpy.integrations import _objects as objects
 from relativisticpy.live import worker as working
 
 KERR = r"g_{\mu\nu} := Kerr(M, a)" + "\nR_{abcd} R^{abcd}"
@@ -91,6 +95,61 @@ def test_a_workbook_is_carried_to_another_process_as_it_is(vacuum):
     carried = Workbook._carried(*pickle.loads(working.portable(vacuum)))
     assert carried.expr(r"R_{abcd} R^{abcd}") == vacuum.expr(r"R_{abcd} R^{abcd}")
     assert carried.names().keys() == vacuum.names().keys()
+
+
+# -- what crosses of Python objects -----------------------------------------------------------
+
+
+def eighth(n):
+    """A function of this module's, which no other process can import: it is not installed."""
+    return n / 8
+
+
+def test_what_a_program_reads_crosses_as_data_never_the_scope():
+    np = pytest.importorskip("numpy")
+    scope = objects.PythonScope({"signal": np.array([1.0, 3.0]), "cos": math.cos, "f": eighth})
+    read = objects.Carried.reading(
+        scope, [objects.reference(name) for name in ("signal", "cos", "missing")]
+    )
+    carried = Workbook._carried(*pickle.loads(working.portable(Workbook(), read)))
+    assert carried.expr(r"x_t := \texttt{signal}; \mathbb{E}_t[x_t]") == 2.0
+    assert float(carried.expr(r"\texttt{cos}(0)")) == 1.0
+    with pytest.raises(CompileError, match="names missing, which is not in the Python scope"):
+        carried.expr(r"\texttt{missing}")
+    with pytest.raises(CompileError, match=r"\\texttt\{other\} was not read where the"):
+        carried.expr(r"\texttt{other}")
+    with pytest.raises(TypeError, match="a Python scope stays in its process"):
+        pickle.dumps(scope)
+    with_function = objects.Carried.reading(scope, [objects.reference("f")])
+    with pytest.raises(pickle.PicklingError, match=r"\\texttt\{f\} is defined in .*not installed"):
+        working.portable(Workbook(), with_function)
+
+
+def test_a_workbook_the_worker_cannot_take_in_is_said_to_be(monkeypatch):
+    module = types.ModuleType("relativisticpy_absent_from_the_worker")
+
+    class Absent:
+        pass
+
+    Absent.__module__, Absent.__qualname__ = module.__name__, "Absent"
+    module.Absent = Absent
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    state = pickle.dumps(("numpy", Absent(), {}))
+    computations = working.Computations()
+    try:
+        ((kind, data),) = answers(computations, state=state)
+    finally:
+        computations.close()
+    error = data["statements"][0]["error"]
+    assert kind == "ran"
+    assert (
+        "the editor's worker could not take the workbook in: ModuleNotFoundError"
+        in (error["message"])
+    )
+    assert (
+        "a Python function a program calls goes to the worker by its module's name"
+        in (error["hint"])
+    )
 
 
 # -- when a worker fails ---------------------------------------------------------------------

@@ -25,10 +25,15 @@ from typing import Any
 import anywidget
 import traitlets
 
-from relativisticpy.errors import UsageError
+from relativisticpy.errors import RelativisticPyError, UsageError
+from relativisticpy.integrations._objects import Carried, PythonScope, Reference, reference
+from relativisticpy.language import Source, parse
+from relativisticpy.language import syntax as ast
+from relativisticpy.live.engine import _nodes
 from relativisticpy.live.worker import (
     GRACE,
     MEMORY_LIMIT,
+    NAME,
     STARTUP,
     TIME_LIMIT,
     Computations,
@@ -37,6 +42,7 @@ from relativisticpy.live.worker import (
     Job,
     portable,
 )
+from relativisticpy.lowering.objects import _named_object
 from relativisticpy.workbook import Workbook
 
 __all__ = ["Editor"]
@@ -86,8 +92,12 @@ class Editor(anywidget.AnyWidget):
     the statement and its error are in the source. From Python, :meth:`run` computes the
     source at once, and :meth:`compute` a part of it.
 
-    Python objects, read by name as in ``\texttt{signal}``, come in a later version, with
-    the scope a workbook is given (see ``design/integrations.md``).
+    ``scope`` is where its programs read Python objects by name, as ``\texttt{signal}``: a
+    mapping, as ``globals()``, or a module; without one, the workbook's. The objects a
+    program names are read in the notebook's process as each run starts, and go to the
+    worker as data. A Python function goes by name, where the worker can import it; one
+    defined in the notebook cannot go, and the editor then computes in the notebook's own
+    process, and says so under each run.
     """
 
     _esm = _module()
@@ -101,12 +111,15 @@ class Editor(anywidget.AnyWidget):
         workbook: Workbook | None = None,
         *,
         source: str = "",
+        scope: Any = None,
         time_limit: float = TIME_LIMIT,
         memory_limit: int | None = MEMORY_LIMIT,
         **options: Any,
     ) -> None:
         if workbook is not None and not isinstance(workbook, Workbook):
             raise UsageError(f"an editor's workbook is a Workbook, not {type(workbook).__name__}")
+        backend = workbook._backend if workbook is not None else "numpy"
+        self._scope = PythonScope(scope, backend=backend) if scope is not None else None
         if not isinstance(source, str):
             raise UsageError(f"an editor's source is a str, not {type(source).__name__}")
         if isinstance(time_limit, bool) or not isinstance(time_limit, int | float):
@@ -117,6 +130,8 @@ class Editor(anywidget.AnyWidget):
         self.workbook = workbook if workbook is not None else Workbook()
         self.time_limit = float(time_limit)
         self._given: int | None = None  # which state of the workbook the computations have
+        self._states = 0  # counts the states of the workbook, and of the objects read
+        self._last: tuple[int, Carried | None] | None = None  # the last state given
         self._computations: Computations | InPlace
         if sys.platform == "emscripten":  # a browser's Python starts no process
             self._computations = InPlace(self.workbook, time_limit=self.time_limit)
@@ -179,21 +194,36 @@ class Editor(anywidget.AnyWidget):
         return deliver
 
     def _submit(self, kind: str, arguments: dict[str, Any], deliver: Deliver) -> None:
-        """Ask for a job, with the workbook as it is, if it has changed since it was last
-        given. It is taken here, in the thread a notebook runs its cells in, where nothing
-        changes it while it is taken."""
-        revision = self.workbook._revision
+        """Ask for a job, with the workbook as it is, and the Python objects its program
+        reads, if either has changed since they were last given. They are taken here, in the
+        thread a notebook runs its cells in, where nothing changes them while they are."""
+        objects = self._objects(arguments["text"])
+        last = self._last
+        if last is None or last[0] != self.workbook._revision or not _same(objects, last[1]):
+            self._states += 1
+            self._last = (self.workbook._revision, objects)
+        revision = self._states
         state = None
         if revision != self._given and isinstance(self._computations, Computations):
             try:
-                state = portable(self.workbook)
+                state = portable(self.workbook, objects)
             except Exception as error:  # what no other process can take is computed here
                 self._computations.close()
                 self._computations = InPlace(
                     self.workbook, time_limit=self.time_limit, note=_kept_here(error)
                 )
+        if isinstance(self._computations, InPlace):
+            self._computations.objects = objects
         self._given = revision
         self._computations.submit(Job(kind, arguments, deliver, revision, state))
+
+    def _objects(self, text: str) -> Carried | None:
+        r"""The Python objects ``text`` names, as ``\texttt{signal}``, read from the editor's
+        scope, or the workbook's, as they are now: what the run is given of them."""
+        reader = self._scope or self.workbook._session.objects
+        if reader is None:
+            return None
+        return Carried.reading(reader, _references(text))
 
     def _wait(self, kind: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Do a job, and wait for its answer."""
@@ -208,6 +238,32 @@ class Editor(anywidget.AnyWidget):
         if not done.wait(STARTUP + self.time_limit + 2 * GRACE):
             raise UsageError("the editor's worker did not answer", hint="close it and make another")
         return answer
+
+
+def _references(text: str) -> list[Reference]:
+    r"""The references to Python objects a program writes, as ``\texttt{signal}``, each
+    once; those that are no reference are refused where the program is compiled."""
+    try:
+        program = parse(Source(text, NAME), recover=True)
+    except RelativisticPyError:
+        return []
+    found: dict[str, Reference] = {}
+    for node in _nodes(program):
+        if _named_object(node):
+            assert isinstance(node, ast.Name)
+            try:
+                written = reference(node.id)
+            except RelativisticPyError:
+                continue
+            found.setdefault(written.written, written)
+    return list(found.values())
+
+
+def _same(objects: Carried | None, other: Carried | None) -> bool:
+    """Whether two runs are given the same Python objects."""
+    if objects is None or other is None:
+        return objects is other
+    return objects.same(other)
 
 
 def _kept_here(error: Exception) -> str:
