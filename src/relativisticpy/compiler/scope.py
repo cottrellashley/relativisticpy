@@ -105,7 +105,8 @@ class Output:
 class Check:
     """What a definition needs of a value it makes, as a metric must be one, computed as
     the statement runs rather than while it is compiled, so that it fails where the
-    definition is written: ``node``, which must be computed. Where it cannot be,
+    definition is written: ``node``, which must be computed. Notation is checked so too,
+    each operation of it in the order it is written. Where it cannot be,
     ``diagnosis``, if there is one, gives the error that says why in the terms of what
     was written, or ``None``, leaving the error of ``node``. To an evaluation error,
     ``context`` adds notes and ``hint`` a hint; ``notes`` say how the statement was read,

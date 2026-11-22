@@ -12,7 +12,8 @@ The names are of two kinds:
   ``Schwarzschild``;
 - what the compiler emits for notation is registered in a namespace: ``core.sum`` for
   :math:`\\sum`, ``core.subs`` for an evaluation bar, ``core.diff`` for a derivative,
-  ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``.
+  ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``, and
+  ``notation.solve`` for the algebra of index notation.
 
 A new function is an entry here, with its implementation in
 :mod:`relativisticpy.runtime.functions` or :mod:`relativisticpy.runtime.core`.
@@ -27,15 +28,16 @@ from types import MappingProxyType
 from typing import Any, Literal
 
 from relativisticpy.diffgeom import geodesic_equations
-from relativisticpy.runtime import core, functions
+from relativisticpy.runtime import core, functions, notation
 from relativisticpy.tensors import linalg
 
 #: What an operation gives: ``"scalar"``, a scalar where its arguments are scalars (a
 #: value otherwise, as ``sin`` of a list is); ``"value"``, any other value, as a list, an
 #: equation or a matrix; ``"argument"``, a value of the type of its first argument, as a
 #: derivative of each component of a tensor is; ``"tensor"``, a tensor, whose indices and
-#: spaces the compiler works out.
-Result = Literal["scalar", "value", "argument", "tensor"]
+#: spaces the compiler works out; ``"notation"``, a value of index notation, whose free
+#: indices notation's rules give (:mod:`relativisticpy.typing.notation`).
+Result = Literal["scalar", "value", "argument", "tensor", "notation"]
 
 
 @dataclass(frozen=True)
@@ -51,6 +53,11 @@ class Implementation:
     messages, as a spacetime's. Text an operation that ``takes_names`` is given is names,
     as for ``symbols('x y')``, which never runs it; any other refuses text written in
     quotes, which SymPy would run as Python.
+
+    Two operations are staged, as lowering notation to components is: one that
+    ``references`` its arguments after the first is given those as the nodes they are,
+    not computed, to make IR that uses them; one that ``evaluates`` its argument, the IR
+    another made, gives that IR's value.
     """
 
     name: str
@@ -62,6 +69,8 @@ class Implementation:
     builtin: bool = False
     takes_names: bool = False
     parameters: tuple[str, ...] = ()
+    references: bool = False
+    evaluates: bool = False
 
     @property
     def scalar(self) -> bool:
@@ -201,12 +210,51 @@ def _core() -> Iterator[Implementation]:
     yield entry("stats.ledoit_wolf", core.ledoit_wolf, "tensor", 1, 1)
 
 
+# -- the algebra of index notation ----------------------------------------------------------
+
+
+def _notation() -> Iterator[Implementation]:
+    """The operations of abstract index notation (:mod:`relativisticpy.runtime.notation`),
+    each giving a value of notation, but for the algebra they are written in and the
+    components of notation, which are staged."""
+
+    def entry(name: str, func: Callable[..., Any], low: int, high: int | None) -> Implementation:
+        return Implementation(f"notation.{name}", func, "notation", low, high)
+
+    yield Implementation("notation.algebra", notation.algebra, "value", 0, 0)
+    yield entry("tensor", notation.tensor, 1, 1)
+    yield entry("ricci_scalar", notation.ricci_scalar, 1, 1)
+    yield entry("scalar", notation.scalar, 1, 1)
+    yield entry("add", notation.add, 1, None)
+    yield entry("mul", notation.mul, 1, None)
+    yield entry("denominator", notation.denominator, 1, 1)
+    yield entry("div", notation.divide, 2, 2)
+    yield entry("neg", notation.negative, 1, 1)
+    yield entry("value", notation.value, 1, 1)
+    yield entry("expression", notation.expression, 2, 2)
+    yield entry("equation", notation.equation, 3, 3)
+    yield entry("unknown", notation.unknown, 2, 2)
+    yield entry("solve", notation.solve, 2, 2)
+    yield entry("lhs", notation.lhs, 1, 1)
+    yield entry("rhs", notation.rhs, 1, 1)
+    yield entry("subs", notation.substitute, 2, 2)
+    yield entry("trace", notation.trace, 1, 1)
+    yield entry("simplify", notation.simplify, 1, 1)
+    yield entry("rebase", notation.rebase, 2, 2)
+    yield Implementation("notation.lower", notation.lower, "value", 1, None, references=True)
+    yield Implementation("notation.components", _staged, "tensor", 1, 1, evaluates=True)
+
+
+def _staged(lowered: Any) -> Any:  # pragma: no cover - the executor computes it itself
+    raise TypeError("the components of notation are the value of the IR lowered for them")
+
+
 _ENTRIES: dict[str, Implementation] = {}
-for _entry in (*_builtins(), *_core()):
+for _entry in (*_builtins(), *_core(), *_notation()):
     if _entry.name in _ENTRIES:  # pragma: no cover - a mistake in the tables above
         raise ValueError(f"two operations are registered as {_entry.name!r}")
     _ENTRIES[_entry.name] = _entry
 
 #: Every operation, by its name: the builtins first, in the order the language lists
-#: them, then what the compiler emits for notation.
+#: them, then what the compiler emits for notation, then the algebra of index notation.
 REGISTRY = MappingProxyType(_ENTRIES)

@@ -93,8 +93,8 @@ milliseconds rather than a Riemann tensor. Every value has a static type,
 checked on these types: free indices of a sum must agree, an index may appear
 at most twice, a summed index once up and once down.
 
-The compiler computes nothing, apart from the algebra of tensor notation below. What
-it needs to know comes from what is written or from a declaration: a spacetime declares the coordinates its metric is in, a space
+The compiler computes nothing. What it needs to know comes from what is written or
+from a declaration: a spacetime declares the coordinates its metric is in, a space
 written `\mathbb{R}^{3}` its dimension, and a number of eigenvalues is written as one.
 A definition that needs something of the value it makes, as a metric must be one, makes
 a *check*: a node of the IR that the workbook computes as it runs the statement, before
@@ -109,16 +109,28 @@ User functions are inlined at their call sites, in a child of the scope they
 were defined in, which gives lexical scoping.
 
 A tensor without components, such as \(T_{\mu\nu}\) in Einstein's equations,
-is kept as notation instead: a constant of the graph holding a SymPy tensor
-expression, from `relativisticpy.abstract`. `solve`, `trace`, `simplify` and
-`subs` work on it as notation, through canonical forms computed by the
-Butler–Portugal algorithm, with the identities of General Relativity added.
-Where notation meets components, as when a tensor is defined from it with a
-metric in force, each of its terms is written back in the language, its scalar
-coefficient bound to a fresh name, and compiled like any other tensor
-expression. This algebra is done while compiling, for now, and so is each scalar
-factor of notation, as \(8\pi G\): it is folded from the constants it is written
-with, without the executor, and a factor computed from tensors is refused.
+is kept as notation instead: operations of the IR, `notation.tensor`, `notation.add`,
+`notation.mul`, `notation.solve`, `notation.subs`, `notation.trace`,
+`notation.simplify` and the rest, which the engines compute as SymPy tensor
+expressions, from `relativisticpy.abstract`, through canonical forms computed by the
+Butler–Portugal algorithm, with the identities of General Relativity added. What the
+compiler needs to know of notation comes from each operation's type rule, in
+`relativisticpy.typing.notation`: whether it is an equation, and the free indices of
+each side, as they are written. Notation is computed as the statement that writes it
+runs, as a check is, in the order it is written, so that what cannot be computed, as a
+solve for a tensor the equation does not contain, is refused there. Each scalar factor
+of notation, as \(8\pi G\), is an operation of the IR too; one computed from tensors is
+refused.
+
+Where notation meets components, as when a tensor is defined from it with a metric in
+force, its terms are known only once it is computed. So the lowering is staged:
+`notation.lower`, as the statement runs, has the lowerer write each term in the
+language, its scalar coefficient bound to a fresh name, and compile it, in the
+coordinates and with the metric and tensors in force where it is written; and
+`notation.components` is the value of that IR. Its type comes from its rule: the free
+indices of the notation, in the order they are written, over their spaces. This is the
+one type that the computed value could have told otherwise: notation that vanishes has
+zero components, with the free indices it is written with.
 
 Every index ranges over a space, and a tensor's type records the space of each
 axis: spacetime in General Relativity, or assets, days, a qubit (see
@@ -143,9 +155,10 @@ compiling. The registry of implementations, `relativisticpy/runtime/registry.py`
 each name to the function that computes it, with how many arguments it takes, whether it
 applies to each component of a tensor and what kind of value it gives. A builtin has the
 name the language calls it by, as `sin` or `solve`; what the compiler emits for notation
-has a name of its own, as `core.sum` for a sum, `core.subs` for an evaluation bar or
-`linalg.solve` for an inverse times a vector. So the whole program can be read, printed
-and compared before anything is computed.
+has a name of its own, as `core.sum` for a sum, `core.subs` for an evaluation bar,
+`linalg.solve` for an inverse times a vector or `notation.solve` for a solve in index
+notation. So the whole program can be read, printed and compared before anything is
+computed.
 
 The same operations compute symbolic components with SymPy and numerical ones with
 NumPy: the kernels look at what they are given. A contraction of numbers is

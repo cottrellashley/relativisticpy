@@ -41,10 +41,9 @@ from typing import Any, Literal
 import sympy
 from sympy import Symbol
 from sympy.core.function import AppliedUndef
-from sympy.tensor import tensor as symbolic
 
 from relativisticpy import abstract, spacetimes
-from relativisticpy.abstract import IndexEquation, IndexExpression
+from relativisticpy.abstract import IndexExpression
 from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES, Builtin
 from relativisticpy.compiler.scope import (
     Check,
@@ -83,9 +82,12 @@ from relativisticpy.ir import (
     SCALAR,
     VALUE,
     EquationType,
+    Graph,
     Node,
+    NotationType,
     TensorType,
     Type,
+    ValueType,
     dependencies,
     ops,
 )
@@ -93,11 +95,11 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK, UNICODE_LETTERS
-from relativisticpy.runtime.executor import fold
 from relativisticpy.runtime.kernels import refuse_quoted
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.spaces import Space, spacetime
+from relativisticpy.typing import notation as rules
 
 Term = Node | Operator
 
@@ -180,8 +182,9 @@ class Compiler:
 
     def take_checks(self) -> list[Check]:
         """What the definitions compiled since this was last called need of the values they
-        make, in order (see :class:`~relativisticpy.compiler.scope.Check`), to compute as
-        their statements run; it forgets them."""
+        make, and the notation they write, in order (see
+        :class:`~relativisticpy.compiler.scope.Check`), to compute as their statements run;
+        it forgets them."""
         checks, self._checks = self._checks, []
         return checks
 
@@ -1258,8 +1261,8 @@ class Compiler:
         binding = scope.lookup(name)
         if isinstance(binding, VariableBinding | TensorBinding):
             kept = self._kept(binding.node)
-            if kept is not None and kept is not _notation_of(binding.node):  # kept earlier
-                return self.graph.const(kept, VALUE, node.span)
+            if kept is not None and kept is not binding.node:  # kept in another algebra
+                return kept
             return binding.node
         if binding is None and (indexed := _indexed_name(node, scope)) is not None:
             return self.term(indexed, scope, ctx)  # y_t, where y is a tensor: y_{t}
@@ -1477,7 +1480,7 @@ class Compiler:
         matrices, as ``[1, 2] \\odot [3, 4]``, it is elementwise too, never their product."""
         left = self.value(_operand(node.left), scope, ctx)
         right = self.value(_operand(node.right), scope, ctx)
-        if VALUE in (left.type, right.type) and not any(
+        if any(isinstance(value.type, ValueType) for value in (left, right)) and not any(
             isinstance(value.type, TensorType) for value in (left, right)
         ):
             call = ops.Call("core.hadamard")
@@ -2004,7 +2007,7 @@ class Compiler:
         scalars = [o for o in operands if not isinstance(o.type, TensorType)]
         tensors = [o for o in operands if isinstance(o.type, TensorType)]
         if not tensors:
-            kind = VALUE if any(o.type == VALUE for o in scalars) else SCALAR
+            kind = VALUE if any(isinstance(o.type, ValueType) for o in scalars) else SCALAR
             return self.graph.add(ops.Mul(), scalars, kind, span)
         tensors = self._solves(tensors, span)
         product = tensors[0]
@@ -2297,7 +2300,8 @@ class Compiler:
         if isinstance(denominator.type, TensorType):
             raise IndexNotationError("cannot divide by a tensor", span=span)
         minus_one = self.graph.const(sympy.S.NegativeOne, SCALAR)
-        reciprocal = self.graph.add(ops.Pow(), (denominator, minus_one), denominator.type, span)
+        kind = _passed(denominator.type)
+        reciprocal = self.graph.add(ops.Pow(), (denominator, minus_one), kind, span)
         return self._multiply([numerator, reciprocal], span)
 
     def _power(self, base: Node, exponent: Node, span: Span) -> Node:
@@ -2312,7 +2316,9 @@ class Compiler:
             )
         if isinstance(exponent.type, TensorType):
             raise IndexNotationError("cannot raise to the power of a tensor", span=span)
-        kind = VALUE if VALUE in (base.type, exponent.type) else SCALAR
+        kind = (
+            VALUE if any(isinstance(t, ValueType) for t in (base.type, exponent.type)) else SCALAR
+        )
         return self.graph.add(ops.Pow(), (base, exponent), kind, span)
 
     def _tensor_power(
@@ -2468,7 +2474,7 @@ class Compiler:
         for arg, source in zip(args, node.args, strict=True):
             if isinstance(arg.type, TensorType):
                 raise CompileError(f"cannot pass a tensor to {name}()", span=source.span)
-            if arg.type == VALUE:  # f([1, 2]): a function of numbers, not of a list
+            if isinstance(arg.type, ValueType):  # f([1, 2]): of numbers, not of a list
                 raise CompileError(
                     f"{func.span.text} is a function RelativisticPy does not know, so it takes "
                     "numbers and symbols, not a list",
@@ -2816,7 +2822,7 @@ class Compiler:
         args = [expr, orders, *(v for v, _ in variables)]
         if isinstance(expr.type, TensorType):
             return self.graph.add(ops.Map("core.diff"), args, expr.type, span)
-        return self._call("core.diff", args, expr.type, span)
+        return self._call("core.diff", args, _passed(expr.type), span)
 
     def _Differential(self, node: ast.Differential, scope: Scope, ctx: Context) -> Node:
         raise CompileError(
@@ -2846,7 +2852,7 @@ class Compiler:
             return self.graph.add(
                 ops.Map("integrate"), [integrand, *limits], integrand.type, node.span
             )
-        return self._call("integrate", [integrand, *limits], integrand.type, node.span)
+        return self._call("integrate", [integrand, *limits], _passed(integrand.type), node.span)
 
     def _BigOperator(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node:
         if node.lower is None or node.upper is None:
@@ -2879,7 +2885,7 @@ class Compiler:
         args = [body, variable, lower, upper]
         if isinstance(body.type, TensorType):  # component by component, as an integral is
             return self.graph.add(ops.Map(name), args, body.type, node.span)
-        return self._call(name, args, body.type, node.span)
+        return self._call(name, args, _passed(body.type), node.span)
 
     def _Limit(self, node: ast.Limit, scope: Scope, ctx: Context) -> Node:
         inner = scope.child()
@@ -2959,7 +2965,7 @@ class Compiler:
             return self.graph.add(ops.Equation(), sides, expr.type, span)
         if isinstance(expr.type, TensorType):
             return self.graph.add(ops.Map("core.subs"), [expr, *pairs], expr.type, span)
-        return self._call("core.subs", [expr, *pairs], expr.type, span)
+        return self._call("core.subs", [expr, *pairs], _passed(expr.type), span)
 
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         if node.accent in ("dot", "ddot"):
@@ -2974,7 +2980,7 @@ class Compiler:
         order = self.graph.const(1 if accent == "dot" else 2, VALUE)
         if isinstance(value.type, TensorType):
             return self.graph.add(ops.Map("core.time_derivative"), (value, order), value.type, span)
-        return self._call("core.time_derivative", [value, order], value.type, span)
+        return self._call("core.time_derivative", [value, order], _passed(value.type), span)
 
     # -- collections -----------------------------------------------------------
 
@@ -3796,12 +3802,14 @@ class Compiler:
             from relativisticpy.errors import RelativisticPyError
 
             saved, self._labels = self._labels, labels  # its labels are this statement's
+            checks = len(self._checks)
             try:
                 spaces = _spaces(self.value(base, scope, Context(latex=latex)))
             except RelativisticPyError:
                 return None  # said where it is compiled
             finally:
                 self._labels = saved
+                del self._checks[checks:]  # compiled to see its spaces, not to run
         if inverse:  # of two indices, and going the other way
             spaces = spaces[::-1] if spaces is not None and len(spaces) == 2 else None
         if not spaces or pattern is None or len(pattern[1]) != len(spaces):
@@ -4176,7 +4184,7 @@ class Compiler:
                 isinstance(script.body, ast.Name)
                 and script.body.id in _TRANSPOSES
                 and scope.lookup(script.body.id) is None
-                and value.type == VALUE
+                and isinstance(value.type, ValueType)
             ):  # A^T of a matrix: a power, which is not what is meant
                 raise CompileError(
                     f"{node.span.text} is read as {written_base} to the power "
@@ -4271,9 +4279,11 @@ class Compiler:
     #
     # An equation with a tensor that has no components, such as T_{\mu\nu} in Einstein's
     # equations before T is defined, is kept as notation (relativisticpy.abstract), and
-    # solve, trace, simplify and subs work on it as notation. Where components are needed,
-    # in a definition or a component equation, notation is turned into components with
-    # the metric in force.
+    # solve, trace, simplify and subs work on it as notation. The compiler emits the
+    # operations of notation, whose types their rules give (relativisticpy.typing.notation),
+    # and the engines compute them as the statement runs. Where components are needed, in
+    # a definition or a component equation, notation is turned into components with the
+    # metric in force, by the lowerer, once the engines have computed it.
 
     def _value_or_notation(
         self, node: ast.Expr, scope: Scope, ctx: Context, *, definition: bool = False
@@ -4314,7 +4324,8 @@ class Compiler:
             if isinstance(current, ast.Name):
                 binding = scope.lookup(current.id)
                 notation = (
-                    isinstance(binding, VariableBinding) and _notation_of(binding.node) is not None
+                    isinstance(binding, VariableBinding)
+                    and rules.notation_of(binding.node) is not None
                 )
                 # With a metric, notation is computed where it meets components.
                 if notation and (operation or self.session.metric is None):
@@ -4465,11 +4476,11 @@ class Compiler:
                 binding = scope.lookup(node.id)
                 if (
                     isinstance(binding, VariableBinding)
-                    and (kept := _notation_of(binding.node)) is not None
+                    and (kept := rules.notation_of(binding.node)) is not None
                 ):
-                    if isinstance(kept, IndexEquation):
+                    if kept.equation:
                         return None
-                    return [(index.name, index.is_up) for index in abstract.free(kept.value)]
+                    return [(index.name, index.upper) for index in kept.free]
                 return []
             if isinstance(node, ast.Call):
                 # An operator applied, as in \nabla_\mu(...), is a derivative.
@@ -4486,13 +4497,36 @@ class Compiler:
         return side(node), summed
 
     def _notation(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node:
-        return self.graph.const(self._abstract(node, scope, ctx), VALUE, node.span)
+        """Notation: what it is, as a value of the program."""
+        return self._abstract(node, scope, ctx)
 
-    def _abstract(
-        self, node: ast.Expr, scope: Scope, ctx: Context
-    ) -> IndexEquation | IndexExpression:
+    def _algebra(self) -> Node:
+        """The algebra of notation in force, which the engines make the tensors of
+        notation in."""
+        algebra = self.session.algebra()
+        attributes = (("dim", algebra.dim), ("metric", algebra.metric), ("number", algebra.number))
+        return self.graph.add(ops.Call("notation.algebra", attributes), (), VALUE)
+
+    def _notation_call(
+        self,
+        name: str,
+        args: Sequence[Node],
+        kind: Type,
+        span: Span | None,
+        attributes: ops.Attributes = (),
+    ) -> Node:
+        """The operation of notation ``notation.<name>``, of the type its rule gives. It is
+        computed as the statement that writes it runs, as the check of a definition is
+        (see :class:`~relativisticpy.compiler.scope.Check`), in the order it is written:
+        so notation that cannot be computed, as a solve for a tensor it does not contain,
+        is refused there, with how the statement was read, before what is written after
+        it."""
+        node = self.graph.add(ops.Call(f"notation.{name}", attributes), list(args), kind, span)
+        self._checks.append(Check(node, span, notes=tuple(self._notes)))
+        return node
+
+    def _abstract(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node:
         node = _operand(node)
-        space = self.session.algebra()
         if isinstance(node, ast.Name):
             binding = scope.lookup(node.id)
             if (
@@ -4508,23 +4542,27 @@ class Compiler:
             return self._notation_operation(node, scope, ctx)
         if isinstance(node, ast.Chain):
             raise CompileError("give the links of a chain one at a time", span=node.span)
-        self._index_structure(node, scope)  # what breaks the rules, before SymPy sees it
+        self._index_structure(node, scope)  # what breaks the rules, before it is built
+        algebra = self._algebra()
         if isinstance(node, ast.Equation):
             lhs = self._tensorial(node.lhs, scope, ctx)
-            return IndexEquation(lhs, self._tensorial(node.rhs, scope, ctx), space)
-        return IndexExpression(self._tensorial(node, scope, ctx), space)
+            rhs = self._tensorial(node.rhs, scope, ctx)
+            kind = rules.equation(_notation_type(lhs), _notation_type(rhs))
+            return self._notation_call("equation", (algebra, lhs, rhs), kind, node.span)
+        term = self._tensorial(node, scope, ctx)
+        kind = rules.expression(_notation_type(term))
+        return self._notation_call("expression", (algebra, term), kind, node.span)
 
-    def _notation_operation(
-        self, node: ast.Call, scope: Scope, ctx: Context
-    ) -> IndexEquation | IndexExpression:
+    def _notation_operation(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
         assert isinstance(node.func, ast.Name)
-        name, args, space = node.func.id, node.args, self.session.algebra()
+        name, args = node.func.id, node.args
         if not args:
             raise CompileError(f"{name} needs an equation", span=node.span)
         try:
             subject = self._abstract(args[0], scope, ctx)
+            kind = _notation_type(subject)
             if name == "solve":
-                if len(args) != 2 or not isinstance(subject, IndexEquation):
+                if len(args) != 2 or not kind.equation:
                     raise CompileError(
                         "solve takes an equation and the tensor to solve it for",
                         span=node.span,
@@ -4532,92 +4570,60 @@ class Compiler:
                     )
                 self._index_structure(args[1], scope)
                 target = self._tensorial(args[1], scope, ctx)
-                if isinstance(target, Symbol) and not any(
-                    isinstance(side, symbolic.TensExpr) for side in (subject.lhs, subject.rhs)
-                ):  # solve(trace(EFE), R): an equation of scalars, for a scalar
-                    found = sympy.solve(subject.lhs - subject.rhs, target)
-                    if len(found) != 1:
-                        raise CompileError(
-                            f"the equation does not fix {args[1].span.text}", span=node.span
-                        )
-                    return IndexEquation(target, found[0], space)
-                if not isinstance(target, symbolic.Tensor):
-                    raise CompileError(
-                        "give the tensor to solve for with its indices, as in T_{\\mu\\nu}, or "
-                        "a scalar the equation is of",
-                        span=args[1].span,
-                    )
-                return IndexEquation(
-                    target, abstract.solve(subject.lhs, subject.rhs, target, space), space
+                unknown = self._notation_call(
+                    "unknown", (subject, target), target.type, args[1].span
                 )
+                solved = rules.solve(kind, _notation_type(unknown))
+                written = (("unknown", args[1].span.text),)
+                return self._notation_call("solve", (subject, unknown), solved, node.span, written)
             if name in ("LHS", "RHS"):
-                if not isinstance(subject, IndexEquation):
+                if not kind.equation:
                     raise CompileError(f"{name} takes an equation", span=node.span)
-                return IndexExpression(subject.lhs if name == "LHS" else subject.rhs, space)
-            transform: Callable[[Any], Any]
+                which = rules.side(kind, 0 if name == "LHS" else 1)
+                return self._notation_call(name.lower(), (subject,), which, node.span)
             if name == "subs":
                 rule = self._abstract(args[1], scope, ctx) if len(args) == 2 else None
-                if not isinstance(rule, IndexEquation):
+                if rule is None or not _notation_type(rule).equation:
                     raise CompileError(
                         "subs takes an expression and a rule",
                         span=node.span,
                         hint="for example subs(E, u^\\alpha u_\\alpha = -1)",
                     )
-
-                def transform(value: Any) -> Any:
-                    assert isinstance(rule, IndexEquation)
-                    return abstract.substitute(value, rule.lhs, rule.rhs, space)
-
-            elif name == "trace":
-
-                def transform(value: Any) -> Any:
-                    return abstract.trace(value, space)
-
-            else:
-
-                def transform(value: Any) -> Any:
-                    return abstract.canonical(value, space)
-
-            if isinstance(subject, IndexEquation):
-                return IndexEquation(transform(subject.lhs), transform(subject.rhs), space)
-            return IndexExpression(transform(subject.value), space)
+                return self._notation_call("subs", (subject, rule), rules.kept(kind), node.span)
+            if name == "trace":
+                return self._notation_call("trace", (subject,), rules.trace(kind), node.span)
+            return self._notation_call("simplify", (subject,), rules.kept(kind), node.span)
         except CompileError as error:
             if error.span is None:
                 error.span = node.span
             raise
 
-    def _tensorial(self, node: ast.Expr, scope: Scope, ctx: Context) -> Any:
-        """An expression read as abstract index notation: a SymPy tensor expression."""
+    def _tensorial(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node:
+        """An expression read as abstract index notation: a term of notation, which the
+        engines make a SymPy tensor expression."""
         node = _operand(node)
-        space = self.session.algebra()
+        algebra = self.session.algebra()
         if isinstance(node, ast.Binary) and node.op in ("+", "-"):
-            total: Any = sympy.S.Zero
-            for sign, term in _signed_terms(node):
-                value = self._tensorial(term, scope, ctx)
-                value = value if sign > 0 else -value
-                try:
-                    total = value if total == 0 else total + value
-                except ValueError as error:  # SymPy's own check of free indices
-                    raise IndexNotationError(
-                        f"the free indices of a sum must agree: {error}", span=node.span
-                    ) from None
-            return total
+            signed = _signed_terms(node)
+            terms = [self._tensorial(term, scope, ctx) for _, term in signed]
+            kind = rules.add([_notation_type(term) for term in terms])
+            signs = (("signs", tuple(sign for sign, _ in signed)),)
+            return self._notation_call("add", terms, kind, node.span, signs)
         if isinstance(node, ast.Binary) and node.op == "*":
-            product: Any = sympy.S.One
-            for factor in _product_factors(node):
-                try:
-                    product = product * self._tensorial(factor, scope, ctx)
-                except ValueError as error:
-                    raise IndexNotationError(str(error), span=node.span) from None
-            return product
+            factors = [self._tensorial(factor, scope, ctx) for factor in _product_factors(node)]
+            kind = rules.mul([_notation_type(factor) for factor in factors])
+            return self._notation_call("mul", factors, kind, node.span)
         if isinstance(node, ast.Binary) and node.op == "/":
-            denominator = self._tensorial(node.right, scope, ctx)
-            if isinstance(denominator, symbolic.TensExpr):
-                raise IndexNotationError("cannot divide by a tensor", span=node.right.span)
-            return self._tensorial(node.left, scope, ctx) / denominator
+            by = self._tensorial(node.right, scope, ctx)
+            denominator = self._notation_call("denominator", (by,), by.type, node.right.span)
+            numerator = self._tensorial(node.left, scope, ctx)
+            kind = rules.quotient(_notation_type(numerator))
+            return self._notation_call("div", (numerator, denominator), kind, node.span)
         if isinstance(node, ast.Unary) and node.op in ("-", "+"):
             value = self._tensorial(node.operand, scope, ctx)
-            return -value if node.op == "-" else value
+            if node.op == "+":
+                return value
+            return self._notation_call("neg", (value,), value.type, node.span)
         if (isinstance(node, ast.Scripted) and isinstance(node.base, ast.Operator)) or (
             isinstance(node, ast.Derivative | ast.Differential) and _mentions_tensor(node)
         ):
@@ -4636,24 +4642,28 @@ class Compiler:
                 isinstance(binding, VariableBinding)
                 and (found := self._kept(binding.node)) is not None
             ):
-                if isinstance(found, IndexEquation):
+                kept = _notation_type(found)
+                if kept.equation:
                     raise CompileError(f"{node.id} is an equation", span=node.span)
-                return found.value
+                return self._notation_call("value", (found,), rules.value(kept), node.span)
             if binding is None and node.id == "R":
-                return space.ricci_scalar
+                kind = rules.term(algebra)
+                return self._notation_call("ricci_scalar", (self._algebra(),), kind, node.span)
             if isinstance(binding, TensorBinding):  # a tensor without indices: its trace
-                return Symbol(node.id)
+                symbol = self.graph.const(Symbol(node.id), SCALAR, node.span)
+                return self._notation_call("scalar", (symbol,), rules.term(algebra), node.span)
         if isinstance(node, ast.Equation):
             raise CompileError("an equation cannot be part of an expression", span=node.span)
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             name = node.func.id
             if name in _NOTATION_OPERATIONS:
                 found = self._notation_operation(node, scope, ctx)
-                if isinstance(found, IndexEquation):
+                kept = _notation_type(found)
+                if kept.equation:
                     raise CompileError(
                         "an equation cannot be part of an expression", span=node.span
                     )
-                return found.value
+                return self._notation_call("value", (found,), rules.value(kept), node.span)
             builtin = _names_builtin(node.func, latex=ctx.latex)
             function = isinstance(scope.lookup(name), FunctionBinding) or builtin
             if not function and len(node.args) == 1 and _mentions_tensor(node):
@@ -4670,8 +4680,7 @@ class Compiler:
             raise IndexNotationError(
                 "in tensor notation, write a tensor with its indices", span=node.span
             )
-        folded = fold(value)  # notation's algebra is done now, while compiling
-        if folded is NotImplemented:
+        if not rules.a_factor(value):
             raise CompileError(
                 "this factor is computed from tensors, but tensor notation is read before "
                 "anything is computed",
@@ -4679,13 +4688,7 @@ class Compiler:
                 hint="give the tensors of the notation components, so that the equation is "
                 "computed with components",
             )
-        scalar = sympy.sympify(folded)
-        if not isinstance(scalar, sympy.Expr):
-            raise IndexNotationError(
-                "in tensor notation, each factor is a scalar or a tensor with indices",
-                span=node.span,
-            )
-        return scalar
+        return self._notation_call("scalar", (value,), rules.term(algebra), node.span)
 
     def _letter_run(self, node: ast.Scripted, scope: Scope, ctx: Context) -> ast.Expr:
         """In LaTeX, ``8\\pi GT_{\\mu\\nu}`` is G times T_{\\mu\\nu}: the indices on a run of
@@ -4708,11 +4711,10 @@ class Compiler:
 
     def _abstract_tensor(
         self, pattern: tuple[str, list[tuple[str, bool]]], scope: Scope, span: Span
-    ) -> Any:
+    ) -> Node:
         name, entries = pattern
-        space = self.session.algebra()
         binding = scope.lookup(name)
-        if isinstance(binding, VariableBinding) and _notation_of(binding.node) is not None:
+        if isinstance(binding, VariableBinding) and rules.notation_of(binding.node) is not None:
             raise IndexNotationError(
                 f"{name} stands for notation, whose indices are its own",
                 span=span,
@@ -4721,29 +4723,91 @@ class Compiler:
         quantity = None
         if not isinstance(binding, TensorBinding):
             quantity = self._builtin_tensor(name, len(entries))
-        head = space.head(_NOTATION_NAMES.get(quantity or "", name), len(entries), quantity)
-        try:
-            return head(*(space.index(label, upper) for label, upper in entries))
-        except ValueError as error:
-            raise IndexNotationError(str(error), span=span) from None
+        head = _NOTATION_NAMES.get(quantity or "", name)
+        indices = Indices(Index(label, upper) for label, upper in entries)
+        algebra = self.session.algebra()
+        attributes: ops.Attributes = (("name", head), ("indices", indices))
+        if quantity is not None:
+            attributes += (("quantity", quantity),)
+        else:  # a tensor of one's own, whose components notation's may need
+            self.session.notation_tensors.setdefault(algebra, set()).add((head, len(entries)))
+        kind = rules.tensor(algebra, indices)
+        return self._notation_call("tensor", (self._algebra(),), kind, span, attributes)
 
     def _components_of(self, node: Node, scope: Scope, ctx: Context, span: Span) -> Node:
         """A value kept as notation, turned into components with the metric in force."""
         found = self._kept(node)
         if found is None:
             return node
-        if isinstance(found, IndexEquation):
+        kept = _notation_type(found)
+        if kept.equation:
             raise CompileError(
                 "an equation in index notation has no components",
                 span=span,
                 hint="take one side of it, as in RHS(E)",
             )
-        return self._lower(found.value, scope, ctx, span)
+        return self._lower(found, kept, scope, span)
 
-    def _lower(self, value: Any, scope: Scope, ctx: Context, span: Span) -> Node:
-        """Turn notation into components: write each term in the language, with its
-        scalar coefficient bound to a name, and compile it."""
-        space = self.session.algebra()
+    def _lower(self, notation: Node, kept: NotationType, scope: Scope, span: Span) -> Node:
+        """Notation turned into components with the metric in force. Each term of the
+        notation is written in the language, with its scalar coefficient bound to a name,
+        and compiled; but the terms are known only once the notation is computed, so the
+        lowerer does this as the statement runs (see :func:`lower_notation`), given the
+        metric and the tensors in scope that the notation may be written with. The
+        components' type comes from notation's rules: its free indices, in the order
+        they are written."""
+        spaces = [self._notation_space(index.name, span) for index in kept.free]
+        for index, space in zip(kept.free, spaces, strict=True):
+            if space.dim or space.basis is None:  # not the space of no coordinates
+                self._check_label(index.name, space, span)
+        kind = rules.components(kept.free, spaces)
+        session = self.session
+        references = [session.metric.node] if session.metric is not None else []
+        tensors: dict[str, Indices | None] = {}
+        for name, _ in sorted(session.notation_tensors.get(kept.algebra, ())):
+            binding = scope.lookup(name)
+            if name in tensors or not isinstance(binding, TensorBinding | VariableBinding):
+                continue
+            tensors[name] = binding.indices if isinstance(binding, TensorBinding) else None
+            references.append(binding.node)
+        labels = {
+            label: declared
+            for label in kept.free.names
+            if (declared := self._labels.get(label) or session.labels.get(label)) is not None
+        }
+        context = Lowering(
+            kind=kind,
+            span=span,
+            text=self._text,
+            coordinates=session.coordinates,
+            names=tuple(session.names.items()),
+            metric=session.metric.names if session.metric is not None else None,
+            dropped=session.dropped,
+            tensors=tuple(tensors.items()),
+            labels=tuple(labels.items()),
+            bound=self._bound,
+        )
+        lower = ops.Call("notation.lower", (("context", context),))
+        lowered = self.graph.add(lower, (notation, *references), VALUE, span)
+        self._checks.append(Check(lowered, span, notes=tuple(self._notes)))
+        return self.graph.add(ops.Call("notation.components"), (lowered,), kind, span)
+
+    def _notation_space(self, label: str, span: Span) -> Space:
+        """The space a free index of notation's components ranges over: one declared for it
+        or written in the statement, or spacetime. Without coordinates, the space of none:
+        the lowerer, as the statement runs, says what the components need."""
+        space = self._labels.get(label) or self.session.labels.get(label)
+        if space is not None:
+            return space
+        if self.session.coordinates is None:
+            return spacetime(())
+        return self.session.spacetime(span)
+
+    def _notation_components(self, kept: Any, scope: Scope, ctx: Context, span: Span) -> Node:
+        """Notation, computed, turned into components: each term written in the language,
+        with its scalar coefficient bound to a name, and compiled. The lowerer does this
+        as the statement runs (see :func:`lower_notation`)."""
+        value, space = kept.value, kept.space
         traces = space.traces()
         inner = scope.child()
         fresh = itertools.count()
@@ -4790,11 +4854,19 @@ class Compiler:
         total = reduce(lambda a, b: ast.Binary("+", a, b, span=span), summands)
         return self.value(total, inner, replace(ctx, latex=False))
 
-    def _kept(self, node: Node) -> IndexEquation | IndexExpression | None:
-        """The notation a node holds, if any, in the tensors of the coordinates in force:
-        notation kept before they changed is read in their number of dimensions."""
-        found = _notation_of(node)
-        return None if found is None else abstract.rebased(found, self.session.algebra())
+    def _kept(self, node: Node) -> Node | None:
+        """The notation a node holds, if any, in the algebra in force: notation kept before
+        the coordinates changed, or the metric was renamed, is read in this one."""
+        kept = rules.notation_of(node)
+        if kept is None:
+            return None
+        algebra = self.session.algebra()
+        if kept.algebra == algebra:
+            return node
+        tensors = self.session.notation_tensors
+        tensors.setdefault(algebra, set()).update(tensors.get(kept.algebra, ()))
+        kind = rules.rebased(kept, algebra)
+        return self._notation_call("rebase", (self._algebra(), node), kind, node.span)
 
     # -- helpers -------------------------------------------------------------
 
@@ -4822,8 +4894,88 @@ class Compiler:
 # ---------------------------------------------------------------------------
 
 
+@dataclass(frozen=True)
+class Lowering:
+    """What turning notation into components needs of the statement that writes it,
+    besides the nodes of the metric and of the tensors it may be written with: the
+    components' type, where they are written, the statement's text, to write labels as it
+    does, the coordinates, the names of the built-in tensors, the names the metric is
+    written with (``None`` without a metric), where the metric was dropped, the tensors
+    bound to the names notation may write (each with its indices, or ``None`` for a
+    value), the spaces declared for the free indices, and the labels an expectation
+    binds there."""
+
+    kind: Type
+    span: Span
+    text: str
+    coordinates: tuple[Symbol, ...] | None
+    names: tuple[tuple[str, str], ...]
+    metric: frozenset[str] | None
+    dropped: Span | None
+    tensors: tuple[tuple[str, Indices | None], ...]
+    labels: tuple[tuple[str, Space], ...]
+    bound: frozenset[str]
+
+    def __str__(self) -> str:
+        """How the IR shows it: the components' type and the tensors they may need."""
+        written = ", ".join(name for name, _ in self.tensors)
+        return f"{self.kind}" + (f" of {written}" if written else "")
+
+
+def lower_notation(kept: IndexExpression, references: Sequence[Node], context: Lowering) -> Node:
+    """The IR of the components of ``kept``, notation the engines have computed, as the
+    statement in ``context`` would have them: compiled in a session of its own, with the
+    metric and tensors the ``references`` are the nodes of. Of the components' type, as
+    notation's rules gave it; zero, of notation that vanishes."""
+    session = Session(
+        graph=Graph(),
+        coordinates=context.coordinates,
+        names=dict(context.names),
+        dropped=context.dropped,
+    )
+    nodes = list(references)
+    if context.metric is not None:
+        session.metric = MetricState(nodes.pop(0), context.metric)
+    scope = Scope()
+    for (name, indices), node in zip(context.tensors, nodes, strict=True):
+        binding = TensorBinding(node, indices) if indices is not None else VariableBinding(node)
+        scope.bind(name, binding)
+    compiler = Compiler(session)
+    compiler._depth = 1  # a statement's part, whose notes are the statement's
+    compiler._text, compiler._labels, compiler._bound = (
+        context.text,
+        dict(context.labels),
+        context.bound,
+    )
+    node = compiler._notation_components(kept, scope, Context(), context.span)
+    kind = context.kind
+    if not isinstance(kind, TensorType):
+        return node
+    if not isinstance(node.type, TensorType):
+        if _is_zero(node):  # notation that vanishes, whatever indices it has
+            return session.graph.add(ops.ToArray(kind.shape), (node,), kind, context.span)
+        raise IndexNotationError(
+            f"the components of this notation have no free indices, where it has "
+            f"{compiler._written_indices(kind.indices)}",
+            span=context.span,
+        )
+    return compiler._align(node, kind.indices, context.span, what="notation")
+
+
 def _public(indices: Indices) -> Indices:
     return Indices(Index(_display(i.name), i.upper) for i in indices)
+
+
+def _notation_type(node: Node) -> NotationType:
+    """The type of a value or term of notation."""
+    assert isinstance(node.type, NotationType)
+    return node.type
+
+
+def _passed(kind: Type) -> Type:
+    """The type of what an operation gives of a value of this type, as a derivative of
+    it: the same, but of notation, which only notation's own operations give."""
+    return VALUE if isinstance(kind, NotationType) else kind
 
 
 def _display(name: str) -> str:
@@ -5227,6 +5379,8 @@ def _names_written(node: Node, found: Mapping[int, frozenset[str]]) -> frozenset
     op = node.op
     if isinstance(op, ops.Const):
         return _symbol_names(op.value)
+    if isinstance(node.type, NotationType):  # notation, which is no expression
+        return frozenset()
     args = [found[arg.id] for arg in node.args]
     every = frozenset().union(*args)
     if isinstance(op, ops.LineElement):
@@ -5234,6 +5388,8 @@ def _names_written(node: Node, found: Mapping[int, frozenset[str]]) -> frozenset
     if not isinstance(op, ops.Call | ops.Map):
         return every
     name, rest = op.name, frozenset().union(*args[2:])
+    if name == "notation.lower":  # components: their notation's scalars, and its tensors
+        return every | frozenset().union(*map(_symbol_names, _constants(node.args[0])))
     if name == "core.function":
         return every | {str(dict(op.attributes)["name"])}
     if name in ("core.sum", "core.prod", "core.limit"):  # body, variable, then the rest
@@ -5594,14 +5750,31 @@ def _unbracketed(equation: ast.Equation) -> str:
 def _mentions_symbol(node: Node, name: str) -> bool:
     """Whether a value is written with the symbol ``name``: a constant it is computed
     from has it among its free symbols."""
-    for current in dependencies([node]):
-        if not isinstance(current.op, ops.Const):
-            continue
-        value = current.op.value
+    for value in _constants(node):
         written = isinstance(value, sympy.Basic | sympy.NDimArray)
         if written and any(symbol.name == name for symbol in value.free_symbols):
             return True
     return False
+
+
+def _constants(root: Node) -> Iterator[Any]:
+    """The values of the constants a value is computed from, as it is written: not those
+    of notation, which is no expression, but those of the scalars of notation that its
+    components are computed with."""
+    pending, seen = [root], set()
+    while pending:
+        node = pending.pop()
+        if node.id in seen:
+            continue
+        seen.add(node.id)
+        if isinstance(node.op, ops.Const):
+            yield node.op.value
+        elif _calls(node, "notation.lower"):
+            written = dependencies([node.args[0]])
+            yield from (each.op.value for each in written if isinstance(each.op, ops.Const))
+            pending.extend(node.args[1:])
+        elif not isinstance(node.type, NotationType):
+            pending.extend(node.args)
 
 
 def _bracket_groups(
@@ -5782,15 +5955,6 @@ for _character, _name in UNICODE_LETTERS.items():
 #: Names usual for coordinates: written twice down on a tensor, as z in R_{zz}, and
 #: not a coordinate in force, such a label is more likely a component than a sum.
 _COORDINATE_NAMES = frozenset({"t", "x", "y", "z", "r", "theta", "phi", "rho", "chi", "psi"})
-
-
-def _notation_of(node: Node) -> IndexEquation | IndexExpression | None:
-    """The notation a node holds, if it is a value kept as notation."""
-    if isinstance(node.op, ops.Const) and isinstance(
-        node.op.value, IndexEquation | IndexExpression
-    ):
-        return node.op.value
-    return None
 
 
 def _tensor_pattern(node: ast.Scripted) -> tuple[str, list[tuple[str, bool]]] | None:

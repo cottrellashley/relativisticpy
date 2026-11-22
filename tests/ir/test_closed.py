@@ -1,6 +1,8 @@
 """The IR is closed: every operation that calls a function names it in the registry of
 implementations, and no operation holds a Python function. And compiling computes
-nothing: the executor is never asked for a value while a program compiles.
+nothing: the executor is never asked for a value while a program compiles, and nothing of
+abstract index notation's algebra, :mod:`relativisticpy.abstract`, is called; notation is
+operations of the IR, which the engines compute.
 
 The programs compiled are the docs' doctests, the curriculum's cases and the programs the
 tests run, read from their sources.
@@ -20,8 +22,9 @@ from typing import Any
 import pytest
 import sympy
 
+from relativisticpy import Workbook, abstract
 from relativisticpy.compiler import Compiler, Session
-from relativisticpy.ir import SCALAR, VALUE, Graph, Node, TensorType, ops
+from relativisticpy.ir import SCALAR, VALUE, Graph, Node, NotationType, TensorType, ops
 from relativisticpy.language import Source, parse
 from relativisticpy.runtime import Executor, registry
 from relativisticpy.tensors import Indices
@@ -127,13 +130,23 @@ SOURCES = {
 # -- compiling them --------------------------------------------------------------------
 
 
+#: The file of abstract index notation's algebra, which compiling never calls.
+ABSTRACT = abstract.__file__
+
+
 def compiled(programs: list[str]) -> list[Node]:
     """Every node made compiling ``programs`` in order, in one session, a statement at a
     time; a statement that cannot be compiled is passed over. Any executor asked for a
-    value meanwhile fails the test."""
+    value meanwhile fails the test, and so does any function of
+    :mod:`relativisticpy.abstract` called."""
     made: list[Node] = []
     computed: list[str] = []
+    algebra: list[str] = []
     add = Graph.add
+
+    def tracing(frame: Any, event: str, arg: Any) -> None:
+        if event == "call" and frame.f_code.co_filename == ABSTRACT:
+            algebra.append(frame.f_code.co_name)
 
     def recording(graph: Graph, *args: Any, **kwargs: Any) -> Node:
         node = add(graph, *args, **kwargs)
@@ -149,6 +162,7 @@ def compiled(programs: list[str]) -> list[Node]:
 
     session = Session()
     compiler = Compiler(session)
+    previous = sys.gettrace()
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr(Graph, "add", recording)
         for name in ("evaluate", "evaluate_with", "_evaluate", "map", "simplify_map"):
@@ -159,11 +173,15 @@ def compiled(programs: list[str]) -> list[Node]:
             except Exception:  # text that is not a program
                 continue
             for statement in statements:
+                sys.settrace(tracing)
                 try:
                     compiler.statement(statement, session.globals)
                 except Exception:  # what does not compile makes no operation worth less
                     continue
+                finally:
+                    sys.settrace(previous)
     assert computed == [], f"compiling {programs} computed with the executor"
+    assert algebra == [], f"compiling {programs} called {sorted(set(algebra))} of abstract.py"
     return made
 
 
@@ -183,7 +201,8 @@ def _functions(value: Any) -> list[Any]:
 
 
 def _consistent(node: Node, entry: registry.Implementation) -> bool:
-    """Whether the type of a node agrees with what the registry says its operation gives."""
+    """Whether the type of a node agrees with what the registry says its operation gives.
+    What an operation gives of notation, other than notation's own, is a value."""
     args = [arg.type for arg in node.args]
     if isinstance(node.op, ops.Map):
         return isinstance(node.type, TensorType) and node.type == args[0]
@@ -192,7 +211,15 @@ def _consistent(node: Node, entry: registry.Implementation) -> bool:
     if entry.result == "value":
         return node.type == VALUE
     if entry.result == "argument":
-        return node.type == args[0]
+        return node.type == (VALUE if isinstance(args[0], NotationType) else args[0])
+    if entry.result == "notation":
+        return isinstance(node.type, NotationType)
+    if (
+        node.type == SCALAR
+        and isinstance(node.op, ops.Call)
+        and node.op.name.startswith("notation.")
+    ):
+        return True  # the components of notation without free indices are a scalar
     return isinstance(node.type, TensorType)
 
 
@@ -233,10 +260,39 @@ def test_the_session_has_no_executor():
     assert not hasattr(Session(), "executor")
 
 
+def test_notation_is_operations_that_the_engines_compute():
+    listing = Workbook().ir(
+        r"EFE := G_{\mu\nu} + \Lambda g_{\mu\nu} = 8\pi G T_{\mu\nu}"
+        "\n"
+        r"RHS(solve(EFE, T_{\mu\nu}))"
+    )
+    for operation in ("notation.tensor", "notation.equation", "notation.solve", "notation.rhs"):
+        assert f"call {operation}" in listing
+    assert "IndexEquation" not in listing
+    solved = next(line for line in listing.splitlines() if "call notation.solve" in line)
+    assert solved.endswith(" Equation[Notation_{\\mu\\nu}]")
+
+
+def test_the_components_of_notation_are_lowered_by_the_engines():
+    wb = Workbook()
+    wb.exe(r"EFE := G_{\mu\nu} = 8\pi G T_{\mu\nu}")
+    wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
+    listing = wb.ir(r"X_{\mu\nu} := RHS(solve(EFE, T_{\mu\nu}))" "\n" r"X_{tt}")
+    assert "call notation.lower" in listing
+    lowered = next(line for line in listing.splitlines() if "call notation.components" in line)
+    assert " Tensor_{" in lowered  # typed when compiling: two free indices
+
+
 def test_the_programs_are_many():
     assert len(SOURCES["docs"]) > 10
     assert len(SOURCES["curriculum"]) > 400
     assert sum(len(programs) for _, programs in SOURCES["tests"]) > 1_000
+
+
+def test_compiling_notation_calls_nothing_of_its_algebra():
+    programs = [r"EFE := G_{\mu\nu} = 8\pi G T_{\mu\nu}", r"trace(EFE)", r"solve(EFE, T_{\mu\nu})"]
+    kinds = {type(node.type).__name__ for node in compiled(programs)}
+    assert "NotationType" in kinds
 
 
 def test_a_function_held_or_a_name_not_registered_is_found():

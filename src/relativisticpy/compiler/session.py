@@ -9,10 +9,9 @@ from typing import Any
 import sympy
 from sympy import Symbol
 
-from relativisticpy.abstract import Algebra
 from relativisticpy.compiler.scope import Binding, Scope
 from relativisticpy.errors import CompileError
-from relativisticpy.ir import SCALAR, Graph, Node, TensorType, ops
+from relativisticpy.ir import SCALAR, Graph, Node, NotationAlgebra, TensorType, ops
 from relativisticpy.language.source import Span
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space, spacetime
@@ -116,18 +115,23 @@ class Session:
     labels: dict[str, Space] = field(default_factory=dict)
     space_metrics: dict[Space, Node] = field(default_factory=dict)
     measures: dict[Space, Node] = field(default_factory=dict)
-    _algebra: Algebra | None = field(default=None, repr=False)
+    # The tensors of one's own that notation in each algebra is written with, by name and
+    # number of indices: what its components may need.
+    notation_tensors: dict[NotationAlgebra, set[tuple[str, int]]] = field(default_factory=dict)
+    _algebra: NotationAlgebra | None = field(default=None, repr=False)
+    _algebras: int = field(default=0, repr=False)
 
-    def algebra(self) -> Algebra:
+    def algebra(self) -> NotationAlgebra:
         """The tensors of abstract index notation, in as many dimensions as there are
-        coordinates (four before there are any), with the metric's name in force.
-        Notation kept with an earlier algebra is read in this one (see
-        :func:`~relativisticpy.abstract.rebased`)."""
+        coordinates (four before there are any), with the metric's name in force: a new
+        algebra whenever either changes, and in a fork. Notation kept with an earlier
+        algebra is read in this one (see :func:`~relativisticpy.abstract.rebased`)."""
         dim = len(self.coordinates) if self.coordinates else 4
         metric = self.names["metric"]
         algebra = self._algebra
-        if algebra is None or algebra.dim != dim or algebra.metric.name != metric:
-            algebra = self._algebra = Algebra(dim, metric=metric)
+        if algebra is None or algebra.dim != dim or algebra.metric != metric:
+            self._algebras += 1
+            algebra = self._algebra = NotationAlgebra(dim, metric, self._algebras)
         return algebra
 
     def fork(self) -> Session:
@@ -145,6 +149,7 @@ class Session:
             labels=dict(self.labels),
             space_metrics=dict(self.space_metrics),
             measures=dict(self.measures),
+            notation_tensors={key: set(value) for key, value in self.notation_tensors.items()},
             _algebra=None,
         )
 

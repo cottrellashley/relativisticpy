@@ -794,11 +794,17 @@ class Workbook:
         values they make, as their checks say (see :class:`~relativisticpy.compiler.scope.Check`):
         so a metric that cannot be one is refused where it is defined, and what the
         statement defined is undone, as if it had not compiled. Compiling computes nothing;
-        this is where the statement runs."""
+        this is where the statement runs. Where the statement does not compile, what is
+        written before the error is computed first, in order, so that an error of its own
+        is said first, as written."""
         compiler = compiler or self._compiler
         saved = compiler.save()
         try:
             compiled = compile()
+        except RelativisticPyError:  # what is written before the error runs first
+            for check in compiler.take_checks():
+                self._verify(check)
+            raise
         finally:
             checks = compiler.take_checks()
         try:
