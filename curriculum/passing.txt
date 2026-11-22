@@ -325,13 +325,16 @@ opt.linear.duality
 opt.linear.wyndor
 opt.unconstrained.argmax
 opt.unconstrained.minimum-value
+prob.bayes.conditional-notation
 prob.bayes.memoryless
 prob.bayes.rare-disease
 prob.bayes.rule-of-succession
+prob.bayes.total-expectation
 prob.distributions.binomial-pmf
 prob.distributions.gamma-variance
 prob.distributions.normal-one-sigma
 prob.distributions.poisson-limit
+prob.distributions.poisson-tilde
 prob.estimation.correlation-matrix
 prob.estimation.mle-exponential
 prob.estimation.normal-equations
@@ -348,6 +351,7 @@ prob.markov.two-step
 prob.moments.die-mean
 prob.moments.normal-characteristic
 prob.moments.normal-fourth-moment
+prob.moments.variance-affine
 prob.moments.variance-from-mgf
 qft.dirac.plane-wave
 qft.interactions.gaussian
