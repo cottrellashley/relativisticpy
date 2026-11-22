@@ -58,7 +58,8 @@ Each domain is a folder, and each topic within it a Markdown file. Examples:
 - `number-theory-and-combinatorics/`;
 - `group-theory/`;
 - `fluid-dynamics/`;
-- `thermodynamics/`.
+- `thermodynamics/`;
+- `astrophysics-and-cosmology/`.
 
 ## A case
 
