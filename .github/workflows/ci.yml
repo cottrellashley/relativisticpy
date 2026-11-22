@@ -37,6 +37,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - run: uv run pytest
+      - run: uv run --group docs pytest tests/test_site.py
 
   docs:
     name: Build the documentation

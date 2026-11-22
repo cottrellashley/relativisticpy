@@ -136,6 +136,6 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   `relativisticpy.interpreter`, `relativisticpy.symengine` and others). The
   package's entry point is still `relativisticpy.Workbook`.
 
-## 1.2.8 and earlier
+## 1.2.9 and earlier
 
 The original implementation, whose history is in the git log.

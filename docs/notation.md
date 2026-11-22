@@ -1,5 +1,10 @@
 # Solving tensor equations
 
+> **For:** anyone working with tensor equations before their components are known.
+> **You will learn:** how equations in index notation are kept, solved, traced,
+> simplified and substituted into. **Before this:** [tensors and
+> geometry](tensors.md).
+
 Components answer *what is this tensor here?* Index notation answers *what does
 this equation say?* RelativisticPy works at both levels. An equation with a
 tensor that has no components yet, such as the energy–momentum tensor
@@ -50,7 +55,7 @@ True
 
 ## The operations
 
-| | |
+| Operation | What it does |
 |---|---|
 | `solve(E, T_{\mu\nu})` | solve an equation for a tensor, with its indices up or down. The equation must be linear in the tensor; its trace may appear too. An equation of scalars, as a trace is, is solved for a scalar, as in `solve(trace(E), R)` |
 | `trace(E)` | contract the two free indices of an equation, or an expression, with the metric |
@@ -189,3 +194,6 @@ works on components, with a metric, but cannot yet be rearranged as notation.
 Nor can a tensor be defined abstractly, as
 \(T_{\mu\nu} := (\rho + p) u_\mu u_\nu + p g_{\mu\nu}\) with a velocity \(u\)
 that has no components. Both are on the [roadmap](roadmap.md).
+
+**Next:** [Checking papers](checking.md), to run a paper's equations, or [the language
+reference](reference.md).

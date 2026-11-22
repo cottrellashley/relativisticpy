@@ -1,5 +1,9 @@
 # Tensors and geometry
 
+> **For:** physicists computing with a metric. **You will learn:** how to define a
+> metric, compute its curvature, write index notation by coordinate and by label, and
+> what `=` means beside `:=`. **Before this:** [the language](language.md).
+
 ```python
 >>> from relativisticpy import Workbook
 >>> wb = Workbook()
@@ -514,3 +518,6 @@ component by component, takes more than a quarter of an hour even with eight
 workers, because a few of its components take that long on their own. Ask for
 what you need: the vacuum equations need only the Ricci tensor, which is
 computed straight from the connection.
+
+**Next:** [Solving tensor equations](notation.md), to work with equations before their
+components are known, or [the language reference](reference.md).
