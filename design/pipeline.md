@@ -94,7 +94,8 @@ What the work on live mathematics needed from the core, which it did without, fo
   indices are renamed apart from the names of the rule put into it. The worker numbers
   nothing from far away.
 - **A public way to fork an executor,** or to read the values it holds, which
-  `Workbook._portable` reads privately today.
+  `Workbook._portable` reads privately today. Done: `Executor.values()` gives a copy
+  of what it holds, and `Executor(values=...)` an executor that carries on from them.
 - **A reference that stays one reading as integrations arrive.** Every capability was a
   row of the generated reference, which passed 40,000 characters on 22 November 2026.
   Done: the page is an index, a line for each family of capabilities with their names

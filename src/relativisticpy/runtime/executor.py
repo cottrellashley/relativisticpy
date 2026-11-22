@@ -5,7 +5,7 @@ from __future__ import annotations
 import multiprocessing
 import os
 import sys
-from collections.abc import Callable, Hashable, Sequence
+from collections.abc import Callable, Hashable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any, TypeVar
 
@@ -78,12 +78,21 @@ class Executor:
     A failure of SymPy or NumPy while computing a node is a
     :class:`~relativisticpy.errors.RelativisticPyError` where the node was written, in
     RelativisticPy's own words (see :func:`~relativisticpy.errors.translate`).
+
+    An executor made with the ``values`` another has computed, as :meth:`values` gives
+    them, need not compute them again, in the same process or in another.
     """
 
-    def __init__(self, workers: int | None = 1, *, batch: int = 4) -> None:
+    def __init__(
+        self,
+        workers: int | None = 1,
+        *,
+        batch: int = 4,
+        values: Mapping[Hashable, Any] | None = None,
+    ) -> None:
         self.workers = (os.cpu_count() or 1) if workers is None else max(1, workers)
         self.batch = batch
-        self._values: dict[Hashable, Any] = {}  # by computation key
+        self._values: dict[Hashable, Any] = dict(values or {})  # by computation key
         self._remarks: dict[Hashable, list[Remark]] = {}  # what a computation said, by key
         self._pool: ProcessPoolExecutor | None = None
 
@@ -94,6 +103,11 @@ class Executor:
         value = self._evaluate(node, self._values)
         refuse_quoted(node, value)
         return value
+
+    def values(self) -> dict[Hashable, Any]:
+        """The values it has computed, by computation key, in a dict of the caller's own,
+        which an executor made with them need not compute again."""
+        return dict(self._values)
 
     def remarks(self, node: Node) -> list[Remark]:
         """What the computations ``node``'s value is computed from said of their values, in

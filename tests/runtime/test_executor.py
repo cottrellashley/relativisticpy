@@ -54,6 +54,18 @@ def test_only_what_is_needed_is_computed(count):
     assert Counter.calls == 0
 
 
+def test_an_executor_made_with_the_values_of_another_computes_them_no_more(count):
+    graph, executor = Graph(), Executor()
+    node = graph.add(count, (graph.const(sympy.Integer(1), SCALAR),), SCALAR)
+    assert executor.evaluate(node) == 2
+    values = executor.values()
+    assert values[node.key] == 2
+    values.clear()  # a copy: what the executor holds is its own
+    assert executor.values()[node.key] == 2
+    assert Executor(values=executor.values()).evaluate(node) == 2
+    assert Counter.calls == 1
+
+
 def test_errors_carry_the_span_of_their_node():
     wb = Workbook()
     with pytest.raises(EvaluationError) as error:

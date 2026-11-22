@@ -227,6 +227,10 @@ statements and the steps of a program before any runs, and says what came of eac
 what it defined, in words, and the step as data. The command line, the MCP server and
 the editor list and describe steps with it alone.
 
+What an executor holds is read with its `values()`, by computation key, and an
+executor made with them need not compute them again: so the editor carries a workbook
+to its worker process, with what it has computed.
+
 Component-wise work, such as simplifying every component of a tensor or the
 curvature kernels' simplification passes, goes through the executor's `map`.
 With `Workbook(workers=N)`, large batches are spread over a pool of `N`

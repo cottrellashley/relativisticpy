@@ -760,7 +760,7 @@ class Workbook:
     def _portable(self) -> tuple[str, Session, dict[Any, Any]]:
         """What another process needs to carry on from this workbook as it is: its backend,
         its session and the values it has computed, by computation (see :meth:`_carried`)."""
-        return self._backend, self._session, dict(self._executor._values)
+        return self._backend, self._session, self._executor.values()
 
     @classmethod
     def _carried(cls, backend: str, session: Session, values: dict[Any, Any]) -> Workbook:
@@ -768,7 +768,7 @@ class Workbook:
         workbook = cls(backend=backend)
         workbook._session = session
         workbook._compiler = Compiler(session)
-        workbook._executor._values.update(values)
+        workbook._executor = Executor(workbook._workers, values=values)
         return workbook
 
     def reset(self) -> None:
