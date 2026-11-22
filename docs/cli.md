@@ -400,3 +400,4 @@ A false equation in a run is a result, not a failure: to fail on it, check it.
 | `RELATIVISTICPY_DEBUG` | `1` shows the Python traceback of an internal error |
 | `RELATIVISTICPY_HISTORY` | the file the prompt keeps its history in; empty for none |
 | `XDG_STATE_HOME` | where the history is kept otherwise, as `relativisticpy/history` |
+| `PYTHONHASHSEED` | the seed of Python's hashes, which order SymPy's sets of symbols. Where it is not set, the command starts itself again with `0` before it imports anything else, so that a program gives the same answer every time, and the processes it starts for its work, of `-j` and of `relativisticpy mcp`, inherit it; `RELATIVISTICPY_RESTARTED` marks the command started again. A value set, as `random`, is kept. On Windows, which cannot replace a process, only the processes it starts get `0`: set it yourself to reproduce a run there |

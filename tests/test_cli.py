@@ -14,6 +14,7 @@ from importlib import metadata
 
 import pytest
 
+import relativisticpy.__main__ as entry
 from relativisticpy import Tensor, Workbook
 from relativisticpy import cli as command
 from relativisticpy.cli import display, main
@@ -940,3 +941,108 @@ def test_help_on_a_function(capsys):
 def test_the_package_requires_the_sympy_it_needs():
     # Index notation needs SymPy 1.14: with 1.12 or 1.13, a dozen tests fail.
     assert "sympy>=1.14" in (metadata.requires("relativisticpy") or [])
+
+
+# -- the same answer every run ----------------------------------------------------------------
+
+#: A script that fixes the hash seed, as the command does, then says what it has.
+FIXES_THE_SEED = textwrap.dedent(
+    """
+    import os, sys
+    from relativisticpy.__main__ import fix_hash_seed
+    fix_hash_seed()
+    environment = [os.environ.get(name) for name in ("PYTHONHASHSEED", "RELATIVISTICPY_RESTARTED")]
+    print(*environment, sys.flags.hash_randomization, "sympy" in sys.modules)
+    """
+)
+
+
+def _without_a_seed() -> dict[str, str]:
+    return {
+        name: value
+        for name, value in os.environ.items()
+        if name not in ("PYTHONHASHSEED", "RELATIVISTICPY_RESTARTED")
+    }
+
+
+def started(tmp_path, **environment):
+    """What the script prints, started without a hash seed, then with ``environment``."""
+    script = tmp_path / "fixes_the_seed.py"
+    script.write_text(FIXES_THE_SEED, encoding="utf-8")
+    ran = subprocess.run(
+        [sys.executable, str(script)],
+        env={**_without_a_seed(), **environment},
+        capture_output=True,
+        text=True,
+        check=True,
+        timeout=120,
+    )
+    return ran.stdout.split()
+
+
+@POSIX
+def test_the_command_starts_again_with_a_fixed_hash_seed(tmp_path):
+    assert started(tmp_path) == ["0", "1", "0", "False"]  # before anything heavy
+
+
+@POSIX
+def test_a_hash_seed_already_set_is_kept(tmp_path):
+    assert started(tmp_path, PYTHONHASHSEED="random") == ["random", "None", "1", "False"]
+    assert started(tmp_path, PYTHONHASHSEED="7") == ["7", "None", "1", "False"]
+
+
+@POSIX
+def test_a_command_started_again_never_starts_a_third_time(tmp_path):
+    assert started(tmp_path, RELATIVISTICPY_RESTARTED="1") == ["None", "1", "1", "False"]
+
+
+@POSIX
+def test_python_m_relativisticpy_starts_again_once_as_it_was_started():
+    def started_with(**environment):
+        ran = subprocess.run(
+            [sys.executable, "-X", "importtime", "-m", "relativisticpy", "--version"],
+            env={**_without_a_seed(), **environment},
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=120,
+        )
+        assert ran.stdout.startswith("relativisticpy ")
+        return sum(line.endswith("| relativisticpy") for line in ran.stderr.splitlines())
+
+    assert started_with() == 2  # with -X importtime both times
+    assert started_with(PYTHONHASHSEED="0") == 1
+
+
+def _forbidden(*arguments):
+    raise AssertionError("started again, in the process of the tests")
+
+
+def test_where_a_process_cannot_be_replaced_what_it_starts_gets_the_seed(monkeypatch):
+    # As on Windows: the command keeps the seed Python chose, and its workers get 0.
+    monkeypatch.setenv("PYTHONHASHSEED", "")
+    monkeypatch.setenv("RELATIVISTICPY_RESTARTED", "")
+    monkeypatch.setattr(os, "execve", _forbidden)
+    monkeypatch.setattr(sys, "platform", "win32")
+    entry.fix_hash_seed()
+    assert os.environ["PYTHONHASHSEED"] == "0"
+
+
+def test_main_called_in_this_process_never_starts_again(monkeypatch, capsys):
+    monkeypatch.setenv("PYTHONHASHSEED", "")
+    monkeypatch.setenv("RELATIVISTICPY_RESTARTED", "")
+    monkeypatch.setattr(os, "execve", _forbidden)
+    assert entry.main(["-c", "1 + 1"]) == 0
+    assert main(["-c", "1 + 1"]) == 0
+    assert capsys.readouterr().out == "2\n2\n"
+
+
+def test_the_command_fixes_the_seed_before_it_runs(monkeypatch, capsys):
+    fixed = []
+    monkeypatch.setattr(entry, "fix_hash_seed", lambda: fixed.append(list(sys.argv)))
+    monkeypatch.setattr(sys, "argv", ["relativisticpy", "-c", "1 + 1"])
+    assert entry.main() == 0
+    assert fixed == [["relativisticpy", "-c", "1 + 1"]]
+    assert capsys.readouterr().out == "2\n"
+    (script,) = metadata.entry_points(group="console_scripts", name="relativisticpy")
+    assert script.value == "relativisticpy.__main__:main"

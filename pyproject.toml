@@ -52,7 +52,8 @@ Issues = "https://github.com/cottrellashley/relativisticpy/issues"
 Changelog = "https://github.com/cottrellashley/relativisticpy/blob/main/CHANGELOG.md"
 
 [project.scripts]
-relativisticpy = "relativisticpy.cli:main"
+# The entry point imports nothing heavy before it fixes the hash seed (relativisticpy.__main__).
+relativisticpy = "relativisticpy.__main__:main"
 
 [dependency-groups]
 dev = [

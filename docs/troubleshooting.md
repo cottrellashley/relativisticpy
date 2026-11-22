@@ -128,6 +128,33 @@ Papers write "where Δ = 1 − 2M/r" after the line element. Define the names a 
 written with before its line element, as a reader is told them, so that the metric is
 the one meant from the start.
 
+## A result changed from one run to the next
+
+SymPy walks sets of symbols in an order that follows Python's hashes of their names, and
+Python draws a new seed for those hashes in every process unless `PYTHONHASHSEED` fixes
+it. So a few computations, some solves above all, can take another path in another run:
+an answer in another form, or none. The command line fixes the seed: `relativisticpy`
+and `relativisticpy mcp` start themselves again with `PYTHONHASHSEED=0` where it is not
+set, and the processes they start inherit it (see [the command line](cli.md#environment)).
+
+A workbook cannot fix the seed of the Python it runs in, which Python draws as it starts.
+To reproduce a run exactly from Python, set the variable before Python starts, for a
+script, a notebook server or the tests, whose kernels and workers inherit it:
+
+```bash
+PYTHONHASHSEED=0 python analysis.py
+PYTHONHASHSEED=0 jupyter lab
+PYTHONHASHSEED=0 pytest
+```
+
+`sys.flags.hash_randomization` is `0` in a Python whose seed is 0. Setting
+`os.environ["PYTHONHASHSEED"]` in a Python already running fixes the seed of the
+processes it starts afterwards, as the workers of `Workbook(workers=4)`, but not its own.
+On Windows, where the command cannot start itself again, set it before running
+`relativisticpy`: `set PYTHONHASHSEED=0` in a command prompt, `$env:PYTHONHASHSEED = 0` in
+PowerShell. What is decided within a time limit, as a closed form sought for 5 s before a
+number is computed instead, can still differ on a much slower or busier machine.
+
 ## Getting what you want out of a result
 
 | To get | Write |

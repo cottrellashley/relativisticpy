@@ -418,6 +418,15 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 - Angle brackets no longer group as brackets do: `\langle x \rangle` is what a program
   defines, an expectation value or an inner product, and refused where it is none of
   them, rather than `x`.
+- The same program gives the same answer every time. `relativisticpy`,
+  `python -m relativisticpy` and `relativisticpy mcp` start themselves again with
+  `PYTHONHASHSEED=0` where it is not set, before they import anything else, and the
+  processes they start for their work, of `-j` and of the MCP server, inherit it; on
+  Windows, which cannot replace a process, only those processes do. A seed set is kept.
+  From Python, start Python with `PYTHONHASHSEED=0` to reproduce a run exactly
+  ([Troubleshooting](docs/troubleshooting.md#a-result-changed-from-one-run-to-the-next)).
+- `import relativisticpy` imports each of its names when it is first used, so that
+  importing a module of the package, as the command does to start, takes milliseconds.
 - RelativisticPy needs Python 3.10 or later. SymPy is its only required
   dependency.
 

@@ -333,6 +333,10 @@ The server is for an agent to drive on its own, so it keeps these bounds:
 - **Workers of their own.** A worker starts in the folder RelativisticPy is installed in,
   with Python's safe path, so that no module in the server's working directory can stand
   in for one RelativisticPy imports. It ends when the server does.
+- **The same answer every time.** The command starts itself again with
+  `PYTHONHASHSEED=0` where it is not set, and its workers inherit the seed, so that a call
+  gives the same answer in every session (see
+  [Troubleshooting](troubleshooting.md#a-result-changed-from-one-run-to-the-next)).
 
 On Windows, which has no `SIGALRM`, a statement is not stopped softly: its worker is
 stopped instead, at the end of the call's time; nor is the memory limit enforced there.

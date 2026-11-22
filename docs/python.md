@@ -42,7 +42,10 @@ simplification (`None` for one per CPU). `backend="jax"` keeps bound data as JAX
 arrays, so that it is computed with JAX. `scope=globals()` is where programs read
 Python objects by name, as `\texttt{prices}` (see
 [Beyond spacetime](spaces.md#python-objects-by-name)). A workbook is a context manager,
-which stops its workers on exit.
+which stops its workers on exit. To reproduce a run exactly, start Python with
+`PYTHONHASHSEED=0`, as the command line starts itself: a workbook cannot fix the seed of
+the Python it runs in (see
+[Troubleshooting](troubleshooting.md#a-result-changed-from-one-run-to-the-next)).
 
 ```python
 >>> wb.exe(r"""

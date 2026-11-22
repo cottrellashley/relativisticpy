@@ -36,7 +36,9 @@ cannot be trusted.
 
 - **The command line and the MCP server** fix the seed: a process RelativisticPy starts
   for its work, a worker of `-j` or of the server, is started with `PYTHONHASHSEED=0`,
-  and the command line starts itself again with it when it is not set.
+  and the command line starts itself again with it when it is not set, before it imports
+  anything else (`relativisticpy.__main__`). Windows cannot replace a process: there the
+  command keeps the seed Python chose, and only the processes it starts get 0.
 - **The solver integration** does not stop at a failure inside SymPy that another path
   avoids: it solves again with the unknowns in another order, and checks the solutions
   itself.
