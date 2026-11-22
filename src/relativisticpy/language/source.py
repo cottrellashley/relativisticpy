@@ -64,6 +64,9 @@ class Source:
     ``unreadable`` says why the text cannot be read, and where in it: reading it
     raises a :class:`~relativisticpy.errors.ParseError` there. A document gives
     this to an equation whose macros do not expand.
+
+    ``definitions`` says where each of the document's macros is defined, as
+    ``("Gam", "line 7")``, so that an error in an expansion can say so.
     """
 
     text: str
@@ -73,6 +76,7 @@ class Source:
     written: str | None = None
     pieces: tuple[Piece, ...] = ()
     unreadable: tuple[str, int, int] | None = None
+    definitions: tuple[tuple[str, str], ...] = ()
 
     def __repr__(self) -> str:
         """``Source('notes.tex', line 12, '\\begin{equation} x = 1 \\end{equation}')``,
@@ -111,6 +115,17 @@ class Source:
 
     def _piece(self, offset: int) -> Piece:
         return self.pieces[max(0, bisect_right(self._piece_starts, offset) - 1)]
+
+    def expansion_at(self, offset: int) -> str | None:
+        """The macro call, as written, that the character at ``offset`` was expanded
+        from, as ``\\Gam`` for any character of ``\\Gama`` when ``\\Gam`` stands for it;
+        ``None`` for a character written as it is."""
+        if self.written is None or not self.pieces or offset >= len(self.text):
+            return None
+        piece = self._piece(offset)
+        if piece.copied:
+            return None
+        return self.written[piece.written_start : piece.written_end]
 
     def location(self, offset: int) -> tuple[int, int]:
         """Return the 1-based ``(line, column)`` in the file of a character offset."""
@@ -159,6 +174,13 @@ class Span:
     @property
     def text(self) -> str:
         return self.source.text[self.start : self.end]
+
+    @property
+    def written(self) -> str:
+        """The text as the file has it: ``\\dd s^2``, where :attr:`text` has the
+        expansion of the document's macro, ``\\mathrm{d} s^2``."""
+        start, end = self.source.written_range(self.start, self.end)
+        return self.source._file_text[start:end]
 
     @property
     def line(self) -> int:

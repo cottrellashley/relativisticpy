@@ -628,7 +628,12 @@ class Parser:
                     if self.check(K.END):
                         break
                     statements.extend(self.statement())
-                    if not self.check(K.END):
+                    # breqn's dgroup holds its dmath environments one after another
+                    following = self.peek()
+                    nested = following.kind is K.BEGIN and following.value in (
+                        vocab.ALIGNMENT_ENVIRONMENTS
+                    )
+                    if not self.check(K.END) and not nested:
                         self._expect_separator()
                 self.advance()
         finally:
@@ -1468,15 +1473,28 @@ class Parser:
             return self._function()
         if name in vocab.ACCENT_COMMANDS:
             return self._accent()
+        notes = self._expanded_from(token)
         if (unsupported := vocab.UNSUPPORTED_COMMANDS.get(name)) is not None:
             message, hint = unsupported
-            raise ParseError(message, span=token.span, hint=hint)
+            raise ParseError(message, span=token.span, hint=hint, notes=notes)
         close = difflib.get_close_matches(name, _KNOWN_COMMANDS, n=1, cutoff=_CLOSE)
         raise ParseError(
             f"unknown LaTeX command \\{name}",
             span=token.span,
             hint=f"did you mean \\{close[0]}?" if close else None,
+            notes=notes,
         )
+
+    def _expanded_from(self, token: Token) -> tuple[str, ...]:
+        """A note, for a token that a document's macro expanded to, that says which
+        macro, and where it is defined: ``\\Gam, defined on line 7, expands to \\Gama``."""
+        written = self.source.expansion_at(token.span.start)
+        macro = _MACRO_NAME.match(written) if written is not None else None
+        if macro is None or macro.group() == token.span.text:
+            return ()
+        defined = dict(self.source.definitions).get(macro.group()[1:])
+        where = f", defined on {defined}," if defined else ""
+        return (f"{macro.group()}{where} expands to {token.span.text}",)
 
     def _argument_tokens(self, command: Token, what: str = "argument") -> list[Token]:
         """The raw tokens of a command argument: a braced group, a parenthesised
@@ -2659,6 +2677,8 @@ def _relation(token: Token) -> str:
     return token.value
 
 
+# The name of a macro, at the start of a call of it as written: \Gam in \Gam^t_{tr}.
+_MACRO_NAME = re.compile(r"\\[A-Za-z]+")
 # Arguments as SymPy typesets them, in braces and \left( \right): a{\left(t \right)}.
 _TYPESET_ARGUMENTS = re.compile(r"\{\s*\\left\s*\(")
 

@@ -45,9 +45,15 @@ names you have defined and builtins such as `diff`. Wrap a longer name in
 `\mathrm{...}` or `\text{...}` to keep it one symbol; an escaped underscore
 joins words, as in `\mathrm{geodesic\_equations}`. Every statement in a display
 (`\begin{equation}`, `align` and the other environments, `\[ \]`, `$$`, and the
-`$$` blocks of a Markdown notebook) is LaTeX, however it is written. In plain
+displays of a Markdown notebook) is LaTeX, however it is written. In plain
 text (a statement outside a display, without LaTeX commands), `GM` is a single
 name, as in a programming language.
+
+A Markdown notebook runs its displays in order: `$$ ... $$`, `\[ ... \]`,
+display environments such as `\begin{equation}`, and fenced blocks of maths,
+```` ```math ````, as GitHub writes them. A fenced block marked
+`relativisticpy` (or `relpy`) is a program, run as it is written; other code
+blocks, code spans and inline maths are not run.
 
 ```python
 >>> wb.exe(r"""

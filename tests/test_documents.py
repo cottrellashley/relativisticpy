@@ -1,6 +1,7 @@
 r"""Reading LaTeX documents: their macros and display equations."""
 
 import time
+from pathlib import Path
 
 import pytest
 
@@ -113,6 +114,22 @@ class TestEquations:
         )
         environments = [equation.environment for equation in document.equations()]
         assert environments == ["equation", "eqnarray", "align*", "$$", "displaymath"]
+
+    def test_the_environments_of_amsmath_breqn_and_ieeetrantools(self):
+        # alignat, IEEEeqnarray, dmath and math were skipped, and nothing said so
+        text = r"""
+            \begin{alignat}{2} x &= 1 &\quad y &= 2 \end{alignat}
+            \begin{IEEEeqnarray}{rCl} q & = & 5 \end{IEEEeqnarray}
+            \begin{dmath} p = 6 \end{dmath}
+            \begin{dgroup}
+                \begin{dmath} u = 1 \end{dmath} \begin{dmath} v = 2 \end{dmath}
+            \end{dgroup}
+            \begin{math} m = 7 \end{math}
+        """
+        document = Document(text)
+        environments = [equation.environment for equation in document.equations()]
+        assert environments == ["alignat", "IEEEeqnarray", "dmath", "dgroup", "math"]
+        assert verdicts(text) == ["defines"] * 7
 
     def test_shorthands_for_environments(self):
         document = Document(
@@ -239,6 +256,104 @@ class TestEquations:
         assert [e.environment for e in document.equations()] == ["displaymath", "equation"]
 
 
+class TestIncludedFiles:
+    """A paper's equations are also in the files it reads with \\input and \\include."""
+
+    @pytest.fixture
+    def paper(self, tmp_path):
+        (tmp_path / "section1.tex").write_text(
+            "\\section{One}\n\\begin{equation}\nx := 2\n\\end{equation}\n"
+            "\\input{part}\n\\begin{equation}\nx^2 = 4\n\\end{equation}\n"
+        )
+        (tmp_path / "part.tex").write_text("Text.\n$$ y := x + 1 $$\n")
+        (tmp_path / "section2.tex").write_text("\\begin{equation}\nx^3 = 9\n\\end{equation}\n")
+        main = tmp_path / "main.tex"
+        main.write_text(
+            "\\documentclass{article}\n\\begin{document}\n$$ a := 1 $$\n"
+            "\\input{section1}\n\\include{section2}\n\\input missing\n$$ x + 1 = 3 $$\n"
+            "\\end{document}\n"
+        )
+        return tmp_path
+
+    def test_their_equations_are_read_in_order_with_their_own_positions(self, paper):
+        document = Document.read(paper / "main.tex")
+        found = [
+            (Path(e.source.name).name, e.line, e.source.text.split()[1])
+            for e in document.equations()
+        ]
+        assert found == [
+            ("main.tex", 3, "a"),
+            ("section1.tex", 2, "x"),
+            ("part.tex", 2, "y"),
+            ("section1.tex", 6, "x^2"),
+            ("section2.tex", 1, "x^3"),
+            ("main.tex", 7, "x"),
+        ]
+
+    def test_a_check_reads_them(self, paper):
+        findings = Workbook().check(paper / "main.tex").findings
+        assert [f.verdict.value for f in findings] == [
+            "defines", "defines", "defines", "holds", "differs", "holds",
+        ]  # fmt: skip
+        assert findings[4].span.render().splitlines()[0].endswith("section2.tex:2:1")
+
+    def test_their_sections_are_counted_after_those_before_them(self, paper):
+        sections = [equation.section for equation in Document.read(paper / "main.tex").equations()]
+        assert sections == [0, 1, 1, 1, 1, 1]
+
+    def test_a_file_that_is_not_found_is_named(self, paper):
+        assert Document.read(paper / "main.tex").missing == [("missing", 6)]
+
+    def test_a_file_that_includes_itself_is_read_once(self, tmp_path):
+        (tmp_path / "loop.tex").write_text("$$ x := 1 $$\n\\input{loop}\n")
+        assert len(Document.read(tmp_path / "loop.tex").equations()) == 1
+
+
+class TestDefinitionsThatCannotBeUsed:
+    """A macro whose definition or call is wrong says so, rather than that it is unknown."""
+
+    @pytest.mark.parametrize(
+        ("definition", "equation", "message"),
+        [
+            (r"\newcommand{\vv}[1]{\vec{#1}", r"\vv{x} = 1",
+             r"the definition of \vv on line 1 cannot be read: unclosed '{'"),
+            (r"\def\half#1/#2{\frac{#1}{#2}}", r"\half 1/2 = 0.5",
+             r"\half is defined on line 1 with delimited parameters, #1/#2, which are not "
+             "supported"),
+            (r"\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}", r"\pd{f} = 0",
+             r"\pd takes 2 arguments, but 1 is given here"),
+            (r"\newcommand{\pd}[2]{\frac{\partial #1}{\partial #2}}", r"x + \pd{f}",
+             r"\pd takes 2 arguments, but 1 is given here"),
+        ],
+    )  # fmt: skip
+    def test_the_message_says_what_is_wrong_with_the_macro(self, definition, equation, message):
+        [found] = Document(
+            f"{definition}\n\\begin{{equation}} {equation} \\end{{equation}}\n"
+        ).equations()
+        with pytest.raises(ParseError) as error:
+            parse(found.source)
+        assert error.value.message == message
+
+    def test_a_missing_argument_marks_the_call(self):
+        text = "\\newcommand{\\pd}[2]{\\frac{\\partial #1}{\\partial #2}}\n$$ \\pd{f} = 0 $$\n"
+        [found] = Document(text).equations()
+        with pytest.raises(ParseError) as error:
+            parse(found.source)
+        assert error.value.span is not None
+        assert error.value.span.written == r"\pd{f}"
+
+    def test_a_macro_that_expands_to_an_unknown_command_says_so(self):
+        text = "\\newcommand{\\Gam}{\\Gama}\n\\[ \\Gam^t_{tr} = 0 \\]\n"
+        [found] = Document(text).equations()
+        with pytest.raises(ParseError, match=r"unknown LaTeX command \\Gama") as error:
+            parse(found.source)
+        assert error.value.notes == [r"\Gam, defined on line 1, expands to \Gama"]
+
+    def test_a_document_says_what_it_holds(self):
+        document = Document("\\newcommand{\\R}{R}\n$$ \\R = 0 $$\n\\[ x \\]\n", "notes.tex")
+        assert repr(document) == "Document('notes.tex': 4 lines, 2 display equations, 1 macro)"
+
+
 class TestMarkdown:
     @pytest.mark.parametrize(
         ("text", "blocks"),
@@ -257,6 +372,30 @@ class TestMarkdown:
     def test_blocks_know_their_lines(self):
         blocks = math_blocks("a\n\n$$ x $$\n\nb\n$$\ny\n$$")
         assert [block.origin for block in blocks] == [(3, 3), (6, 3)]
+
+    def test_every_form_of_display_is_run(self):
+        # only $$ blocks ran: the others were skipped without a word
+        text = (
+            "```relativisticpy\nx := 2\nx + 1\n```\n\n"
+            "\\[ y := 3 \\]\n\n"
+            "\\begin{equation}\nz := 4\n\\end{equation}\n\n"
+            "```math\nx + y + z\n```\n\n"
+            "```python\nprint('code, not run')\n```\n\n"
+            "$$ x + 10 $$\n"
+        )
+        blocks = math_blocks(text, "notes.md")
+        assert [(block.text.strip(), block.latex) for block in blocks] == [
+            ("x := 2\nx + 1", False),
+            ("y := 3", True),
+            ("\\begin{equation}\nz := 4\n\\end{equation}", True),
+            ("x + y + z", True),
+            ("x + 10", True),
+        ]
+        assert [block.origin[0] for block in blocks] == [2, 6, 8, 13, 20]
+        results = [result for block in blocks for result in Workbook().exe(block)]
+        assert results[0] == 3
+        with Workbook() as wb:
+            assert [r for block in blocks for r in wb.exe(block)] == [3, 9, 12]
 
 
 class TestReading:
