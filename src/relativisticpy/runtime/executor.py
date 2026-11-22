@@ -10,14 +10,13 @@ from concurrent.futures import ProcessPoolExecutor
 from typing import Any, TypeVar
 
 from relativisticpy.errors import (
-    EvaluationError,
     InternalError,
     RelativisticPyError,
     debugging,
     translate,
 )
 from relativisticpy.ir import Node, ops
-from relativisticpy.runtime.kernels import execute, refuse_text
+from relativisticpy.runtime.kernels import execute, refuse_quoted, refuse_text
 from relativisticpy.tensors import numerical
 from relativisticpy.tensors.simplification import simplify_component
 
@@ -90,12 +89,7 @@ class Executor:
         quotes in a program is never given out as a value, as to the compiler, which
         would hand it to SymPy, which reads text as Python."""
         value = self._evaluate(node, self._values)
-        if isinstance(node.op, ops.Const) and node.span is not None and isinstance(value, str):
-            raise EvaluationError(
-                "text in quotes is not a value to compute with",
-                span=node.span,
-                hint="write the expression without quotes, as in sin(x) rather than sin('x')",
-            )
+        refuse_quoted(node, value)
         return value
 
     def evaluate_with(self, node: Node, values: dict[Hashable, Any]) -> Any:

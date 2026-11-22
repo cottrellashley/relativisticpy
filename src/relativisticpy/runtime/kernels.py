@@ -39,6 +39,17 @@ def execute(op: ops.Op, args: list[Any], executor: Executor) -> Any:
     raise NotImplementedError(f"no kernel for {type(op).__name__}")  # pragma: no cover
 
 
+def refuse_quoted(node: Node, value: Any) -> None:
+    """Refuse text written in quotes in a program as a value, as to the compiler, which
+    would hand it to SymPy, which reads text as Python."""
+    if isinstance(node.op, ops.Const) and node.span is not None and isinstance(value, str):
+        raise EvaluationError(
+            "text in quotes is not a value to compute with",
+            span=node.span,
+            hint="write the expression without quotes, as in sin(x) rather than sin('x')",
+        )
+
+
 def refuse_text(op: ops.Op, args: list[Any], nodes: Sequence[Node]) -> None:
     """Refuse text written in a program where a value is computed with: SymPy reads a
     string given to most of its functions as Python, and evaluates it, so that

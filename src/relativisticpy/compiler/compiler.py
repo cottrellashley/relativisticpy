@@ -92,6 +92,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK, UNICODE_LETTERS
+from relativisticpy.runtime.kernels import refuse_quoted
 from relativisticpy.tensors import Index, Indices, arrays
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.spaces import Space, spacetime
@@ -130,6 +131,8 @@ _COMPARE = {
     "!=": "core.ne",
 }
 _INTEGER = re.compile(r"\d+")
+#: The hint for a size computed where it must be known before anything is computed.
+_KNOWN_FIRST = "it is read before anything is computed: write it as a number, or a name given one"
 
 
 class Compiler:
@@ -979,14 +982,26 @@ class Compiler:
             and value.scripts[0].body is not None
         ):
             return None
-        size = sympy.sympify(self.session.evaluate(self.value(value.scripts[0].body, scope, ctx)))
+        dimension = self.value(value.scripts[0].body, scope, ctx)
+        size = sympy.sympify(self._constant(dimension))
         # a symbol, even an integer one, is no size: n \geq 0 cannot be decided
         if not (getattr(size, "is_integer", False) and getattr(size, "is_nonnegative", False)):
             written = value.scripts[0].body.span.text  # 3.5 as written, not 3.50000000000000
             raise CompileError(
-                f"the dimension of a space is a whole number, not {written}", span=value.span
+                f"the dimension of a space is a whole number, not {written}",
+                span=value.span,
+                hint=None if isinstance(dimension.op, ops.Const) else _KNOWN_FIRST,
             )
         return Space(name, int(size), field="complex" if value.base.id == "ℂ" else "real")
+
+    def _constant(self, node: Node) -> Any:
+        """The value of a node that is known when compiling: a constant, as a number written
+        or a name given one, or data bound from Python; ``None`` for a value computed, which
+        is not known until the program runs. Text in quotes is never a value."""
+        if not isinstance(node.op, ops.Const):
+            return None
+        refuse_quoted(node, node.op.value)
+        return node.op.value
 
     def _declares(self, relation: ast.Relation) -> bool:
         """``a, b \\in \\mathcal{A}``: declare that the labels range over a space, and say
@@ -2240,12 +2255,14 @@ class Compiler:
         size = math.prod(space.dim for space in operator.type.spaces[:rows])
         count = None
         if len(call.args) > 1:
-            count = self.session.evaluate(self.value(call.args[1], scope, ctx))
-            if not sympy.sympify(count).is_integer or count == 0:
+            number = self.value(call.args[1], scope, ctx)
+            count = self._constant(number)
+            if count is None or not sympy.sympify(count).is_integer or count == 0:
                 raise CompileError(
                     "the number of eigenvalues is a whole number: the largest that many, "
                     "or the smallest if it is negative",
                     span=call.args[1].span,
+                    hint=None if isinstance(number.op, ops.Const) else _KNOWN_FIRST,
                 )
             count = int(count)
             if abs(count) > size:
