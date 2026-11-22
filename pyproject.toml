@@ -68,6 +68,13 @@ docs = ["mkdocs-material>=9.5"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/relativisticpy"]
+# The pages of the docs go with the package, as relativisticpy/_docs, for relativisticpy
+# help to print offline; the rest of docs/, such as the logo, does not.
+only-include = ["src/relativisticpy", "docs"]
+exclude = ["/docs/*", "!/docs/*.md"]
+
+[tool.hatch.build.targets.wheel.sources]
+"docs" = "relativisticpy/_docs"
 
 [tool.hatch.build.targets.sdist]
 # Anchored at the root, since a bare README.md would match examples/README.md too. The
