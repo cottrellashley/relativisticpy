@@ -31,6 +31,17 @@ uv run --group docs mkdocs build --strict
 seconds. pytest also runs the examples in docstrings, `README.md`, `docs/` and
 `examples/`, so documentation cannot drift from the code.
 
+The editor of `relativisticpy.live` is also tested in a browser: a marimo notebook,
+driven by Node's Playwright in Chromium. CI runs it; to run it yourself, install
+Playwright for Node, with `npm install --global playwright` and `npx playwright install
+chromium`, then:
+
+```bash
+uv run --group notebooks pytest tests/live tests/test_notebooks.py
+```
+
+Without marimo, Node or Playwright, those tests are skipped, and say why.
+
 ## Where things go
 
 [How it works](https://relativisticpy.org/architecture/) describes the pipeline,

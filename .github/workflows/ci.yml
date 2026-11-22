@@ -39,6 +39,20 @@ jobs:
       - run: uv run pytest
       - run: uv run --group docs pytest tests/test_site.py
 
+  notebooks:
+    name: Notebooks, and the editor in a browser
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+      - name: Install Node's Playwright, with Chromium
+        run: |
+          npm install --global playwright@1
+          npx playwright install --with-deps chromium
+      - run: uv run --group notebooks pytest tests/live tests/test_notebooks.py
+        env:
+          RELATIVISTICPY_BROWSER_TESTS: required
+
   docs:
     name: Build the documentation
     runs-on: ubuntu-latest
