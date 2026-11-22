@@ -194,7 +194,7 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 | Function | Arguments | Meaning |
 |---|---|---|
 | `solve(equations, ...)` | 1 or more | `solve(x^2 = 4, x)`, the solutions; `solve(E, T_{\mu\nu})` solves an equation between tensors for one |
-| `dsolve(equations, ...)` | 1 or more | `dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation |
+| `dsolve(equations, ...)` | 1 or more | `dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation; `dsolve(\frac{dy}{dt} = r y, y(0) = y_0)` with conditions |
 | `RHS(equation)` `rhs` | 1 | the right side of an equation |
 | `LHS(equation)` `lhs` | 1 | the left side of an equation |
 | `Eq(lhs, rhs)` | 2 | `Eq(a, b)`, the equation a = b |

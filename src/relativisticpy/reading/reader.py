@@ -1912,7 +1912,8 @@ class Reader(Typer):
             )
         if name in GREEK or name in BUILTINS or len(name) == 1:  # \gamma(r), f(x)
             letter = name in GREEK or len(name) == 1  # not a builtin here, as \gamma is not
-            if letter and not all(isinstance(a, ast.Name) for a in node.args):
+            known = name in self.session.functions  # y(0) of the unknown y(t) of dsolve
+            if letter and not known and not all(isinstance(a, ast.Name) for a in node.args):
                 # \gamma(t - vx): a function of t - vx, or \gamma times it, as typeset?
                 inside = ", ".join(arg.span.text for arg in node.args)
                 self._note(

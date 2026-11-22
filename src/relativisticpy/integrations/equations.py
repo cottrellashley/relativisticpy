@@ -318,13 +318,15 @@ def _shown(mapping: dict[Any, Any]) -> str:
 
 @solver(
     "dsolve",
-    summary="`dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation",
+    summary="`dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation; "
+    "`dsolve(\\frac{dy}{dt} = r y, y(0) = y_0)` with conditions",
     examples=[
         Example("dsolve(f'(x) = f(x), f(x))",
                 sympy.Eq(f(x), sympy.Symbol("C1") * sympy.exp(x)), "standard"),
         Example("dsolve(f''(x) + f(x) = 0, f(x))",
                 sympy.Eq(f(x), sympy.Symbol("C1") * sympy.sin(x)
                          + sympy.Symbol("C2") * sympy.cos(x)), "standard"),
+        Example("dsolve(f'(x) = f(x), f(0) = 2)", sympy.Eq(f(x), 2 * sympy.exp(x)), "standard"),
     ],
 )  # fmt: skip
 class DifferentialSolve:

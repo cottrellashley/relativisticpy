@@ -148,13 +148,31 @@ class TestDifferentialEquations:
         found = wb.expr(r"dsolve(y'(x) = \frac{3x^2 + 4x + 2}{2(y(x) - 1)}, y(0) = -1)")
         assert found == sympy.Eq(y(x), 1 - sympy.sqrt(x**3 + 2 * x**2 + 2 * x + 4))
 
-    def test_a_name_without_its_variable_is_refused(self, wb):
+    def test_what_is_no_differential_equation_is_refused(self, wb):
         with pytest.raises(EvaluationError) as raised:
-            wb.exe(r"dsolve(\frac{dy}{dt} = r y, y(0) = y_0)")
+            wb.exe("dsolve(x^2 = 1)")
         assert raised.value.message == (
-            "0 = r y is no differential equation: it has no derivative of a function written "
+            "x² = 1 is no differential equation: it has no derivative of a function written "
             "with its variable"
         )
+
+    def test_the_unknown_named_without_its_variable(self, wb):
+        y = sympy.Function("y")
+        y_0 = sympy.Symbol("y_0")
+        found = wb.expr(r"dsolve(\frac{dy}{dt} = r y, y(0) = y_0)")
+        assert found == sympy.Eq(y(t), y_0 * sympy.exp(r * t))
+        (reading,) = wb.explain(r"dsolve(\frac{dy}{dt} = r y, y(0) = y_0)")
+        assert [d.text() for d in reading.decisions if d.kind == "function named alone"] == [
+            "function named alone: y is the unknown y(t), since dsolve solves for it, and it is "
+            "differentiated by t"
+        ]
+        assert wb.expr("y") == sympy.Symbol("y")  # a symbol again, after the dsolve
+
+    def test_a_primed_unknown_is_a_function_of_the_other_name(self, wb):
+        y = sympy.Function("y")
+        found = wb.expr("dsolve(t y' + 2y = 4t^2, y(1) = 2)")
+        assert sympy.simplify(found.rhs - (t**2 + 1 / t**2)) == 0
+        assert found.lhs == y(t)
 
     def test_a_condition_that_is_no_value_is_refused(self, wb):
         with pytest.raises(EvaluationError, match="and not a condition that SymPy reads as True"):
@@ -176,3 +194,10 @@ class TestBoundsDecideInequalities:
         listing = wb.ir("solve(x^2 = 1/4, x)\nx + 1")
         assert "assuming=" in listing.splitlines()[-3] or "assuming=" in listing
         assert "assuming" not in Workbook().ir("solve(x^2 = 1/4, x)")
+
+
+def test_an_unknown_beside_a_function_nothing_defines_is_not_read(wb):
+    """δ(t − 5) that nothing defines would leave the solution unknown too: the equation is
+    read as written, and refused."""
+    with pytest.raises(EvaluationError, match="is no differential equation"):
+        wb.exe(r"dsolve(2y'' + y' + 2y = \delta(t - 5), y(0) = 0, y'(0) = 0)")

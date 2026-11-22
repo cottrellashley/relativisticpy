@@ -28,6 +28,8 @@ astro.gravitation.geostationary-orbit
 astro.gravitation.jupiter-mass
 astro.gravitation.virial-ellipse
 astro.stars.eddington-luminosity
+astro.stars.hydrostatic-pressure
+astro.stars.lane-emden-n0
 astro.stars.lane-emden-n5-mass
 chem.huckel.butadiene
 chem.huckel.ethylene
@@ -68,6 +70,9 @@ data.portfolio.minimum-variance
 data.portfolio.tangency
 data.portfolio.variance
 de.bvp.green
+de.first-order.growth
+de.first-order.linear
+de.first-order.separable
 de.pde.dalembert
 de.pde.laplace-disk
 de.second-order.amplitude
@@ -136,6 +141,7 @@ fluid.ideal.torricelli
 fluid.ideal.venturi
 fluid.motion.stream-function
 fluid.sound.speed-in-air
+fluid.viscous.couette
 fluid.viscous.drag-coefficient
 fluid.viscous.flow-rate
 fluid.viscous.mean-speed

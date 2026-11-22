@@ -5,6 +5,7 @@ whether it keeps the rules.
 
 from __future__ import annotations
 
+import contextlib
 import re
 from collections.abc import Callable, Sequence
 from dataclasses import replace
@@ -67,6 +68,7 @@ from relativisticpy.reading.names import (
     _unprimed,
 )
 from relativisticpy.reading.reader import BookCall
+from relativisticpy.reading.unknowns import read_as_functions
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.typing.notation import _passed
 from relativisticpy.typing.syntax import (
@@ -534,7 +536,9 @@ class Expressions(LinearAlgebra):
         if builtin:
             why = f"{name} is a builtin function"
             self._decide(CALL, node.span, f"a call of the builtin {name}", why)
-            args = [self.value(a, scope, ctx) for a in node.args]
+            unknowns = read_as_functions(self, node.args, scope) if name == "dsolve" else None
+            with unknowns or contextlib.nullcontext():  # dsolve(dy/dt = r y): y is y(t)
+                args = [self.value(a, scope, ctx) for a in node.args]
             return self._builtin(BUILTINS[name], args, node.span)
         why = f"nothing defines {func.span.text}"
         self._decide(CALL, node.span, f"a call of the unknown function {func.span.text}", why)
