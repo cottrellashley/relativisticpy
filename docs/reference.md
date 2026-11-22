@@ -357,7 +357,7 @@ An optimum, `\min_{x} f(x)`, `\arg\max_{x, y} u \quad \text{subject to} \quad g 
 
 ### Book names not supported yet
 
-A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\operatorname{Var}(X)`, the variance of a random variable; `\epsilon_{ijk}`, the Levi-Civita symbol.
+A name books write for a function no integration provides is refused, saying what it is, never read as an unknown function or a symbol: `\operatorname{Res}_{z=a} f`, the residue of a function at a point; `\epsilon_{ijk}`, the Levi-Civita symbol.
 
 ## Data, statistics and linear algebra
 
@@ -406,6 +406,26 @@ Given a tensor, these functions are linear algebra. They are written `\operatorn
 | `sympy.Basic` `sympy.matrices.MatrixBase` `sympy.NDimArray` `anything with _sympy_` | a SymPy expression, or anything with _sympy_: an expression, its symbols the program's by name; a SymPy matrix is a matrix |
 | `xarray.DataArray` | a DataArray: data over its named dimensions, labelled by their coordinates |
 
+## Random variables
+
+`X \sim D` declares a random variable, `X, Y \overset{\text{iid}}{\sim} D` independent ones, `X_1, \ldots, X_n \overset{\text{iid}}{\sim} D` a sample, and `X \mid N \sim D` one given another. A distribution is written as books write it, or called by its name with its parameters as SymPy takes them:
+
+| Distribution | Meaning |
+|---|---|
+| `Normal(mu, sigma)` `\mathcal{N}(\mu, \sigma^2)` `N(\mu, \sigma^2)` | the normal distribution, of mean μ and standard deviation σ |
+| `Poisson(rate)` `\operatorname{Poisson}(\lambda)` `\operatorname{Pois}(\lambda)` | the Poisson distribution, of mean λ |
+| `Binomial(n, p)` `\operatorname{Bin}(n, p)` `\operatorname{Binom}(n, p)` | the binomial distribution, of the successes in n trials of probability p |
+| `Bernoulli(p)` `\operatorname{Bernoulli}(p)` `\operatorname{Ber}(p)` `\operatorname{Bern}(p)` | the Bernoulli distribution, 1 with probability p and 0 otherwise |
+| `Uniform(a, b)` `U(a, b)` `\mathcal{U}(a, b)` `\operatorname{Unif}(a, b)` | the uniform distribution on the interval from a to b |
+| `Exponential(rate)` `\operatorname{Exp}(\lambda)` | the exponential distribution, of rate λ and mean 1/λ |
+| `GammaDistribution(k, theta)` `\Gamma(k, \theta)` | the gamma distribution, of shape k and scale θ, and mean kθ |
+| `ChiSquared(k)` `\chi^2_k` `\chi_k^2` `\chi^2(k)` | the chi-squared distribution, of k degrees of freedom |
+| `StudentT(nu)` `t_\nu` `t(\nu)` | Student's t distribution, of ν degrees of freedom |
+| `BetaDistribution(alpha, beta)` `\operatorname{Beta}(\alpha, \beta)` | the beta distribution on the interval from 0 to 1, of shapes α and β |
+| `Geometric(p)` `\operatorname{Geom}(p)` | the geometric distribution, of the trials up to the first success, from 1 |
+
+`\Pr(X > 1)`, `\mathbb{P}(A)`, `P(X = 2)`, `\mathbb{E}[X]`, `\operatorname{Var}(X)` and `\operatorname{Cov}(X, Y)` are computed, with `\mid` the conditional bar; `f_X(x)`, `F_X(x)`, `F_X^{-1}(q)`, `M_X(t)` and `\varphi_X(t)` are X's density, distribution function, quantile and generating functions: exactly by SymPy, or by SciPy where SymPy finds no closed form in 5 s and there are no parameters. `\Pr(A) := 0.3` gives an event's probability, and a capital letter nothing defines is a random variable of any law.
+
 ## LaTeX
 
 Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and the `&` of alignments. Every statement inside a display is LaTeX, however it is written. An unknown command is an error that suggests the closest one.
@@ -417,7 +437,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\alpha \beta \chi \Delta \delta \epsilon \eta \Gamma \gamma \iota \kappa \Lambda \lambda \mu \nu \Omega \omega \omicron \Phi \phi \Pi \pi \Psi \psi \rho \Sigma \sigma \tau \Theta \theta \Upsilon \upsilon \Xi \xi \zeta` | Greek letters, each one symbol |
 | `\varDelta \varepsilon \varGamma \varkappa \varLambda \varOmega \varPhi \varphi \varPi \varPsi \varrho \varSigma \varsigma \varTheta \vartheta \varUpsilon \varXi` | variant letterforms: each the letter after `var` |
 | `\dagger \ell \hbar \infty \intercal \odot \oplus \star \top \varpi` | symbols; `\odot` is the Sun, as in `M_\odot`, and between tensors the elementwise product; `\oplus` between matrices is their direct sum, and `A^\top`, `A^\intercal` and `A^\dagger` of a matrix its transpose and its conjugate transpose |
-| `\arccos \arccot \arcsin \arctan \arg \cos \cosh \cot \coth \csc \csch \det \dim \exp \gcd \Im \ker \ln \log \max \min \Re \sec \sech \sgn \sin \sinh \tan \tanh` | functions, each calling the builtin of its name, except that `\arccos` calls `acos`, `\arccot` calls `acot`, `\arcsin` calls `asin`, `\arctan` calls `atan`, `\Im` calls `im`, `\ker` calls `null`, `\Re` calls `re`, `\sgn` calls `sign`; `\sin^{-1}` is the inverse, and only `\log` takes a subscript, its base |
+| `\arccos \arccot \arcsin \arctan \arg \cos \cosh \cot \coth \csc \csch \det \dim \exp \gcd \Im \ker \ln \log \max \min \Pr \Re \sec \sech \sgn \sin \sinh \tan \tanh` | functions, each calling the builtin of its name, except that `\arccos` calls `acos`, `\arccot` calls `acot`, `\arcsin` calls `asin`, `\arctan` calls `atan`, `\Im` calls `im`, `\ker` calls `null`, `\Re` calls `re`, `\sgn` calls `sign`; `\sin^{-1}` is the inverse, and only `\log` takes a subscript, its base; `\Pr` is a probability |
 | `\bar \breve \check \ddot \dot \hat \overline \tilde \vec \widehat \widetilde` | accents: `\dot{a}` and `\ddot{a}` are time derivatives of a function of one variable; the others name a new symbol |
 | `\ast \cdot \otimes \times` | multiplication, `*`; between tensors, their product, and `\otimes` between matrices their Kronecker product |
 | `\div` | division, `/` |
@@ -459,6 +479,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\begin \end` | an environment, `\begin{pmatrix} ... \end{pmatrix}` |
 | `\bgroup \egroup` | plain TeX's braces |
 | `\cr` | ends a row of plain TeX's `\matrix` and `\cases` |
+| `\overset \stackrel` | a label over a relation: `X_1, \ldots, X_n \overset{\text{iid}}{\sim} \mathcal{N}(0, 1)` declares independent random variables |
 | `\mathbb` | blackboard bold: `\mathbb{R}^{n}` and `\mathbb{C}^{n}` are spaces, `\mathbb{E}_t` an expectation and `\mathbb{1}_a` the covector of ones |
 
 ### Environments

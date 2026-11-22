@@ -362,6 +362,8 @@ on_change(_forget)
 def _parsed() -> Iterator[Pattern]:
     found = catalogue()
     for capability in found.capabilities:
+        if capability.kind == "distribution":
+            continue  # read after \sim alone, so that \Gamma(a, x) stays a function
         for form, written in (("latex", capability.latex), ("unicode", capability.unicode)):
             for each in written:
                 pattern = parse_form(capability, each, form)  # type: ignore[arg-type]

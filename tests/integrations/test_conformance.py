@@ -92,10 +92,20 @@ def test_optimality(capability):
     passes(capability, "optimality")
 
 
+@pytest.mark.parametrize("capability", applicable("density"))
+def test_density(capability):
+    passes(capability, "density")
+
+
+@pytest.mark.parametrize("capability", applicable("moments"))
+def test_moments(capability):
+    passes(capability, "moments")
+
+
 def test_every_check_is_run_for_some_capability():
     assert {check.name for check in integrations.CHECKS} == {
         "declaration", "examples", "agreement", "lifting", "errors", "display", "reference",
-        "transform", "rewrite", "feasibility", "optimality",
+        "transform", "rewrite", "feasibility", "optimality", "density", "moments",
     }  # fmt: skip
     for check in integrations.CHECKS:
         assert applicable(check.name), f"no capability is checked for {check.name}"

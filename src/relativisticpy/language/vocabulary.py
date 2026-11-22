@@ -68,7 +68,7 @@ FUNCTION_COMMANDS: Mapping[str, str] = MappingProxyType(
         "sech": "sech", "csch": "csch",
         "exp": "exp", "ln": "ln", "log": "log",
         "det": "det", "min": "min", "max": "max", "gcd": "gcd", "arg": "arg",
-        "Re": "re", "Im": "im", "sgn": "sign", "ker": "null", "dim": "dim",
+        "Re": "re", "Im": "im", "sgn": "sign", "ker": "null", "dim": "dim", "Pr": "Pr",
     }
 )  # fmt: skip
 
@@ -421,10 +421,12 @@ PARSER_COMMANDS: frozenset[str] = frozenset(
     }
 )  # fmt: skip
 
-#: Commands the lexer reads itself: brackets, environments, plain TeX's groups and rows.
+#: Commands the lexer reads itself: brackets, environments, plain TeX's groups and rows, and
+#: a label set over a relation, as iid is in ``\overset{\text{iid}}{\sim}``.
 STRUCTURE_COMMANDS: frozenset[str] = frozenset(
-    {"left", "middle", "right", "begin", "end", "bgroup", "egroup", "cr", "mathbb"}
-)
+    {"left", "middle", "right", "begin", "end", "bgroup", "egroup", "cr", "mathbb", "overset",
+     "stackrel"}
+)  # fmt: skip
 
 #: Every command RelativisticPy reads, which is where "did you mean" looks.
 COMMANDS: frozenset[str] = frozenset().union(

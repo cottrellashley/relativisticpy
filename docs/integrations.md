@@ -26,6 +26,7 @@ how the language treats it:
 | `transform` | a function of a variable in, a function of another out; or data over an index in, data over a new space out | `LaplaceTransform`, `FourierTransform`, `fft` |
 | `rewrite` | a faster computation of what a program writes, to the same numbers | the DFT written as its sum, computed by `fft` |
 | `optimizer` | a problem of optimisation in, its optimum out, with how it was found and whether it is global | SymPy's stationary points and simplex method, SciPy's `linprog` and `minimize` |
+| `distribution` | the law of a random variable, written after `\sim` | `\mathcal{N}(\mu, \sigma^2)`, `\operatorname{Poisson}(\lambda)`, `\chi^2_k` |
 | `python_object` | what a Python object read by name, `\texttt{prices}`, becomes | NumPy arrays, pandas tables, SymPy expressions, functions |
 
 The decorator takes, by name:
@@ -107,6 +108,53 @@ optimizers are asked in turn as it runs, the exact ones first. SymPy's are in
 ...         return Found(problem.at((point,)), (point,), "at -b/2a", proven=bool(a > 0))
 >>> integrations.check(Vertex, ["feasibility", "optimality"])
 {'feasibility': [], 'optimality': []}
+
+```
+
+A `distribution` is the law a random variable is declared with, `X \sim
+\mathcal{N}(\mu, \sigma^2)` (see [the language](language.md#random-variables)). Its `exact`
+gives SymPy's law of its parameters, and its `numeric` SciPy's frozen law; its class has
+`mean` and `variance` methods, the closed forms of its moments, whose source it declares as
+`moments`, and may have `mgf(t, ...)`, its moment-generating function, where SymPy's law has
+none. Its forms are read after `\sim` alone, so that `\Gamma(k, \theta)` never takes the
+place of a function written `\Gamma(a, x)`, and their variables are its parameters in order:
+`\sigma^2` in `\mathcal{N}(\mu, \sigma^2)` says that the second argument is the square of
+the second parameter. The distributions are in `integrations/sympy_stats.py`:
+
+```python
+>>> from relativisticpy.integrations import distribution
+>>> @distribution(
+...     "Laplace",
+...     latex=r"\operatorname{Laplace}(\mu, b)",
+...     summary="the Laplace distribution, of mean μ and scale b",
+...     requires="scipy",
+...     moments="Johnson, Kotz and Balakrishnan (1995), chapter 24",
+...     examples=[
+...         Example("X \\sim \\operatorname{Laplace}(0, 1)\n\\operatorname{Var}(X)", 2,
+...                 "scipy.stats.laplace.var()"),
+...         Example("X \\sim \\operatorname{Laplace}(0, 1)\n\\Pr(X > 1)", 0.18393972058572117,
+...                 "scipy.stats.laplace.sf(1)"),
+...     ],
+...     points=[(0, 1), (1, 2)],
+... )
+... class Laplace:
+...     def exact(self, mu, b):
+...         from sympy.stats.crv_types import LaplaceDistribution
+...
+...         return LaplaceDistribution(mu, b)
+...
+...     def numeric(self, xp, mu, b):
+...         from scipy.stats import laplace
+...
+...         return laplace(mu, b)
+...
+...     def mean(self, mu, b):
+...         return mu
+...
+...     def variance(self, mu, b):
+...         return 2 * b**2
+>>> integrations.check(Laplace, ["examples", "agreement", "density", "moments"])
+{'examples': [], 'agreement': [], 'density': [], 'moments': []}
 
 ```
 
@@ -201,8 +249,8 @@ declarations.
 
 ## The conformance suite
 
-`tests/integrations` runs eleven checks for every capability the scan finds, each where it
-applies to its kind. A failure names the capability and says what to do:
+`tests/integrations` runs thirteen checks for every capability the scan finds, each where
+it applies to its kind. A failure names the capability and says what to do:
 
 1. **Declaration.** Its names are its own, and the language reads each as one name; it
    has a summary, at least two examples, each with its source, and declares the library
@@ -213,7 +261,8 @@ applies to its kind. A failure names the capability and says what to do:
    points at once, and JAX agrees with NumPy where it is installed; of a function of a
    matrix, entry by entry, at each matrix; of an optimizer, at each problem it declares,
    the optimizers of the other kind, exact or numeric, that take it find the same value,
-   and none a better one than an optimum proven global.
+   and none a better one than an optimum proven global; of a distribution, its density and
+   distribution function, as the language computes them exactly, agree with SciPy's.
 4. **Lifting.** A function applied to a tensor, or to data, gives its value at each
    component, over the same space; a function of a matrix, applied to a map, gives its
    value at the map's matrix, a number or a map over the same space.
@@ -235,6 +284,10 @@ applies to its kind. A failure names the capability and says what to do:
     the KKT conditions, the gradient of the objective a combination of the gradients of the
     constraints that hold there with equality, with multipliers of the right signs; over
     finitely many points, no feasible point is better.
+12. **Density.** At each of its points, a distribution's density integrates, or sums, to 1,
+    by SymPy, or by SciPy where SymPy cannot in time.
+13. **Moments.** There, its mean and variance, as SymPy and SciPy compute them, are those
+    it declares.
 
 A capability that breaks the pattern is told, for instance:
 

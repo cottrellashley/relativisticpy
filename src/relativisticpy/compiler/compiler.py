@@ -28,7 +28,7 @@ from relativisticpy.compiler.session import Saved
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
-from relativisticpy.lowering.sequences import Sequences
+from relativisticpy.lowering.probability import Probability
 from relativisticpy.reading import assumptions
 
 # The tables of the language, which its reference reads from here.
@@ -59,7 +59,7 @@ _READ_AS = {
 }
 
 
-class Compiler(Sequences):
+class Compiler(Probability):
     """Compiles programs against a :class:`Session`, which it updates as it goes."""
 
     # ======================================================================
@@ -151,6 +151,8 @@ class Compiler(Sequences):
         self, statement: ast.Statement, scope: Scope, outer: Context | None
     ) -> list[Output]:
         ctx = Context(latex=statement.latex, calls=outer.calls if outer else ())
+        if self._declares_random(statement, scope, ctx):  # X \sim \mathcal{N}(0, 1), \Pr(A) := 0.3
+            return []
         if isinstance(statement, ast.FunctionDefinition):
             why = "it is written with :="
             written = f"{statement.name}({', '.join(statement.params)}) := ..."

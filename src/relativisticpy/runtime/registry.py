@@ -13,7 +13,8 @@ The names are of two kinds:
 - what the compiler emits for notation is registered in a namespace: ``core.sum`` for
   :math:`\\sum`, ``core.subs`` for an evaluation bar, ``core.diff`` for a derivative,
   ``linalg.solve`` for an inverse times a vector, ``stats.ledoit_wolf``, ``optimum.find``
-  for an optimum, and ``notation.solve`` for the algebra of index notation.
+  for an optimum, ``prob.expectation`` for an expectation of random variables, and
+  ``notation.solve`` for the algebra of index notation.
 
 The builtins are the capabilities the integrations declare
 (:mod:`relativisticpy.integrations`), registered under each of their names; what the
@@ -30,6 +31,7 @@ from typing import Any, Literal
 
 from relativisticpy import assumptions, integrations, spacetimes
 from relativisticpy.diffgeom import geodesic_equations
+from relativisticpy.integrations import _distributions as distributions
 from relativisticpy.integrations import _objects as objects
 from relativisticpy.integrations import _optimizers as optima
 from relativisticpy.runtime import arithmetic, core, notation, quantum, recurrences, sequences
@@ -269,6 +271,19 @@ def _core() -> Iterator[Implementation]:
     yield entry("seq.recurrence", sequences.member, "argument", 3, 3)
     yield entry("seq.solve", sequences.solved, "value", 2, 2)
     yield entry("seq.transform", sequences.transformed, "scalar", 2, 2)
+    # random variables: one of a law, or of laws given others, and what is computed of them
+    yield entry("prob.variable", distributions.variable, "scalar", 2)
+    yield entry("prob.sample", distributions.sample, "value", 3, 3)
+    yield entry("prob.member", distributions.member, "scalar", 2, 2)
+    yield entry("prob.probability", distributions.probability, "scalar", 1)
+    yield entry("prob.expectation", distributions.expectation, "scalar", 1)
+    yield entry("prob.variance", distributions.variance, "scalar", 1)
+    yield entry("prob.covariance", distributions.covariance, "scalar", 2)
+    yield entry("prob.density", distributions.density, "scalar", 2, 2)
+    yield entry("prob.cdf", distributions.cdf, "scalar", 2, 2)
+    yield entry("prob.quantile", distributions.quantile, "scalar", 2, 2)
+    yield entry("prob.mgf", distributions.generating, "scalar", 2, 2)
+    yield entry("prob.cf", distributions.characteristic, "scalar", 2, 2)
 
 
 # -- the algebra of index notation ----------------------------------------------------------

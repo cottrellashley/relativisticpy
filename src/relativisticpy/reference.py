@@ -108,6 +108,9 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
     (("begin", "end"), r"an environment, `\begin{pmatrix} ... \end{pmatrix}`"),
     (("bgroup", "egroup"), "plain TeX's braces"),
     (("cr",), r"ends a row of plain TeX's `\matrix` and `\cases`"),
+    (("overset", "stackrel"),
+     r"a label over a relation: `X_1, \ldots, X_n \overset{\text{iid}}{\sim} \mathcal{N}(0, 1)` "
+     "declares independent random variables"),
     (("mathbb",),
      r"blackboard bold: `\mathbb{R}^{n}` and `\mathbb{C}^{n}` are spaces, `\mathbb{E}_t` "
      r"an expectation and `\mathbb{1}_a` the covector of ones"),
@@ -513,8 +516,8 @@ def _functions() -> list[str]:
         if isinstance(capability, integrations.Rewrite):
             rewrites.append(capability)
             continue
-        if isinstance(capability, integrations.Optimizer):
-            continue  # consulted in turn, never called: see _optimizers
+        if isinstance(capability, integrations.Optimizer | integrations.Distribution):
+            continue  # consulted in turn, or written after \sim: see their own sections
         modules.setdefault(capability.module, []).append(capability)
     for module, declared in modules.items():
         rows = [
@@ -640,6 +643,38 @@ def _data() -> list[str]:
     return lines
 
 
+def _random_variables() -> list[str]:
+    """Random variables: how they are declared, the distributions, and what is computed of
+    them."""
+    from relativisticpy.integrations._distributions import distributions
+
+    lines = [
+        "## Random variables",
+        "",
+        r"`X \sim D` declares a random variable, `X, Y \overset{\text{iid}}{\sim} D` "
+        r"independent ones, `X_1, \ldots, X_n \overset{\text{iid}}{\sim} D` a sample, and "
+        r"`X \mid N \sim D` one given another. A distribution is written as books write it, "
+        "or called by its name with its parameters as SymPy takes them:",
+        "",
+    ]
+    rows = [
+        (" ".join(_code(form) for form in (each.text(), *each.latex)), each.summary)
+        for each in distributions()
+    ]
+    lines += _table(("Distribution", "Meaning"), rows)
+    lines += [
+        "",
+        r"`\Pr(X > 1)`, `\mathbb{P}(A)`, `P(X = 2)`, `\mathbb{E}[X]`, `\operatorname{Var}(X)` "
+        r"and `\operatorname{Cov}(X, Y)` are computed, with `\mid` the conditional bar; "
+        r"`f_X(x)`, `F_X(x)`, `F_X^{-1}(q)`, `M_X(t)` and `\varphi_X(t)` are X's density, "
+        "distribution function, quantile and generating functions: exactly by SymPy, or by SciPy "
+        r"where SymPy finds no closed form in 5 s and there are no parameters. `\Pr(A) := 0.3` "
+        "gives an event's probability, and a capital letter nothing defines is a random variable "
+        "of any law.",
+    ]
+    return lines
+
+
 def _latex() -> list[str]:
     operators: dict[str, list[str]] = {}
     for name, kind in vocab.OPERATOR_COMMANDS.items():
@@ -665,7 +700,7 @@ def _latex() -> list[str]:
          "transpose"),
         (_commands(vocab.FUNCTION_COMMANDS), "functions, each calling the builtin of its name, "
          f"except that {renamed}; `\\sin^{{-1}}` is the inverse, and only `\\log` takes a "
-         "subscript, its base"),
+         "subscript, its base; `\\Pr` is a probability"),
         (_commands(vocab.ACCENT_COMMANDS), r"accents: `\dot{a}` and `\ddot{a}` are time "
          "derivatives of a function of one variable; the others name a new symbol"),
     ]  # fmt: skip
@@ -846,6 +881,7 @@ _SECTIONS: tuple[Callable[[], list[str]], ...] = (
     _spacetimes,
     _functions,
     _data,
+    _random_variables,
     _latex,
     _environments,
     _unsupported,

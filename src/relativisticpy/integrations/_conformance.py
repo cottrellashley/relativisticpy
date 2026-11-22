@@ -1,15 +1,16 @@
 r"""The conformance suite: what every capability must do, checked, and said in words that
 say what to fix.
 
-There are eleven checks, each a function that takes a capability and gives its failures,
-none where it passes:
+There are thirteen checks, each a function that takes a capability and gives its
+failures, none where it passes:
 
 1. **declaration**: names that are the capability's alone, a summary, two examples with
    their sources, the library it needs declared, and written forms that read as it;
 2. **examples**: each example runs in the language and gives its known answer;
 3. **agreement**: the exact and numeric implementations agree at points, with NumPy and
    with JAX; of an optimizer, the optimizers of the other kind, exact or numeric, find the
-   same optimum of the problems it is checked at;
+   same optimum of the problems it is checked at; of a distribution, SymPy's density and
+   distribution function are SciPy's;
 4. **lifting**: applied to a tensor, or to data, it gives its results component by
    component, over the same spaces;
 5. **errors**: the wrong number of arguments, the wrong kind of argument and a library
@@ -22,7 +23,10 @@ none where it passes:
 9. **rewrite**: a rewrite gives the numbers of what it rewrites, computed as written;
 10. **feasibility**: the optimum an optimizer reports keeps every constraint of its problem;
 11. **optimality**: the conditions of optimality hold at it, stationarity or the KKT
-    conditions, or, over finitely many points, no other point is better.
+    conditions, or, over finitely many points, no other point is better;
+12. **density**: a distribution's density integrates, or sums, to 1;
+13. **moments**: a distribution's mean and variance, by SymPy and by SciPy, are those it
+    declares.
 
 ``tests/integrations`` runs them for every capability the integrations declare;
 :func:`check` runs them for one, as an agent checks a capability it writes before it
@@ -45,7 +49,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.errors import InternalError, RelativisticPyError
-from relativisticpy.integrations import _objects, _optimizers, _transforms
+from relativisticpy.integrations import _distributions, _objects, _optimizers, _transforms
 from relativisticpy.integrations._declarations import Capability, Example, Function, MapFunction
 from relativisticpy.integrations._discovery import (
     Exactly,
@@ -239,6 +243,9 @@ def _written(capability: Capability) -> list[str]:
             return _transforms.sum_failures(capability)
     if isinstance(capability, _optimizers.Optimizer):
         return []  # never called: an optimum, as books write it, is found by the optimizers
+    if isinstance(capability, _distributions.Distribution):  # written after \sim
+        with usable(capability):
+            return _distributions.form_failures(capability)
     text = capability.text().replace(", ...)", ")")
     try:
         expr = _expression(parse(text).statements)
@@ -360,6 +367,8 @@ def agreement(capability: Capability) -> list[str]:
         return _map_agreement(capability)
     if isinstance(capability, _optimizers.Optimizer):
         return _optimizers.agreement(capability)
+    if isinstance(capability, _distributions.Distribution):
+        return _distributions.agreement(capability)
     name, failures = capability.name, []
     points = _points(capability)
     computed = []
@@ -870,7 +879,7 @@ CHECKS: tuple[Check, ...] = (
     Check("examples", "each example gives its known answer", lambda capability: True, examples),
     Check("agreement", "exact and numeric agree at points",
           lambda capability: (_computed(capability) and capability.numeric is not None)
-          or isinstance(capability, _optimizers.Optimizer),
+          or isinstance(capability, _optimizers.Optimizer | _distributions.Distribution),
           agreement),
     Check("lifting", "applied to a tensor or data, component by component, or to a map",
           lambda capability: _computed(capability) and capability.lifts, lifting),
@@ -891,6 +900,12 @@ CHECKS: tuple[Check, ...] = (
     Check("optimality", "stationarity or the KKT conditions hold at its optimum",
           lambda capability: isinstance(capability, _optimizers.Optimizer),
           _optimizers.optimality),
+    Check("density", "the density integrates, or sums, to 1",
+          lambda capability: isinstance(capability, _distributions.Distribution),
+          _distributions.density_checks),
+    Check("moments", "the mean and variance are those declared, by SymPy and by SciPy",
+          lambda capability: isinstance(capability, _distributions.Distribution),
+          _distributions.moment_checks),
 )  # fmt: skip
 
 

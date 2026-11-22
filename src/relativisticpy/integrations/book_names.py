@@ -75,13 +75,6 @@ rank = reserved(
     written=[r"\operatorname{rank} A", r"\operatorname{rank}(A)"],
 )
 
-variance = reserved(
-    "Var",
-    what="the variance of a random variable",
-    written=[r"\operatorname{Var}(X)", r"\operatorname{Var}[X]"],
-    instead=r"for the variance of data over an index, write \operatorname{Var}_t(x_t)",
-)
-
 levi_civita = reserved(
     "LeviCivita",
     what="the Levi-Civita symbol",

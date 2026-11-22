@@ -188,7 +188,6 @@ class TestReservations:
         ("source", "said"),
         [
             (r"\operatorname{Res}_{z=0} f(z)", "the residue of a function at a point"),
-            (r"\operatorname{Var}(X)", "the variance of a random variable"),
             (r"\epsilon_{ijk}", r"\epsilon_{ijk}, the Levi-Civita symbol, is not supported yet"),
         ],
     )

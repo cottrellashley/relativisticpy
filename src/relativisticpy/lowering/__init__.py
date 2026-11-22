@@ -20,5 +20,7 @@ lowering one kind of thing and using those below it:
 - :mod:`~relativisticpy.lowering.arithmetic`: number theory, the letters of arithmetic
   functions, sums over a condition, congruences and the coefficients of a series;
 - :mod:`~relativisticpy.lowering.sequences`: sequences written with square brackets, the
-  impulse and the step, difference equations, and their transforms.
+  impulse and the step, difference equations, and their transforms;
+- :mod:`~relativisticpy.lowering.probability`: random variables, declared by their
+  distributions, and their probabilities, expectations, variances and densities.
 """

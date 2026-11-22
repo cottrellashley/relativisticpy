@@ -19,6 +19,8 @@ The kinds are:
   transform written as its sum, computed as an FFT;
 - :func:`optimizer`: what finds the optimum of a problem, as SymPy's stationary points or
   SciPy's linear programming, which ``\min_x f(x)`` and ``\arg\max_w`` consult in turn;
+- :func:`distribution`: the law of a random variable, written after ``\sim``, as
+  ``X \sim \mathcal{N}(0, 1)``;
 - :func:`python_object`: what a Python object becomes when a program reads it by name, as
   ``\texttt{prices}`` reads a DataFrame as labelled data.
 
@@ -60,6 +62,7 @@ from relativisticpy.integrations._discovery import (
     on_change,
     reservations,
 )
+from relativisticpy.integrations._distributions import Distribution, distribution
 from relativisticpy.integrations._objects import (
     Array,
     Data,
@@ -80,6 +83,7 @@ __all__ = [
     "Check",
     "Constructor",
     "Data",
+    "Distribution",
     "Exactly",
     "Example",
     "Found",
@@ -101,6 +105,7 @@ __all__ = [
     "check",
     "constructor",
     "conversions",
+    "distribution",
     "find",
     "function",
     "installed",

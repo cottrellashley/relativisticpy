@@ -762,6 +762,8 @@ class Parser:
                 return Power.NONE  # it closes the absolute value
             if self.peek(1).kind is K.UNDERSCORE:
                 return Power.SUBSTITUTION
+            if _given_bar(token):  # \Pr(A \mid B), X \mid N \sim \operatorname{Bin}(N, p)
+                return Power.EQUATION
             return Power.PRODUCT  # 2|x|
         if kind in _RELATIONS and not (kind is K.COLON and self._in_script):
             return Power.EQUATION
@@ -804,7 +806,7 @@ class Parser:
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
         self._continue_after(self.advance())
-        if kind in _RELATIONS or kind is K.DEFINE:
+        if kind in _RELATIONS or kind is K.DEFINE or _given_bar(token):
             return self._relations(left, token)
         if kind in _COMPARISONS:
             operands, ops = [left], [_COMPARISONS[kind]]
@@ -900,13 +902,15 @@ class Parser:
         operands, relations, written = [left], [_relation(first)], [first.span.text]
         while True:
             operands.append(self.expression(Power.EQUATION))
-            if self.peek().kind not in _RELATIONS:
+            if self.peek().kind not in _RELATIONS and not _given_bar(self.peek()):
                 break
             relation = self.advance()
             relations.append(_relation(relation))
             written.append(relation.span.text)
             self._continue_after(relation)
         span = left.span.to(operands[-1].span)
+        if "∣" in relations:  # \Pr(X = 2 \mid N = 3), X \mid Y = 0 \sim \mathcal{N}(0, 1)
+            return _given(operands, relations, written)
         if len(relations) > 1:
             return ast.Chain(tuple(operands), tuple(relations), tuple(written), span=span)
         if relations[0] == "=":
@@ -3483,17 +3487,27 @@ def _memberships(targets: list[ast.Expr], joined: list[bool]) -> list[ast.Expr]:
     """``a, b \\in \\mathcal{A}``: names listed with commas before a membership are
     members too, so the list is one statement, ``(a, b) \\in \\mathcal{A}``, not ``a``
     and ``b \\in ...``; and so are names listed before a comparison, as in ``a, b > 0``,
-    which is ``(a, b) > 0``. Prose, as in ``\\text{where} \\quad x, y \\in X``, is not."""
+    which is ``(a, b) > 0``, and before ``\\sim``, with an ellipsis among them, as in
+    ``X_1, \\ldots, X_n \\sim D``. Prose, as in ``\\text{where} \\quad x, y \\in X``, is not."""
     grouped: list[ast.Expr] = []
     names: list[ast.Expr] = []
     for target, link in zip(targets, joined, strict=True):
         if names and not link:
             grouped.extend(names)
             names = []
-        if _member(target):
+        if _member(target) or (isinstance(target, ast.Dots) and names):
             names.append(target)
             continue
-        if isinstance(target, ast.Relation) and target.op == "∈" and names and _member(target.lhs):
+        dotted = any(isinstance(name, ast.Dots) for name in names)
+        if isinstance(target, ast.Relation) and target.op == "~" and names and _member(target.lhs):
+            members = ast.Tuple((*names, target.lhs), span=names[0].span.to(target.lhs.span))
+            span = names[0].span.to(target.span)
+            target = ast.Relation(members, "~", target.rhs, target.written, span=span)
+        elif dotted:
+            grouped.extend(names)
+        elif (
+            isinstance(target, ast.Relation) and target.op == "∈" and names and _member(target.lhs)
+        ):
             members = ast.Tuple((*names, target.lhs), span=names[0].span.to(target.lhs.span))
             target = ast.Relation(members, "∈", target.rhs, span=names[0].span.to(target.span))
         elif isinstance(target, ast.Comparison) and names and _member(target.operands[0]):
@@ -3539,7 +3553,10 @@ def _is_numeral(node: ast.Expr) -> bool:
 
 
 def _relation(token: Token) -> str:
-    """The symbol of a relation token: ``=``, ``→``, ``≡``, or the relation's own symbol."""
+    """The symbol of a relation token: ``=``, ``→``, ``≡``, ``∣`` of the conditional bar, or
+    the relation's own symbol."""
+    if _given_bar(token):
+        return "∣"
     if token.kind is K.EQUAL:
         return "="
     if token.kind is K.DEFINE:
@@ -3549,6 +3566,39 @@ def _relation(token: Token) -> str:
     if token.kind is K.COLON:
         return ":"
     return token.value
+
+
+def _given(operands: list[ast.Expr], relations: list[str], written: list[str]) -> ast.Expr:
+    r"""Relations in a row with the conditional bar among them, as one relation: what is
+    conditioned, the bar and what it is given, each side one expression, as
+    ``X = 2 \mid N = 3``; before ``\sim``, a law given another, ``(X \mid Y = 0) \sim D``."""
+    span = operands[0].span.to(operands[-1].span)
+    at = relations.index("∣")
+    if relations[-1] == "~" and at < len(relations) - 1:
+        law = _given(operands[:-1], relations[:-1], written[:-1])
+        return ast.Relation(law, "~", operands[-1], written[-1], span=span)
+    before = _linked(operands[: at + 1], relations[:at], written[:at])
+    after = _linked(operands[at + 1 :], relations[at + 1 :], written[at + 1 :])
+    return ast.Relation(before, "∣", after, written[at], span=span)
+
+
+def _linked(operands: list[ast.Expr], relations: list[str], written: list[str]) -> ast.Expr:
+    """Operands and the relations between them as one expression: an operand alone, an
+    equation, a relation, or a chain."""
+    if not relations:
+        return operands[0]
+    span = operands[0].span.to(operands[-1].span)
+    if len(relations) == 1 and relations[0] == "=":
+        return ast.Equation(operands[0], operands[1], span=span)
+    if len(relations) == 1:
+        return ast.Relation(operands[0], relations[0], operands[1], written[0], span=span)
+    return ast.Chain(tuple(operands), tuple(relations), tuple(written), span=span)
+
+
+def _given_bar(token: Token) -> bool:
+    r"""Whether a bar is the conditional bar, ``\mid``, outside an absolute value and the
+    brackets of Dirac's notation, where a bar is theirs: ``\Pr(A \mid B)``."""
+    return token.kind is K.BAR and token.span.text.strip() == "\\mid"
 
 
 # The name of a macro, at the start of a call of it as written: \Gam in \Gam^t_{tr}.

@@ -35,7 +35,8 @@ of the conformance suite.
 | transform | acts on a function of a variable | Fourier, Laplace, Hilbert |
 | solver | equations in, solutions out | `solve`, `dsolve`, ODE integration, roots |
 | optimizer | a problem of optimisation in, its optimum out, with how it was found and whether it is global | SymPy's stationary points, KKT conditions and simplex method; SciPy's `linprog`, `milp` and `minimize` |
-| constructor | builds an object the language works with | spacetimes, distributions, spaces |
+| constructor | builds an object the language works with | spacetimes, spaces |
+| distribution | the law of a random variable, written after `\sim`, with its mean and variance declared | `\mathcal{N}(\mu, \sigma^2)`, `\operatorname{Poisson}(\lambda)`, `t_\nu`, from SymPy's sympy.stats and SciPy's scipy.stats |
 | backend | an array library | NumPy, JAX, CuPy, PyTorch, Dask, through the Python array API standard |
 | object | what a Python object, read by name, becomes | NumPy, JAX, CuPy and PyTorch arrays; pandas, polars and Arrow tables; xarray with its named dimensions; SciPy sparse matrices; SymPy expressions; Python functions |
 | rewrite | a faster way to compute what is written | the Fourier transform written as its sum, computed as an FFT; an inverse times a vector, computed as a solve |

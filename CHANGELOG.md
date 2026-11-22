@@ -290,6 +290,29 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   coefficients is over every integer, as Concrete Mathematics writes it, and a sum of
   finitely many terms holds no conditions of convergence, so that the binomial theorem
   and Vandermonde's convolution hold (38).
+- Random variables, declared as books declare them: `X \sim \mathcal{N}(\mu, \sigma^2)`,
+  `N \sim \operatorname{Poisson}(\lambda)`, `X \sim \operatorname{Bin}(n, p)`, `U(a, b)`,
+  `\operatorname{Exp}(\lambda)`, `\Gamma(k, \theta)`, `\chi^2_k`, `t_\nu` and the Bernoulli,
+  beta and geometric distributions, each a capability of a new kind, `distribution`, in
+  `integrations/sympy_stats.py`, whose forms say what each argument is: `\mathcal{N}(\mu,
+  \sigma^2)` takes the variance, and the note of a declaration gives the value of each.
+  `X, Y \overset{\text{iid}}{\sim} D` declares independent ones, `X_1, \ldots, X_n
+  \overset{\text{iid}}{\sim} D` a sample whose members a sum takes in turn, and
+  `X \mid N \sim \operatorname{Bin}(N, p)` or `X \mid Y = 0 \sim D` a law given another.
+  `\Pr(X > 1)`, `P(X = 2)`, `\mathbb{P}(A)`, `\mathbb{E}[X]`, `\operatorname{Var}(X)` and
+  `\operatorname{Cov}(X, Y)`, with `\mid` the conditional bar inside them, and `f_X(x)`,
+  `F_X(x)`, `F_X^{-1}(q)`, `M_X(t)` and `\varphi_X(t)`, are computed exactly by SymPy, by
+  the laws of total expectation and probability where a law is given another, and from
+  each distribution's declared mean and variance; numerically by SciPy, with a note, where
+  SymPy finds no closed form in time and there are no parameters. A probability of one
+  variable is found from its distribution function over the values the event holds at, as
+  SymPy's own is 0 for P(T ≤ a); where a parameter the program says nothing of could fall
+  outside the values the variable takes, it is taken inside them, as books do, and said so.
+  `\Pr(A \mid B) := 0.9` gives an event's probability, and a capital letter nothing
+  defines, inside an expectation or a variance, is a random variable of any law, so that
+  `\operatorname{Var}(aX + b) = a^2 \operatorname{Var}(X)` holds. The conformance suite
+  checks that a distribution's density integrates to 1 and that its mean and variance are
+  those it declares, by SymPy and by SciPy (`design/notation.md`, 14).
 
 ### Changed
 

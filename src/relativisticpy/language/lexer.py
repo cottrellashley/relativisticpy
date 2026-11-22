@@ -679,6 +679,8 @@ class Lexer:
             self._emit(TokenKind.ELLIPSIS, TokenKind.ELLIPSIS.value, start, self.pos)
         elif (relation := vocab.RELATION_COMMANDS.get(name)) is not None:
             self._emit(TokenKind.RELATION, relation, start, self.pos)
+        elif name in ("overset", "stackrel"):
+            self._labelled_relation(name, start)
         elif name in vocab.CONNECTIVE_COMMANDS:
             self._emit(TokenKind.SEMICOLON, ";", start, self.pos)
         elif name in vocab.LAYOUT_COMMANDS:
@@ -700,6 +702,25 @@ class Lexer:
             self._emit(TokenKind.IDENT, symbol, start, self.pos, verbatim=True)
         else:
             self._emit(TokenKind.COMMAND, name, start, self.pos)
+
+    def _labelled_relation(self, name: str, start: int) -> None:
+        r"""``\overset{\text{iid}}{\sim}``: a relation with a label set over it, one token of
+        the relation, written with its label, as iid says that random variables are
+        independent and identically distributed. Over anything else it is refused."""
+        self._read_group(start, name, r"\text{iid}")
+        base = self._read_group(start, name, r"\sim").strip()
+        command = base[1:] if base.startswith("\\") else ""
+        if (relation := vocab.RELATION_COMMANDS.get(command)) is not None:
+            self._emit(TokenKind.RELATION, relation, start, self.pos)
+        elif base == "=":
+            self._emit(TokenKind.EQUAL, "=", start, self.pos)
+        else:
+            raise self._error(
+                f"\\{name} sets a label over a relation, as in \\{name}{{\\text{{iid}}}}{{\\sim}}, "
+                f"and {base} is no relation RelativisticPy reads",
+                start,
+                self.pos,
+            )
 
     def _read_group(self, start: int, name: str, example: str = "...") -> str:
         """Read a balanced ``{...}`` argument and return its raw contents."""
