@@ -182,6 +182,9 @@ def test_two_numbers_are_never_left_unevaluated():
         "diff('__import__(\"os\").getcwd()', x)",
         "simplify('__import__(\"os\").getcwd()')",
         "x := '__import__(\"os\").getcwd()'\nsin(x)",
+        # what the compiler computes while it reads, the size of a space, a factor
+        "\\mathcal{A} := \\mathbb{R}^{'__import__(\"os\").getcwd()'}",
+        "G_{\\mu\\nu} = '__import__(\"os\").getcwd()' T_{\\mu\\nu}",
     ],
 )
 def test_text_in_quotes_runs_nothing(program, monkeypatch):
