@@ -253,15 +253,20 @@ def euler_product(body: Any, prime: Any) -> Any:
     """The value of ∏ f(p) over every prime p where f is one of Euler's factors for ζ, of a
     real part s > 1: 1/(1 - p^{-s}) gives ζ(s), 1 - p^{-s} its inverse, 1 + p^{-s} ζ(s)/ζ(2s)
     and 1/(1 + p^{-s}) ζ(2s)/ζ(s) (Apostol (1976), theorems 11.6 and 11.7); ``None`` of any
-    other factor, or where the product diverges."""
+    other factor, and refused where the product diverges."""
     for factor, inverted in ((sympy.expand(1 / body), True), (sympy.expand(body), False)):
         rest = sympy.expand(factor - 1)
         sign, power = rest.as_coeff_Mul()
         if sign not in (1, -1) or not (power.is_Pow and power.base == prime):
             continue
         s = -power.exp
-        if s.has(prime) or (s.is_number and not sympy.re(s) > 1):
+        if s.has(prime):
             continue
+        if s.is_number and not sympy.re(s) > 1:
+            raise EvaluationError(
+                f"Euler's product over every prime diverges where s is {s}",
+                hint="it converges where the real part of s is above 1, as ζ(s) does",
+            )
         if not s.is_number:
             assumptions.remark(f"Euler's product converges where the real part of {s} is above 1")
         zeta, double = sympy.zeta(s), sympy.zeta(2 * s)

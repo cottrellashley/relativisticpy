@@ -165,9 +165,8 @@ def _family_of(reader: Reader, letter: str, scope: Scope) -> bool:
 # -- the index sets given by a condition ------------------------------------------------
 
 
-#: The words that say what an integer is, as ``p \text{ prime}`` does, and the readings of
-#: the others as a remainder: k odd is k mod 2 = 1.
-_WORDS = {"prime": None, "odd": 1, "even": 0}
+#: The words that say what an integer is, as ``p \text{ prime}`` and ``k \text{ odd}`` do.
+_WORDS = frozenset({"prime", "odd", "even"})
 
 
 @dataclass(frozen=True)
@@ -189,14 +188,6 @@ class IndexSet:
     conditions: tuple[ast.Expr, ...] = ()
     notes: tuple[str, ...] = field(default=(), compare=False)
 
-    @property
-    def bounded(self) -> bool:
-        """Whether it is finite by how it is written: the divisors of a number, or values
-        with a greatest and, but for primes, a least."""
-        return self.of is not None or (
-            self.upper is not None and (self.lower is not None or self.primes)
-        )
-
 
 def index_set(condition: ast.Expr) -> IndexSet | None:
     """The values ``condition``, written under a sum or a product, gives its index, which it
@@ -216,10 +207,10 @@ def index_set(condition: ast.Expr) -> IndexSet | None:
 def every_integer(node: ast.BigOperator) -> IndexSet | None:
     """``\\sum_k \\binom{r}{k} \\binom{s}{n - k}``: a sum over an index alone, with no limits,
     whose range Concrete Mathematics leaves to its binomial coefficients, which vanish where
-    their lower index is negative: over every integer, of which they leave finitely many.
-    ``None`` for any other sum written so, as over an index of a tensor or of data, ``\\sum_a
-    w^a``, which no binomial coefficient bounds, or one written with the index as a
-    subscript."""
+    their lower index is negative: over every integer, summed where they are not 0 (decision
+    38). ``None`` for any other sum written so, as over an index of a tensor or of data,
+    ``\\sum_a w^a``, which no binomial coefficient bounds, or one written with the index as
+    a subscript."""
     index = node.variable
     if not isinstance(index, ast.Name) or node.lower is not None or node.upper is not None:
         return None

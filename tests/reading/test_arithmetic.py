@@ -176,6 +176,8 @@ class TestIndexSets:
     def test_eulers_product_over_every_prime_is_zeta(self, wb):
         assert wb.expr(r"\prod_{p \text{ prime}} \frac{1}{1 - p^{-2}}") == sympy.pi**2 / 6
         assert wb.expr(r"\prod_{p \text{ prime}} \frac{1}{1 - p^{-2}} = \frac{\pi^2}{6}")
+        with pytest.raises(EvaluationError, match="diverges where s is 1"):
+            wb.expr(r"\prod_{p \text{ prime}} \frac{1}{1 - 1/p}")
 
     def test_the_divisors_of_a_symbol_are_refused(self, wb):
         wb.exe(r"n \in \mathbb{N}")
