@@ -405,6 +405,10 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   rather than holding by its 1 × 1 case. Of a matrix, a number, or a scalar the program
   defines, a coordinate, a symbol it says something of or a parameter of its metric, they
   are as before.
+- `\bar h` is h̄, a symbol of its own, shown as `\bar{h}`, no longer ℏ: an accent whose
+  name, put after its letter's, would spell another symbol's name, as hbar spells ℏ's, is
+  written in the name with the mark Unicode sets over the letter. Each form of either
+  reads back as it, and `\bar h := ...` no longer gives ℏ a value.
 - Angle brackets no longer group as brackets do: `\langle x \rangle` is what a program
   defines, an expectation value or an inner product, and refused where it is none of
   them, rather than `x`.

@@ -62,7 +62,7 @@ CORPUS = [
     # Greek letters and other names
     r"\lambda + \beta x + \zeta + \Gamma + Q + S", r"\alpha_\beta", r"\rho_{\rm vac}",
     r"M_\odot", r"N_\star", r"T_{\mathrm{eff}}", "x_0", "a_{12}", r"\dot a", r"\hat{x}",
-    "Kretschmann", "Mr theta", "C1 e^x", r"\hbar",
+    "Kretschmann", "Mr theta", "C1 e^x", r"\hbar", r"\bar h", r"\bar{h}_{00}",
     # e and i, pi and infinity
     "E + e", "I + i", "3 - 2i", "x + i y", "(1 + i)/2", "e^x", "pi r^2", "oo", "-oo",
     # numbers as written
@@ -85,6 +85,8 @@ GAPS = {
     ("unicode", r"\rho_{\rm vac}"): "ρ_vac reads as the tensor ρ with indices v, a, c",
     ("unicode", r"\dot a"): "combining accents (ȧ, x̂) are not read",
     ("unicode", r"\hat{x}"): "combining accents (ȧ, x̂) are not read",
+    ("unicode", r"\bar h"): "combining accents (ȧ, x̂, h̄) are not read",
+    ("unicode", r"\bar{h}_{00}"): "combining accents (ȧ, x̂, h̄) are not read",
     ("unicode", "Mr theta"): "beside Unicode, a name of several letters reads as a product",
 }
 
@@ -97,6 +99,22 @@ def test_every_form_reads_back(source, form):
     if (form, source) in GAPS:
         pytest.xfail(GAPS[(form, source)])
     assert same(value, fresh(shown)), f"{shown!r} reads back as {fresh(shown)!r}"
+
+
+HBAR = [r"\hbar", "ℏ", "hbar"]
+H_BAR = [r"\bar h", r"\bar{h}", r"\overline{h}"]
+
+
+@pytest.mark.parametrize("written", HBAR + H_BAR)
+def test_h_bar_is_never_hbar_and_every_form_reads_back(written):
+    # \bar h was named hbar, the name of ℏ: one symbol, shown as ℏ
+    value, reduced, barred = fresh(written), fresh(r"\hbar"), fresh(r"\bar h")
+    assert reduced != barred
+    assert value == (reduced if written in HBAR else barred)
+    expected = (r"\hbar", r"\hbar", "ℏ") if written in HBAR else (r"\bar{h}", r"\bar{h}", "h̄")
+    assert (display.text(value), display.latex(value), display.unicode(value)) == expected
+    for form in ("text", "latex"):
+        assert fresh(getattr(display, form)(value)) == value
 
 
 def test_text_is_ascii_and_reads_back_beside_latex():

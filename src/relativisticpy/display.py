@@ -82,6 +82,10 @@ ACCENTS: Mapping[str, str] = {
     "tilde": "̃", "vec": "⃗", "check": "̌", "breve": "̆",
 }  # fmt: skip
 
+#: The accent each combining character is, as a symbol's name ends with one where its
+#: letter and the accent's name would spell another's: ``h̄``, as hbar is ℏ.
+_COMBINING: Mapping[str, str] = {mark: accent for accent, mark in ACCENTS.items()}
+
 _SUPERSCRIPTS = str.maketrans("0123456789-+()=n", "⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺⁽⁾⁼ⁿ")
 _SUBSCRIPTS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
 _MINUS = "−"  # U+2212, which the language reads as a minus
@@ -116,7 +120,8 @@ def _double_struck_letter(name: str) -> str:
 
 class Name:
     """A symbol's name taken apart, as the language reads it from LaTeX: ``rho_vac`` is
-    ρ with the subscript vac, ``adot`` is a with a dot, ``x'`` is x primed."""
+    ρ with the subscript vac, ``adot`` is a with a dot, ``h̄`` h with a bar, ``x'`` is x
+    primed."""
 
     __slots__ = ("accent", "base", "primes", "subscripts")
 
@@ -125,7 +130,9 @@ class Name:
         core = name[: len(name) - primes] if primes else name
         base, *subscripts = core.split("_") if core and not core.startswith("_") else [core]
         accent = None
-        if base not in GREEK and base not in SYMBOL_NAMES:
+        if len(base) > 1 and base[-1] in _COMBINING:
+            accent, base = _COMBINING[base[-1]], base[:-1]
+        elif base not in GREEK and base not in SYMBOL_NAMES:
             for suffix in ACCENTS:  # the longest first: ddot before dot
                 if base.endswith(suffix) and len(base) > len(suffix):
                     accent, base = suffix, base[: -len(suffix)]
@@ -206,7 +213,8 @@ def text_name(name: str, *, latex_mode: bool = False) -> str:
     r"""A symbol's name as plain text that the language reads back as that name. A Greek
     letter is its LaTeX command, ``\theta``; any other name is written as it is, except
     that in a statement read as LaTeX, where ``Mr`` is M times r, a name of several
-    letters is ``\mathrm{Mr}``; a name of two, as ``Delta x``, is the two, ``\Delta x``."""
+    letters is ``\mathrm{Mr}``; a name of two, as ``Delta x``, is the two, ``\Delta x``;
+    and a name with an accent Unicode sets over its letter, as ``h̄``, is ``\bar{h}``."""
     head, space, rest = name.partition(" ")
     if space:
         latex = latex_mode or head in GREEK
@@ -215,6 +223,8 @@ def text_name(name: str, *, latex_mode: bool = False) -> str:
         return "\\" + name
     if name in ("hbar", "ell", "varpi"):
         return "\\" + name
+    if any(mark in name for mark in _COMBINING):
+        return latex_name(name)
     if _is_double_struck(name):
         return f"\\mathbb{{{_double_struck_letter(name)}}}"
     if latex_mode and re.fullmatch(r"[A-Za-z]{2,}\d*'*", name):

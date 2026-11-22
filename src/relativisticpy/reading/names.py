@@ -16,7 +16,7 @@ import sympy
 from sympy import Symbol
 from sympy.core.function import AppliedUndef
 
-from relativisticpy import spacetimes
+from relativisticpy import display, spacetimes
 from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES
 from relativisticpy.compiler.scope import Scope, VariableBinding
 from relativisticpy.compiler.session import ASSUMPTION_STATEMENTS, RENAMING_STATEMENTS, MetricState
@@ -27,7 +27,7 @@ from relativisticpy.ir import SCALAR, Node, NotationType, TensorType, dependenci
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.language.vocabulary import GREEK, SYMBOL_COMMANDS
 from relativisticpy.tensors import Indices
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.typing.syntax import _plain_label, _tensor_pattern, _used, _walk
@@ -230,6 +230,16 @@ def _written_as_letter(node: ast.Name) -> bool:
     return written == "\\" + node.id or len(written) == 1  # the command, or the character
 
 
+def accented(name: str, accent: str) -> str:
+    """The name of a symbol under an accent: ``xbar`` of ``\\bar{x}``, which SymPy prints as
+    \\bar{x} too; but where that would spell another symbol's name, as hbar of ``\\bar{h}``
+    spells ℏ's, the letter with the accent Unicode sets over it, ``h̄``, shown as \\bar{h}."""
+    joined = name + accent
+    if joined in SYMBOL_COMMANDS.values():
+        return name + display.ACCENTS[accent]
+    return joined
+
+
 def _named(target: ast.Expr) -> ast.Expr:
     """A decorated name, as ``\\tilde u`` or ``E^{(2)}``, as the name it is read as,
     ``utilde`` or ``E^(2)``; a dot is a time derivative, and anything else is left as it
@@ -239,7 +249,8 @@ def _named(target: ast.Expr) -> ast.Expr:
         and target.accent not in ("dot", "ddot")
         and isinstance(target.base, ast.Name)
     ):
-        return ast.Name(target.base.id + target.accent, verbatim=True, span=target.span)
+        name = accented(target.base.id, target.accent)
+        return ast.Name(name, verbatim=True, span=target.span)
     if (
         isinstance(target, ast.Scripted)
         and isinstance(target.base, ast.Name)
@@ -467,7 +478,7 @@ def _other_names(node: ast.Node) -> set[int]:
             found.add(id(current.func))
         elif isinstance(current, ast.Accent | ast.Scripted) and isinstance(
             _named(current), ast.Name
-        ):  # \bar h is hbar, and E^{(2)} is E^(2); \dot h is h, differentiated
+        ):  # \bar x is xbar, and E^{(2)} is E^(2); \dot h is h, differentiated
             found.add(id(current.base))
     return found
 

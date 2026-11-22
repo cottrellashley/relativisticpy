@@ -163,8 +163,8 @@ class TestRunsOfLetters:
         ) * sympy.Symbol("b_2")
 
     def test_a_name_read_whole_is_no_run(self, wb):
-        # \bar h_{00} is the name hbar_00, never h b a r_00, nor \hat\beta_1 beta h a t_1
-        assert wb.expr(r"2 \bar h_{00}") == 2 * sympy.Symbol("hbar_00")
+        # \bar h_{00} is the name h̄_00, never ℏ_00 nor h b a r_00, nor \hat\beta_1 beta h a t_1
+        assert wb.expr(r"2 \bar h_{00}") == 2 * sympy.Symbol("h\N{COMBINING MACRON}_00")
         assert wb.expr(r"\hat\beta_1 + 1") == sympy.Symbol("betahat_1") + 1
 
     def test_in_plain_text_a_run_with_a_subscript_is_one_name(self, wb):

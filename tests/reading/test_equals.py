@@ -134,8 +134,8 @@ class TestANameInItsOwnValue:
         assert wb.expr("x = (x')^3") is sympy.true
 
     def test_a_decorated_name_is_another_name(self, wb):
-        assert wb.exe("h = -\\bar h") == []  # \bar h is hbar, not h
-        assert wb.expr("h") == -Symbol("hbar")
+        assert wb.exe("h = -\\bar h") == []  # \bar h is h̄, neither h nor ℏ
+        assert wb.expr("h") == -Symbol("h\N{COMBINING MACRON}")
 
     def test_a_function_that_calls_itself(self, wb):
         with pytest.raises(CompileError, match="f calls itself"):

@@ -69,6 +69,7 @@ from relativisticpy.reading.names import (
     _splittable,
     _symbols_written,
     _unprimed,
+    accented,
 )
 from relativisticpy.reading.reader import BookCall
 from relativisticpy.reading.unknowns import read_as_functions
@@ -1083,7 +1084,7 @@ class Expressions(LinearAlgebra):
         if not isinstance(node.base, ast.Name):
             raise CompileError(f"\\{node.accent} needs a single symbol", span=node.base.span)
         return self.value(
-            ast.Name(node.base.id + node.accent, verbatim=True, span=node.span), scope, ctx
+            ast.Name(accented(node.base.id, node.accent), verbatim=True, span=node.span), scope, ctx
         )
 
     def _dotted(

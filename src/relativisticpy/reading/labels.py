@@ -35,7 +35,13 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.reading.matrices import Matrices
-from relativisticpy.reading.names import _bracketed_order, _letter, _shown, _written_as_letter
+from relativisticpy.reading.names import (
+    _bracketed_order,
+    _letter,
+    _shown,
+    _written_as_letter,
+    accented,
+)
 from relativisticpy.typing.syntax import _plain_label, _walk
 
 #: The decision of whether a script on a name labels it or indexes it.
@@ -64,7 +70,7 @@ def _base_name(base: ast.Expr) -> str | None:
         and base.accent not in ("dot", "ddot")
         and isinstance(base.base, ast.Name)
     ):
-        return base.base.id + base.accent
+        return accented(base.base.id, base.accent)
     if isinstance(base, ast.Prime):
         return base.func.id + "'" * base.order
     return None
@@ -250,7 +256,7 @@ class Labels(Matrices):
         sets it, the subscript binds to the last letter, i times E_1 (decision 5.7 of
         design/notation.md). ``None`` for any other name."""
         if node.verbatim or scope.lookup(node.id) is not None:
-            return None  # \mathrm{iE_1}, or a name read as one, as hbar_00 of \bar h_{00}
+            return None  # \mathrm{iE_1}, or a name read as one, as xbar_00 of \bar x_{00}
         run, underscore, subscript = node.id.partition("_")
         if not (underscore and subscript and len(run) > 1 and run.isalpha() and run.isascii()):
             return None
