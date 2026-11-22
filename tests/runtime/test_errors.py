@@ -51,9 +51,7 @@ class TestReading:
         error = raised(DEGENERATE)
         lines = error._render_traceback_()
         assert lines == error.render().split("\n")
-        assert lines[0] == (
-            "MetricError: a metric must be non-degenerate, but its determinant is zero"
-        )
+        assert lines[0] == ("MetricError: the metric is degenerate: its determinant is zero")
         assert not any("Traceback" in line for line in lines)
 
     def test_debugging_shows_the_traceback(self, monkeypatch):
@@ -148,19 +146,12 @@ class TestTranslation:
     @pytest.mark.parametrize(
         ("program", "message"),
         [
-            (r"\det([1, 2])", "only a square matrix has a determinant or an inverse"),
             (
                 r"\begin{pmatrix}1&2\\2&4\end{pmatrix}^{-1}",
                 "this matrix has no inverse: its determinant is zero",
             ),
             ("|[1, 2]|", "the absolute value of a list is not defined"),
-            (
-                "Coordinates := [t, r, \\theta, \\phi]\ng_{\\mu\\nu} := Schwarzschild(M)\n"
-                "subs(R, M)",
-                "subs needs a substitution, as in subs(R, M = 1)",
-            ),
             (r"solve(\sin(x) = x^3 + e^x, x)", "SymPy cannot solve this equation in closed form"),
-            ("dsolve(y'' + y, y)", "dsolve solves for a function, written with its variable"),
             ("x := 3\ndiff(sin(x), x)", "cannot differentiate with respect to a number"),
         ],
     )
@@ -170,6 +161,27 @@ class TestTranslation:
         assert error.message == message
         assert error.__cause__ is None  # the library's exception is not chained ...
         assert error.cause is not None  # ... but kept
+
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            (r"\det([1, 2])", "a determinant needs a square matrix, but this is a list of 2"),
+            (
+                "subs(x^2, x)",
+                "subs takes an expression and what to put for what, as in subs(x^2, x, 3), "
+                "or rules, as in subs(x^2, x = 3)",
+            ),
+            (
+                "dsolve(y'' + y, y)",
+                "dsolve solves for a function written with its variable, as in "
+                "dsolve(f''(x) + f(x) = 0, f(x)), not for y",
+            ),
+        ],
+    )
+    def test_builtins_say_what_they_take_before_any_library_runs(self, program, message):
+        error = raised(program)
+        assert type(error) is EvaluationError
+        assert error.message == message
 
     def test_one_message_for_every_kind_of_singular_matrix(self):
         symbolic = raised(r"\begin{pmatrix}1&2\\2&4\end{pmatrix}^{-1}")
@@ -182,9 +194,20 @@ class TestTranslation:
         with pytest.raises(EvaluationError, match="and this one is 2×3"):
             wb.expr(r"(S^{-1})^{ab}")
 
-    def test_a_failure_of_relativisticpys_own_is_an_internal_error(self):
-        # CLI-32: 'list' object has no attribute 'is_Float' is not the user's mistake
-        error = raised("Matrix([[1,2],[3,4]])")
+    def test_a_failure_of_relativisticpys_own_is_an_internal_error(self, monkeypatch):
+        # CLI-32: a Python failure inside RelativisticPy is not the user's mistake
+        from dataclasses import replace
+        from types import MappingProxyType
+
+        from relativisticpy.compiler import compiler
+
+        def broken(*args):
+            raise AttributeError("'list' object has no attribute 'is_Float'")
+
+        table = dict(compiler.BUILTINS)
+        table["factorial2"] = replace(table["factorial2"], func=broken)
+        monkeypatch.setattr(compiler, "BUILTINS", MappingProxyType(table))
+        error = raised("factorial2(5)")
         assert isinstance(error, InternalError)
         assert error.notes == [
             "Python says: AttributeError: 'list' object has no attribute 'is_Float'"

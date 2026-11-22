@@ -27,7 +27,7 @@ for n in range(1, 8):
     a[n + 2] = a[n - 1] / ((n + 2) * (n + 1))
 expected = sum(a[n] * x**n for n in range(10))
 assert expected == 1 + x**3 / 6 + x**6 / 180 + x**9 / 12960
-assert expand(diff(expected, x, 2) - x * expected) == -x**10 / 12960
+assert expand(diff(expected, x, 2) - x * expected) == -(x**10) / 12960
 ```
 
 ## The exponents of an Euler equation

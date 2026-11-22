@@ -99,7 +99,11 @@ half = Rational(1, 2)
 
 def lowering(j):  # J_- in the basis m = j, j - 1, ..., -j, in units of hbar
     ms = [j - k for k in range(int(2 * j) + 1)]
-    return Matrix(len(ms), len(ms), lambda r, c: sqrt(j * (j + 1) - ms[c] * (ms[c] - 1)) if ms[r] == ms[c] - 1 else 0)
+    return Matrix(
+        len(ms),
+        len(ms),
+        lambda r, c: sqrt(j * (j + 1) - ms[c] * (ms[c] - 1)) if ms[r] == ms[c] - 1 else 0,
+    )
 
 
 # Lower the stretched state |3/2, 3/2> = |1, 1>|1/2, 1/2> once, with J_- = L_- + S_-.

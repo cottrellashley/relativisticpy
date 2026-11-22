@@ -48,12 +48,14 @@ def refuse_text(op: ops.Op, args: list[Any], nodes: Sequence[Node]) -> None:
     if isinstance(op, ops.Const):
         return
     func = getattr(op, "func", None)
-    if func is sympy.symbols or func is operator.getitem:
-        return
+    if func is sympy.symbols or func is operator.getitem or getattr(func, "takes_names", False):
+        return  # a function marked takes_names reads its text as names, never as Python
     if getattr(func, "__module__", None) == "relativisticpy.spacetimes":
         return
     for value, node in zip(args, nodes, strict=True):
-        own = isinstance(value, str) and isinstance(node.op, ops.Const) and node.span is None
+        # A constant the compiler made, with no place in the source, is its own: a name it
+        # passes to a kernel, alone or in a tuple. Text from the source has a span.
+        own = isinstance(node.op, ops.Const) and node.span is None
         if _has_text(value) and not own:
             raise EvaluationError(
                 "text in quotes is not a value to compute with",

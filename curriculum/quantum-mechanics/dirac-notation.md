@@ -94,7 +94,7 @@ x|\alpha\rangle\), where \(\langle p|x\rangle\) is the conjugate of \(\langle x|
 x, p, k = symbols("x p k", real=True)
 d, hbar = symbols("d hbar", positive=True)
 x_p = exp(I * p * x / hbar) / sqrt(2 * pi * hbar)
-x_alpha = exp(I * k * x - x**2 / (2 * d**2)) / (pi**Rational(1, 4) * sqrt(d))
+x_alpha = exp(I * k * x - x**2 / (2 * d**2)) / (pi ** Rational(1, 4) * sqrt(d))
 computed = integrate(conjugate(x_p) * x_alpha, (x, -oo, oo))
 stated = sqrt(d / (hbar * sqrt(pi))) * exp(-((p - hbar * k) ** 2) * d**2 / (2 * hbar**2))
 assert simplify(computed - stated) == 0  # Sakurai: a Gaussian about hbar k, of width hbar/d

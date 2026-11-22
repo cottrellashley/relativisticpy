@@ -124,7 +124,12 @@ contributing = [k for k in range(1, size - 3) if H1[k, 0] != 0]
 assert contributing == [1, 3]
 computed = simplify(sum(H1[k, 0] ** 2 / (E(0) - E(k)) for k in range(1, size - 3)))
 # Landau and Lifshitz: -(lambda^2/hbar omega)(hbar/m omega)^3 (15/4 (n + 1/2)^2 + 7/16) at n = 0.
-stated = -(lam**2) / (hbar * omega) * (hbar / (m * omega)) ** 3 * (Rational(15, 4) * Rational(1, 4) + Rational(7, 16))
+stated = (
+    -(lam**2)
+    / (hbar * omega)
+    * (hbar / (m * omega)) ** 3
+    * (Rational(15, 4) * Rational(1, 4) + Rational(7, 16))
+)
 assert simplify(computed - stated) == 0
 assert simplify(stated + Rational(11, 8) * lam**2 * hbar**2 / (m**3 * omega**4)) == 0
 expected = stated

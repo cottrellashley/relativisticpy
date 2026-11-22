@@ -67,12 +67,32 @@ X = [t, r, theta, phi]
 g = diag(-1, a**2 / (1 - k * r**2), a**2 * r**2, a**2 * r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[A, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for A in range(n)]
-ricci = Matrix(n, n, lambda b, d: simplify(sum(
-    diff(Gam[A][d][b], X[A]) - diff(Gam[A][A][b], X[d])
-    + sum(Gam[A][A][e] * Gam[e][d][b] - Gam[A][d][e] * Gam[e][A][b] for e in range(n))
-    for A in range(n))))
+Gam = [
+    [
+        [
+            sum(
+                gi[A, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for A in range(n)
+]
+ricci = Matrix(
+    n,
+    n,
+    lambda b, d: simplify(
+        sum(
+            diff(Gam[A][d][b], X[A])
+            - diff(Gam[A][A][b], X[d])
+            + sum(Gam[A][A][e] * Gam[e][d][b] - Gam[A][d][e] * Gam[e][A][b] for e in range(n))
+            for A in range(n)
+        )
+    ),
+)
 scalar = simplify(sum(gi[b, d] * ricci[b, d] for b in range(n) for d in range(n)))
 G_tt = simplify(ricci[0, 0] - scalar * g[0, 0] / 2)
 T_tt = rho  # (rho + p) u_t u_t + p g_tt, with u_t = -1 and g_tt = -1
@@ -144,13 +164,26 @@ X = [t, r, theta, phi]
 g = diag(-1, a**2 / (1 - k * r**2), a**2 * r**2, a**2 * r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[A, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for A in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[A, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for A in range(n)
+]
 u = [1, 0, 0, 0]
 T = Matrix(n, n, lambda m, v: (rho + p) * u[m] * u[v] + p * gi[m, v])
 nu = 0  # the t component of the divergence
 divergence = sum(diff(T[m, nu], X[m]) for m in range(n)) + sum(
-    Gam[m][m][l] * T[l, nu] + Gam[nu][m][l] * T[m, l] for m in range(n) for l in range(n))
+    Gam[m][m][l] * T[l, nu] + Gam[nu][m][l] * T[m, l] for m in range(n) for l in range(n)
+)
 expected = simplify(divergence)
 assert simplify(expected - (diff(rho, t) + 3 * diff(a, t) / a * (rho + p))) == 0
 ```

@@ -35,7 +35,7 @@ written in: a fourth derivative, computed.
 ```python
 x = symbols("x")
 expected = legendre(4, x)
-assert expand(diff((x**2 - 1)**4, x, 4) / (2**4 * factorial(4)) - expected) == 0
+assert expand(diff((x**2 - 1) ** 4, x, 4) / (2**4 * factorial(4)) - expected) == 0
 ```
 
 ## The orthogonality of Hermite polynomials
@@ -51,7 +51,7 @@ physicists' convention.
 
 ```python
 x = symbols("x")
-expected = integrate(hermite(3, x)**2 * exp(-x**2), (x, -oo, oo))
+expected = integrate(hermite(3, x) ** 2 * exp(-(x**2)), (x, -oo, oo))
 assert expected == sqrt(pi) * 2**3 * factorial(3)
 ```
 
@@ -103,7 +103,7 @@ The sum of \(|Y_l^m|^2\) over the orders \(m\) of one degree is constant over th
 
 ```python
 theta, phi = symbols("theta phi", real=True)
-total = sum(Abs(Ynm(2, m, theta, phi).expand(func=True))**2 for m in range(-2, 3))
+total = sum(Abs(Ynm(2, m, theta, phi).expand(func=True)) ** 2 for m in range(-2, 3))
 assert simplify(total) == 5 / (4 * pi)
 expected = True
 ```

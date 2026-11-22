@@ -69,8 +69,10 @@ solve(V'(r) = 0, r)
 M, L, r = symbols("M L r")
 V = Rational(1, 2) - M / r + L**2 / (2 * r**2) - M * L**2 / r**3
 expected = solve(diff(V, r), r)
-stated = [(L**2 - sqrt(L**4 - 12 * M**2 * L**2)) / (2 * M),
-          (L**2 + sqrt(L**4 - 12 * M**2 * L**2)) / (2 * M)]
+stated = [
+    (L**2 - sqrt(L**4 - 12 * M**2 * L**2)) / (2 * M),
+    (L**2 + sqrt(L**4 - 12 * M**2 * L**2)) / (2 * M),
+]
 Lp, Mp = symbols("L M", positive=True)
 assert all(simplify((a - b).subs({L: Lp, M: Mp})) == 0 for a, b in zip(expected, stated))
 ```
@@ -144,14 +146,31 @@ f = 1 - 2 * M / r
 g = diag(-f, 1 / f, r**2, r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
 ut = 1 / sqrt(1 - 3 * M / r0)
 curve = [ut * tau, r0, pi / 2, ut * sqrt(M / r0**3) * tau]
 velocity = [diff(x, tau) for x in curve]
 on_curve = dict(zip(X, curve))
-equation = [diff(curve[m], tau, 2) + sum(Gam[m][a][b].subs(on_curve) * velocity[a] * velocity[b]
-                                         for a in range(n) for b in range(n)) for m in range(n)]
+equation = [
+    diff(curve[m], tau, 2)
+    + sum(
+        Gam[m][a][b].subs(on_curve) * velocity[a] * velocity[b] for a in range(n) for b in range(n)
+    )
+    for m in range(n)
+]
 expected = all(simplify(component) == 0 for component in equation)
 assert expected
 ```
@@ -173,13 +192,21 @@ b := \sqrt{\frac{r_0^3}{r_0 - 2M}}
 ```python
 from scipy.integrate import quad
 
+
 def deflection(M, r0=1.0):
     # u = 1/r, then u = u0 - w^2 removes the square-root singularity at the turning point
     u0 = 1 / r0
     F = lambda u: u0**2 * (1 - 2 * M * u0) - u**2 * (1 - 2 * M * u)
-    value, _ = quad(lambda w: 2 * w / np.sqrt(F(u0 - w**2)), 0, np.sqrt(u0),
-                    epsabs=1e-15, epsrel=1e-13, limit=200)
+    value, _ = quad(
+        lambda w: 2 * w / np.sqrt(F(u0 - w**2)),
+        0,
+        np.sqrt(u0),
+        epsabs=1e-15,
+        epsrel=1e-13,
+        limit=200,
+    )
     return 2 * value - np.pi
+
 
 # (Δφ - 4M/r0)/M^2 tends to a constant, 15π/4 - 4: the remainder is O(M^2)
 second = [(deflection(M) - 4 * M) / M**2 for M in (1e-3, 1e-4, 1e-5)]

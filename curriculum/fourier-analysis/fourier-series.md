@@ -84,7 +84,9 @@ S_N(x) := \frac{4}{\pi} \sum_{k=1}^{N} \frac{\sin (2k - 1) x}{2k - 1}
 
 ```python
 expected = 2 * Si(pi) / pi
-partial = lambda N: 4 / np.pi * sum(np.sin((2 * k - 1) * np.pi / (2 * N)) / (2 * k - 1) for k in range(1, N + 1))
+partial = lambda N: (
+    4 / np.pi * sum(np.sin((2 * k - 1) * np.pi / (2 * N)) / (2 * k - 1) for k in range(1, N + 1))
+)
 assert abs(partial(4000) - float(expected)) < 1e-6
 assert abs(float(expected) - 1.17898) < 1e-5
 ```

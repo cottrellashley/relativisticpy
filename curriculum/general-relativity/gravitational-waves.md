@@ -99,9 +99,11 @@ X = [t, x, y, z]
 wave = hp * cos(omega * (t - z))
 h = diag(0, wave, -wave, 0)
 
+
 def linear(m, v, p, s):  # Carroll's linearised Riemann tensor
     d = lambda f, a, b: diff(f, X[a], X[b])
     return (d(h[m, s], p, v) + d(h[v, p], s, m) - d(h[m, p], s, v) - d(h[v, s], p, m)) / 2
+
 
 expected = simplify(linear(0, 1, 0, 1))
 assert simplify(expected - omega**2 * wave / 2) == 0
@@ -109,10 +111,25 @@ assert simplify(expected - omega**2 * wave / 2) == 0
 g = diag(-1, 1, 1, 1) + eps * h
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
-up = (diff(Gam[0][1][1], X[0]) - diff(Gam[0][0][1], X[1])  # R^t_{xtx}
-      + sum(Gam[0][0][e] * Gam[e][1][1] - Gam[0][1][e] * Gam[e][0][1] for e in range(n)))
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+up = (
+    diff(Gam[0][1][1], X[0])
+    - diff(Gam[0][0][1], X[1])  # R^t_{xtx}
+    + sum(Gam[0][0][e] * Gam[e][1][1] - Gam[0][1][e] * Gam[e][0][1] for e in range(n))
+)
 exact = g[0, 0] * up  # R_{txtx}, the metric being diagonal
 assert simplify(series(exact, eps, 0, 2).removeO() - eps * expected) == 0
 ```

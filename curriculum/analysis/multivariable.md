@@ -38,7 +38,7 @@ D(1, 1)
 ```python
 x, y = symbols("x y")
 f = x**4 + y**4 - 4 * x * y + 1
-D = diff(f, x, 2) * diff(f, y, 2) - diff(f, x, y)**2
+D = diff(f, x, 2) * diff(f, y, 2) - diff(f, x, y) ** 2
 assert expand(D) == 144 * x**2 * y**2 - 16
 expected = D.subs({x: 1, y: 1})
 assert expected == 128
@@ -98,6 +98,6 @@ the region's bounds, or change to polar coordinates itself.
 
 ```python
 r, theta = symbols("r theta", positive=True)
-expected = integrate(exp(-r**2) * r, (r, 0, 1), (theta, 0, 2 * pi))
+expected = integrate(exp(-(r**2)) * r, (r, 0, 1), (theta, 0, 2 * pi))
 assert simplify(expected - pi * (1 - exp(-1))) == 0
 ```

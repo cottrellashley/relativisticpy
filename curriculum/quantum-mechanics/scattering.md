@@ -50,7 +50,9 @@ f = -2 * m / (hbar**2 * kappa) * integrate(r * V * sin(kappa * r), (r, 0, oo))
 born = -2 * m * V_0 / (hbar**2 * kappa**3) * (sin(kappa * a) - kappa * a * cos(kappa * a))
 assert simplify(f - born) == 0
 expected = limit(born.subs(kappa, 2 * k * sin(theta / 2)), k, 0)
-assert simplify(expected + Rational(2, 3) * m * V_0 * a**3 / hbar**2) == 0  # Griffiths, Example 11.4
+assert (
+    simplify(expected + Rational(2, 3) * m * V_0 * a**3 / hbar**2) == 0
+)  # Griffiths, Example 11.4
 ```
 
 ## Rutherford scattering

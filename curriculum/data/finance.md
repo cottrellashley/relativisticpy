@@ -92,7 +92,14 @@ c = S * N_(d1) - K * exp(-r * (T - t)) * N_(d2)
 residual = diff(c, t) + r * S * diff(c, S) + sigma**2 * S**2 * diff(c, S, 2) / 2 - r * c
 for point in (
     {S: 42, K: 40, r: Rational(1, 10), sigma: Rational(1, 5), T: 1, t: Rational(1, 2)},
-    {S: Rational(37, 2), K: 21, r: Rational(3, 100), sigma: Rational(7, 20), T: 2, t: Rational(1, 3)},
+    {
+        S: Rational(37, 2),
+        K: 21,
+        r: Rational(3, 100),
+        sigma: Rational(7, 20),
+        T: 2,
+        t: Rational(1, 3),
+    },
 ):
     assert abs(N(residual.subs(point), 50)) < 1e-40
 expected = True
@@ -119,7 +126,9 @@ d\Pi = r \Pi \, dt
 S, t, mu, sigma, r, dt, dz = symbols("S t mu sigma r dt dz")
 f = Function("f")(S, t)
 dS = mu * S * dt + sigma * S * dz
-df = (diff(f, S) * mu * S + diff(f, t) + diff(f, S, 2) * sigma**2 * S**2 / 2) * dt + diff(f, S) * sigma * S * dz
+df = (diff(f, S) * mu * S + diff(f, t) + diff(f, S, 2) * sigma**2 * S**2 / 2) * dt + diff(
+    f, S
+) * sigma * S * dz
 dPi = expand(-df + diff(f, S) * dS)  # the shares are held fixed over dt
 assert dPi.coeff(dz) == 0  # no risk
 equation = dPi.coeff(dt) - r * (-f + diff(f, S) * S)  # d Pi = r Pi dt

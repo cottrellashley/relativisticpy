@@ -222,7 +222,7 @@ class TestMetric:
     def test_a_degenerate_metric_is_a_metric_error(self):
         # the same kind of error from the language as from Python: a ValueError too
         wb = Workbook()
-        with pytest.raises(MetricError, match="non-degenerate") as error:
+        with pytest.raises(MetricError, match="degenerate") as error:
             wb.expr("Coordinates := [x, y]\ng_{ab} := [[1, 1], [1, 1]]\nR")
         assert isinstance(error.value, ValueError)
         assert isinstance(error.value, EvaluationError)

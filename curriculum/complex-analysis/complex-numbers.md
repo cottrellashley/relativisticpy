@@ -14,7 +14,7 @@ A quotient of complex numbers, squared.
 ```
 
 ```python
-expected = expand(((2 + I) / (3 - 2 * I))**2)
+expected = expand(((2 + I) / (3 - 2 * I)) ** 2)
 assert expected == Rational(-33, 169) + Rational(56, 169) * I
 ```
 

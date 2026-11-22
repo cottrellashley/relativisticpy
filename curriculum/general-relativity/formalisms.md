@@ -22,18 +22,45 @@ N
 t, r, theta, phi, M = symbols("t r theta phi M", positive=True)
 X = [t, r, theta, phi]
 beta = sqrt(2 * M / r)  # the shift, N^r
-g = Matrix([[-1 + beta**2, beta, 0, 0], [beta, 1, 0, 0], [0, 0, r**2, 0],
-            [0, 0, 0, r**2 * sin(theta) ** 2]])
+g = Matrix(
+    [
+        [-1 + beta**2, beta, 0, 0],
+        [beta, 1, 0, 0],
+        [0, 0, r**2, 0],
+        [0, 0, 0, r**2 * sin(theta) ** 2],
+    ]
+)
 gi = simplify(g.inv())
 expected = simplify(1 / sqrt(-gi[0, 0]))
 assert expected == 1
 # and it is Schwarzschild spacetime: a vacuum
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
-ricci = [simplify(sum(diff(Gam[a][d][b], X[a]) - diff(Gam[a][a][b], X[d])
-                      + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
-                      for a in range(n))) for b in range(n) for d in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+ricci = [
+    simplify(
+        sum(
+            diff(Gam[a][d][b], X[a])
+            - diff(Gam[a][a][b], X[d])
+            + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
+            for a in range(n)
+        )
+    )
+    for b in range(n)
+    for d in range(n)
+]
 assert all(component == 0 for component in ricci)
 ```
 
@@ -87,12 +114,29 @@ f = 1 - 2 * M / r
 g = diag(-f, 1 / f, r**2, r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+
 
 def riemann_up(a, b, c, d):  # R^a_{bcd}
-    return (diff(Gam[a][d][b], X[c]) - diff(Gam[a][c][b], X[d])
-            + sum(Gam[a][c][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][c][b] for e in range(n)))
+    return (
+        diff(Gam[a][d][b], X[c])
+        - diff(Gam[a][c][b], X[d])
+        + sum(Gam[a][c][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][c][b] for e in range(n))
+    )
+
 
 down = MutableDenseNDimArray.zeros(n, n, n, n)
 for a in range(n):
@@ -100,7 +144,9 @@ for a in range(n):
         for c in range(n):
             for d in range(n):
                 down[a, b, c, d] = simplify(sum(g[a, e] * riemann_up(e, b, c, d) for e in range(n)))
-ricci = [simplify(sum(riemann_up(a, b, a, d) for a in range(n))) for b in range(n) for d in range(n)]
+ricci = [
+    simplify(sum(riemann_up(a, b, a, d) for a in range(n))) for b in range(n) for d in range(n)
+]
 assert all(component == 0 for component in ricci)  # a vacuum: the Weyl tensor is the Riemann tensor
 l = [1 / f, 1, 0, 0]
 nn = [Rational(1, 2), -f / 2, 0, 0]
@@ -108,8 +154,15 @@ m = [0, 0, 1 / (sqrt(2) * r), I / (sqrt(2) * r * sin(theta))]
 mbar = [conjugate(component) for component in m]
 dot = lambda u, v: simplify(sum(g[a, b] * u[a] * v[b] for a in range(n) for b in range(n)))
 assert dot(l, nn) == -1 and dot(m, mbar) == 1 and dot(l, l) == 0 and dot(m, m) == 0
-expected = simplify(sum(down[a, b, c, d] * l[a] * m[b] * mbar[c] * nn[d]
-                        for a in range(n) for b in range(n) for c in range(n) for d in range(n)))
+expected = simplify(
+    sum(
+        down[a, b, c, d] * l[a] * m[b] * mbar[c] * nn[d]
+        for a in range(n)
+        for b in range(n)
+        for c in range(n)
+        for d in range(n)
+    )
+)
 assert expected == -M / r**3
 ```
 
@@ -139,19 +192,44 @@ Y = [r, theta, phi]
 h = diag(a**2 / (1 - k * r**2), a**2 * r**2, a**2 * r**2 * sin(theta) ** 2)
 hi = h.inv()
 n = 3
-Gam = [[[sum(hi[A, d] * (diff(h[d, b], Y[c]) + diff(h[d, c], Y[b]) - diff(h[b, c], Y[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for A in range(n)]
-ricci3 = Matrix(n, n, lambda b, d: sum(
-    diff(Gam[A][d][b], Y[A]) - diff(Gam[A][A][b], Y[d])
-    + sum(Gam[A][A][e] * Gam[e][d][b] - Gam[A][d][e] * Gam[e][A][b] for e in range(n))
-    for A in range(n)))
+Gam = [
+    [
+        [
+            sum(
+                hi[A, d] * (diff(h[d, b], Y[c]) + diff(h[d, c], Y[b]) - diff(h[b, c], Y[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for A in range(n)
+]
+ricci3 = Matrix(
+    n,
+    n,
+    lambda b, d: sum(
+        diff(Gam[A][d][b], Y[A])
+        - diff(Gam[A][A][b], Y[d])
+        + sum(Gam[A][A][e] * Gam[e][d][b] - Gam[A][d][e] * Gam[e][A][b] for e in range(n))
+        for A in range(n)
+    ),
+)
 R3 = simplify(sum(hi[b, d] * ricci3[b, d] for b in range(n) for d in range(n)))
 assert simplify(R3 - 6 * k / a**2) == 0
 # K_ij = nabla_i n_j = -Gamma^t_ij n_t = (1/2) d_t h_ij, for n = d_t
 K = h.diff(t) / 2
 trace = simplify(sum(hi[i, j] * K[i, j] for i in range(n) for j in range(n)))
-square = simplify(sum(hi[i, p] * hi[j, q] * K[i, j] * K[p, q]
-                      for i in range(n) for j in range(n) for p in range(n) for q in range(n)))
+square = simplify(
+    sum(
+        hi[i, p] * hi[j, q] * K[i, j] * K[p, q]
+        for i in range(n)
+        for j in range(n)
+        for p in range(n)
+        for q in range(n)
+    )
+)
 expected = solve(Eq(R3 + trace**2 - square, 16 * pi * rho), rho)
 assert len(expected) == 1
 assert simplify(expected[0] - 3 * (diff(a, t) ** 2 + k) / (8 * pi * a**2)) == 0
@@ -178,8 +256,8 @@ g_{RR}
 T, R = symbols("T R")
 v, u = tan((T + R) / 2), tan((T - R) / 2)  # t + r and t - r
 t, r = (v + u) / 2, (v - u) / 2
-g_RR = simplify(-diff(t, R) ** 2 + diff(r, R) ** 2)
-g_TT = simplify(-diff(t, T) ** 2 + diff(r, T) ** 2)
+g_RR = simplify(-(diff(t, R) ** 2) + diff(r, R) ** 2)
+g_TT = simplify(-(diff(t, T) ** 2) + diff(r, T) ** 2)
 g_TR = simplify(-diff(t, T) * diff(t, R) + diff(r, T) * diff(r, R))
 omega = 2 * cos((T + R) / 2) * cos((T - R) / 2)
 assert simplify(g_RR - 1 / omega**2) == 0 and simplify(g_TT + 1 / omega**2) == 0 and g_TR == 0

@@ -24,12 +24,30 @@ X = [x, y]
 g = diag(exp(2 * w), exp(2 * w))
 gi = g.inv()
 n = 2
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
-ricci = Matrix(n, n, lambda b, d: sum(
-    diff(Gam[a][d][b], X[a]) - diff(Gam[a][a][b], X[d])
-    + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
-    for a in range(n)))
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+ricci = Matrix(
+    n,
+    n,
+    lambda b, d: sum(
+        diff(Gam[a][d][b], X[a])
+        - diff(Gam[a][a][b], X[d])
+        + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
+        for a in range(n)
+    ),
+)
 expected = simplify(sum(gi[b, d] * ricci[b, d] for b in range(n) for d in range(n)))
 assert simplify(expected + 2 * exp(-2 * w) * (diff(w, x, 2) + diff(w, y, 2))) == 0
 ```
@@ -53,25 +71,62 @@ X = [t, r, theta, phi]
 g = diag(-1, a**2 / (1 - k * r**2), a**2 * r**2, a**2 * r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[A, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for A in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[A, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for A in range(n)
+]
+
 
 def riemann_up(A, b, c, d):  # R^A_{bcd}
-    return (diff(Gam[A][d][b], X[c]) - diff(Gam[A][c][b], X[d])
-            + sum(Gam[A][c][e] * Gam[e][d][b] - Gam[A][d][e] * Gam[e][c][b] for e in range(n)))
+    return (
+        diff(Gam[A][d][b], X[c])
+        - diff(Gam[A][c][b], X[d])
+        + sum(Gam[A][c][e] * Gam[e][d][b] - Gam[A][d][e] * Gam[e][c][b] for e in range(n))
+    )
 
-down = {(A, b, c, d): sum(g[A, e] * riemann_up(e, b, c, d) for e in range(n))
-        for A in range(n) for b in range(n) for c in range(n) for d in range(n)}
+
+down = {
+    (A, b, c, d): sum(g[A, e] * riemann_up(e, b, c, d) for e in range(n))
+    for A in range(n)
+    for b in range(n)
+    for c in range(n)
+    for d in range(n)
+}
 ricci = Matrix(n, n, lambda b, d: sum(riemann_up(A, b, A, d) for A in range(n)))
 scalar = sum(gi[b, d] * ricci[b, d] for b in range(n) for d in range(n))
 
-def weyl(A, b, c, d):  # in four dimensions
-    return (down[A, b, c, d]
-            - (g[A, c] * ricci[d, b] - g[A, d] * ricci[c, b] - g[b, c] * ricci[d, A] + g[b, d] * ricci[c, A]) / 2
-            + scalar * (g[A, c] * g[d, b] - g[A, d] * g[c, b]) / 6)
 
-expected = all(simplify(weyl(A, b, c, d)) == 0
-               for A in range(n) for b in range(n) for c in range(n) for d in range(n))
+def weyl(A, b, c, d):  # in four dimensions
+    return (
+        down[A, b, c, d]
+        - (
+            g[A, c] * ricci[d, b]
+            - g[A, d] * ricci[c, b]
+            - g[b, c] * ricci[d, A]
+            + g[b, d] * ricci[c, A]
+        )
+        / 2
+        + scalar * (g[A, c] * g[d, b] - g[A, d] * g[c, b]) / 6
+    )
+
+
+expected = all(
+    simplify(weyl(A, b, c, d)) == 0
+    for A in range(n)
+    for b in range(n)
+    for c in range(n)
+    for d in range(n)
+)
 assert expected
 ```
 
@@ -95,8 +150,14 @@ X = [theta, phi]
 g = diag(1, sin(theta) ** 2)
 xi = [sin(phi), cot(theta) * cos(phi)]
 # (L_xi g)_{mn} = xi^l d_l g_{mn} + g_{ln} d_m xi^l + g_{ml} d_n xi^l
-lie = Matrix(2, 2, lambda m, v: sum(xi[l] * diff(g[m, v], X[l]) + g[l, v] * diff(xi[l], X[m])
-                                    + g[m, l] * diff(xi[l], X[v]) for l in range(2)))
+lie = Matrix(
+    2,
+    2,
+    lambda m, v: sum(
+        xi[l] * diff(g[m, v], X[l]) + g[l, v] * diff(xi[l], X[m]) + g[m, l] * diff(xi[l], X[v])
+        for l in range(2)
+    ),
+)
 expected = simplify(lie) == zeros(2, 2)
 assert expected
 ```

@@ -19,7 +19,7 @@ the Gaussian.
 ```python
 x = symbols("x")
 expected = diff(erf(x), x)
-assert expected == 2 * exp(-x**2) / sqrt(pi)
+assert expected == 2 * exp(-(x**2)) / sqrt(pi)
 ```
 
 ## One standard deviation of a normal distribution
@@ -35,7 +35,7 @@ The probability that a normal variable lies within one standard deviation of its
 
 ```python
 x = symbols("x")
-expected = integrate(exp(-x**2 / 2), (x, -1, 1)) / sqrt(2 * pi)
+expected = integrate(exp(-(x**2) / 2), (x, -1, 1)) / sqrt(2 * pi)
 assert expected == erf(1 / sqrt(2))
 assert abs(float(expected) - 0.6826894921) < 1e-10
 ```
@@ -71,7 +71,7 @@ The error function as its power series, an infinite sum that the language must r
 ```python
 x = symbols("x")
 n = symbols("n", integer=True, nonnegative=True)
-total = Sum((-1)**n * x**(2 * n + 1) / (factorial(n) * (2 * n + 1)), (n, 0, oo)).doit()
+total = Sum((-1) ** n * x ** (2 * n + 1) / (factorial(n) * (2 * n + 1)), (n, 0, oo)).doit()
 assert simplify(2 / sqrt(pi) * total - erf(x)) == 0
 expected = True
 ```

@@ -55,7 +55,7 @@ f(1) - T_2(1) = \int_0^1 \frac{f'''(t)}{2!} (1 - t)^2 \, dt
 ```python
 t = symbols("t")
 difference = E - (1 + 1 + Rational(1, 2))
-remainder = integrate(exp(t) / factorial(2) * (1 - t)**2, (t, 0, 1))
+remainder = integrate(exp(t) / factorial(2) * (1 - t) ** 2, (t, 0, 1))
 assert simplify(difference - remainder) == 0
 expected = True
 ```
@@ -72,6 +72,6 @@ n! \sim \sqrt{2\pi n} \left(\frac{n}{e}\right)^n
 
 ```python
 n = symbols("n", integer=True, positive=True)
-assert limit(factorial(n) / (sqrt(2 * pi * n) * (n / E)**n), n, oo) == 1
+assert limit(factorial(n) / (sqrt(2 * pi * n) * (n / E) ** n), n, oo) == 1
 expected = True
 ```

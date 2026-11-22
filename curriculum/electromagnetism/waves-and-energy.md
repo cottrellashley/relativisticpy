@@ -71,8 +71,9 @@ invariant = sum(F[a, b] * F_up[a, b] for a in range(4) for b in range(4))
 T = Matrix(
     4,
     4,
-    lambda m, n: sum(F_up[m, a] * F_mixed[n, a] for a in range(4))
-    - Rational(1, 4) * eta[m, n] * invariant,
+    lambda m, n: (
+        sum(F_up[m, a] * F_mixed[n, a] for a in range(4)) - Rational(1, 4) * eta[m, n] * invariant
+    ),
 )
 expected = expand(sum(T[m, n] * eta[m, n] for m in range(4) for n in range(4)))
 assert expected == 0
@@ -107,8 +108,9 @@ invariant = sum(F[a, b] * F_up[a, b] for a in range(4) for b in range(4))
 T = Matrix(
     4,
     4,
-    lambda m, n: sum(F_up[m, a] * F_mixed[n, a] for a in range(4))
-    - Rational(1, 4) * eta[m, n] * invariant,
+    lambda m, n: (
+        sum(F_up[m, a] * F_mixed[n, a] for a in range(4)) - Rational(1, 4) * eta[m, n] * invariant
+    ),
 )
 J = [sum(diff(F_up[n, m], X[m]) for m in range(4)) for n in range(4)]  # the current it needs
 J_down = [eta[n, n] * J[n] for n in range(4)]

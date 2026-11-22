@@ -43,7 +43,9 @@ directions, with \(\int d\Omega\) as physicists write it: \(\sigma = 4\pi\alpha^
 theta, phi = symbols("theta phi", real=True)
 alpha, s = symbols("alpha s", positive=True)
 # d Omega = sin(theta) d theta d phi, over the whole sphere.
-expected = integrate(alpha**2 / (4 * s) * (1 + cos(theta) ** 2) * sin(theta), (theta, 0, pi), (phi, 0, 2 * pi))
+expected = integrate(
+    alpha**2 / (4 * s) * (1 + cos(theta) ** 2) * sin(theta), (theta, 0, pi), (phi, 0, 2 * pi)
+)
 assert simplify(expected - 4 * pi * alpha**2 / (3 * s)) == 0  # Peskin (5.13)
 ```
 
@@ -152,11 +154,23 @@ p, p_bar = [E, 0, 0, E], [E, 0, 0, -E]
 k, k_bar = [E, E * sin(theta), 0, E * cos(theta)], [E, -E * sin(theta), 0, -E * cos(theta)]
 q_squared = (2 * E) ** 2
 # Spin sums turn |M|^2 into traces: (e^4 / 4 q^4) tr[p'-slash g^mu p-slash g^nu] tr[k-slash g_mu k'-slash g_nu].
-electron = [[(slash(p_bar) * gamma_up[mu] * slash(p) * gamma_up[nu]).trace() for nu in range(4)] for mu in range(4)]
-muon = [[(slash(k) * gamma_down[mu] * slash(k_bar) * gamma_down[nu]).trace() for nu in range(4)] for mu in range(4)]
-averaged = e**4 / (4 * q_squared**2) * sum(electron[mu][nu] * muon[mu][nu] for mu in range(4) for nu in range(4))
+electron = [
+    [(slash(p_bar) * gamma_up[mu] * slash(p) * gamma_up[nu]).trace() for nu in range(4)]
+    for mu in range(4)
+]
+muon = [
+    [(slash(k) * gamma_down[mu] * slash(k_bar) * gamma_down[nu]).trace() for nu in range(4)]
+    for mu in range(4)
+]
+averaged = (
+    e**4
+    / (4 * q_squared**2)
+    * sum(electron[mu][nu] * muon[mu][nu] for mu in range(4) for nu in range(4))
+)
 assert simplify(averaged - e**4 * (1 + cos(theta) ** 2)) == 0  # Peskin, section 5.1
-sigma = integrate(averaged / (64 * pi**2 * q_squared) * sin(theta), (theta, 0, pi), (phi, 0, 2 * pi))
+sigma = integrate(
+    averaged / (64 * pi**2 * q_squared) * sin(theta), (theta, 0, pi), (phi, 0, 2 * pi)
+)
 expected = e**4 / (12 * pi * s)
 assert simplify(sigma.subs(E, sqrt(s) / 2) - expected) == 0
 alpha = e**2 / (4 * pi)

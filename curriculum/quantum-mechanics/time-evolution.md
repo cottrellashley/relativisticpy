@@ -23,7 +23,15 @@ t = symbols("t", real=True)
 omega, hbar = symbols("omega hbar", positive=True)
 H = hbar * omega / 2 * Matrix([[0, 1], [1, 0]])
 U = (-I * H * t / hbar).exp()
-assert simplify(U - Matrix([[cos(omega * t / 2), -I * sin(omega * t / 2)], [-I * sin(omega * t / 2), cos(omega * t / 2)]])) == zeros(2, 2)
+assert simplify(
+    U
+    - Matrix(
+        [
+            [cos(omega * t / 2), -I * sin(omega * t / 2)],
+            [-I * sin(omega * t / 2), cos(omega * t / 2)],
+        ]
+    )
+) == zeros(2, 2)
 assert simplify(U.H * U) == eye(2)
 expected = True
 ```
@@ -117,6 +125,8 @@ assert simplify(joined - heat_kernel(x_2, x_0, tau_1 + tau_2)) == 0
 T = t_b - t_a
 K = sqrt(m / (2 * pi * I * hbar * T)) * exp(I * m * (x_b - x_a) ** 2 / (2 * hbar * T))
 assert simplify(heat_kernel(x_b, x_a, I * T) - K) == 0  # back to real time
-assert simplify(I * hbar * diff(K, t_b) + hbar**2 / (2 * m) * diff(K, x_b, 2)) == 0  # it solves Schrodinger's equation
+assert (
+    simplify(I * hbar * diff(K, t_b) + hbar**2 / (2 * m) * diff(K, x_b, 2)) == 0
+)  # it solves Schrodinger's equation
 expected = K
 ```

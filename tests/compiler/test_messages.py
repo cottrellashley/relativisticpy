@@ -68,7 +68,7 @@ class TestOneRuleOnePhrasing:
     def test_a_scalar_added_to_a_tensor_is_the_rule_of_sums(self, wb):
         wb.exe(SCHWARZSCHILD)
         found = error(wb, r"R_{\mu\nu} + 1", IndexNotationError)
-        assert found.message == "the free indices of a sum must agree: _{mu}_{nu} and none"
+        assert found.message == r"the free indices of a sum must agree: _{\mu\nu} and none"
 
 
 class TestWhichIndexIsWrong:
@@ -182,11 +182,15 @@ class TestWhatIsNotATensor:
         assert wb.expr("transpose(A)").tolist() == [[1, 3], [2, 4]]  # the hint works
 
     @pytest.mark.parametrize(
-        ("source", "message"),
-        [("x_{}", "subscript"), ("x^{}", "superscript"), (r"\partial_{} f", "subscript")],
+        ("source", "message"), [("x_{}", "subscript"), ("x^{}", "superscript")]
     )
     def test_an_empty_script(self, wb, source, message):
-        assert error(wb, source).message == f"empty {message}"
+        # in plain text an empty script is a mistake, said as it is read
+        assert error(wb, source, ParseError).message == f"empty {message}"
+
+    def test_an_empty_script_in_latex_is_nothing_as_in_tex(self, wb):
+        # TeX sets \partial_{} as \partial, so the derivative still needs its variable
+        assert error(wb, r"\partial_{} f").message == r"\partial needs an index or a variable"
 
 
 def notes(wb, source):
@@ -272,11 +276,9 @@ class TestArity:
         assert "takes a tensor written with its indices" in error(wb, source).message
 
     def test_an_argument_by_name(self, wb):
-        found = error(wb, "series(sin(x), x, 0, n=5)")
-        assert (
-            found.message == "series() takes its arguments in order, not by name, as n=5 gives one"
-        )
-        assert found.hint == "write series(sin(x), x, 0, 5)"
+        found = error(wb, "series(sin(x), x, 0, n=5)", ParseError)  # refused as it is read
+        assert found.message == "n=5 is a keyword argument, which the language does not have"
+        assert found.hint == "give the value in its place, as in series(sin(x), x, 0, 5)"
         assert wb.expr("series(sin(x), x, 0, 5)")  # the hint works
 
 
@@ -296,12 +298,9 @@ class TestBuiltinsSayWhatTheyTake:
         assert "symbols takes names in quotes" in error(wb, "symbols(2)", EvaluationError).message
 
     def test_a_list_is_not_indexed(self, wb):
-        found = error(wb, "[1, 2][0]")
-        assert found.message == "a list is not indexed with [ ]"
-        assert (
-            found.hint
-            == "to name the elements of a list, write them on the left of :=, as in a, b := [1, 2]"
-        )
+        found = error(wb, "[1, 2][0]", ParseError)  # refused as it is read
+        assert found.message == "[1, 2][0] indexes as Python does, which the language does not"
+        assert found.hint.startswith("a component is written with indices, as in V^{0}")
         wb.exe("a, b := [1, 2]")  # the hint works
         assert wb.expr("a") == 1
         wb.exe(SCHWARZSCHILD)

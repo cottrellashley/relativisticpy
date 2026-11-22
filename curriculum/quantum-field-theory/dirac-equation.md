@@ -57,7 +57,9 @@ gamma_matrices += [Matrix(BlockMatrix([[zero, s], [-s, zero]])) for s in sigma]
 g = diag(1, -1, -1, -1)
 for mu in range(4):
     for nu in range(4):
-        anticommutator = gamma_matrices[mu] * gamma_matrices[nu] + gamma_matrices[nu] * gamma_matrices[mu]
+        anticommutator = (
+            gamma_matrices[mu] * gamma_matrices[nu] + gamma_matrices[nu] * gamma_matrices[mu]
+        )
         assert anticommutator == 2 * g[mu, nu] * eye(4)
 expected = True
 ```

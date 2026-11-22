@@ -143,10 +143,24 @@ X = [t, r, theta, phi]
 g = diag(-(1 - 2 * M / r), 1 / (1 - 2 * M / r), r**2, r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
 xi_down = [g[m, 0] for m in range(n)]  # xi_mu = g_{mu t}
-D = Matrix(n, n, lambda m, v: diff(xi_down[v], X[m]) - sum(Gam[l][m][v] * xi_down[l] for l in range(n)))
+D = Matrix(
+    n, n, lambda m, v: diff(xi_down[v], X[m]) - sum(Gam[l][m][v] * xi_down[l] for l in range(n))
+)
 D_up = gi * D * gi  # nabla^mu xi^nu
 square = simplify(sum(D[m, v] * D_up[m, v] for m in range(n) for v in range(n)))
 assert simplify(square + 2 * M**2 / r**4) == 0
@@ -200,12 +214,32 @@ X = [t, l, theta, phi]
 g = diag(-1, 1, b**2 + l**2, (b**2 + l**2) * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, B], X[c]) + diff(g[d, c], X[B]) - diff(g[B, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for B in range(n)] for a in range(n)]
-ricci = Matrix(n, n, lambda B, d: simplify(sum(
-    diff(Gam[a][d][B], X[a]) - diff(Gam[a][a][B], X[d])
-    + sum(Gam[a][a][e] * Gam[e][d][B] - Gam[a][d][e] * Gam[e][a][B] for e in range(n))
-    for a in range(n))))
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, B], X[c]) + diff(g[d, c], X[B]) - diff(g[B, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for B in range(n)
+    ]
+    for a in range(n)
+]
+ricci = Matrix(
+    n,
+    n,
+    lambda B, d: simplify(
+        sum(
+            diff(Gam[a][d][B], X[a])
+            - diff(Gam[a][a][B], X[d])
+            + sum(Gam[a][a][e] * Gam[e][d][B] - Gam[a][d][e] * Gam[e][a][B] for e in range(n))
+            for a in range(n)
+        )
+    ),
+)
 scalar = simplify(sum(gi[B, d] * ricci[B, d] for B in range(n) for d in range(n)))
 einstein = simplify(ricci - scalar * g / 2)
 k = Matrix([1, 1, 0, 0])  # a radial null vector

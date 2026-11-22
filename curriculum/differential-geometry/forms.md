@@ -20,7 +20,9 @@ ds^2 = a^2 \left(d\chi^2 + \sin^2\chi\, d\Omega^2\right)
 a, chi, theta, phi = symbols("a chi theta phi", positive=True)
 g = diag(a**2, a**2 * sin(chi) ** 2, a**2 * sin(chi) ** 2 * sin(theta) ** 2)
 assert simplify(g.det() - (a**3 * sin(chi) ** 2 * sin(theta)) ** 2) == 0
-expected = integrate(a**3 * sin(chi) ** 2 * sin(theta), (chi, 0, pi), (theta, 0, pi), (phi, 0, 2 * pi))
+expected = integrate(
+    a**3 * sin(chi) ** 2 * sin(theta), (chi, 0, pi), (theta, 0, pi), (phi, 0, 2 * pi)
+)
 assert expected == 2 * pi**2 * a**3
 ```
 
@@ -59,8 +61,9 @@ ds^2 = dx^2 + dy^2 + dz^2
 
 ```python
 beta = Matrix([[0, 1, 0], [-1, 0, 0], [0, 0, 0]])  # (dx ^ dy)_{ij}; indices raised by delta
-expected = [sum(beta[i, j] * LeviCivita(i, j, k) for i in range(3) for j in range(3)) / 2
-            for k in range(3)]
+expected = [
+    sum(beta[i, j] * LeviCivita(i, j, k) for i in range(3) for j in range(3)) / 2 for k in range(3)
+]
 assert expected == [0, 0, 1]
 ```
 

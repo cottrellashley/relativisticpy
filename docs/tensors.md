@@ -46,7 +46,7 @@ element of the metric in force:
 ```python
 >>> sphere = Workbook()
 >>> sphere.exe(r"ds^2 = r^2 d\Omega^2 - dt^2 + dr^2" "\n" "Coordinates" "\n" "ds^2")
-[[theta, phi, t, r], d\phi**2*r**2*sin(theta)**2 + d\theta**2*r**2 + dr**2 - dt**2]
+[[theta, phi, t, r], dphi**2*r**2*sin(theta)**2 + dr**2 - dt**2 + dtheta**2*r**2]
 
 ```
 
@@ -60,7 +60,7 @@ metric in force, if there is one, stays:
 >>> flat.exe(r"Coordinates := [t, r]" "\n" r"ds^2 = -dt^2")
 Traceback (most recent call last):
   ...
-relativisticpy.errors.EvaluationError: the metric is degenerate: its determinant is zero
+relativisticpy.errors.MetricError: the metric is degenerate: its determinant is zero
  --> <input>:2:1
   |
 2 | ds^2 = -dt^2

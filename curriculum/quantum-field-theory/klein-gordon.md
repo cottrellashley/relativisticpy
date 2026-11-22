@@ -26,7 +26,10 @@ assert simplify(diff(phi, t, 2) - diff(phi, x, 2) + m**2 * phi) == 0
 # Off the mass shell it is no solution: the energies allowed are +-E.
 E_free = symbols("E")
 wave = exp(-I * (E_free * t - p * x))
-assert solve(simplify((diff(wave, t, 2) - diff(wave, x, 2) + m**2 * wave) / wave), E_free) == [-E, E]
+assert solve(simplify((diff(wave, t, 2) - diff(wave, x, 2) + m**2 * wave) / wave), E_free) == [
+    -E,
+    E,
+]
 expected = True
 ```
 
@@ -77,7 +80,9 @@ from sympy.calculus.euler import euler_equations
 
 t, x, y, z, m = symbols("t x y z m", real=True)
 phi = Function("phi")(t, x, y, z)
-L = (diff(phi, t) ** 2 - diff(phi, x) ** 2 - diff(phi, y) ** 2 - diff(phi, z) ** 2) / 2 - m**2 * phi**2 / 2
+L = (
+    diff(phi, t) ** 2 - diff(phi, x) ** 2 - diff(phi, y) ** 2 - diff(phi, z) ** 2
+) / 2 - m**2 * phi**2 / 2
 [equation] = euler_equations(L, phi, [t, x, y, z])
 box = diff(phi, t, 2) - diff(phi, x, 2) - diff(phi, y, 2) - diff(phi, z, 2)  # d_mu d^mu
 # SymPy writes dL/dphi - d_mu(dL/d(d_mu phi)) = 0, the negative of the program's left side.

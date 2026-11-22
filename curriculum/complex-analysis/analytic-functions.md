@@ -63,7 +63,7 @@ x, y = symbols("x y", real=True)
 u = x**3 - 3 * x * y**2
 v = integrate(diff(u, x), y)
 assert v == 3 * x**2 * y - y**3
-assert expand(u + I * v - (x + I * y)**3) == 0
+assert expand(u + I * v - (x + I * y) ** 3) == 0
 expected = True
 ```
 

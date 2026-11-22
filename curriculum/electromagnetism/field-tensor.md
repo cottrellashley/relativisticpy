@@ -121,8 +121,10 @@ F_down = g * F * g
 dual = Matrix(
     4,
     4,
-    lambda a, b: Rational(1, 2)
-    * sum(LeviCivita(a, b, c, d) * F_down[c, d] for c in range(4) for d in range(4)),
+    lambda a, b: (
+        Rational(1, 2)
+        * sum(LeviCivita(a, b, c, d) * F_down[c, d] for c in range(4) for d in range(4))
+    ),
 )
 # Jackson (11.141): the dual is F with E replaced by B and B by -E
 swap = {Ex: Bx, Ey: By, Ez: Bz, Bx: -Ex, By: -Ey, Bz: -Ez}

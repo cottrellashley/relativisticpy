@@ -32,8 +32,8 @@ at \(a = b = 1/2\).
 
 ```python
 t = symbols("t")
-expected = integrate(t**Rational(-1, 2) * (1 - t)**Rational(-1, 2), (t, 0, 1))
-assert expected == gamma(Rational(1, 2))**2 / gamma(1) == pi
+expected = integrate(t ** Rational(-1, 2) * (1 - t) ** Rational(-1, 2), (t, 0, 1))
+assert expected == gamma(Rational(1, 2)) ** 2 / gamma(1) == pi
 ```
 
 ## The reflection formula
@@ -83,7 +83,7 @@ for every \(s\).
 
 ```python
 s = symbols("s")
-right = 2**s * pi**(s - 1) * sin(pi * s / 2) * gamma(1 - s) * zeta(1 - s)
+right = 2**s * pi ** (s - 1) * sin(pi * s / 2) * gamma(1 - s) * zeta(1 - s)
 for value in (Rational(1, 3), Rational(5, 2), Rational(1, 2) + 3 * I):
     assert abs(N(zeta(value) - right.subs(s, value), 30)) < 1e-25
 expected = True

@@ -58,8 +58,8 @@ upper half-plane, here at a double pole: the step by which books close the conto
 ```python
 x = symbols("x", real=True)
 z = symbols("z")
-assert integrate(1 / (x**2 + 1)**2, (x, -oo, oo)) == pi / 2
-assert 2 * pi * I * residue(1 / (z**2 + 1)**2, z, I) == pi / 2
+assert integrate(1 / (x**2 + 1) ** 2, (x, -oo, oo)) == pi / 2
+assert 2 * pi * I * residue(1 / (z**2 + 1) ** 2, z, I) == pi / 2
 expected = True
 ```
 

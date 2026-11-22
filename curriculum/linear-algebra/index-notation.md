@@ -40,7 +40,10 @@ R = range(3)
 assert all(
     sum(LeviCivita(i, j, k) * LeviCivita(i, m, n) for i in R)
     == KroneckerDelta(j, m) * KroneckerDelta(k, n) - KroneckerDelta(j, n) * KroneckerDelta(k, m)
-    for j in R for k in R for m in R for n in R
+    for j in R
+    for k in R
+    for m in R
+    for n in R
 )
 expected = True
 ```
@@ -67,12 +70,23 @@ R = range(3)
 a, b, c = symbols("a1:4"), symbols("b1:4"), symbols("c1:4")
 eps, delta = LeviCivita, KroneckerDelta
 assert all(
-    sum(eps(i, j, k) * eps(k, l, m) for k in R) == delta(i, l) * delta(j, m) - delta(i, m) * delta(j, l)
-    for i in R for j in R for l in R for m in R
+    sum(eps(i, j, k) * eps(k, l, m) for k in R)
+    == delta(i, l) * delta(j, m) - delta(i, m) * delta(j, l)
+    for i in R
+    for j in R
+    for l in R
+    for m in R
 )
 for i in R:
-    triple = sum(eps(i, j, k) * a[j] * eps(k, l, m) * b[l] * c[m] for j in R for k in R for l in R for m in R)
-    deltas = sum((delta(i, l) * delta(j, m) - delta(i, m) * delta(j, l)) * a[j] * b[l] * c[m] for j in R for l in R for m in R)
+    triple = sum(
+        eps(i, j, k) * a[j] * eps(k, l, m) * b[l] * c[m] for j in R for k in R for l in R for m in R
+    )
+    deltas = sum(
+        (delta(i, l) * delta(j, m) - delta(i, m) * delta(j, l)) * a[j] * b[l] * c[m]
+        for j in R
+        for l in R
+        for m in R
+    )
     rule = b[i] * sum(a[j] * c[j] for j in R) - c[i] * sum(a[j] * b[j] for j in R)
     assert expand(triple - deltas) == 0 and expand(deltas - rule) == 0
 outputs = [True, True, True]

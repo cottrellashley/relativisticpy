@@ -32,7 +32,7 @@ substitutes it back. This is trace reversal:
 >>> wb.expr("trace(EFE)")
 IndexEquation(4Λ − R = 8π G T)
 >>> wb.expr("solve(trace(EFE), R)")
-IndexEquation(R = 4 \Lambda - 8 \pi G T)
+IndexEquation(R = 4Λ − 8π G T)
 >>> wb.expr(r"solve(EFE, R_{\mu\nu})")
 IndexEquation(R_{μν} = 8π G T_{μν} + (Λ − 4π G T) g_{μν})
 

@@ -21,11 +21,11 @@ f_n(x) := n x (1 - x^2)^n
 ```python
 n = symbols("n", integer=True, positive=True)
 x = symbols("x", positive=True)
-integrals = integrate(n * x * (1 - x**2)**n, (x, 0, 1))
+integrals = integrate(n * x * (1 - x**2) ** n, (x, 0, 1))
 assert simplify(integrals - n / (2 * n + 2)) == 0
 assert limit(integrals, n, oo) == Rational(1, 2)  # the left side
 # f_n(x) -> 0 at x = 0 and x = 1, and like n q^n with 0 < q < 1 in between
-assert limit(n * Rational(1, 2) * Rational(3, 4)**n, n, oo) == 0  # x = 1/2, for one
+assert limit(n * Rational(1, 2) * Rational(3, 4) ** n, n, oo) == 0  # x = 1/2, for one
 expected = False  # 1/2 on the left, 0 on the right
 ```
 

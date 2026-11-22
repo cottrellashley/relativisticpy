@@ -110,7 +110,12 @@ L = m * R**2 / 2 * (diff(theta, t) ** 2 + sin(theta) ** 2 * diff(phi, t) ** 2)
 equations = [diff(diff(L, diff(q, t)), t) - diff(L, q) for q in (theta, phi)]
 expected = [
     m * R**2 * (diff(theta, t, 2) - sin(theta) * cos(theta) * diff(phi, t) ** 2),
-    m * R**2 * (sin(theta) ** 2 * diff(phi, t, 2) + 2 * sin(theta) * cos(theta) * diff(theta, t) * diff(phi, t)),
+    m
+    * R**2
+    * (
+        sin(theta) ** 2 * diff(phi, t, 2)
+        + 2 * sin(theta) * cos(theta) * diff(theta, t) * diff(phi, t)
+    ),
 ]
 assert all(simplify(equation - e) == 0 for equation, e in zip(equations, expected))
 ```

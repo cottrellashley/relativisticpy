@@ -266,7 +266,7 @@ class TestReading:
 
     def test_ds_squared_alone_is_the_line_element(self, wb):
         wb.exe("ds^2 = -dt^2 + r^2 d\\phi^2")
-        dt, dphi = Symbol("dt"), Symbol("d\\phi")
+        dt, dphi = Symbol("dt"), Symbol("dphi")
         assert wb.expr("ds^2") == -(dt**2) + r**2 * dphi**2
 
 

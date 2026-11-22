@@ -144,6 +144,9 @@ def symbols(names: Any) -> Any:
     return sympy.symbols(names)
 
 
+symbols.takes_names = True  # type: ignore[attr-defined]  # text it is given is names, never run
+
+
 def diag(*entries: Any) -> sympy.ImmutableDenseNDimArray:
     return sympy.ImmutableDenseNDimArray(sympy.diag(*entries).tolist())
 

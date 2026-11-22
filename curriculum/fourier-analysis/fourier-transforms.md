@@ -108,7 +108,10 @@ x, s = symbols("x s")
 gaussian = simplify(integrate(exp(-pi * x**2) * exp(-I * 2 * pi * x * s), (x, -oo, oo)))
 assert gaussian == exp(-pi * s**2)
 triangle = 2 * integrate((1 - x) * cos(2 * pi * x * s), (x, 0, 1))  # Λ is even
-assert all(abs(N((triangle - sin(pi * s) ** 2 / (pi * s) ** 2).subs(s, v))) < 1e-12 for v in (0.3, 1.7, -2.4))
+assert all(
+    abs(N((triangle - sin(pi * s) ** 2 / (pi * s) ** 2).subs(s, v))) < 1e-12
+    for v in (0.3, 1.7, -2.4)
+)
 outputs = [True, True]
 ```
 

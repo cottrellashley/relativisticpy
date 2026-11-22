@@ -17,7 +17,7 @@ A derivative through three nested functions, each written as a command.
 
 ```python
 x = symbols("x")
-expected = -cos(cos(tan(x))) * sin(tan(x)) * sec(x)**2
+expected = -cos(cos(tan(x))) * sin(tan(x)) * sec(x) ** 2
 assert simplify(expected - diff(sin(cos(tan(x))), x)) == 0
 ```
 

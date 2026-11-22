@@ -39,7 +39,7 @@ solve(p_\mu p^\mu = -m^2, E)
 E, p, m = symbols("E p m")
 eta = diag(-1, 1, 1, 1)
 momentum = Matrix([E, p, 0, 0])
-expected = solve(Eq((momentum.T * eta * momentum)[0], -m**2), E)
+expected = solve(Eq((momentum.T * eta * momentum)[0], -(m**2)), E)
 assert expected == [-sqrt(m**2 + p**2), sqrt(m**2 + p**2)]
 ```
 

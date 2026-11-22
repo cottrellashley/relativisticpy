@@ -24,10 +24,25 @@ X = [theta, phi]
 g = diag(r**2, (R + r * cos(theta)) ** 2)
 gi = g.inv()
 n = 2
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
-up = (diff(Gam[0][1][1], X[0]) - diff(Gam[0][0][1], X[1])  # R^theta_{phi theta phi}
-      + sum(Gam[0][0][e] * Gam[e][1][1] - Gam[0][1][e] * Gam[e][0][1] for e in range(n)))
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+up = (
+    diff(Gam[0][1][1], X[0])
+    - diff(Gam[0][0][1], X[1])  # R^theta_{phi theta phi}
+    + sum(Gam[0][0][e] * Gam[e][1][1] - Gam[0][1][e] * Gam[e][0][1] for e in range(n))
+)
 expected = simplify(g[0, 0] * up / g.det())
 assert simplify(expected - cos(theta) / (r * (R + r * cos(theta)))) == 0
 ```
@@ -50,12 +65,30 @@ X = [x, y]
 g = diag(1 / y**2, 1 / y**2)
 gi = g.inv()
 n = 2
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
-ricci = Matrix(n, n, lambda b, d: sum(
-    diff(Gam[a][d][b], X[a]) - diff(Gam[a][a][b], X[d])
-    + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
-    for a in range(n)))
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+ricci = Matrix(
+    n,
+    n,
+    lambda b, d: sum(
+        diff(Gam[a][d][b], X[a])
+        - diff(Gam[a][a][b], X[d])
+        + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
+        for a in range(n)
+    ),
+)
 scalar = simplify(sum(gi[b, d] * ricci[b, d] for b in range(n) for d in range(n)))
 expected = scalar / 2
 assert expected == -1

@@ -86,7 +86,10 @@ d = lambda a, b: 1 if a == b else 0
 expected = all(
     sum(LeviCivita(i, j, k) * LeviCivita(i, m, n) for i in range(3))
     == d(j, m) * d(k, n) - d(j, n) * d(k, m)
-    for j in range(3) for k in range(3) for m in range(3) for n in range(3)
+    for j in range(3)
+    for k in range(3)
+    for m in range(3)
+    for n in range(3)
 )
 assert expected
 ```

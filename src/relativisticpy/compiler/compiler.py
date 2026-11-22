@@ -75,6 +75,7 @@ from relativisticpy.errors import (
     CompileError,
     EvaluationError,
     IndexNotationError,
+    MetricError,
     ParseError,
     RelativisticPyError,
 )
@@ -912,13 +913,13 @@ class Compiler:
         ]
         if missing:
             differentials = _listed([f"d{name}" for name in missing], "or")
-            return EvaluationError(
+            return MetricError(
                 "the metric is degenerate: its determinant is zero",
                 span=span,
                 notes=[f"no term of it has {differentials}"],
                 hint=f"give it a term with {_listed([f'd{name}' for name in missing])}",
             )
-        return EvaluationError(
+        return MetricError(
             "the metric is degenerate: its determinant is zero",
             span=span,
             notes=["so it has no inverse, and no curvature can be computed from it"],

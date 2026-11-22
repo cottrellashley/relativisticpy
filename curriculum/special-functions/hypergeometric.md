@@ -66,6 +66,11 @@ assert expected == 4 / pi == hyperexpand(hyper([a, b], [c], 1))
 
 ```python
 z = symbols("z")
-assert simplify(hyperexpand(z * hyper([Rational(1, 2), Rational(1, 2)], [Rational(3, 2)], z**2)) - asin(z)) == 0
+assert (
+    simplify(
+        hyperexpand(z * hyper([Rational(1, 2), Rational(1, 2)], [Rational(3, 2)], z**2)) - asin(z)
+    )
+    == 0
+)
 expected = True
 ```

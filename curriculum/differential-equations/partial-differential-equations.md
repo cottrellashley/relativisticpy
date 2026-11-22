@@ -88,7 +88,7 @@ K(x, t) := \frac{1}{\sqrt{4\pi t}} e^{-\frac{x^2}{4t}}
 ```python
 x = symbols("x", real=True)
 t = symbols("t", positive=True)
-K = exp(-x**2 / (4 * t)) / sqrt(4 * pi * t)
+K = exp(-(x**2) / (4 * t)) / sqrt(4 * pi * t)
 assert simplify(diff(K, t) - diff(K, x, 2)) == 0
 assert simplify(integrate(K, (x, -oo, oo))) == 1  # its mass is one at every time
 assert limit(K.subs(x, 1), t, 0, "+") == 0  # it vanishes away from the origin

@@ -23,8 +23,22 @@ X = [r, theta]
 g = diag(1, r**2)
 gi = g.inv()
 n = 2
-Gam = [[[simplify(sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-                      for d in range(n)) / 2) for c in range(n)] for b in range(n)] for a in range(n)]
+Gam = [
+    [
+        [
+            simplify(
+                sum(
+                    gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                    for d in range(n)
+                )
+                / 2
+            )
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
 outputs = [Gam[0][1][1], Gam[1][0][1]]
 assert outputs == [-r, 1 / r]
 ```
@@ -51,13 +65,30 @@ X = [theta, phi]
 g = diag(1, sin(theta) ** 2)
 gi = g.inv()
 n = 2
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
 curve = [theta0, lam]
 V = [cos(lam * cos(theta0)), -sin(lam * cos(theta0)) / sin(theta0)]
 on_curve = dict(zip(X, curve))
-transport = [diff(V[m], lam) + sum(Gam[m][a][b].subs(on_curve) * diff(curve[a], lam) * V[b]
-                                   for a in range(n) for b in range(n)) for m in range(n)]
+transport = [
+    diff(V[m], lam)
+    + sum(
+        Gam[m][a][b].subs(on_curve) * diff(curve[a], lam) * V[b] for a in range(n) for b in range(n)
+    )
+    for m in range(n)
+]
 expected = all(simplify(component) == 0 for component in transport)
 assert expected
 ```
@@ -81,17 +112,37 @@ X = [t, r, theta, phi]
 g = diag(-exp(2 * alpha), exp(2 * beta), r**2, r**2 * sin(theta) ** 2)
 gi = g.inv()
 n = 4
-Gam = [[[sum(gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
-             for d in range(n)) / 2 for c in range(n)] for b in range(n)] for a in range(n)]
-ricci = Matrix(n, n, lambda b, d: sum(
-    diff(Gam[a][d][b], X[a]) - diff(Gam[a][a][b], X[d])
-    + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
-    for a in range(n)))
+Gam = [
+    [
+        [
+            sum(
+                gi[a, d] * (diff(g[d, b], X[c]) + diff(g[d, c], X[b]) - diff(g[b, c], X[d]))
+                for d in range(n)
+            )
+            / 2
+            for c in range(n)
+        ]
+        for b in range(n)
+    ]
+    for a in range(n)
+]
+ricci = Matrix(
+    n,
+    n,
+    lambda b, d: sum(
+        diff(Gam[a][d][b], X[a])
+        - diff(Gam[a][a][b], X[d])
+        + sum(Gam[a][a][e] * Gam[e][d][b] - Gam[a][d][e] * Gam[e][a][b] for e in range(n))
+        for a in range(n)
+    ),
+)
 scalar = sum(gi[b, d] * ricci[b, d] for b in range(n) for d in range(n))
 G_up = gi * (ricci - scalar * g / 2) * gi
-divergence = [sum(diff(G_up[m, v], X[m]) for m in range(n))
-              + sum(Gam[m][m][l] * G_up[l, v] + Gam[v][m][l] * G_up[m, l]
-                    for m in range(n) for l in range(n)) for v in range(n)]
+divergence = [
+    sum(diff(G_up[m, v], X[m]) for m in range(n))
+    + sum(Gam[m][m][l] * G_up[l, v] + Gam[v][m][l] * G_up[m, l] for m in range(n) for l in range(n))
+    for v in range(n)
+]
 expected = all(simplify(component) == 0 for component in divergence)
 assert expected
 ```
@@ -117,11 +168,14 @@ theta, phi, A, B = symbols("theta phi A B")
 X = [theta, phi]
 e = [Matrix([1, 0]), Matrix([0, sin(theta)])]  # components of e^1 and e^2
 
+
 def d(form):  # the exterior derivative of a one-form, as its (theta, phi) component
     return diff(form[1], theta) - diff(form[0], phi)
 
+
 def wedge(u, v):  # the (theta, phi) component of u ^ v
     return u[0] * v[1] - u[1] * v[0]
+
 
 # with an orthonormal frame, omega^1_2 = -omega^2_1: try omega^1_2 = A d theta + B d phi
 omega12 = Matrix([A, B])

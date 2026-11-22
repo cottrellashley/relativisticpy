@@ -17,7 +17,7 @@ substitution \(u = 3 - 5x\).
 
 ```python
 x = symbols("x")
-expected = integrate(1 / (3 - 5 * x)**2, (x, 1, 2))
+expected = integrate(1 / (3 - 5 * x) ** 2, (x, 1, 2))
 assert expected == Rational(1, 14)
 ```
 
@@ -73,7 +73,7 @@ I^2 = \int_0^{2\pi} \int_0^{\infty} e^{-r^2} r \, dr \, d\theta
 ```python
 x = symbols("x")
 r, theta = symbols("r theta", positive=True)
-assert integrate(exp(-x**2), (x, -oo, oo))**2 == pi
-assert integrate(exp(-r**2) * r, (r, 0, oo), (theta, 0, 2 * pi)) == pi
+assert integrate(exp(-(x**2)), (x, -oo, oo)) ** 2 == pi
+assert integrate(exp(-(r**2)) * r, (r, 0, oo), (theta, 0, 2 * pi)) == pi
 expected = True
 ```

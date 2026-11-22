@@ -78,8 +78,10 @@ The rare disease again, with the probabilities named as the book names them,
 ```
 
 ```python
-expected = Rational(9, 10) * Rational(1, 10000) / (
-    Rational(9, 10) * Rational(1, 10000) + Rational(1, 10) * Rational(9999, 10000)
+expected = (
+    Rational(9, 10)
+    * Rational(1, 10000)
+    / (Rational(9, 10) * Rational(1, 10000) + Rational(1, 10) * Rational(9999, 10000))
 )
 assert abs(float(expected) - 0.00090) < 5e-6
 ```

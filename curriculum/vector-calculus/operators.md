@@ -78,7 +78,9 @@ ds^2 = dr^2 + r^2\, d\theta^2 + r^2 \sin^2\theta\, d\phi^2
 ```python
 r, theta, n = symbols("r theta n")
 u = r**n
-laplacian = diff(r**2 * diff(u, r), r) / r**2 + diff(sin(theta) * diff(u, theta), theta) / (r**2 * sin(theta))
+laplacian = diff(r**2 * diff(u, r), r) / r**2 + diff(sin(theta) * diff(u, theta), theta) / (
+    r**2 * sin(theta)
+)
 expected = n * (n + 1) * r ** (n - 2)
 assert simplify(laplacian - expected) == 0
 ```
@@ -154,8 +156,10 @@ A = [Function(name)(x, y, z) for name in ("u", "v", "w")]
 R = range(3)
 for i in R:
     left = sum(
-        LeviCivita(i, j, k) * diff(sum(LeviCivita(k, l, m) * diff(A[m], X[l]) for l in R for m in R), X[j])
-        for j in R for k in R
+        LeviCivita(i, j, k)
+        * diff(sum(LeviCivita(k, l, m) * diff(A[m], X[l]) for l in R for m in R), X[j])
+        for j in R
+        for k in R
     )
     right = sum(diff(A[j], X[i], X[j]) for j in R) - sum(diff(A[i], X[j], X[j]) for j in R)
     assert simplify(left - right) == 0

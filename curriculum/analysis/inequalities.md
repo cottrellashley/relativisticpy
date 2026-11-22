@@ -36,7 +36,7 @@ a, b > 0
 
 ```python
 a, b = symbols("a b", positive=True)
-assert simplify((a + b) / 2 - sqrt(a * b) - (sqrt(a) - sqrt(b))**2 / 2) == 0
+assert simplify((a + b) / 2 - sqrt(a * b) - (sqrt(a) - sqrt(b)) ** 2 / 2) == 0
 expected = True
 ```
 

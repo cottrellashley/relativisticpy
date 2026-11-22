@@ -116,7 +116,9 @@ t, r, theta = symbols("t r theta")
 x, y = cos(t), sin(t)  # the unit circle, counterclockwise
 expected = integrate(x * diff(y, t) - y * diff(x, t), (t, 0, 2 * pi))
 assert expected == 2 * pi
-assert integrate(2 * r, (r, 0, 1), (theta, 0, 2 * pi)) == expected  # d(omega) = 2 dx dy over the disk
+assert (
+    integrate(2 * r, (r, 0, 1), (theta, 0, 2 * pi)) == expected
+)  # d(omega) = 2 dx dy over the disk
 ```
 
 ## The divergence of the inverse-square field
