@@ -1187,8 +1187,6 @@ _INTEGER = re.compile(r"\d+")
 _MATRIX_BRACKETS = ("[", "\\left[", "\\big[", "\\Big[", "\\{", "\\left\\{", "\\lbrace")
 
 
-#: The elementary functions, which take a number and are refused a pair, as
-#: \sqrt{(a, b)}; the absolute value says of a list what to write instead itself.
 def _of_numbers() -> frozenset[str]:
     """The names of the elementary functions, which take numbers: a pair given to one, as
     to the square root in \\sqrt{(a, b)}, is a pair where none was meant. The modulus is
