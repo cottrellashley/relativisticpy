@@ -232,7 +232,7 @@ Fixing some indices and not others gives the rest as a tensor:
 
 A sum with whole-number limits is carried out, component by component for a
 tensor, so `\sum_{n=0}^{2} R_{\mu\nu}` is zero here; one to infinity, or to a
-symbol, is kept as written, and `doit(...)` carries it out where SymPy can.
+symbol, is its closed form where SymPy finds one, and is otherwise kept as written.
 
 ## Defining tensors
 

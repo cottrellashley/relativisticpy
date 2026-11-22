@@ -5,11 +5,11 @@ from sympy import (
     Array,
     Function,
     Integral,
-    Product,
     Sum,
     Symbol,
     cos,
     diff,
+    factorial,
     integrate,
     oo,
     pi,
@@ -24,12 +24,13 @@ x, y, z, t, tau, theta = (Symbol(n) for n in ("x", "y", "z", "t", "tau", "theta"
 f, g, h = Function("f"), Function("g"), Function("h")
 
 
-def test_finite_sums_and_products_are_carried_out_and_infinite_ones_kept(wb):
+def test_sums_and_products_are_carried_out_where_a_closed_form_is_found(wb):
     n = Symbol("n")
     assert wb.expr(r"\sum_{x=0}^{10} x") == 55
     assert wb.expr(r"\prod_{x=1}^{4} x") == 24
-    assert wb.expr(r"\sum_{x=1}^{n} x") == Sum(x, (x, 1, n))  # to a symbol: as written
-    assert wb.expr(r"\sum_{x=1}^{oo} 1/x**2") == Sum(1 / x**2, (x, 1, oo))
+    assert wb.expr(r"\sum_{x=1}^{n} x") == n**2 / 2 + n / 2  # to a symbol (decision 4)
+    assert wb.expr(r"\sum_{x=1}^{oo} 1/x**2") == pi**2 / 6
+    assert wb.expr(r"\sum_{x=1}^{oo} 1/x**x") == Sum(1 / x**x, (x, 1, oo))  # none: as written
     assert wb.expr(r"doit(\sum_{n=1}^{\infty} \frac{1}{n^2})") == pi**2 / 6
     wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
     assert wb.expr(r"\sum_{n=0}^{2} R_{\mu\nu}").nonzero() == {}  # no Sum(0, ...) left
@@ -71,7 +72,7 @@ def test_fractions_and_roots(wb):
 
 
 def test_statements_separated_by_newline_commands(wb):
-    assert wb.expr(r" A := \prod_{x=1}^{n} x \newline A") == Product(x, (x, 1, Symbol("n")))
+    assert wb.expr(r" A := \prod_{x=1}^{n} x \newline A") == factorial(Symbol("n"))
 
 
 @pytest.mark.parametrize(

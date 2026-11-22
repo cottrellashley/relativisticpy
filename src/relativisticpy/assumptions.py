@@ -48,7 +48,7 @@ _WORDS = {
 _ORDERED = ("positive", "nonnegative", "negative", "nonpositive")
 #: The operations a bound the program assumes decides something of, which are given the
 #: bounds in force as their attribute ``assuming``.
-DECIDED = frozenset({"solve", "integrate", "core.lt", "core.gt", "core.le", "core.ge"})
+DECIDED = frozenset({"solve", "integrate", "core.sum", "core.lt", "core.gt", "core.le", "core.ge"})
 #: The relation each fact of a sign is, for a coordinate, whose symbol stays as it is.
 _SIGNS = {
     "positive": sympy.Gt,
@@ -200,9 +200,26 @@ def holds(relation: Any, bounds: Sequence[Any]) -> bool | None:
     decided = sympy.sympify(relation).xreplace(within(bounds))
     if decided in (sympy.true, sympy.false):
         return bool(decided)
+    if isinstance(decided, sympy.And | sympy.Or):  # each part, as SymPy leaves them
+        verdicts = [holds(part, ()) for part in decided.args]
+        every, some = (False, True) if isinstance(decided, sympy.Or) else (True, False)
+        if every in verdicts:
+            return every
+        return some if all(verdict is some for verdict in verdicts) else None
     if isinstance(decided, Relational) and not isinstance(decided, sympy.Eq | sympy.Ne):
-        difference = sympy.factor(sympy.together(decided.lhs - decided.rhs))
-        settled = type(decided)(difference, 0)
+        return _compared(decided)
+    return None
+
+
+def _compared(relation: Any) -> bool | None:
+    """Whether an inequality SymPy leaves as it is holds: by the sign of the difference of
+    its sides, as one fraction; and, of two positive sides, by their logarithms, as
+    e^{-a} < 1 holds of a positive a."""
+    tries = [(relation.lhs, relation.rhs)]
+    if relation.lhs.is_positive and relation.rhs.is_positive:
+        tries.append(tuple(sympy.expand_log(sympy.log(side), force=True) for side in relation.args))
+    for lhs, rhs in tries:
+        settled = type(relation)(sympy.factor(sympy.together(lhs - rhs)), 0)
         if settled in (sympy.true, sympy.false):
             return bool(settled)
     return None
@@ -333,19 +350,62 @@ def integrated(f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any
     value under the assumption books make, which a remark says: the variable of an integral
     over real limits is real, and a parameter a scale, positive (design/notation.md,
     decision 1). Nothing is assumed of a symbol the program said something of."""
-    found = sympy.integrate(f, *limits)
+    return _computed(sympy.integrate, sympy.sympify(f), limits, bounds)
+
+
+def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:
+    """The sum of ``body`` over ``limits``, ``(n, a, b)``, in closed form where SymPy finds
+    one, with the index an integer: as :func:`integrated` gives an integral, under the
+    bounds the program assumes, and else the assumption books make where it converges only
+    under conditions on its parameters (design/notation.md, decisions 1 and 4). A sum in
+    an exponential of the index, as of e^{-a n}, is summed as a geometric series."""
+    ((index, lower, upper),) = limits
+    whole = Symbol(index.name, integer=True, **dict(getattr(index, "_assumptions_orig", {})))
+    body = sympy.sympify(body).xreplace({index: whole})
+    return _computed(_sum, body, [(whole, lower, upper)], bounds)
+
+
+def _sum(body: Any, *limits: Any) -> Any:
+    """A sum carried out by SymPy, with each exponential of the index, e^{c n + d}, as
+    e^d z^n, so that SymPy sums it as a geometric series in z = e^c."""
+    ((index, lower, upper),) = limits
+    ratios: dict[Any, Any] = {}
+
+    def geometric(power: Any) -> Any:
+        exponent = sympy.expand(power.args[0])
+        rate = exponent.coeff(index)
+        rest = exponent - rate * index
+        if rate == 0 or rest.has(index):
+            return power
+        ratio = sympy.Dummy("z")
+        ratios[ratio] = sympy.exp(rate)
+        return sympy.exp(rest) * ratio**index
+
+    rewritten = body.replace(lambda e: isinstance(e, sympy.exp) and e.has(index), geometric)
+    return sympy.Sum(rewritten, (index, lower, upper)).doit().xreplace(ratios)
+
+
+def _computed(
+    compute: Callable[..., Any], f: Any, limits: Sequence[Any], bounds: Sequence[Any]
+) -> Any:
+    """What ``compute`` gives of ``f`` over ``limits``, an integral or a sum: where it holds
+    conditions, computed again under the bounds the program assumes, and else under the
+    assumption books make (see :func:`integrated`)."""
+    found = compute(f, *limits)
     if bounds and _conditional(found):
-        found = _within_bounds(sympy.sympify(f), limits, bounds, found)
+        found = _within_bounds(compute, f, limits, bounds, found)
     if not _conditional(found):
         return found
-    return _as_books_take(sympy.sympify(f), limits, found)
+    return _as_books_take(compute, f, limits, found)
 
 
-def _within_bounds(f: Any, limits: Sequence[Any], bounds: Sequence[Any], found: Any) -> Any:
-    """An integral that holds conditions, computed again where the bounds hold: each symbol
-    they limit written as the new positive symbols that keep them, x > 1 as 1 + p, and the
-    value written with the symbol again, p as x - 1. Its conditions decided by the bounds,
-    where that gives no value."""
+def _within_bounds(
+    compute: Callable[..., Any], f: Any, limits: Sequence[Any], bounds: Sequence[Any], found: Any
+) -> Any:
+    """An integral or a sum that holds conditions, computed again where the bounds hold:
+    each symbol they limit written as the new positive symbols that keep them, x > 1 as
+    1 + p, and the value written with the symbol again, p as x - 1. Its conditions decided
+    by the bounds, where that gives no value."""
     written = f.free_symbols.union(*(sympy.sympify(limit).free_symbols for limit in limits))
     limited = {x: e for x, e in within(bounds).items() if x in written}
     steps = sorted(
@@ -354,7 +414,7 @@ def _within_bounds(f: Any, limits: Sequence[Any], bounds: Sequence[Any], found: 
     if limited and steps:
         inverse = sympy.solve([sympy.Eq(x, e) for x, e in limited.items()], steps, dict=True)
         if len(inverse) == 1:
-            again = sympy.integrate(f.xreplace(limited), *_put(limits, limited))
+            again = compute(f.xreplace(limited), *_put(limits, limited))
             if not _conditional(again):
                 return sympy.simplify(again.xreplace(inverse[0]))
     return settled(found, bounds)
@@ -369,7 +429,7 @@ def settled(value: Any, bounds: Sequence[Any]) -> Any:
         for expr, condition in piecewise.args:
             verdict = holds(condition, bounds)
             if verdict:
-                return piecewise if expr.has(sympy.Integral) else expr
+                return piecewise if _undone(expr) else expr
             if verdict is None:
                 return piecewise
         return piecewise
@@ -384,22 +444,27 @@ def _conditional(value: Any) -> bool:
     its parameters, an integral left undone, or a modulus or a conjugate of a symbol."""
     if not isinstance(value, sympy.Basic):
         return False
-    if value.has(sympy.Integral) or any(_on_conditions(p) for p in value.atoms(sympy.Piecewise)):
+    if _undone(value) or any(_on_conditions(p) for p in value.atoms(sympy.Piecewise)):
         return True
     return any(each.free_symbols for each in value.atoms(*_COMPLEX_PLANE))
 
 
+def _undone(value: Any) -> bool:
+    """Whether a value holds an integral or a sum SymPy left undone."""
+    return isinstance(value, sympy.Basic) and value.has(sympy.Integral, sympy.Sum)
+
+
 def _on_conditions(piecewise: Any) -> bool:
     """Whether a piecewise value is a result under conditions SymPy puts on its parameters,
-    as an integral's ``|arg a| < π/2``, rather than cases a program wrote."""
+    as an integral's ``|arg a| < π/2`` or a geometric series' ``|e^{-a}| < 1``."""
     return any(
-        condition.has(sympy.arg, sympy.re, sympy.im, sympy.polar_lift)
+        condition.has(sympy.arg, sympy.re, sympy.im, sympy.polar_lift, sympy.Abs)
         for _, condition in piecewise.args
     )
 
 
-def _as_books_take(f: Any, limits: Sequence[Any], found: Any) -> Any:
-    """An integral that holds conditions, or a modulus, or is left undone, under the
+def _as_books_take(compute: Callable[..., Any], f: Any, limits: Sequence[Any], found: Any) -> Any:
+    """An integral or a sum that holds conditions, or a modulus, or is left undone, under the
     assumption books make, with a remark that says so; as it was where none removes them.
     A value under conditions is the case that holds with the fewest parameters positive;
     one with a modulus of a parameter, or left undone, is computed again with those
@@ -409,17 +474,20 @@ def _as_books_take(f: Any, limits: Sequence[Any], found: Any) -> Any:
     parameters = sorted(
         (s for s in written - set(variables) if isinstance(s, Symbol) and _general(s)), key=str
     )
-    pieces = [p for p in found.atoms(sympy.Piecewise) if _on_conditions(p)]
+    written_cases = {c for p in f.atoms(sympy.Piecewise) for _, c in p.args}
+    pieces = [
+        p
+        for p in found.atoms(sympy.Piecewise)
+        if _on_conditions(p) and not {c for _, c in p.args} <= written_cases
+    ]
     if pieces:
         chosen = _positive_for(pieces, parameters)
         if chosen is None:
             return found
         positive = {s: sympy.Dummy(s.name, positive=True) for s in chosen}
-        again = sympy.integrate(f.xreplace(positive), *_put(limits, positive))
+        again = _cases_taken(compute(f.xreplace(positive), *_put(limits, positive)))
         if _conditional(again):  # SymPy's own value under the assumption, else the case
-            again = found.xreplace(positive).replace(
-                lambda e: isinstance(e, sympy.Piecewise) and _on_conditions(e), _first_holding
-            )
+            again = _cases_taken(found.xreplace(positive))
         return _assumed(again, positive)
     moduli = {s for each in [*f.atoms(*_COMPLEX_PLANE), *found.atoms(*_COMPLEX_PLANE)]
               for s in each.free_symbols}  # fmt: skip
@@ -429,11 +497,11 @@ def _as_books_take(f: Any, limits: Sequence[Any], found: Any) -> Any:
         for v, limit in zip(variables, limits, strict=True)
         if isinstance(v, Symbol) and _general(v) and _over_real_limits(limit, positive)
     }
-    if not positive and not (real and found.has(sympy.Integral)):
+    if not positive and not (real and _undone(found)):
         return found
     assumed = {**positive, **real}
-    again = sympy.integrate(f.xreplace(assumed), *_put(limits, assumed))
-    if again.has(sympy.Integral) or any(_on_conditions(p) for p in again.atoms(sympy.Piecewise)):
+    again = compute(f.xreplace(assumed), *_put(limits, assumed))
+    if _undone(again) or any(_on_conditions(p) for p in again.atoms(sympy.Piecewise)):
         return found
     return _assumed(again, positive, real)
 
@@ -469,9 +537,19 @@ def _positive_for(pieces: Sequence[Any], parameters: Sequence[Symbol]) -> list[S
         for chosen in itertools.combinations(involved, size):
             positive = {s: sympy.Dummy(s.name, positive=True) for s in chosen}
             cases = [_first_holding(p.xreplace(positive)) for p in pieces]
-            if all(case is not None and not case.has(sympy.Integral) for case in cases):
+            if all(case is not None and not _undone(case) for case in cases):
                 return list(chosen)
     return None
+
+
+def _cases_taken(value: Any) -> Any:
+    """``value`` with each piecewise value in it that has a case that holds as that case."""
+
+    def taken(piecewise: Any) -> Any:
+        case = _first_holding(piecewise)
+        return piecewise if case is None else case
+
+    return value.replace(lambda e: isinstance(e, sympy.Piecewise), taken)
 
 
 def _first_holding(piecewise: Any) -> Any:
@@ -480,9 +558,10 @@ def _first_holding(piecewise: Any) -> Any:
     if not isinstance(piecewise, sympy.Piecewise):
         return piecewise
     for expr, condition in piecewise.args:
-        if condition is sympy.true:
+        verdict = holds(condition, ())
+        if verdict:
             return expr
-        if condition is not sympy.false:
+        if verdict is None:
             return None
     return None
 

@@ -277,17 +277,20 @@ integrates 1:
 
 ```
 
-Limits, sums and products follow LaTeX. Sums and products are kept as written
-until you ask for their value with `doit`:
+Limits, sums and products follow LaTeX. A sum or a product is its value where SymPy
+finds a closed form within a few seconds, with its index an integer; one that converges
+only under conditions on a parameter is given as books give it, with a note, as an
+integral is. Otherwise it is kept as written, with a note:
 
 ```python
 >>> wb.exe(r"""
 ...     \lim_{x \to 0} \frac{\sin x}{x}
 ...     \lim_{x \to 0^+} \frac{1}{x}
 ...     \sum_{n=1}^{\infty} \frac{1}{n^2}
-...     doit(\sum_{n=1}^{\infty} \frac{1}{n^2})
+...     \sum_{k=1}^{N} k
+...     \sum_{n=1}^{\infty} \frac{1}{n^n}
 ... """)
-[1, oo, Sum(n**(-2), (n, 1, oo)), pi**2/6]
+[1, oo, pi**2/6, N**2/2 + N/2, Sum(n**(-n), (n, 1, oo))]
 
 ```
 

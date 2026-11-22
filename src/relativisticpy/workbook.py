@@ -1641,8 +1641,7 @@ def _left_undone(value: Any) -> list[str]:
         notes.append("an integral is left as written: SymPy could not compute it")
     if value.has(sympy.Sum, sympy.Product):
         notes.append(
-            "a sum is left as written, as one with symbolic or infinite limits is: doit(...) "
-            "carries it out where SymPy can"
+            "a sum is left as written: SymPy found no closed form for it in the time it was given"
         )
     if value.has(sympy.Limit):
         notes.append("a limit is left as written: SymPy could not compute it")

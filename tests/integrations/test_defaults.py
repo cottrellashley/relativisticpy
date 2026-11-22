@@ -119,3 +119,36 @@ class TestTheData:
         assert record["notes"] == [
             "assuming s > 0, as books take a scale to be; the program does not say what s is"
         ]
+
+
+class TestSums:
+    """A sum with symbolic or infinite limits is in closed form where SymPy finds one
+    within a time budget, with the index an integer (design/notation.md, decision 4)."""
+
+    def test_a_closed_form_is_the_value(self, wb):
+        n, N = sympy.symbols("n N")
+        assert wb.expr(r"\sum_{n=1}^{\infty} \frac{1}{n^2}") == sympy.pi**2 / 6
+        assert wb.expr(r"\sum_{l=0}^{N-1} (2l + 1)") == N**2
+        assert wb.expr(r"\prod_{k=1}^{n} k") == sympy.factorial(n)
+
+    def test_the_index_is_an_integer(self, wb):
+        assert wb.expr(r"\sum_{n=1}^{N} \sin(n \pi)") == 0
+        assert wb.expr(r"\sum_{n=1}^{N} (-1)^{2n}") == sympy.Symbol("N")
+
+    def test_a_geometric_series_of_exponentials_under_what_books_assume(self, wb):
+        step = last(wb, r"\sum_{n=0}^{\infty} e^{-a n}")
+        assert sympy.simplify(step.values[0] - 1 / (1 - sympy.exp(-a))) == 0
+        assert step.assuming == ["a > 0"]
+
+    def test_a_stated_assumption_needs_no_note(self, wb):
+        step = last(wb, "r > 0\n" r"\sum_{t=1}^{\infty} \frac{C}{(1 + r)^t}")
+        positive = sympy.Symbol("r", positive=True)
+        assert sympy.simplify(step.values[0] - sympy.Symbol("C") / positive) == 0
+        assert (step.notes, step.assuming) == ([], [])
+
+    def test_one_with_no_closed_form_is_kept_as_written(self, wb):
+        step = last(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}")
+        assert isinstance(step.values[0], sympy.Sum)
+        assert step.notes == [
+            "a sum is left as written: SymPy found no closed form for it in the time it was given"
+        ]

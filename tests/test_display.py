@@ -69,7 +69,7 @@ CORPUS = [
     "0.3", "0.1 + 0.2", "6.02214076e23", "1.5e-10", "100.0", "2.5 * 2", "0.005", "-1.5",
     "123456789012345678901234567890",
     # sums, integrals and piecewise
-    "integrate(f(x), x)", r"\int_0^L f(x) dx", r"\sum_{n=1}^{\infty} 1/n^2",
+    "integrate(f(x), x)", r"\int_0^L f(x) dx", r"\sum_{n=1}^{\infty} 1/n^n",
     r"\prod_{n=1}^{k} n", "{ 1, x >= 0; 0, otherwise }",
     "{ x, x < 0; x^2, x < 1; 1, otherwise }", "limit(f(x), x, 0)", r"\lim_{x \to 0} f(x)",
     # relations and truth values
@@ -168,7 +168,7 @@ def test_derivatives_and_unknown_functions_in_the_language_s_notation():  # DOC-
     assert display.unicode(Derivative(f(x, y), x, y)) == "∂_x ∂_y f(x, y)"
     assert display.latex(f(x)) == r"f\left(x\right)"
     assert display.unicode(sympy.Ne(sympy.Symbol("Lambda"), 0)) == "Λ ≠ 0"
-    assert display.unicode(fresh(r"\sum_{n=1}^{\infty} 1/n^2")) == "∑_{n=1}^∞ 1/n²"
+    assert display.unicode(fresh(r"\sum_{n=1}^{\infty} 1/n^n")) == "∑_{n=1}^∞ n^(−n)"
 
 
 def test_unicode_is_as_a_terminal_shows_mathematics():

@@ -11,6 +11,8 @@ analysis.limits.lhopital
 analysis.limits.one-sided
 analysis.limits.sinc
 analysis.multivariable.iterated
+analysis.series.basel
+analysis.series.harmonic
 analysis.series.taylor-exp
 analysis.taylor.integral-remainder
 astro.collapse.free-fall-time
@@ -104,6 +106,7 @@ econ.interest.continuous-equivalent
 econ.interest.continuous-limit
 econ.interest.doubling-time
 econ.interest.irr
+econ.interest.perpetuity
 econ.interest.present-value
 econ.production.returns-to-scale
 em.field-tensor.invariant
@@ -120,6 +123,7 @@ fa.laplace.derivative
 fa.laplace.power
 fa.laplace.step
 fa.series.coefficient
+fa.series.parseval
 fa.transforms.convolution
 fa.transforms.dft
 fa.transforms.gaussian
@@ -192,6 +196,7 @@ group.rotations.adjoint-action
 group.rotations.direct-sum
 group.rotations.exponential
 group.rotations.tensor-square
+group.su2.character
 group.su3.decuplet
 la.eigen.characteristic
 la.eigen.powers
@@ -214,7 +219,9 @@ ml.logistic.derivative
 ml.network.chain-rule
 ml.regression.effective-df
 nt.congruences.gcd
+nt.counting.derangements
 nt.counting.surjections
+nt.special.dobinski
 num.differences.midpoint
 num.differences.richardson
 num.eigen.power-limit
@@ -224,6 +231,7 @@ num.linear.jacobi-spectral-radius
 num.quadrature.composite-trapezoid
 num.quadrature.gauss-two-point
 num.quadrature.simpson
+num.quadrature.trapezoid-asymptotics
 num.roots.bisection-count
 num.roots.quadratic-convergence
 opt.constrained.kkt-system
@@ -255,6 +263,7 @@ qft.interactions.gaussian
 qm.angular-momentum.lz
 qm.dirac.change-of-basis
 qm.hydrogen.balmer
+qm.hydrogen.degeneracy
 qm.hydrogen.mean-radius
 qm.information.entropy
 qm.information.purity
@@ -301,12 +310,14 @@ sr.lorentz.rapidity
 sr.lorentz.velocity-addition
 sr.lorentz.velocity-composition
 statmech.canonical.ideal-gas
+statmech.canonical.oscillator
 statmech.canonical.rigid-rotor
 statmech.canonical.schottky
 statmech.canonical.two-level-energy
 statmech.ising.ring
 statmech.ising.transfer-eigenvalues
 statmech.quantum.fermi-dirac
+statmech.quantum.planck-distribution
 statmech.thermo.carnot
 statmech.thermo.isothermal-work
 statmech.thermo.van-der-waals

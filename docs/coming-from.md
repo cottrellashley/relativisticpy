@@ -58,7 +58,7 @@ Mathematica's functions have their counterparts in the language, written as in L
 | `Solve[x^2 == 4, x]` | `solve(x^2 = 4, x)` |
 | `DSolve[y'[x] == y[x], y[x], x]` | `dsolve(y'(x) = y(x), y(x))` |
 | `Simplify[expr]`, `FullSimplify[expr]` | `simplify(expr)` |
-| `Sum[1/n^2, {n, 1, Infinity}]` | `\sum_{n=1}^{\infty} \frac{1}{n^2}`, carried out by `doit` |
+| `Sum[1/n^2, {n, 1, Infinity}]` | `\sum_{n=1}^{\infty} \frac{1}{n^2}`, its closed form where there is one |
 
 xAct's tensors are abstract until a chart gives them components. RelativisticPy works
 at both levels too, without the definitions xAct asks for first:

@@ -78,7 +78,7 @@ _STRUCTURE: tuple[tuple[tuple[str, ...], str], ...] = (
     (("binom", "dbinom", "tbinom", "choose"),
      r"binomial coefficients, `\binom{n}{k}` and `{n \choose k}`"),
     (("sum", "prod"),
-     r"a sum, `\sum_{n=1}^{N}`, and a product; `doit` carries out one kept as written"),
+     r"a sum, `\sum_{n=1}^{N}`, and a product, in closed form where SymPy finds one"),
     (("int", "oint", "iint", "iiint"),
      r"integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx`"),
     (("lim",), r"a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}`"),

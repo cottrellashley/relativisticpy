@@ -91,11 +91,10 @@ class TestUndoneResultsAreNoted:
     its parameters, says so, rather than read as the answer."""
 
     def test_a_sum(self, wb):
-        assert notes(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^2}") == [
-            "a sum is left as written, as one with symbolic or infinite limits is: doit(...) "
-            "carries it out where SymPy can"
+        assert notes(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}") == [
+            "a sum is left as written: SymPy found no closed form for it in the time it was given"
         ]
-        assert wb.expr(r"doit(\sum_{n=1}^{\infty} \frac{1}{n^2})") == sympy.pi**2 / 6
+        assert wb.expr(r"\sum_{n=1}^{\infty} \frac{1}{n^2}") == sympy.pi**2 / 6  # decision 4
 
     def test_an_integral(self, wb):
         undone = ["an integral is left as written: SymPy could not compute it"]

@@ -8,10 +8,14 @@ its attributes, by name: module-level, so that a worker process can run it.
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import math
 import re
-from collections.abc import Sequence
+import signal
+import threading
+import time
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import sympy
@@ -53,15 +57,77 @@ def piecewise(*args: Any) -> Any:
 # -- calculus --------------------------------------------------------------------------
 
 
-def summation(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
+#: How long finding the closed form of a sum or a product may take, in seconds: past it,
+#: it is kept as written (design/notation.md, decision 4).
+_CLOSED_FORM_BUDGET = 5.0
+
+
+def summation(
+    body: Any, variable: Any, lower: Any, upper: Any, *, assuming: tuple[Any, ...] = ()
+) -> Any:
     """A sum: carried out where it has a whole number of terms, as \\sum_{n=0}^{2} has;
-    an infinite one, or one to n, is kept as it is written, for doit to carry out."""
-    return _finite(sympy.Sum(body, (variable, lower, upper)), lower, upper)
+    otherwise in closed form, where SymPy finds one within a time budget, with the index an
+    integer and, where it converges only under conditions, under the bounds the program
+    assumes or else the assumption books make (see
+    :func:`relativisticpy.assumptions.summed`); else kept as it is written
+    (design/notation.md, decision 4)."""
+    written = sympy.Sum(body, (variable, lower, upper))
+    finite = _finite(written, lower, upper)
+    if finite is not written:
+        return finite
+    try:
+        with _budget(_CLOSED_FORM_BUDGET):
+            found = assumptions.summed(body, [(variable, lower, upper)], assuming)
+    except _OverBudget:
+        return written
+    return written if isinstance(found, sympy.Basic) and found.has(sympy.Sum) else found
 
 
 def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
-    """A product, carried out as a sum is: see :func:`summation`."""
-    return _finite(sympy.Product(body, (variable, lower, upper)), lower, upper)
+    """A product, carried out as a sum is, where SymPy finds its closed form within a time
+    budget: see :func:`summation`."""
+    written = sympy.Product(body, (variable, lower, upper))
+    finite = _finite(written, lower, upper)
+    if finite is not written:
+        return finite
+    try:
+        with _budget(_CLOSED_FORM_BUDGET):
+            found = written.doit()
+    except _OverBudget:
+        return written
+    return written if isinstance(found, sympy.Basic) and found.has(sympy.Product) else found
+
+
+class _OverBudget(BaseException):
+    """A computation that took longer than it was given, and is kept as written. Not an
+    Exception, so that SymPy, which catches those, does not carry on past it."""
+
+
+@contextlib.contextmanager
+def _budget(seconds: float) -> Iterator[None]:
+    """Raise :class:`_OverBudget` if the block runs longer than ``seconds``, leaving a time
+    limit in force around it as it was, with what remains of it; one that ends first
+    decides. Only with ``SIGALRM``, in the main thread; elsewhere the block runs as long
+    as it takes."""
+    usable = hasattr(signal, "SIGALRM") and threading.current_thread() is threading.main_thread()
+    outer = signal.getitimer(signal.ITIMER_REAL)[0] if usable else 0.0
+    if not usable or (outer and outer <= seconds):
+        yield
+        return
+
+    def expire(signum: int, frame: Any) -> None:
+        raise _OverBudget
+
+    start = time.monotonic()
+    previous = signal.signal(signal.SIGALRM, expire)
+    signal.setitimer(signal.ITIMER_REAL, seconds)
+    try:
+        yield
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, previous)
+        if outer:
+            signal.setitimer(signal.ITIMER_REAL, max(outer - (time.monotonic() - start), 1e-6))
 
 
 def _finite(written: Any, lower: Any, upper: Any) -> Any:

@@ -392,7 +392,7 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 | `\cfrac \dfrac \frac \over \tfrac` | fractions, `\frac{a}{b}` and plain TeX's `{a \over b}`; `\frac{d}{dx}` and `\frac{\partial f}{\partial x}` are derivatives |
 | `\sqrt` | roots, `\sqrt{x}` and `\sqrt[n]{x}` |
 | `\binom \choose \dbinom \tbinom` | binomial coefficients, `\binom{n}{k}` and `{n \choose k}` |
-| `\prod \sum` | a sum, `\sum_{n=1}^{N}`, and a product; `doit` carries out one kept as written |
+| `\prod \sum` | a sum, `\sum_{n=1}^{N}`, and a product, in closed form where SymPy finds one |
 | `\iiint \iint \int \oint` | integrals, single, double and triple, which end at their differentials: `\int_0^1 f \, dx` |
 | `\lim` | a limit, `\lim_{x \to 0}`, or from one side, `\lim_{x \to 0^+}` |
 | `\nabla \partial` | the partial and the covariant derivative, `\partial_\mu` and `\nabla_\mu`; `\partial_t^2` is the second derivative |

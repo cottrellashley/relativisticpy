@@ -1,0 +1,47 @@
+"""The time budget a closed form is looked for in: past it, a sum or a product is kept as
+written, and a time limit in force around it keeps what remains of it."""
+
+import signal
+import time
+
+import pytest
+import sympy
+
+from relativisticpy.checking import _time_limit
+from relativisticpy.runtime import core
+
+pytestmark = pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
+
+
+def sleep_within(seconds: float) -> None:
+    with core._budget(seconds):
+        time.sleep(1)
+
+
+def test_past_the_budget_the_block_stops():
+    with pytest.raises(core._OverBudget):
+        sleep_within(0.05)
+
+
+def test_a_time_limit_around_it_keeps_what_remains_of_it():
+    with _time_limit(10):
+        with pytest.raises(core._OverBudget):
+            sleep_within(0.05)
+        remaining, _ = signal.getitimer(signal.ITIMER_REAL)
+    assert 9 < remaining < 10
+
+
+def test_a_time_limit_that_ends_first_decides():
+    with pytest.raises(TimeoutError), _time_limit(0.05):
+        sleep_within(5)
+
+
+def test_a_sum_past_its_budget_is_kept_as_written(monkeypatch):
+    def slow(*args, **kwargs):
+        time.sleep(1)
+        raise AssertionError("the budget should have stopped this")
+
+    monkeypatch.setattr(core, "_CLOSED_FORM_BUDGET", 0.05)
+    monkeypatch.setattr(core.assumptions, "summed", slow)
+    n = sympy.Symbol("n")
+    assert core.summation(1 / n**2, n, 1, sympy.oo) == sympy.Sum(1 / n**2, (n, 1, sympy.oo))
