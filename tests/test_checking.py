@@ -765,16 +765,17 @@ class TestFiles:
 
 
 class TestCommandLine:
-    def test_check_lists_what_holds_and_what_differs(self, tmp_path, capsys):
+    def test_check_lists_what_fails_and_counts_the_rest(self, tmp_path, capsys):
+        # CLI-07: what fails is listed by default, and the rest is counted, with --all
         paper = tmp_path / "paper.tex"
         paper.write_text(PAPER)
         assert main(["check", str(paper)]) == 0
         output = capsys.readouterr().out
         assert output.startswith(f"{paper}: 5 equations, 7 statements")
-        assert f"{paper}:11:3: ✓ holds" in output
         assert f"{paper}:13:3: ✗ differs" in output
-        assert "not parsed" in output.splitlines()[5]  # in the summary only
-        assert f"{paper}:19:" not in output
+        assert f"{paper}:19:93: ! not parsed" in output
+        assert f"{paper}:11:3:" not in output  # holds: counted, not listed
+        assert "Not listed: 3 holds, 1 defines, 1 not computed. --all lists" in output
 
     def test_all_lists_everything(self, tmp_path, capsys):
         paper = tmp_path / "paper.tex"
@@ -786,8 +787,8 @@ class TestCommandLine:
     def test_bad_arguments(self, tmp_path, capsys):
         with pytest.raises(SystemExit):
             main(["check", "paper.tex", "--lines", "five"])
-        assert "--lines takes two line numbers" in capsys.readouterr().err
-        assert main(["check", str(tmp_path / "missing.tex")]) == 1
+        assert "--lines takes line numbers, as in --lines 120:340" in capsys.readouterr().err
+        assert main(["check", str(tmp_path / "missing.tex")]) == 2  # the command line's fault
 
     @pytest.mark.parametrize("seconds", ["0", "-1", "nan", "soon"])
     def test_a_time_limit_is_a_positive_number(self, seconds, capsys):
@@ -799,7 +800,7 @@ class TestCommandLine:
         paper = tmp_path / "paper.tex"
         paper.write_text(PAPER)
         assert main(["check", str(paper), "--time-limit", "inf"]) == 0
-        assert f"{paper}:11:3: ✓ holds" in capsys.readouterr().out
+        assert f"{paper}:13:3: ✗ differs" in capsys.readouterr().out
 
     @pytest.mark.parametrize(
         ("equation", "status"),
@@ -827,7 +828,10 @@ class TestCommandLine:
         monkeypatch.setattr(sys, "stdout", output)
         assert main(["check", str(paper)]) == 0
         output.flush()
-        assert f"{paper}:11:3: ? holds" in output.buffer.getvalue().decode("cp1252")
+        printed = output.buffer.getvalue().decode("cp1252")
+        # CLI-26: marks of their own in ASCII, never the ? of "not understood"
+        assert f"{paper}:13:3: x differs" in printed
+        assert "  + holds " in printed
 
 
 def test_a_file_a_paper_includes_that_is_missing_is_reported(tmp_path):
