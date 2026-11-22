@@ -14,7 +14,7 @@ from sympy.core.function import AppliedUndef
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.curvature import SimplifyMap
 from relativisticpy.tensors import Indices, Tensor
-from relativisticpy.tensors.indices import Index, latex_label
+from relativisticpy.tensors.indices import Index
 
 
 class Metric(Tensor):
@@ -28,6 +28,11 @@ class Metric(Tensor):
         M*(-2*M + r)/r**3
         >>> g.ricci_scalar
         0
+
+    A metric is shown by its line element, as a paper writes it::
+
+        >>> g
+        g_{μν} in (t, r, θ, φ): ds² = −(1 − 2M/r) dt² + dr²/(1 − 2M/r) + r² dθ² + r² sin(θ)² dφ²
 
     ``simplify`` maps a batch of components to their simplified forms; pass a
     parallel map to spread the work of simplifying over processes.
@@ -65,13 +70,10 @@ class Metric(Tensor):
             >>> t, r = sympy.symbols("t r")
             >>> dt, dr = differential(t), differential(r)
             >>> Metric.from_line_element(-dt**2 + dr**2, (t, r))
-            Metric(...)
+            g_{μν} in (t, r): ds² = −dt² + dr²
         """
         symbols = tuple(sympy.Symbol(c) if isinstance(c, str) else c for c in coordinates)
         return cls(metric_from_line_element(line_element, symbols), symbols)
-
-    def __repr__(self) -> str:
-        return f"Metric({self.components})"
 
     # -- the metric itself -------------------------------------------------------
 
@@ -95,7 +97,10 @@ class Metric(Tensor):
 
     @property
     def line_element(self) -> Expr:
-        r"""The line element :math:`ds^2 = g_{\mu\nu}\,dx^\mu dx^\nu`."""
+        r"""The line element :math:`ds^2 = g_{\mu\nu}\,dx^\mu dx^\nu`, in the symbols
+        ``dt``, ``dr``, ``dtheta``, ... of :func:`differential`. Shown by
+        :mod:`relativisticpy.display`, it is written as a paper writes it, a term for
+        each pair of coordinates in their order: see :meth:`line_element_text`."""
         differentials = [differential(c) for c in self.coordinates]
         return sympy.Add(
             *(
@@ -103,6 +108,20 @@ class Metric(Tensor):
                 for i, j in product(range(self.dim), repeat=2)
             )
         )
+
+    def line_element_text(self, form: str = "unicode") -> str:
+        r"""The line element in a form of :mod:`relativisticpy.display`, its terms in the
+        order of the coordinates and their differentials last::
+
+            >>> from relativisticpy import spacetimes
+            >>> spacetimes.minkowski().line_element_text()
+            '−dt² + dx² + dy² + dz²'
+        """
+        from relativisticpy import display
+
+        if form not in ("unicode", "text", "latex"):
+            raise ValueError(f"the forms are unicode, text and latex, not {form!r}")
+        return display.line_element(self, form)  # type: ignore[arg-type]
 
     # -- curvature ---------------------------------------------------------------
 
@@ -155,10 +174,11 @@ class Metric(Tensor):
         r"""The Kretschmann scalar :math:`R_{abcd} R^{abcd}`."""
         return curvature.kretschmann(self.riemann.components, self.matrix, self.inverse_matrix)
 
-    def geodesic_equations(self, parameter: Symbol | str = "tau") -> list[Eq]:
+    def geodesic_equations(self, parameter: Symbol | str = "tau") -> GeodesicEquations:
         r"""The geodesic equations
         :math:`\ddot x^a + \Gamma^a{}_{bc}\,\dot x^b \dot x^c = 0`,
-        with each coordinate a function of the affine ``parameter``."""
+        with each coordinate a function of the affine ``parameter``, one for each
+        coordinate and labelled by it when shown."""
         return geodesic_equations(self.christoffel.components, self.coordinates, parameter)
 
     def _tensor(self, components: Any, indices: str, name: str = "g") -> Tensor:
@@ -166,8 +186,63 @@ class Metric(Tensor):
 
 
 def differential(coordinate: Symbol) -> Symbol:
-    r"""The symbol standing for the differential of a coordinate: ``theta`` → ``d\theta``."""
-    return sympy.Symbol("d" + latex_label(coordinate.name))
+    r"""The symbol standing for the differential of a coordinate: ``theta`` → ``dtheta``,
+    which :mod:`relativisticpy.display` shows as ``dθ`` and ``d\theta``."""
+    return sympy.Symbol("d" + coordinate.name)
+
+
+class GeodesicEquations(list[Eq]):
+    r"""The geodesic equations, one for each coordinate, in order: a list of SymPy
+    equations, shown one to a line, each labelled by its coordinate::
+
+        >>> from relativisticpy import spacetimes
+        >>> spacetimes.minkowski().geodesic_equations()
+        t: t''(τ) = 0
+        x: x''(τ) = 0
+        y: y''(τ) = 0
+        z: z''(τ) = 0
+    """
+
+    def __init__(self, equations: Sequence[Eq] = (), coordinates: Sequence[Symbol] = ()) -> None:
+        super().__init__(equations)
+        self.coordinates = tuple(coordinates)
+
+    def _lines(self, form: str) -> list[tuple[str, str]]:
+        from relativisticpy import display
+
+        names = [display.symbol_name(str(c), form) for c in self.coordinates]  # type: ignore[arg-type]
+        names += [str(n) for n in range(len(names), len(self))]
+        shown = getattr(display, form)
+        return [(name, shown(equation)) for name, equation in zip(names, self, strict=False)]
+
+    def _display_unicode(self) -> str:
+        return "\n".join(f"{name}: {equation}" for name, equation in self._lines("unicode"))
+
+    def _display_text(self) -> str:
+        return "\n".join(f"{name}: {equation}" for name, equation in self._lines("text"))
+
+    def _display_latex(self) -> str:
+        rows = [f"{name}: &\\quad {equation}" for name, equation in self._lines("latex")]
+        return "\\begin{aligned}\n" + " \\\\\n".join(rows) + "\n\\end{aligned}"
+
+    def _display_data(self) -> dict[str, Any]:
+        from relativisticpy import display
+
+        return {
+            "kind": "geodesic equations",
+            "equations": {
+                str(c): display.data(e) for c, e in zip(self.coordinates, self, strict=False)
+            },
+        }
+
+    def __repr__(self) -> str:
+        return self._display_unicode()
+
+    def _repr_latex_(self) -> str:
+        return f"$$ {self._display_latex()} $$"
+
+    def __reduce__(self) -> Any:
+        return (GeodesicEquations, (list(self), self.coordinates))
 
 
 def metric_from_line_element(line_element: Expr, coordinates: Sequence[Symbol]) -> ImmutableMatrix:
@@ -199,7 +274,7 @@ def metric_from_line_element(line_element: Expr, coordinates: Sequence[Symbol]) 
 
 def geodesic_equations(
     christoffel_symbols: Any, coordinates: Sequence[Symbol], parameter: Symbol | str = "tau"
-) -> list[Eq]:
+) -> GeodesicEquations:
     """The geodesic equations for a connection, one per coordinate.
 
     The affine parameter needs a name of its own: a coordinate's would make the
@@ -226,4 +301,4 @@ def geodesic_equations(
             )
         )
         equations.append(Eq(paths[a].diff(tau, 2) + acceleration, 0))
-    return equations
+    return GeodesicEquations(equations, coordinates)

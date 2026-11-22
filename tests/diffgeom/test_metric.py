@@ -7,7 +7,7 @@ import sympy
 from sympy import Array, Function, Matrix, Rational, Symbol, cos, diag, sin, sqrt, symbols
 from sympy.core.function import AppliedUndef
 
-from relativisticpy import Metric, Tensor, Workbook, spacetimes
+from relativisticpy import Metric, Tensor, Workbook, display, spacetimes
 from relativisticpy.diffgeom import differential, metric_from_line_element
 
 t, r, theta, phi, M, a, Q, k, L = symbols("t r theta phi M a Q k L")
@@ -28,8 +28,31 @@ def test_a_metric_is_a_tensor():
     g = Metric(diag(-1, 1), "tx")
     assert isinstance(g, Tensor)
     assert str(g.indices) == r"_{\mu\nu}"
-    assert repr(g) == "Metric([[-1, 0], [0, 1]])"
     assert g.inverse.components == Array([[-1, 0], [0, 1]])
+
+
+def test_a_metric_shows_its_coordinates_name_and_line_element():  # API-28
+    assert repr(Metric(diag(-1, 1), "tx", name="eta")) == "η_{μν} in (t, x): ds² = −dt² + dx²"
+    g = spacetimes.schwarzschild()
+    assert repr(g) == (
+        "g_{μν} in (t, r, θ, φ): ds² = −(1 − 2M/r) dt² + dr²/(1 − 2M/r) + r² dθ² + r² sin(θ)² dφ²"
+    )
+    assert display.latex(g) == (
+        r"ds^{2} = - \left(1 - \frac{2 M}{r}\right)\, dt^{2} + \frac{dr^{2}}{1 - \frac{2 M}{r}}"
+        r" + r^{2}\, d\theta^{2} + r^{2} \sin^{2}{\left(\theta \right)}\, d\phi^{2}"
+    )
+    assert g.line_element_text("text") == (
+        r"-(1 - 2*M/r)*dt^2 + dr^2/(1 - 2*M/r) + r^2*d\theta^2 + r^2*sin(\theta)^2*d\phi^2"
+    )
+    assert spacetimes.kerr().line_element_text().count("dt dφ") == 1
+
+
+def test_the_latex_of_a_metric_reads_back_as_the_metric():
+    g = spacetimes.schwarzschild()
+    wb = Workbook()
+    wb.expr(r"Coordinates := [t, r, \theta, \phi]")
+    wb.expr(display.latex(g))
+    assert wb.metric.matrix.applyfunc(sympy.simplify) == g.matrix.applyfunc(sympy.simplify)
 
 
 def test_the_round_sphere():
@@ -192,8 +215,21 @@ def test_a_line_element_must_be_quadratic():
         metric_from_line_element(differential(t) ** 3, (t,))
 
 
-def test_differential_symbols_typeset_well():
-    assert sympy.latex(differential(theta)) == r"d\theta"
+def test_differentials_are_plain_symbols_that_typeset_well():  # API-28
+    assert differential(theta) == Symbol("dtheta")
+    assert spacetimes.schwarzschild().line_element.has(Symbol("dphi"))
+    assert display.latex(differential(theta)) == r"d\theta"
+    assert display.unicode(differential(theta)) == "dθ"
+
+
+def test_geodesic_equations_are_labelled_by_coordinate():  # DOC-34
+    equations = spacetimes.schwarzschild().geodesic_equations()
+    lines = repr(equations).splitlines()
+    assert lines[0] == "t: t''(τ) + 2M r'(τ) t'(τ)/((r(τ) − 2M) r(τ)) = 0"
+    assert [line.split(":")[0] for line in lines] == ["t", "r", "θ", "φ"]
+    assert display.text(equations).splitlines()[2].startswith(r"\theta: \theta''(\tau)")
+    assert isinstance(equations, list)
+    assert len(equations) == 4
 
 
 def test_geodesic_equations():

@@ -196,9 +196,14 @@ def four_velocity(
     return u
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, repr=False)
 class Geodesic:
-    """A geodesic: the coordinates and four-velocity along the affine parameter ``tau``."""
+    """A geodesic: the coordinates and four-velocity along the affine parameter ``tau``.
+
+    It is shown by its span and the range of each coordinate::
+
+        Geodesic(τ from 0 to 2000, 1000 samples; t from 0 to 2.6e+03, r = 10, θ = 1.571, ...)
+    """
 
     coordinates: tuple[Symbol, ...]
     tau: np.ndarray
@@ -207,15 +212,86 @@ class Geodesic:
     solution: Any  # SciPy's OdeResult
 
     def __getitem__(self, coordinate: str | Symbol) -> np.ndarray:
-        """The values of one coordinate: ``orbit["r"]``."""
+        """The values of one coordinate: ``orbit["r"]``, ``orbit["θ"]``."""
         names = [c.name for c in self.coordinates]
-        values: np.ndarray = self.x[names.index(str(coordinate))]
+        wanted = _plain_name(str(coordinate))
+        if wanted not in names:
+            raise KeyError(
+                f"{coordinate!r} is not a coordinate; the coordinates are {', '.join(names)}"
+            )
+        values: np.ndarray = self.x[names.index(wanted)]
         return values
 
     @property
     def stopped(self) -> bool:
         """Whether the integration ended at its ``stop`` condition, before the end of its span."""
         return bool(self.solution.status == 1)
+
+    def _display(self, form: str) -> str:
+        from relativisticpy import display
+
+        def number(value: Any) -> str:
+            shown = f"{float(value):.4g}"
+            return shown.replace("-", "−") if form == "unicode" else shown
+
+        tau = "τ" if form == "unicode" else "tau"
+        parts = [
+            f"{tau} from {number(self.tau[0])} to {number(self.tau[-1])}",
+            f"{len(self.tau)} samples" + (", stopped" if self.stopped else ""),
+        ]
+        ranges = []
+        for coordinate, values in zip(self.coordinates, self.x, strict=True):
+            name = display.symbol_name(coordinate.name, "unicode" if form == "unicode" else "text")
+            low, high = values.min(), values.max()
+            if numpy_close(low, high):
+                ranges.append(f"{name} = {number(low)}")
+            else:
+                ranges.append(f"{name} from {number(low)} to {number(high)}")
+        return f"Geodesic({', '.join(parts)}; {', '.join(ranges)})"
+
+    def _data(self) -> dict[str, Any]:
+        return {
+            "kind": "geodesic",
+            "coordinates": [c.name for c in self.coordinates],
+            "samples": len(self.tau),
+            "tau": [float(self.tau[0]), float(self.tau[-1])],
+            "stopped": self.stopped,
+            "ranges": {
+                c.name: [float(values.min()), float(values.max())]
+                for c, values in zip(self.coordinates, self.x, strict=True)
+            },
+        }
+
+    def _display_unicode(self) -> str:
+        return self._display("unicode")
+
+    def _display_text(self) -> str:
+        return self._display("text")
+
+    def _display_latex(self) -> str:
+        from relativisticpy.display import _latex_text
+
+        return f"\\text{{{_latex_text(self._display('text'))}}}"
+
+    def _display_data(self) -> dict[str, Any]:
+        return self._data()
+
+    def __repr__(self) -> str:
+        return self._display("unicode")
+
+
+def numpy_close(one: Any, other: Any) -> bool:
+    """Whether two values of a coordinate agree to a part in a billion."""
+    return bool(abs(one - other) <= 1e-9 * max(abs(one), abs(other), 1e-300))
+
+
+def _plain_name(name: str) -> str:
+    """A coordinate's name, written as Unicode or LaTeX, as the symbol's: ``θ`` → ``theta``."""
+    from relativisticpy.language.vocabulary import GREEK_VARIANTS, UNICODE_LETTERS
+
+    name = name.lstrip("\\")
+    name = GREEK_VARIANTS.get(name, name)
+    return "".join(UNICODE_LETTERS.get(character, character) for character in name)
 
 
 def geodesic(
@@ -273,12 +349,33 @@ def geodesic(
         rates, span, initial, method=method, t_eval=times, events=events, rtol=rtol, atol=atol
     )
     if not solution.success:
-        raise RuntimeError(f"the geodesic integration failed: {solution.message}")
+        raise RuntimeError(_failure(solution, coordinates, dim))
     tau, states = solution.t, solution.y
     if solution.status == 1:  # stopped: end exactly where the condition was met
         tau = numpy.append(tau, solution.t_events[0][0])
         states = numpy.column_stack([states, solution.y_events[0][0]])
     return Geodesic(coordinates, tau, states[:dim], states[dim:], solution)
+
+
+def _failure(solution: Any, coordinates: Sequence[Symbol], dim: int) -> str:
+    """Why an integration stopped, where, and what to do: the step size collapses where
+    the geodesic meets a horizon or a singularity, as a coordinate does there."""
+    where = ""
+    if getattr(solution, "t", None) is not None and len(solution.t):
+        position = solution.y[:dim, -1]
+        values = ", ".join(
+            f"{c.name} = {float(v):.6g}" for c, v in zip(coordinates, position, strict=True)
+        )
+        where = f" at tau = {float(solution.t[-1]):.6g}, where {values}"
+    message = str(getattr(solution, "message", "")).rstrip(".")
+    if "step size" in message.lower():
+        return (
+            f"the geodesic integration stopped{where}: the step size collapsed, as it does "
+            "near a horizon or a singularity, where a coordinate is singular; pass stop= to "
+            "end the integration before it, as in stop=lambda x, u: x[1] - 2.1 "
+            f"(SciPy: {message})"
+        )
+    return f"the geodesic integration failed{where} (SciPy: {message})"
 
 
 def _point(metric: Metric, position: Sequence[float]) -> dict[Symbol, float]:

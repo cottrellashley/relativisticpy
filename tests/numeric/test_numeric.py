@@ -212,5 +212,39 @@ def test_integration_failure_is_reported(monkeypatch):
     monkeypatch.setattr(scipy.integrate, "solve_ivp", lambda *args, **kwargs: Failed())
     position = [0.0, 3.0, numpy.pi / 2, 0.0]
     u0 = four_velocity(SCHWARZSCHILD, position, [-1.0, 0, 0], M=1)
-    with pytest.raises(RuntimeError, match="geodesic integration failed: step size too small"):
+    with pytest.raises(RuntimeError, match=r"step size collapsed.*\(SciPy: step size too small\)"):
         geodesic(SCHWARZSCHILD, position, u0, (0, 50), M=1)
+
+
+def test_a_failed_integration_says_where_and_why(monkeypatch):  # DOC-34
+    import scipy.integrate
+
+    class Failed:
+        success, message = False, "Required step size is less than spacing between numbers."
+        t = numpy.array([0.0, 41.5])
+        y = numpy.array([[0.0, 9.2], [3.0, 2.0001], [1.5, 1.5], [0.0, 0.1]] + [[0.0, 0.0]] * 4)
+
+    monkeypatch.setattr(scipy.integrate, "solve_ivp", lambda *args, **kwargs: Failed())
+    position = [0.0, 3.0, numpy.pi / 2, 0.0]
+    u0 = four_velocity(SCHWARZSCHILD, position, [-1.0, 0, 0], M=1)
+    with pytest.raises(RuntimeError) as raised:
+        geodesic(SCHWARZSCHILD, position, u0, (0, 50), M=1)
+    message = str(raised.value)
+    assert "stopped at tau = 41.5, where t = 9.2, r = 2.0001, theta = 1.5, phi = 0.1" in message
+    assert "near a horizon or a singularity" in message
+
+
+def test_a_geodesic_shows_its_span_and_ranges():  # DOC-34
+    from relativisticpy import display
+
+    position = [0.0, 10.0, numpy.pi / 2, 0.0]
+    u0 = four_velocity(SCHWARZSCHILD, position, [0, 0, (1 / 700) ** 0.5], M=1)
+    orbit = geodesic(SCHWARZSCHILD, position, u0, (0, 200), M=1, samples=50)
+    shown = repr(orbit)
+    assert shown.startswith("Geodesic(τ from 0 to 200, 50 samples; t from 0 to ")
+    assert "r = 10, θ = 1.571, φ from 0 to " in shown
+    assert len(shown) < 200
+    assert display.data(orbit)["samples"] == 50
+    assert numpy.allclose(orbit["θ"], orbit["theta"])
+    with pytest.raises(KeyError, match="'z' is not a coordinate"):
+        orbit["z"]
