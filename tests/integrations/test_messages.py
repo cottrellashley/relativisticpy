@@ -123,9 +123,10 @@ def test_a_call_that_does_not_read_back_is_told(broken):
     assert told(failures, "declare a latex form the language reads as brokenj")
 
 
-def test_a_summary_the_reference_cannot_hold_is_told(broken):
-    (failure,) = integrations.check(broken.BrokenJ, ["reference"])["reference"]
-    assert "write its summary without a bar" in failure
+def test_a_summary_with_a_bar_is_the_first_sentence_of_its_help(broken):
+    # The index of the reference lists names and forms, and the help, a sentence, holds a
+    # bar that a table could not.
+    assert integrations.check(broken.BrokenJ, ["reference"])["reference"] == []
 
 
 def test_what_passes_is_told_nothing(broken):

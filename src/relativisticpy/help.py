@@ -6,6 +6,12 @@ or, in a source tree, from its ``docs`` folder. The language reference is genera
 the language itself, so it is there even where its page is not. A topic may be asked for
 by another name a person might use, as ``check`` for ``checking`` (:data:`ALIASES`), and
 a topic that does not exist is told what it may have meant.
+
+:func:`page` also gives one function of the language in full, by its name, as
+``besselj``: its forms, its arguments, its examples with their answers and what computes
+it, generated from what its integration declares, as the reference is
+(:func:`relativisticpy.reference.capability`). A page comes first; ``latex()``, with
+brackets, is always the function.
 """
 
 from __future__ import annotations
@@ -21,6 +27,8 @@ __all__ = ["ALIASES", "page", "resolve", "topics"]
 
 _TITLE = re.compile(r"^# (.+)$", re.MULTILINE)
 _NAME = re.compile(r"[A-Za-z0-9_-]+")
+#: A function's name, alone or with brackets after it, as ``latex()``.
+_FUNCTION = re.compile(r"(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?P<called>\s*\(\s*\))?")
 
 #: The topic of the language reference, which :mod:`relativisticpy.reference` writes.
 _REFERENCE = "reference"
@@ -107,9 +115,33 @@ def resolve(topic: str) -> str:
 
 
 def page(topic: str) -> str:
-    """The Markdown of one page, by its topic or another name for it."""
+    """The Markdown of one page, by its topic or another name for it, or of one function
+    of the language, by its name: ``besselj``, or ``latex()`` where a page has the name."""
+    asked = _FUNCTION.fullmatch(topic.strip())
+    if asked is None or asked["called"] is None:
+        found = _page(resolve(topic))
+        if found is not None:
+            return found
+    described = _function(asked["name"]) if asked is not None else None
+    if described is not None:
+        return described
+    if _folder() is None:
+        raise UsageError(
+            f"there is no help on {topic!r}: the documentation is not installed",
+            hint="read it online, at https://relativisticpy.org; relativisticpy help reference "
+            "prints the language, which is always there",
+        )
+    known = [name for name, _ in topics()]
+    raise UsageError(
+        f"there is no help on {topic!r}",
+        hint=f"{_meant(topic, known)}the topics are {', '.join(known)}; the name of a "
+        "function, as besselj, gives its help",
+    )
+
+
+def _page(name: str) -> str | None:
+    """The Markdown of the page of a topic, if there is one."""
     folder = _folder()
-    name = resolve(topic)
     named = _NAME.fullmatch(name) is not None
     path = folder / f"{name}.md" if folder is not None and named else None
     if path is not None and path.is_file():
@@ -118,17 +150,42 @@ def page(topic: str) -> str:
         from relativisticpy.reference import markdown
 
         return markdown()
-    if folder is None:
-        raise UsageError(
-            f"there is no help on {topic!r}: the documentation is not installed",
-            hint="read it online, at https://relativisticpy.org; relativisticpy help reference "
-            "prints the language, which is always there",
-        )
-    known = [name for name, _ in topics()]
-    candidates = known + [alias for alias, target in ALIASES.items() if target in known]
-    close = difflib.get_close_matches(topic.strip().lower(), candidates, n=1, cutoff=0.6)
-    meant = f"did you mean {resolve(close[0])}? " if close else ""
-    raise UsageError(
-        f"there is no help on {topic!r}",
-        hint=f"{meant}the topics are {', '.join(known)}",
-    )
+    return None
+
+
+def _function(name: str) -> str | None:
+    """The help of the function called ``name``, by any of its names, or in another case
+    where only one function is called so, as ``BesselJ`` is ``besselj``; ``None`` where no
+    function is."""
+    from relativisticpy import integrations, reference
+
+    try:
+        return reference.capability(name)
+    except KeyError:
+        pass
+    alike = {
+        each.name
+        for each in integrations.capabilities()
+        if any(other.lower() == name.lower() for other in each.names)
+    }
+    return reference.capability(alike.pop()) if len(alike) == 1 else None
+
+
+def _meant(topic: str, known: list[str]) -> str:
+    """What a topic that does not exist may have meant: the closest topic, other name or
+    function, as ``did you mean tensors? ``; nothing where none is close."""
+    from relativisticpy import integrations
+
+    names = [*known, *(alias for alias, target in ALIASES.items() if target in known)]
+    names += [name for each in integrations.capabilities() for name in each.names]
+    spelled: dict[str, list[str]] = {}
+    for name in names:
+        spelled.setdefault(name.lower(), []).append(name)
+    close = difflib.get_close_matches(topic.strip().lower(), list(spelled), n=1, cutoff=0.6)
+    if not close:
+        return ""
+    meant = [
+        resolve(name) if name.lower() in known or name in ALIASES else name
+        for name in spelled[close[0]]
+    ]
+    return f"did you mean {' or '.join(dict.fromkeys(meant))}? "

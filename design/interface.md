@@ -162,8 +162,9 @@ hint: write the same free indices on both sides, as in R_{\mu\nu} = g_{\mu\nu}
 ## Learning the language
 
 - **A reference generated from the language's own tables:** every command,
-  environment, function, constant, spacetime, statistic and verdict. A test keeps it
-  complete.
+  environment, constant, statistic and verdict, and an index of the functions, which
+  `relativisticpy help <name>` describes one at a time, from their declarations. Tests
+  keep both complete.
 - **The documentation in the installed package,** printed by `relativisticpy help`.
 - **`llms.txt` and `llms-full.txt` on the docs site,** for agents.
 - **A section in the README for agents:**

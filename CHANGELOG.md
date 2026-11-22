@@ -79,7 +79,13 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   defines a name that has no meaning yet, and is otherwise a claim, with a note
   saying which it was.
 - `relativisticpy help [TOPIC]` prints the documentation offline, and the language
-  reference, generated from the language's own tables, is there even without it.
+  reference, generated from the language's own tables, is there even without it. The
+  reference indexes the functions, a line for each family with every name and form, and
+  `relativisticpy help NAME` describes one in full, as `relativisticpy help besselj`,
+  generated from what its integration declares: its forms, its arguments, what computes
+  it, its examples with their answers and its notes. A misspelled name is told the topic
+  or the function it may have meant, and the MCP server's `help` tool and its resources,
+  `relativisticpy://docs/besselj`, give the same.
   `--format unicode|text|latex|json` chooses how results are written, and the exit
   status says what happened: 0, 1, 2, 130 after Ctrl-C and 143 after SIGTERM.
 - An MCP server for AI agents, `relativisticpy mcp`: tools to compute in sessions,

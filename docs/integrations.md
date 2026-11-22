@@ -31,7 +31,7 @@ how the language treats it:
 
 The decorator takes, by name:
 
-- `summary`: one phrase, as the [reference](reference.md) lists it;
+- `summary`: one phrase, with which `relativisticpy help NAME` begins its description;
 - `examples`: two or more `Example(program, answer, source)`, each a program that uses the
   capability and the value of its last output, known from *outside* the integration: a
   closed form with its place in a book, `"DLMF 10.8.1"`, or the library called directly,
@@ -271,7 +271,8 @@ it applies to its kind. A failure names the capability and says what to do:
    anything else, never fails inside RelativisticPy.
 6. **Display.** A call prints in text, Unicode, LaTeX and data, and each reads back as the
    same value.
-7. **Reference.** The language reference describes it, from its declaration.
+7. **Reference.** The language reference indexes it, by its names and forms, and
+   `relativisticpy help NAME` describes it in full, both from its declaration.
 8. **Transform.** A transform of functions agrees with the integral or the sum it stands
    for at points, and its inverse gives back what it transformed; a transform of data
    agrees with its sum, its inverse undoes it, it keeps Parseval's relation, and its
@@ -364,4 +365,5 @@ mylibrary = "mypackage.relativisticpy_integration"
 The capabilities are found when the language first needs them. An entry point that fails
 to load is a warning that names it, never a language that does not start.
 
-**Next:** [the language reference](reference.md), which lists every capability.
+**Next:** [the language reference](reference.md), which lists every capability, each of
+which `relativisticpy help NAME` describes in full.

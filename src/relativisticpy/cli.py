@@ -1091,15 +1091,21 @@ def _watched(progress: _Progress) -> type[Workbook]:
 
 
 def help_command(argv: Sequence[str]) -> int:
-    """``relativisticpy help [TOPIC]``: the documentation, offline."""
+    """``relativisticpy help [TOPIC]``: the documentation, offline, or one function of the
+    language in full."""
     parser = argparse.ArgumentParser(
         prog="relativisticpy help",
-        description="Print the documentation, offline: the list of topics, or one topic.",
+        description="Print the documentation, offline: the list of topics, one topic, or "
+        "one function of the language in full.",
         epilog=f"Examples:\n  relativisticpy help\n  relativisticpy help language\n"
-        f"  relativisticpy help cli\n\nThe same pages are online at {DOCS}.",
+        f"  relativisticpy help besselj\n\nThe same pages are online at {DOCS}.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("topic", nargs="?", help="a topic, as the list of topics names it")
+    parser.add_argument(
+        "topic",
+        nargs="?",
+        help="a topic, as the list of topics names it, or the name of a function, as besselj",
+    )
     parser.add_argument(
         "--color",
         choices=("auto", "always", "never"),
@@ -1168,13 +1174,17 @@ def help_text(*, prompt: bool) -> str:
         lines.append(f"The documentation, offline: {asked}, where TOPIC is one of")
         size = max(len(topic) for topic, _ in topics) + 2
         lines.extend(f"  {topic:<{size}}{title}" for topic, title in topics)
+        lines += [
+            "or the name of a function, as besselj, which it describes in full: its forms,",
+            "its arguments, its examples with their answers, and what computes it.",
+        ]
     else:
         lines.append(f"The documentation is not installed with this copy; it is at {DOCS}.")
     lines.append("")
     if prompt:
         lines += [
             "At the prompt:",
-            "  help [TOPIC]     this help, or a topic",
+            "  help [TOPIC]     this help, a topic, or a function in full",
             "  who              what is defined",
             "  reset            forget every definition",
             "  exit, quit       leave, as Ctrl-D does",
@@ -1187,7 +1197,7 @@ def help_text(*, prompt: bool) -> str:
             "  relativisticpy -c CODE         run CODE",
             "  relativisticpy                 start the prompt",
             "  relativisticpy check FILE...   check the equations of LaTeX documents",
-            "  relativisticpy help TOPIC      print a topic",
+            "  relativisticpy help TOPIC      print a topic, or a function in full",
             "  relativisticpy mcp             serve RelativisticPy to AI agents, over MCP",
             "  relativisticpy --help          every option",
         ]

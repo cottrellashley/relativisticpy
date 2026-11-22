@@ -1,8 +1,8 @@
 # The language reference
 
-> **For:** anyone, person or agent, who needs to know what the language accepts. **You will learn:** every statement, command, environment, function, constant, spacetime, statistic, verdict and error, on one page.
+> **For:** anyone, person or agent, who needs to know what the language accepts. **You will learn:** every statement, command, environment, constant, verdict and error, and every function by name.
 
-This page is generated from the tables the language is read with. `relativisticpy help reference` prints it offline, and `relativisticpy.reference.markdown()` gives it in Python. The guides explain each part, with examples: [The language](language.md), [LaTeX](latex.md), [Tensors and geometry](tensors.md) and [Beyond spacetime](spaces.md).
+This page is generated from the tables the language is read with and from what its integrations declare. `relativisticpy help reference` prints it offline, and `relativisticpy help NAME` one function in full, as `relativisticpy help besselj`: its forms, its arguments, its examples with their answers, and what computes it. The guides explain each part: [The language](language.md), [LaTeX](latex.md), [Tensors and geometry](tensors.md) and [Beyond spacetime](spaces.md).
 
 ## Statements
 
@@ -101,268 +101,30 @@ With a metric in force, these names mean the tensors of its geometry, by name an
 
 ## Spacetimes
 
-Each is a function that gives a metric, as in `g_{\mu\nu} := Schwarzschild(M)`. Parameters are names or numbers, and units are geometric, G = c = 1, unless `G` and `c` follow the spacetime's own parameters.
-
-| Spacetime | Coordinates | Meaning |
-|---|---|---|
-| `Minkowski(coordinates, G, c)` | t, x, y, z | flat spacetime; `Minkowski(spherical)` in spherical coordinates |
-| `Schwarzschild(M, G, c)` | t, r, θ, φ | a static black hole of mass M |
-| `ReissnerNordstrom(M, Q, G, c)` | t, r, θ, φ | a static black hole of mass M and charge Q |
-| `Kerr(M, a, G, c)` | t, r, θ, φ | a rotating black hole of mass M and spin a = J/Mc, in Boyer–Lindquist coordinates |
-| `KerrNewman(M, a, Q, G, c)` | t, r, θ, φ | a rotating black hole of mass M, spin a and charge Q |
-| `FLRW(k, a, G, c)` | t, r, θ, φ | a homogeneous, isotropic universe: spatial curvature k, scale factor a(t) |
-| `DeSitter(L, G, c)` | t, r, θ, φ | the static patch of de Sitter space, of curvature radius L |
-| `AntiDeSitter(L, G, c)` | t, r, θ, φ | anti-de Sitter space, of curvature radius L |
+Each is a function that gives a metric, as in `g_{\mu\nu} := Schwarzschild(M)`. Parameters are names or numbers, and units are geometric, G = c = 1, unless `G` and `c` follow the spacetime's own parameters: `Minkowski(coordinates, G, c)`, `Schwarzschild(M, G, c)`, `ReissnerNordstrom(M, Q, G, c)`, `Kerr(M, a, G, c)`, `KerrNewman(M, a, Q, G, c)`, `FLRW(k, a, G, c)`, `DeSitter(L, G, c)`, `AntiDeSitter(L, G, c)`.
 
 ## Functions
 
-A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`, or as books write it, `\Gamma(x)`: a definition of the name in the program comes first. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component. Each is a capability of an integration, a module of `relativisticpy.integrations` ([Integrations](integrations.md)), from whose declaration this list is written.
+A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`, or as books write it, `\Gamma(x)`: a definition of the name in the program comes first. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component. Each is a capability of an integration, a module of `relativisticpy.integrations` ([Integrations](integrations.md)), listed here by family, with every name and the forms books write it in; `relativisticpy help NAME` describes one in full.
 
-### Algebra and calculus
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `simplify(expr)` `tsimplify` | 1 | the simplest form; of an equation between tensors without components, its canonical form |
-| `expand(expr)` | 1 | multiplied out |
-| `factor(expr)` | 1 | factorised |
-| `collect(expr, syms, ...)` | 2 or more | `collect(f, x)`, the terms of f gathered by powers of x |
-| `cancel(expr)` | 1 | a fraction, with common factors cancelled |
-| `apart(expr)` | 1 | partial fractions |
-| `together(expr)` | 1 | one fraction |
-| `trigsimp(expr)` | 1 | trigonometric functions simplified |
-| `powsimp(expr)` | 1 | powers combined: `x^a x^b` is `x^{a+b}` |
-| `expand_trig(expr)` | 1 | functions of sums and multiples of angles, expanded |
-| `nsimplify(expr)` | 1 | the exact number a decimal stands for: `0.5` is `1/2` |
-| `diff(f, ...)` | 1 or more | `diff(f, x)`, `diff(f, x, 2)`, `diff(f, x, y)`: derivatives, as `\frac{d}{dx}` |
-| `integrate(f, ...)` | 1 or more | `integrate(f, x)`, `integrate(f, (x, 0, 1))`: integrals, as `\int` |
-| `limit(f, x, a, dir)` `lim` | 3 to 4 | `limit(f, x, a)`, as x tends to a; `\lim_{x \to a^+}` for one side |
-| `series(expr, x, x0, n)` | 1 to 4 | `series(f, x, a, n)`, the Taylor series about a, to order n |
-| `subs(expr, old, new)` | 2 to 3 | `subs(f, x, a)`, f with a put for x; `subs(f, x = a)` too |
-| `N(value, digits)` `numerical` `evalf` | 1 to 2 | `N(x)`, `N(x, digits)`: a decimal number |
-| `doit(value)` | 1 | sums, products and integrals, kept as written, carried out |
-
-### Bessel and Airy functions
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `besselj(nu, x)` `J_{\nu}(x)` | 2 | the Bessel function of the first kind, of order `\nu` |
-| `bessely(nu, x)` `Y_{\nu}(x)` | 2 | the Bessel function of the second kind, of order `\nu` |
-| `besseli(nu, x)` `I_{\nu}(x)` | 2 | the modified Bessel function of the first kind, of order `\nu` |
-| `besselk(nu, x)` `K_{\nu}(x)` | 2 | the modified Bessel function of the second kind, of order `\nu` |
-| `jn(n, x)` `j_n(x)` | 2 | the spherical Bessel function of the first kind, of order n |
-| `yn(n, x)` `y_n(x)` | 2 | the spherical Bessel function of the second kind, of order n |
-| `airyai(x)` `\operatorname{Ai}(x)` | 1 | the Airy function Ai |
-| `airybi(x)` `\operatorname{Bi}(x)` | 1 | the Airy function Bi |
-
-### Combinatorics
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `stirling2(n, k)` | 2 | the Stirling number of the second kind, `{n \brace k}` |
-| `stirling1(n, k)` | 2 | the Stirling number of the first kind, `{n \brack k}`, unsigned |
-| `catalan(n)` | 1 | the Catalan number |
-| `fibonacci(n)` | 1 | the Fibonacci number, from F_0 = 0 and F_1 = 1 |
-| `bell(n)` | 1 | the Bell number |
-| `bernoulli(n)` `B_n` | 1 | the Bernoulli number; B_1 = 1/2, where DLMF takes -1/2 |
-| `harmonic(n)` `H_n` | 1 | the harmonic number; 1 + 1/2 + ... + 1/n |
-| `partition(n)` `p(n)` | 1 | the number of partitions of n |
-| `multinomial(k, ...)` | 1 or more | the multinomial coefficient; (k_1 + ... + k_m)!/(k_1! ... k_m!) |
-
-### Elementary functions
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `sin(x)` | 1 | the sine; `\sin^2\theta` is the square of `\sin\theta` |
-| `cos(x)` | 1 | the cosine |
-| `tan(x)` | 1 | the tangent |
-| `cot(x)` | 1 | the cotangent |
-| `sec(x)` | 1 | the secant |
-| `csc(x)` | 1 | the cosecant |
-| `asin(x)` `arcsin` | 1 | the inverse sine; `\sin^{-1} x` too |
-| `acos(x)` `arccos` | 1 | the inverse cosine |
-| `atan(x)` `arctan` | 1 | the inverse tangent |
-| `acot(x)` | 1 | the inverse cotangent |
-| `asec(x)` | 1 | the inverse secant |
-| `acsc(x)` | 1 | the inverse cosecant |
-| `sinh(x)` | 1 | the hyperbolic sine |
-| `cosh(x)` | 1 | the hyperbolic cosine |
-| `tanh(x)` | 1 | the hyperbolic tangent |
-| `coth(x)` | 1 | the hyperbolic cotangent |
-| `sech(x)` | 1 | the hyperbolic secant |
-| `csch(x)` | 1 | the hyperbolic cosecant |
-| `asinh(x)` | 1 | the inverse hyperbolic sine |
-| `acosh(x)` | 1 | the inverse hyperbolic cosine |
-| `atanh(x)` | 1 | the inverse hyperbolic tangent |
-| `acoth(x)` | 1 | the inverse hyperbolic cotangent |
-| `asech(x)` | 1 | the inverse hyperbolic secant |
-| `acsch(x)` | 1 | the inverse hyperbolic cosecant |
-| `exp(x)` | 1 | the exponential; `e^{x}` too |
-| `ln(x)` | 1 | the natural logarithm |
-| `sqrt(x)` | 1 | the square root; `\sqrt[n]{x}` is the nth root |
-| `abs(x)` `Abs` | 1 | the absolute value; `\lvert x \rvert` too |
-| `sign(x)` | 1 | the sign: −1, 0 or 1 |
-| `floor(x)` | 1 | rounded down; `\lfloor x \rfloor` too |
-| `ceiling(x)` | 1 | rounded up; `\lceil x \rceil` too |
-| `factorial(x)` | 1 | the factorial; `n!` too |
-| `factorial2(x)` | 1 | the double factorial; `n!!` too |
-| `gamma(x)` `\Gamma(x)` | 1 | Euler's gamma function; `\gamma` is the letter |
-| `re(x)` `Re` | 1 | the real part; `\Re` too |
-| `im(x)` `Im` | 1 | the imaginary part; `\Im` too |
-| `conjugate(x)` `conj` | 1 | the complex conjugate |
-| `arg(x)` | 1 | the argument of a complex number |
-| `erf(x)` | 1 | the error function |
-
-### Equations
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `solve(equations, ...)` | 1 or more | `solve(x^2 = 4, x)`, the solutions; `solve(E, T_{\mu\nu})` solves an equation between tensors for one |
-| `dsolve(equations, ...)` | 1 or more | `dsolve(f'(x) = f(x), f(x))`, the solution of a differential equation; `dsolve(\frac{dy}{dt} = r y, y(0) = y_0)` with conditions |
-| `RHS(equation)` `rhs` | 1 | the right side of an equation |
-| `LHS(equation)` `lhs` | 1 | the left side of an equation |
-| `Eq(lhs, rhs)` | 2 | `Eq(a, b)`, the equation a = b |
-| `symbols(names)` | 1 | `symbols('x y')`, the symbols named in quotes |
-| `latex(value)` | 1 | the LaTeX of a value, as text |
-
-### The discrete Fourier transform
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `fft(x)` `\operatorname{fft}(x)` | 1 | the discrete Fourier transform; `X_k = \sum_n x_n e^{-2\pi i k n/N}`, by the fast algorithm: of data over an index, data over its frequencies |
-| `ifft(X)` `\operatorname{ifft}(X)` | 1 | the inverse discrete Fourier transform; `x_n = \frac{1}{N} \sum_k X_k e^{2\pi i k n/N}`: of data over frequencies, data over the samples they are of |
-
-### Matrices
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `diag(first, ...)` | 1 or more | `diag(a, b, ...)`, a diagonal matrix; of a vector, the matrix with it on its diagonal |
-| `det(matrix)` | 1 | the determinant, `\det A` |
-| `inverse(matrix)` `inv` | 1 | the inverse of a matrix, `A^{-1}` |
-| `pinv(matrix)` | 1 | the pseudoinverse of a matrix, `A^+`, Moore and Penrose's |
-| `transpose(matrix)` | 1 | the transpose of a matrix, `A^T` |
-| `ctranspose(matrix)` | 1 | the conjugate transpose of a matrix, `A^\dagger` or `A^*` |
-| `trace(A)` `tr` `Tr` `\operatorname{tr} A` `\operatorname{tr}(A)` `\operatorname{Tr} A` `\operatorname{Tr}(A)` | 1 | the trace of a matrix; of an equation between tensors, its contraction |
-| `rank(A)` `\operatorname{rank} A` `\operatorname{rank}(A)` | 1 | the rank of a matrix, the dimension of the space its columns span |
-| `adjugate(A)` `adj` `\operatorname{adj} A` `\operatorname{adj}(A)` | 1 | the adjugate of a matrix, the transpose of its cofactors, `\operatorname{adj} A` |
-| `null(A)` `\operatorname{null} A` `\operatorname{null}(A)` | 1 | the null space of a matrix, `\ker A`: a basis of it, as the columns of a matrix |
-| `dim(V)` | 1 | the dimension of the space the columns of a matrix span, as `\dim \ker A`, the dimension of its null space |
-| `vec(A)` `\operatorname{vec} A` `\operatorname{vec}(A)` | 1 | the columns of a matrix stacked into one, `\operatorname{vec} A` |
-| `norm(x, p)` | 1 to 2 | the norm of a matrix or a vector, written between double bars with its order p as a subscript: 1, 2, `\infty`, or F for Frobenius's |
-| `cond(A, p)` `\kappa(A)` `\kappa_p(A)` | 1 to 2 | the condition number of a matrix, `\kappa(A)`, its norm times its inverse's, of order 2, or another p |
-| `spectral_radius(A)` `\rho(A)` | 1 | the spectral radius of a matrix, `\rho(A)`, the largest modulus of its eigenvalues; ρ of anything else is not |
-| `lambda_max(A)` `\lambda_{\max}(A)` `\lambda_{\max} A` | 1 | the largest eigenvalue of a matrix, by its real part, `\lambda_{\max}(A)` |
-| `lambda_min(A)` `\lambda_{\min}(A)` `\lambda_{\min} A` | 1 | the smallest eigenvalue of a matrix, by its real part, `\lambda_{\min}(A)` |
-| `eigenvalue(k, A)` `\lambda_k(A)` | 2 | the eigenvalues of a matrix counted from the smallest, `\lambda_k(A)`: `\lambda_1(A)` is the smallest, as for a graph's Laplacian |
-| `spec(A)` | 1 | the spectrum of a matrix, `\operatorname{spec}(A)`: its eigenvalues, each as often as it is one, from the smallest |
-| `expm(A)` | 1 | the exponential of a matrix, `e^{A}` or `\exp(A)` of a matrix A |
-| `logm(A)` | 1 | the logarithm of a matrix, `\log A` of a matrix A, the principal one |
-| `sqrtm(A)` | 1 | the square root of a matrix, `\sqrt{A}` or `A^{1/2}` of a matrix A, the principal one |
-| `matrix_power(A, p)` | 2 | a matrix to a power, `A^k`, for a power that is no whole number: a symbol, or a fraction |
-| `kron(A, B)` | 2 | the Kronecker product of two matrices, `A \otimes B` |
-| `direct_sum(A, ...)` | 1 or more | the direct sum of matrices, `A \oplus B`, the block diagonal matrix of them |
-
-### Number theory
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `mod(a, m)` `Mod` | 2 | the remainder of a on division by m, `a \bmod m` |
-| `totient(n)` `\varphi(n)` `\phi(n)` | 1 | Euler's totient function |
-| `mobius(n)` `\mu(n)` | 1 | the Möbius function |
-| `primepi(x)` `\pi(x)` | 1 | the prime-counting function |
-| `divisor_sigma(n, k)` `\sigma_k(n)` | 2 | the sum of the kth powers of the divisors of n |
-| `divisor_count(n)` `d(n)` | 1 | the number of divisors of n |
-| `primenu(n)` `\omega(n)` | 1 | the number of distinct primes that divide n |
-| `primeomega(n)` `\Omega(n)` | 1 | the number of prime factors of n, with multiplicity |
-| `mangoldt(n)` `\Lambda(n)` | 1 | von Mangoldt's function |
-
-### Numbers
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `log(x, base)` | 1 to 2 | the logarithm; `log(x, b)` to the base b, `\log_b x` in LaTeX |
-| `root(x, n)` | 2 | `root(x, n)`, the nth root |
-| `binomial(n, k)` | 2 | `binomial(n, k)`; `\binom{n}{k}` too |
-| `atan2(y, x)` | 2 | `atan2(y, x)`, the angle of the point (x, y) |
-| `min(first, ...)` `Min` | 1 or more | the least of the arguments |
-| `max(first, ...)` `Max` | 1 or more | the greatest of the arguments |
-| `gcd(a, b, ...)` | 2 or more | the greatest common divisor |
-| `lcm(a, b, ...)` | 2 or more | the least common multiple |
-
-### Orthogonal polynomials and spherical harmonics
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `legendre(n, x)` `P_n(x)` | 2 | the Legendre polynomial of degree n |
-| `assoc_legendre(ell, m, x)` `P_{\ell}^m(x)` | 3 | the associated Legendre function of degree `\ell` and order m, with the phase (-1)^m |
-| `hermite(n, x)` `H_n(x)` | 2 | the Hermite polynomial of degree n, the physicists' (probabilists write He_n) |
-| `laguerre(n, x)` `L_n(x)` | 2 | the Laguerre polynomial of degree n |
-| `assoc_laguerre(n, alpha, x)` `L_n^{(\alpha)}(x)` | 3 | the generalised Laguerre polynomial of degree n and parameter `\alpha` |
-| `chebyshevt(n, x)` `T_n(x)` | 2 | the Chebyshev polynomial of the first kind, of degree n |
-| `chebyshevu(n, x)` `U_n(x)` | 2 | the Chebyshev polynomial of the second kind, of degree n |
-| `Ynm(ell, m, theta, phi)` `Y_{\ell}^m(\theta, \phi)` | 4 | the spherical harmonic of degree `\ell` and order m, at polar angle `\theta` and azimuth `\phi` |
-
-### Sequences, as signal processing writes them
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `impulse(n)` `\delta[n]` | 1 | the unit impulse; 1 at n = 0 and 0 at every other integer |
-| `step(n)` `u[n]` | 1 | the unit step; 1 from n = 0 on and 0 before it |
-| `poles(H, z)` | 1 to 2 | the poles of a rational function, the roots of its denominator, each as often as its order |
-| `zeros(H, z)` | 1 to 2 | the zeros of a rational function, the roots of its numerator, each as often as its order |
-
-### Special functions
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `beta(a, b)` `\mathrm{B}(a, b)` | 2 | Euler's Beta function |
-| `zeta(s)` `\zeta(s)` | 1 | Riemann's zeta function |
-| `Log(z)` | 1 | the principal branch of the logarithm, `\operatorname{Log}` |
-| `erfc(x)` | 1 | the complementary error function, 1 - erf |
-| `erfi(x)` | 1 | the imaginary error function, -i erf(ix) |
-| `Ei(x)` | 1 | the exponential integral |
-| `Si(x)` | 1 | the sine integral |
-| `Ci(x)` | 1 | the cosine integral |
-| `LambertW(x, k)` `W_k(x)` | 1 to 2 | Lambert's W, the inverse of w e^w, on branch k: 0, the principal, or -1 |
-| `elliptic_k(m)` `\operatorname{K}(m)` | 1 | the complete elliptic integral of the first kind, of parameter m = k^2 |
-| `elliptic_e(m)` `\operatorname{E}(m)` | 1 | the complete elliptic integral of the second kind, of parameter m = k^2 |
-| `hyper(a, b, z)` `{}_pF_q(a; b; z)` | 3 | the generalised hypergeometric function; `hyper([a_1, ...], [b_1, ...], z)` |
-| `rf(a, n)` `RisingFactorial` `(a)_n` | 2 | the Pochhammer symbol, the rising factorial a(a + 1)...(a + n - 1) |
-| `normcdf(x)` `\Phi(x)` `N(x)` | 1 | the standard normal distribution function, (1 + erf(x/√2))/2 |
-| `Heaviside(t, c)` `u_c(t)` | 1 to 2 | the unit step, 0 before c and 1 after it, and 1/2 at c |
-| `DiracDelta(x)` `\operatorname{DiracDelta}(x)` | 1 | the Dirac delta, a distribution; `\delta(x)` is not read as it, as `\delta` is a variation in physics |
-
-### Integral transforms
-
-| Function | Arguments | Meaning |
-|---|---|---|
-| `LaplaceTransform(f, t, s)` `laplace_transform` `\mathcal{L}\{f\}(s)` `\mathcal{L}\{f\}` | 1 to 3 | the Laplace transform; of f(t), `\int_0^\infty e^{-st} f(t)\, dt`, a function of s |
-| `InverseLaplaceTransform(F, s, t)` `inverse_laplace_transform` `\mathcal{L}^{-1}\{F\}(t)` `\mathcal{L}^{-1}\{F\}` | 1 to 3 | the inverse Laplace transform; of F(s), the function of t it is the transform of, for t > 0 |
-| `FourierTransform(f, x, s)` `fourier_transform` `\mathcal{F}\{f\}(s)` `\mathcal{F}\{f\}` | 1 to 3 | the Fourier transform; of f(x), `\int f(x) e^{-2\pi i x s}\, dx`, Bracewell's, of f(t), `\int f(t) e^{-i\omega t}\, dt`, or as a program defines it by its integral |
-| `InverseFourierTransform(F, s, x)` `inverse_fourier_transform` `\mathcal{F}^{-1}\{F\}(x)` `\mathcal{F}^{-1}\{F\}` | 1 to 3 | the inverse Fourier transform; of s to x or of ω to t, in the convention of the Fourier transform |
-| `ZTransform(x, n, z)` `z_transform` `\mathcal{Z}\{x\}(z)` `\mathcal{Z}\{x\}` | 1 to 3 | the z-transform; of a sequence from n = 0, `\sum_{n=0}^{\infty} x_n z^{-n}`, where it converges, and of one written with impulses and steps over every n |
-| `InverseZTransform(X, z, n)` `inverse_z_transform` `\mathcal{Z}^{-1}\{X\}(n)` `\mathcal{Z}^{-1}\{X\}` | 1 to 3 | the inverse z-transform; of a rational function of z, by partial fractions, the sequence from n = 0, with its step and impulses |
-
-### Rewrites
-
-What a program writes, computed faster by another capability, to the same numbers:
-
-| Written | Computed by | Meaning |
-|---|---|---|
-| `\sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}` | `fft` | the discrete Fourier transform written as its sum; on data or a list, computed as an FFT |
+- **Algebra and calculus:** `simplify` `tsimplify`, `expand`, `factor`, `collect`, `cancel`, `apart`, `together`, `trigsimp`, `powsimp`, `expand_trig`, `nsimplify`, `diff`, `integrate`, `limit` `lim`, `series`, `subs`, `N` `numerical` `evalf`, `doit`
+- **Bessel and Airy functions:** `besselj` `J_{\nu}(x)`, `bessely` `Y_{\nu}(x)`, `besseli` `I_{\nu}(x)`, `besselk` `K_{\nu}(x)`, `jn` `j_n(x)`, `yn` `y_n(x)`, `airyai` `\operatorname{Ai}(x)`, `airybi` `\operatorname{Bi}(x)`
+- **Combinatorics:** `stirling2`, `stirling1`, `catalan`, `fibonacci`, `bell`, `bernoulli` `B_n`, `harmonic` `H_n`, `partition` `p(n)`, `multinomial`
+- **Elementary functions:** `sin`, `cos`, `tan`, `cot`, `sec`, `csc`, `asin` `arcsin`, `acos` `arccos`, `atan` `arctan`, `acot`, `asec`, `acsc`, `sinh`, `cosh`, `tanh`, `coth`, `sech`, `csch`, `asinh`, `acosh`, `atanh`, `acoth`, `asech`, `acsch`, `exp`, `ln`, `sqrt`, `abs` `Abs`, `sign`, `floor`, `ceiling`, `factorial`, `factorial2`, `gamma` `\Gamma(x)`, `re` `Re`, `im` `Im`, `conjugate` `conj`, `arg`, `erf`
+- **Equations:** `solve`, `dsolve`, `RHS` `rhs`, `LHS` `lhs`, `Eq`, `symbols`, `latex`
+- **The discrete Fourier transform:** `fft` `\operatorname{fft}(x)`, `ifft` `\operatorname{ifft}(X)`
+- **Matrices:** `diag`, `det`, `inverse` `inv`, `pinv`, `transpose`, `ctranspose`, `trace` `tr` `Tr` `\operatorname{tr} A` `\operatorname{tr}(A)` `\operatorname{Tr} A` `\operatorname{Tr}(A)`, `rank` `\operatorname{rank} A` `\operatorname{rank}(A)`, `adjugate` `adj` `\operatorname{adj} A` `\operatorname{adj}(A)`, `null` `\operatorname{null} A` `\operatorname{null}(A)`, `dim`, `vec` `\operatorname{vec} A` `\operatorname{vec}(A)`, `norm`, `cond` `\kappa(A)` `\kappa_p(A)`, `spectral_radius` `\rho(A)`, `lambda_max` `\lambda_{\max}(A)` `\lambda_{\max} A`, `lambda_min` `\lambda_{\min}(A)` `\lambda_{\min} A`, `eigenvalue` `\lambda_k(A)`, `spec`, `expm`, `logm`, `sqrtm`, `matrix_power`, `kron`, `direct_sum`
+- **Number theory:** `mod` `Mod`, `totient` `\varphi(n)` `\phi(n)`, `mobius` `\mu(n)`, `primepi` `\pi(x)`, `divisor_sigma` `\sigma_k(n)`, `divisor_count` `d(n)`, `primenu` `\omega(n)`, `primeomega` `\Omega(n)`, `mangoldt` `\Lambda(n)`
+- **Numbers:** `log`, `root`, `binomial`, `atan2`, `min` `Min`, `max` `Max`, `gcd`, `lcm`
+- **Orthogonal polynomials and spherical harmonics:** `legendre` `P_n(x)`, `assoc_legendre` `P_{\ell}^m(x)`, `hermite` `H_n(x)`, `laguerre` `L_n(x)`, `assoc_laguerre` `L_n^{(\alpha)}(x)`, `chebyshevt` `T_n(x)`, `chebyshevu` `U_n(x)`, `Ynm` `Y_{\ell}^m(\theta, \phi)`
+- **Sequences, as signal processing writes them:** `impulse` `\delta[n]`, `step` `u[n]`, `poles`, `zeros`
+- **Special functions:** `beta` `\mathrm{B}(a, b)`, `zeta` `\zeta(s)`, `Log`, `erfc`, `erfi`, `Ei`, `Si`, `Ci`, `LambertW` `W_k(x)`, `elliptic_k` `\operatorname{K}(m)`, `elliptic_e` `\operatorname{E}(m)`, `hyper` `{}_pF_q(a; b; z)`, `rf` `RisingFactorial` `(a)_n`, `normcdf` `\Phi(x)` `N(x)`, `Heaviside` `u_c(t)`, `DiracDelta` `\operatorname{DiracDelta}(x)`
+- **Integral transforms:** `LaplaceTransform` `laplace_transform` `\mathcal{L}\{f\}(s)` `\mathcal{L}\{f\}`, `InverseLaplaceTransform` `inverse_laplace_transform` `\mathcal{L}^{-1}\{F\}(t)` `\mathcal{L}^{-1}\{F\}`, `FourierTransform` `fourier_transform` `\mathcal{F}\{f\}(s)` `\mathcal{F}\{f\}`, `InverseFourierTransform` `inverse_fourier_transform` `\mathcal{F}^{-1}\{F\}(x)` `\mathcal{F}^{-1}\{F\}`, `ZTransform` `z_transform` `\mathcal{Z}\{x\}(z)` `\mathcal{Z}\{x\}`, `InverseZTransform` `inverse_z_transform` `\mathcal{Z}^{-1}\{X\}(n)` `\mathcal{Z}^{-1}\{X\}`
+- **Rewrites,** what a program writes, computed faster by another capability, to the same numbers: `dft_sum` `\sum_{n=0}^{N-1} x_n e^{-2\pi i k n/N}`, by `fft`
 
 ### Optimizers
 
-An optimum, `\min_{x} f(x)`, `\arg\max_{x, y} u \quad \text{subject to} \quad g = 0` or `\sup_{0 \le x < 1} f(x)`, is found by the optimizers, in this order: those that compute exactly, then, where it has no parameters, those that compute numerically, which take first one written with decimals, as data is. A note says which found it, how, and whether it is global. Over an index of data, `\max_t x_t` is the greatest value along it, and `\arg\max_t x_t` its label.
-
-| Optimizer | Computes | Meaning |
-|---|---|---|
-| `extrema` | exactly | optima of a function of one variable: at its stationary points, where it has no derivative, and at the ends of its domain, or toward them |
-| `kkt` | exactly | optima of smooth functions of several variables: where the gradient vanishes, or the Lagrange or the KKT conditions hold, at each set of constraints that hold with equality |
-| `simplex` | exactly | linear programs, by SymPy's simplex method |
-| `enumeration` | exactly | optima over finitely many points, as whole numbers between bounds or values in \{0, 1\}, by trying each |
-| `linprog` | numerically | linear programs, by SciPy's HiGHS: linprog, or milp where the variables are whole numbers |
-| `quadratic` | numerically | convex quadratic programs: the linear system of the KKT conditions at each set of active constraints, by SciPy's linear algebra |
-| `minimize` | numerically | any other optimum without parameters, by SciPy's minimize (SLSQP) from several starting points; of whole numbers, over the reals, then at the whole numbers either side |
+An optimum, `\min_{x} f(x)`, `\arg\max_{x, y} u \quad \text{subject to} \quad g = 0` or `\sup_{0 \le x < 1} f(x)`, is found by the optimizers, in this order: those that compute exactly, `extrema`, `kkt`, `simplex`, `enumeration`; then, where it has no parameters, those that compute numerically, `linprog`, `quadratic`, `minimize`, which take first one written with decimals, as data is. A note says which found it, how, and whether it is global. Over an index of data, `\max_t x_t` is the greatest value along it, and `\arg\max_t x_t` its label.
 
 ### Book names not supported yet
 
@@ -417,21 +179,7 @@ Given a tensor, these functions are linear algebra. They are written `\operatorn
 
 ## Random variables
 
-`X \sim D` declares a random variable, `X, Y \overset{\text{iid}}{\sim} D` independent ones, `X_1, \ldots, X_n \overset{\text{iid}}{\sim} D` a sample, and `X \mid N \sim D` one given another. A distribution is written as books write it, or called by its name with its parameters as SymPy takes them:
-
-| Distribution | Meaning |
-|---|---|
-| `Normal(mu, sigma)` `\mathcal{N}(\mu, \sigma^2)` `N(\mu, \sigma^2)` | the normal distribution, of mean μ and standard deviation σ |
-| `Poisson(rate)` `\operatorname{Poisson}(\lambda)` `\operatorname{Pois}(\lambda)` | the Poisson distribution, of mean λ |
-| `Binomial(n, p)` `\operatorname{Bin}(n, p)` `\operatorname{Binom}(n, p)` | the binomial distribution, of the successes in n trials of probability p |
-| `Bernoulli(p)` `\operatorname{Bernoulli}(p)` `\operatorname{Ber}(p)` `\operatorname{Bern}(p)` | the Bernoulli distribution, 1 with probability p and 0 otherwise |
-| `Uniform(a, b)` `U(a, b)` `\mathcal{U}(a, b)` `\operatorname{Unif}(a, b)` | the uniform distribution on the interval from a to b |
-| `Exponential(rate)` `\operatorname{Exp}(\lambda)` | the exponential distribution, of rate λ and mean 1/λ |
-| `GammaDistribution(k, theta)` `\Gamma(k, \theta)` | the gamma distribution, of shape k and scale θ, and mean kθ |
-| `ChiSquared(k)` `\chi^2_k` `\chi_k^2` `\chi^2(k)` | the chi-squared distribution, of k degrees of freedom |
-| `StudentT(nu)` `t_\nu` `t(\nu)` | Student's t distribution, of ν degrees of freedom |
-| `BetaDistribution(alpha, beta)` `\operatorname{Beta}(\alpha, \beta)` | the beta distribution on the interval from 0 to 1, of shapes α and β |
-| `Geometric(p)` `\operatorname{Geom}(p)` | the geometric distribution, of the trials up to the first success, from 1 |
+`X \sim D` declares a random variable, `X, Y \overset{\text{iid}}{\sim} D` independent ones, `X_1, \ldots, X_n \overset{\text{iid}}{\sim} D` a sample, and `X \mid N \sim D` one given another. A distribution is written as books write it, or called by its name with its parameters as SymPy takes them: `Normal(mu, sigma)` `\mathcal{N}(\mu, \sigma^2)` `N(\mu, \sigma^2)`, `Poisson(rate)` `\operatorname{Poisson}(\lambda)` `\operatorname{Pois}(\lambda)`, `Binomial(n, p)` `\operatorname{Bin}(n, p)` `\operatorname{Binom}(n, p)`, `Bernoulli(p)` `\operatorname{Bernoulli}(p)` `\operatorname{Ber}(p)` `\operatorname{Bern}(p)`, `Uniform(a, b)` `U(a, b)` `\mathcal{U}(a, b)` `\operatorname{Unif}(a, b)`, `Exponential(rate)` `\operatorname{Exp}(\lambda)`, `GammaDistribution(k, theta)` `\Gamma(k, \theta)`, `ChiSquared(k)` `\chi^2_k` `\chi_k^2` `\chi^2(k)`, `StudentT(nu)` `t_\nu` `t(\nu)`, `BetaDistribution(alpha, beta)` `\operatorname{Beta}(\alpha, \beta)`, `Geometric(p)` `\operatorname{Geom}(p)`.
 
 `\Pr(X > 1)`, `\mathbb{P}(A)`, `P(X = 2)`, `\mathbb{E}[X]`, `\operatorname{Var}(X)` and `\operatorname{Cov}(X, Y)` are computed, with `\mid` the conditional bar; `f_X(x)`, `F_X(x)`, `F_X^{-1}(q)`, `M_X(t)` and `\varphi_X(t)` are X's density, distribution function, quantile and generating functions: exactly by SymPy, or by SciPy where SymPy finds no closed form in 5 s and there are no parameters. `\Pr(A) := 0.3` gives an event's probability, and a capital letter nothing defines is a random variable of any law.
 
@@ -508,21 +256,21 @@ Typesetting is ignored: spacing, sizes, `\label`, `\tag`, `$`, `$$`, `\[ \]` and
 
 These commands are LaTeX's, or a package's, but not the language's. Each is an error that says what to write instead:
 
-- `\abs`: the physics package's absolute value, is not supported; write `|x|`, or `\left| x \right|`.
-- `\dd`: the physics package's differential, is not supported; write `d x`, or `\mathrm{d} x`.
+- `\abs`: the physics package's absolute value; write `|x|`, or `\left| x \right|`.
+- `\dd`: the physics package's differential; write `d x`, or `\mathrm{d} x`.
 - `\def \let \newcommand \providecommand \renewcommand`: defines a macro, which a program cannot; write what it stands for; relativisticpy check reads the macros of a document.
-- `\eval`: the physics package's evaluation bar, is not supported; write `\left. f \right|_{x=0}`.
-- `\exists`: the quantifier is not supported; write `\text{there is}`.
-- `\forall`: the quantifier is not supported; write `\text{for all}`.
-- `\liminf \limsup`: is not supported; write `\lim_{x \to a}` for a limit.
-- `\norm`: the physics package's norm, is not supported; write `\| x \|`.
-- `\not`: is not supported; write `\neq` for not equal, or `\notin`.
-- `\order`: the physics package's order, is not supported; write the terms out, or `\mathcal{O}(x^2)` as a symbol.
-- `\qty`: the physics package's brackets, is not supported; write `\left( ... \right)`.
-- `\Tr`: the physics package's trace, is not supported; write `\operatorname{Tr}(A)`, or contract the indices: `A^{a}_{a}`.
-- `\tr`: the physics package's trace, is not supported; write `\operatorname{tr}(A)`, or contract the indices: `A^{a}_{a}`.
-- `\va`: the physics package's vector arrow, is not supported; write `\vec{v}`.
-- `\vb`: the physics package's bold vector, is not supported; write `\mathbf{v}`.
+- `\eval`: the physics package's evaluation bar; write `\left. f \right|_{x=0}`.
+- `\exists`: the quantifier; write `\text{there is}`.
+- `\forall`: the quantifier; write `\text{for all}`.
+- `\liminf \limsup`: write `\lim_{x \to a}` for a limit.
+- `\norm`: the physics package's norm; write `\| x \|`.
+- `\not`: write `\neq` for not equal, or `\notin`.
+- `\order`: the physics package's order; write the terms out, or `\mathcal{O}(x^2)` as a symbol.
+- `\qty`: the physics package's brackets; write `\left( ... \right)`.
+- `\Tr`: the physics package's trace; write `\operatorname{Tr}(A)`, or contract the indices: `A^{a}_{a}`.
+- `\tr`: the physics package's trace; write `\operatorname{tr}(A)`, or contract the indices: `A^{a}_{a}`.
+- `\va`: the physics package's vector arrow; write `\vec{v}`.
+- `\vb`: the physics package's bold vector; write `\mathbf{v}`.
 
 ### Unicode
 

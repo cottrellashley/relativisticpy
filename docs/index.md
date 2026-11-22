@@ -55,7 +55,8 @@ When a result surprises you, see [Troubleshooting](troubleshooting.md).
 ## For agents
 
 Everything here is in the installed package too: `relativisticpy help` lists the
-pages, and `relativisticpy help reference` prints the whole language on one page. The
+pages, `relativisticpy help reference` prints the whole language on one page, and
+`relativisticpy help NAME` one function in full, as `relativisticpy help besselj`. The
 site serves [llms.txt](https://relativisticpy.org/llms.txt), an index of these pages for
 language models, and [llms-full.txt](https://relativisticpy.org/llms-full.txt), all of
 them in one file.

@@ -819,7 +819,8 @@ on: a superscript T is the transpose of a matrix and a power of a number, and
 \(\rho(A)\) is the spectral radius of a matrix, while \(\rho(1 + 3w)\) is not. Each
 reading is recorded, as `Workbook.explain` shows, with a note where another was
 possible, and a definition of the program's own always wins. The functions of a matrix
-are in the [reference](reference.md#matrices).
+are in the [reference](reference.md#functions), and `relativisticpy help kron` describes
+one in full.
 
 | Written | Read as |
 |---|---|

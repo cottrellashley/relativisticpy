@@ -35,8 +35,9 @@ It is a Python package and a language. Key facts:
   `relativisticpy -c "..."`, and check the equations of a LaTeX paper with
   `relativisticpy check paper.tex`. From Python, `Workbook().expr(source)` gives the
   value of a program's last expression, and `Workbook().exe(source)` every value.
-- Learn the language offline: `relativisticpy help` lists the topics, and
-  `relativisticpy help reference` prints the whole language on one page.
+- Learn the language offline: `relativisticpy help` lists the topics,
+  `relativisticpy help reference` prints the whole language on one page, and
+  `relativisticpy help NAME` one function in full.
 - Plain text (`g_{mu nu}`, `x**2`), LaTeX (`g_{\mu\nu}`, `\frac{1}{2}`) and Unicode
   (`θ`, `∂`) mix freely in one program.
 - `:=` always defines. `=` defines only what has no meaning yet; otherwise it is a

@@ -16,7 +16,8 @@ failures, none where it passes:
 5. **errors**: the wrong number of arguments, the wrong kind of argument and a library
    that is missing are each refused, saying what to do;
 6. **display**: a call prints in every form, and each form reads back;
-7. **reference**: the language reference describes it, from its declaration;
+7. **reference**: the language reference indexes it, and its help describes it in full,
+   both from its declaration;
 8. **transform**: a transform agrees with the integral or the sum it stands for, its inverse
    undoes it, and, of data, it keeps Parseval's relation and gives data over a space of the
    size and the labels it declares;
@@ -141,8 +142,8 @@ def declaration(capability: Capability) -> list[str]:
     summary = capability.summary.strip()
     if not summary or "\n" in summary or summary.endswith("."):
         failures.append(
-            f"{name}: give a summary, one phrase without a full stop, as the reference "
-            f'lists it: summary="the Bessel function of the first kind"'
+            f"{name}: give a summary, one phrase without a full stop, with which its help "
+            f'begins: summary="the Bessel function of the first kind"'
         )
     if len(capability.examples) < 2:
         failures.append(
@@ -836,25 +837,22 @@ def _call(capability: Capability) -> Any:
 
 
 def reference(capability: Capability) -> list[str]:
-    """The language reference describes it: how it is called, its other names, and its
-    summary."""
-    from relativisticpy.reference import markdown
+    """The language reference indexes it, by its names and the forms books write it in,
+    and its help, ``relativisticpy help NAME``, describes it in full, from its summary."""
+    from relativisticpy import reference as written
 
-    try:
-        with usable(capability):
-            page = markdown()
-    except ValueError as error:
-        return [
-            f"the reference cannot be written with {capability.name}: {error}; write its "
-            "summary without a bar, |, which a table of the reference cannot hold"
-        ]
-    named = (capability.text(), *capability.aliases, *capability.latex)
+    with usable(capability):
+        page, described = written.markdown(), written.capability(capability.name)
+    named = (*capability.aliases, *capability.latex)
     if isinstance(capability, _transforms.Rewrite):  # never called: written, and computed
-        named = (*capability.latex, capability.computes)
-    if isinstance(capability, _optimizers.Optimizer):  # never called: consulted in turn
-        named = (capability.name,)
-    wanted = [*(f"`{name}`" for name in named), capability.summary]
+        named = (*named, capability.computes)
+    wanted = [f"`{name}`" for name in named]
+    if f"`{capability.name}`" not in page and f"`{capability.text()}`" not in page:
+        wanted.insert(0, f"`{capability.name}`")
     missing = [item for item in wanted if item not in page]
+    summary = capability.summary[:1].upper() + capability.summary[1:]
+    if not described.startswith(f"# {capability.name}\n") or summary not in described:
+        missing.append(f"its help, {summary}")
     if not missing:
         return []
     return [
@@ -887,7 +885,12 @@ CHECKS: tuple[Check, ...] = (
           lambda capability: not isinstance(capability, _transforms.Rewrite), errors),
     Check("display", "a call prints in every form, and each reads back",
           lambda capability: _function(capability) and capability.scalar, display),
-    Check("reference", "the reference describes it", lambda capability: True, reference),
+    Check(
+        "reference",
+        "the reference indexes it, and its help describes it",
+        lambda capability: True,
+        reference,
+    ),
     Check("transform", "against its integral or sum, its inverse, Parseval and its space",
           lambda capability: isinstance(capability, _transforms.Transform),
           _transforms.transform_checks),

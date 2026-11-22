@@ -904,6 +904,7 @@ def test_help_lists_the_topics_and_shows_the_language(capsys):
     assert status == 0
     assert out.startswith("RelativisticPy reads mathematics as written")
     assert "  checking         Checking papers" in out
+    assert "or the name of a function, as besselj, which it describes in full" in out
     assert "relativisticpy check FILE..." in out
 
 
@@ -922,6 +923,18 @@ def test_help_on_a_topic(capsys):
     assert status == 2
     assert "there is no help on 'tensers'" in err
     assert "did you mean tensors?" in err
+
+
+def test_help_on_a_function(capsys):
+    status, out, _ = run(capsys, "help", "besselj")
+    assert status == 0
+    assert out.startswith("# besselj\n\nThe Bessel function of the first kind")
+    assert "- `J_{1/2}(\\pi/2)` gives `2/π` (DLMF 10.16.1)" in out
+    assert run(capsys, "help", "latex()")[1].startswith("# latex\n")
+    status, _, err = run(capsys, "help", "besselk2")
+    assert status == 2
+    assert "there is no help on 'besselk2'" in err
+    assert "did you mean besselk?" in err
 
 
 def test_the_package_requires_the_sympy_it_needs():

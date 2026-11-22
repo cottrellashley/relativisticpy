@@ -149,7 +149,8 @@ the one meant from the start.
 ## Still stuck
 
 [The language reference](reference.md) lists everything the language reads, and
-`relativisticpy help reference` prints it offline. An equation copied from a paper that
+`relativisticpy help reference` prints it offline; `relativisticpy help NAME` describes
+one function in full, with examples. An equation copied from a paper that
 fails to run is a bug: please
 [report it](https://github.com/cottrellashley/relativisticpy/issues).
 

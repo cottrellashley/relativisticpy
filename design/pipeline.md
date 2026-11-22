@@ -79,11 +79,12 @@ What the work on live mathematics needed from the core, which it did without, fo
   pickled workbook must number its own from far away (2^62) to avoid collisions.
 - **A public way to fork an executor,** or to read the values it holds, which
   `Workbook._portable` reads privately today.
-- **A reference that stays one reading as integrations arrive.** Every capability is a
+- **A reference that stays one reading as integrations arrive.** Every capability was a
   row of the generated reference, which passed 40,000 characters on 22 November 2026.
-  The page should become an index, a line for each family of capabilities with their
-  names and forms, and `relativisticpy help <name>` describe each one in full: its
-  forms, its arguments, its examples and what computes it.
+  Done: the page is an index, a line for each family of capabilities with their names
+  and forms, and `relativisticpy help <name>` describes each one in full, from its
+  declaration (`reference.capability`): its forms, its arguments, its examples and what
+  computes it. A new capability adds its names to a line of the page, not a row.
 
 ## Where integrations plug in
 

@@ -249,8 +249,11 @@ Everything needed to use RelativisticPy is in the installed package, offline.
 
 - **Learn the language.** `relativisticpy help` lists the pages of the documentation,
   and `relativisticpy help TOPIC` prints one. `relativisticpy help reference` prints the
-  whole language on one page of about 8,000 tokens: every statement, command,
-  environment, function, constant, spacetime, statistic and verdict. From Python:
+  whole language on one page of about 11,000 tokens: every statement, command,
+  environment, constant, statistic and verdict, and every function by name, which
+  `relativisticpy help NAME` describes in full, as `relativisticpy help besselj` does:
+  its forms, its arguments, its examples with their answers, and what computes it. From
+  Python:
 
   ```python
   >>> from relativisticpy.help import page, topics

@@ -3,6 +3,7 @@
 import pytest
 
 from relativisticpy import help as documentation
+from relativisticpy import reference
 from relativisticpy.errors import UsageError
 
 
@@ -34,6 +35,32 @@ def test_a_topic_that_does_not_exist_is_told_what_it_may_have_meant():
     with pytest.raises(UsageError) as error:
         documentation.page("zzz")
     assert error.value.hint.startswith("the topics are ")
+
+
+def test_a_function_by_its_name():
+    besselj = reference.capability("besselj")
+    assert documentation.page("besselj") == besselj
+    assert documentation.page(" besselj ") == besselj
+    assert documentation.page("BesselJ") == besselj  # the one function so called
+    assert documentation.page("arcsin") == reference.capability("asin")  # another name
+
+
+def test_a_page_comes_before_a_function_of_its_name():
+    assert documentation.page("latex").startswith("# LaTeX\n")
+    assert documentation.page("latex()") == reference.capability("latex")
+    assert documentation.page("besselj()") == reference.capability("besselj")
+    with pytest.raises(UsageError, match=r"no help on 'checking\(\)'"):
+        documentation.page("checking()")
+
+
+def test_a_function_that_does_not_exist_is_told_what_it_may_have_meant():
+    with pytest.raises(UsageError, match="there is no help on 'besselk2'") as error:
+        documentation.page("besselk2")
+    assert error.value.hint.startswith("did you mean besselk? the topics are ")
+    assert error.value.hint.endswith("the name of a function, as besselj, gives its help")
+    with pytest.raises(UsageError) as error:  # two functions differ only in case
+        documentation.page("BERNOULLI")
+    assert error.value.hint.startswith("did you mean bernoulli or Bernoulli? ")
 
 
 def test_without_the_documentation_it_says_where_it_is(monkeypatch):

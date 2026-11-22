@@ -1234,7 +1234,8 @@ a = b = c, after its context, such as a metric: holds, differs, relates, not dec
 error, with the left side minus the right in LaTeX.
 - check checks every display equation of a LaTeX or Markdown document.
 - help gives the documentation; help with topic reference is the whole language on one \
-page. The pages are also resources, relativisticpy://docs/{{topic}}.
+page, and with the name of a function, as besselj, that function in full. The pages are \
+also resources, relativisticpy://docs/{{topic}}.
 
 The language in brief:
 - := defines. = defines only what has no meaning yet; otherwise it is a claim, which is \
@@ -1321,9 +1322,11 @@ reports what it checked, and says where it stopped."""
 _HELP = """\
 The documentation of RelativisticPy, offline, as Markdown. Without a topic: what the \
 language looks like, and the topics. topic reference is the whole language on one \
-page: every statement, command, environment, function, constant, spacetime, verdict and \
-error. Other topics include getting-started, language, latex, tensors, notation, \
-checking, python and troubleshooting."""
+page: every statement, command, environment, constant, verdict and error, and every \
+function by name. Other topics include getting-started, language, latex, tensors, \
+notation, checking, python and troubleshooting. The name of a function, as besselj, \
+gives that function in full: its forms, its arguments, its examples with their answers, \
+and what computes it; latex() is the function where a topic has its name."""
 
 _LIST_SESSIONS = """\
 List the named sessions: for each, how many statements it has run, what it defines, \
@@ -1586,7 +1589,10 @@ def _build(settings: Settings) -> "tuple[MCPServer[Any], _Pool]":
     def help_tool(
         topic: Annotated[
             str | None,
-            Field(description="A topic, as reference, language, latex or tensors; none lists them"),
+            Field(
+                description="A topic, as reference, language, latex or tensors, or the name "
+                "of a function, as besselj; none lists the topics"
+            ),
         ] = None,
     ) -> str:
         if topic is None or not topic.strip():
@@ -1646,7 +1652,7 @@ def _build(settings: Settings) -> "tuple[MCPServer[Any], _Pool]":
         name="page",
         title="A page of the documentation",
         description="A page of RelativisticPy's documentation, by its topic or another "
-        "name for it, as Markdown",
+        "name for it, or a function of the language in full, by its name, as Markdown",
         mime_type="text/markdown",
     )
     def page(topic: str) -> str:
@@ -1778,7 +1784,7 @@ def _page_description(topic: str, title: str) -> str:
     if topic == "reference":
         return (
             "The whole language on one page: every statement, command, environment, "
-            "function, constant, spacetime, statistic, verdict and error"
+            "constant, verdict and error, and every function by name"
         )
     return f"{title}: a page of RelativisticPy's documentation"
 
@@ -1806,7 +1812,14 @@ def _index() -> str:
         "",
     ]
     lines += [f"- {topic}: {title}" for topic, title in documentation.topics()]
-    lines += ["", f"Online: {DOCS}"]
+    lines += [
+        "",
+        "help with the name of a function, as besselj, or the resource "
+        "relativisticpy://docs/besselj, gives that function in full: its forms, its arguments, "
+        "its examples with their answers, and what computes it.",
+        "",
+        f"Online: {DOCS}",
+    ]
     return "\n".join(lines)
 
 

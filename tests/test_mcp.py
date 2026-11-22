@@ -529,18 +529,25 @@ def test_help_is_the_documentation_offline():
         language = await call(client, "help", topic="reference")
         alias = await call(client, "help", topic="check")
         unknown = await call(client, "help", topic="tensers")
-        return index, language, alias, unknown
+        function = await call(client, "help", topic="besselj")
+        misspelled = await call(client, "help", topic="besselk2")
+        return index, language, alias, unknown, function, misspelled
 
-    index, language, alias, unknown = serve(test)
+    index, language, alias, unknown, function, misspelled = serve(test)
     for topic, title in documentation.topics():
         assert f"- {topic}: {title}" in index
     assert "g_{\\mu\\nu} := Schwarzschild(M)" in index
+    assert "help with the name of a function, as besselj" in index
     assert language == documentation.page("reference")
     assert language.startswith("# The language reference")
     assert alias == documentation.page("checking")
     assert isinstance(unknown, Failure)
     assert "there is no help on 'tensers'" in unknown
     assert "did you mean tensors?" in unknown
+    assert function == documentation.page("besselj")
+    assert function.startswith("# besselj\n")
+    assert isinstance(misspelled, Failure)
+    assert "did you mean besselk?" in misspelled
 
 
 def test_every_page_is_a_resource():
@@ -549,11 +556,13 @@ def test_every_page_is_a_resource():
         templates = (await client.list_resource_templates()).resource_templates
         read = await client.read_resource("relativisticpy://docs/reference")
         alias = await client.read_resource("relativisticpy://docs/check")
+        function = await client.read_resource("relativisticpy://docs/besselj")
         with pytest.raises(Exception, match="there is no help on 'nothing'"):
             await client.read_resource("relativisticpy://docs/nothing")
-        return listed, templates, read, alias
+        return listed, templates, read, alias, function
 
-    listed, templates, read, alias = serve(test)
+    listed, templates, read, alias, function = serve(test)
+    assert function.contents[0].text == documentation.page("besselj")
     assert {str(resource.uri) for resource in listed} == {
         f"relativisticpy://docs/{topic}" for topic, _ in documentation.topics()
     }

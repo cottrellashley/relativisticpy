@@ -16,7 +16,7 @@ as tools an agent calls:
 | [`compute`](#compute) | runs a program, and gives each statement's values, what it defines, and its error, if it failed; a `session` keeps definitions from one call to the next |
 | [`verify`](#verify) | checks one claimed equality or step of a derivation, `lhs = rhs` or `a = b = c`, after its context: holds, differs, relates, not decided or error, with the difference of the sides in LaTeX |
 | [`check`](#check) | checks every display equation of a LaTeX document or Markdown notebook |
-| [`help`](#help) | the documentation, offline; `reference` is the whole language on one page |
+| [`help`](#help) | the documentation, offline; `reference` is the whole language on one page, and the name of a function, as `besselj`, that function in full |
 | [`list_sessions`, `reset_session`](#sessions) | the named sessions, and forgetting one |
 
 Every page of this documentation is also a [resource](#resources), and two
@@ -266,8 +266,12 @@ gives it.
 
 The documentation, as Markdown, offline. Without a `topic`, what the language looks like
 and the topics; `reference` is [the language reference](reference.md), the whole
-language on one page of about 8,000 tokens, which an agent can read before it writes.
-A topic may be asked for by another name, as `check` for `checking`.
+language on one page of about 11,000 tokens, with every function by name, which an agent
+can read before it writes. A topic may be asked for by another name, as `check` for
+`checking`. The name of a function, as `besselj`, gives that function in full, as
+`relativisticpy help besselj` does ([Command line](cli.md#reading-the-documentation)):
+the forms it is written in, its arguments, what computes it, its examples with their
+answers, and its notes.
 
 ## Sessions
 
@@ -281,8 +285,9 @@ server keeps eight sessions at most (`--max-sessions`).
 
 Every page of this documentation is a resource, `relativisticpy://docs/{topic}`, as
 Markdown: `relativisticpy://docs/reference` is the language reference, and
-`relativisticpy://docs/check` the page on checking, by another name for it. A client can
-put one in front of the model before it writes.
+`relativisticpy://docs/check` the page on checking, by another name for it. The same
+template gives a function in full, as the `help` tool does: `relativisticpy://docs/besselj`.
+A client can put one in front of the model before it writes.
 
 ## Prompts
 

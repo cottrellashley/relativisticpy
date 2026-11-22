@@ -1,21 +1,27 @@
-r"""The language reference, generated from the language's own tables.
+r"""The language reference, generated from the language's own tables and from what its
+integrations declare.
 
 :func:`markdown` gives, on one page, every statement, LaTeX command, environment,
-function, constant, spacetime, statistic, verdict and kind of error RelativisticPy
-knows, with what each means::
+constant, statistic, verdict and kind of error RelativisticPy knows, with what each
+means, and an index of its capabilities: a line for each family, with their names and
+the forms books write them in. :func:`capability` describes one capability in full: its
+forms, its arguments, its examples with their answers, what computes it, and its notes::
 
-    >>> from relativisticpy.reference import markdown
+    >>> from relativisticpy.reference import capability, markdown
     >>> page = markdown()
     >>> print(page.splitlines()[0])
     # The language reference
-    >>> "Schwarzschild(M, G, c)" in page, r"\frac" in page
+    >>> "Schwarzschild(M, G, c)" in page, r"`besselj` `J_{\nu}(x)`" in page
     (True, True)
+    >>> print(capability("besselj").splitlines()[2])
+    The Bessel function of the first kind, of order `\nu`.
 
-``relativisticpy help reference`` prints it. The names come from the tables the
-lexer, parser and compiler read; where a table says what a name is but not what it
-means, a short table here says it. ``docs/reference.md`` is the same page, written by
-``python -m relativisticpy.reference --write docs/reference.md``, and the tests keep it
-current and complete.
+``relativisticpy help reference`` prints the page, and ``relativisticpy help besselj``
+one capability. The names come from the tables the lexer, parser and compiler read, and
+from the declarations of the integrations; where a table says what a name is but not
+what it means, a short table here says it. ``docs/reference.md`` is the same page,
+written by ``python -m relativisticpy.reference --write docs/reference.md``, and the
+tests keep it current and complete.
 """
 
 from __future__ import annotations
@@ -23,9 +29,10 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Callable, Iterable, Mapping, Sequence
+from itertools import pairwise
 from pathlib import Path
 
-from relativisticpy import display, integrations
+from relativisticpy import display, integrations, spacetimes
 from relativisticpy.checking import EMPTY, LISTED, STRICT, TIME_LIMIT, Verdict
 from relativisticpy.compiler import builtins
 from relativisticpy.compiler.compiler import (
@@ -39,6 +46,7 @@ from relativisticpy.compiler.session import (
     DEFAULT_NAMES,
     RENAMING_STATEMENTS,
 )
+from relativisticpy.diffgeom import Metric
 from relativisticpy.documents import DISPLAY_ENVIRONMENTS
 from relativisticpy.errors import (
     CompileError,
@@ -53,11 +61,13 @@ from relativisticpy.errors import (
     UnknownNameError,
     UsageError,
 )
+from relativisticpy.integrations._discovery import extra_for
 from relativisticpy.integrations._objects import shown_type
+from relativisticpy.language import Source, parse
 from relativisticpy.language import vocabulary as vocab
 from relativisticpy.tensors.equation import UndecidedError
 
-__all__ = ["TITLE", "main", "markdown"]
+__all__ = ["TITLE", "capability", "main", "markdown"]
 
 #: The title of the page, by which ``relativisticpy help`` lists it.
 TITLE = "The language reference"
@@ -284,13 +294,14 @@ def _header() -> list[str]:
         f"# {TITLE}",
         "",
         "> **For:** anyone, person or agent, who needs to know what the language accepts. "
-        "**You will learn:** every statement, command, environment, function, constant, "
-        "spacetime, statistic, verdict and error, on one page.",
+        "**You will learn:** every statement, command, environment, constant, verdict and "
+        "error, and every function by name.",
         "",
-        "This page is generated from the tables the language is read with. "
-        "`relativisticpy help reference` prints it offline, and "
-        "`relativisticpy.reference.markdown()` gives it in Python. The guides explain each "
-        "part, with examples: [The language](language.md), [LaTeX](latex.md), "
+        "This page is generated from the tables the language is read with and from what "
+        "its integrations declare. `relativisticpy help reference` prints it offline, and "
+        "`relativisticpy help NAME` one function in full, as `relativisticpy help besselj`: "
+        "its forms, its arguments, its examples with their answers, and what computes it. "
+        "The guides explain each part: [The language](language.md), [LaTeX](latex.md), "
         "[Tensors and geometry](tensors.md) and [Beyond spacetime](spaces.md).",
     ]
 
@@ -486,21 +497,14 @@ def _vectors() -> list[str]:
 
 
 def _spacetimes() -> list[str]:
-    lines = [
+    called = ", ".join(_code(spacetime.text()) for spacetime in _declared(spacetime=True))
+    return [
         "## Spacetimes",
         "",
         "Each is a function that gives a metric, as in `g_{\\mu\\nu} := Schwarzschild(M)`. "
         "Parameters are names or numbers, and units are geometric, G = c = 1, unless `G` "
-        "and `c` follow the spacetime's own parameters.",
-        "",
+        f"and `c` follow the spacetime's own parameters: {called}.",
     ]
-    rows = []
-    for capability in _declared(spacetime=True):
-        factory = builtins._SPACETIMES[capability.name]
-        coordinates = ", ".join(display.unicode(c) for c in factory().coordinates)
-        rows.append((_code(capability.text()), coordinates, capability.summary))
-    lines += _table(("Spacetime", "Coordinates", "Meaning"), rows)
-    return lines
 
 
 def _declared(*, spacetime: bool) -> list[integrations.Capability]:
@@ -541,36 +545,24 @@ def _functions() -> list[str]:
         "`\\sin x`, or as books write it, `\\Gamma(x)`: a definition of the name in the "
         "program comes first. Most apply to each component of a tensor: `simplify(R_{abcd})` "
         "simplifies every component. Each is a capability of an integration, a module of "
-        "`relativisticpy.integrations` ([Integrations](integrations.md)), from whose "
-        "declaration this list is written.",
+        "`relativisticpy.integrations` ([Integrations](integrations.md)), listed here by "
+        "family, with every name and the forms books write it in; `relativisticpy help NAME` "
+        "describes one in full.",
+        "",
     ]
-    modules: dict[str, list[integrations.Capability]] = {}
+    families: dict[str, list[integrations.Capability]] = {}
     rewrites: list[integrations.Rewrite] = []
     for capability in _declared(spacetime=False):
         if isinstance(capability, integrations.Rewrite):
             rewrites.append(capability)
-            continue
-        if isinstance(capability, integrations.Optimizer | integrations.Distribution):
-            continue  # consulted in turn, or written after \sim: see their own sections
-        modules.setdefault(capability.module, []).append(capability)
-    for module, declared in modules.items():
-        rows = [
-            (_called(capability), _arity(capability), capability.summary) for capability in declared
-        ]
-        lines += ["", f"### {_title(module)}", ""]
-        lines += _table(("Function", "Arguments", "Meaning"), rows)
+        elif not isinstance(capability, integrations.Optimizer | integrations.Distribution):
+            families.setdefault(_title(capability.module), []).append(capability)
+    lines += [_family(title, members) for title, members in families.items()]
     lines += [
-        "",
-        "### Rewrites",
-        "",
-        "What a program writes, computed faster by another capability, to the same numbers:",
-        "",
+        "- **Rewrites,** what a program writes, computed faster by another capability, to "
+        "the same numbers: "
+        + ", ".join(f"{_written(rewrite)}, by {_code(rewrite.computes)}" for rewrite in rewrites)
     ]
-    rows = [
-        (" ".join(_code(form) for form in rewrite.latex), _code(rewrite.computes), rewrite.summary)
-        for rewrite in rewrites
-    ]
-    lines += _table(("Written", "Computed by", "Meaning"), rows)
     lines += _optimizers()
     reserved = [
         f"{_code(reservation.written[0])}, {reservation.what}"
@@ -590,30 +582,32 @@ def _optimizers() -> list[str]:
     """The optimizers, in the order an optimum consults them."""
     from relativisticpy.integrations._optimizers import optimizers
 
-    lines = [
+    consulted = optimizers()
+    exactly = ", ".join(_code(each.name) for each in consulted if not each.numerical)
+    numerically = ", ".join(_code(each.name) for each in consulted if each.numerical)
+    return [
         "",
         "### Optimizers",
         "",
         "An optimum, `\\min_{x} f(x)`, `\\arg\\max_{x, y} u \\quad \\text{subject to} \\quad "
         "g = 0` or `\\sup_{0 \\le x < 1} f(x)`, is found by the optimizers, in this order: "
-        "those that compute exactly, then, where it has no parameters, those that compute "
-        "numerically, which take first one written with decimals, as data is. A note says "
-        "which found it, how, and whether it is global. Over an index of data, `\\max_t x_t` "
-        "is the greatest value along it, and `\\arg\\max_t x_t` its label.",
-        "",
+        f"those that compute exactly, {exactly}; then, where it has no parameters, those "
+        f"that compute numerically, {numerically}, which take first one written with "
+        "decimals, as data is. A note says which found it, how, and whether it is global. "
+        "Over an index of data, `\\max_t x_t` is the greatest value along it, and "
+        "`\\arg\\max_t x_t` its label.",
     ]
-    rows = [
-        (_code(each.name), "numerically" if each.numerical else "exactly", each.summary)
-        for each in optimizers()
-    ]
-    return lines + _table(("Optimizer", "Computes", "Meaning"), rows)
 
 
-def _called(capability: integrations.Capability) -> str:
-    """How a capability is written: called by its name, then its other names, then the
-    forms books write it in."""
-    written = (capability.text(), *capability.aliases, *capability.latex)
-    return " ".join(_code(name) for name in written)
+def _written(capability: integrations.Capability) -> str:
+    """How a capability is written, as the index lists it: its names, then the forms books
+    write it in."""
+    return " ".join(_code(form) for form in (*capability.names, *capability.latex))
+
+
+def _family(title: str, members: Iterable[integrations.Capability]) -> str:
+    """A line of the index: a family of capabilities, and how each is written."""
+    return f"- **{title}:** " + ", ".join(_written(member) for member in members)
 
 
 def _data() -> list[str]:
@@ -682,21 +676,16 @@ def _random_variables() -> list[str]:
     them."""
     from relativisticpy.integrations._distributions import distributions
 
-    lines = [
+    written = ", ".join(
+        " ".join(_code(form) for form in (each.text(), *each.latex)) for each in distributions()
+    )
+    return [
         "## Random variables",
         "",
         r"`X \sim D` declares a random variable, `X, Y \overset{\text{iid}}{\sim} D` "
         r"independent ones, `X_1, \ldots, X_n \overset{\text{iid}}{\sim} D` a sample, and "
         r"`X \mid N \sim D` one given another. A distribution is written as books write it, "
-        "or called by its name with its parameters as SymPy takes them:",
-        "",
-    ]
-    rows = [
-        (" ".join(_code(form) for form in (each.text(), *each.latex)), each.summary)
-        for each in distributions()
-    ]
-    lines += _table(("Distribution", "Meaning"), rows)
-    lines += [
+        f"or called by its name with its parameters as SymPy takes them: {written}.",
         "",
         r"`\Pr(X > 1)`, `\mathbb{P}(A)`, `P(X = 2)`, `\mathbb{E}[X]`, `\operatorname{Var}(X)` "
         r"and `\operatorname{Cov}(X, Y)` are computed, with `\mid` the conditional bar; "
@@ -706,7 +695,6 @@ def _random_variables() -> list[str]:
         "gives an event's probability, and a capital letter nothing defines is a random variable "
         "of any law.",
     ]
-    return lines
 
 
 def _latex() -> list[str]:
@@ -822,17 +810,20 @@ def _unsupported() -> list[str]:
     ):
         groups.setdefault((_without(what, name), instead), []).append(name)
     for (what, instead), names in groups.items():
-        lines.append(f"- {_commands(names)}: {_prose(what)}; {_prose(instead)}.")
+        said = "; ".join(_prose(part) for part in (what, instead) if part)
+        lines.append(f"- {_commands(names)}: {said}.")
     return lines
 
 
 def _without(message: str, name: str) -> str:
-    """A message about one command, said of it without its name: ``the remainder, \\mod,
-    is not supported yet`` is ``the remainder is not supported yet``."""
+    """A message about one command, said of it without its name, and without saying that
+    it is not supported, as the section does: ``the remainder, \\mod, is not supported
+    yet`` is ``the remainder``."""
     command = re.escape(f"\\{name}")
     message = re.sub(rf"^{command},? ", "", message)
     message = re.sub(rf", {command},", "", message)
     message = re.sub(rf" {command}(?= )", "", message)
+    message = re.sub(r",? ?is not supported( yet)?$", "", message)
     return message[:1].lower() + message[1:]
 
 
@@ -930,6 +921,250 @@ _SECTIONS: tuple[Callable[[], list[str]], ...] = (
 def markdown() -> str:
     """The language reference, as Markdown."""
     return "\n\n".join("\n".join(section()) for section in _SECTIONS) + "\n"
+
+
+# -- one capability in full ----------------------------------------------------------------
+
+#: What each kind of capability is, as the help of one says it computes.
+_KINDS: Mapping[str, str] = {
+    "function": "a function",
+    "map function": "a function of a matrix",
+    "solver": "a solver",
+    "constructor": "a constructor",
+    "transform": "a transform",
+    "rewrite": "a rewrite",
+    "optimizer": "an optimizer",
+    "distribution": "a distribution",
+}
+
+#: The libraries a capability may require, by the names pip installs them as.
+_LIBRARIES: Mapping[str, str] = {
+    "scipy": "SciPy",
+    "numpy": "NumPy",
+    "pandas": "pandas",
+    "scikit-learn": "scikit-learn",
+    "jax": "JAX",
+}
+
+
+def capability(name: str) -> str:
+    """One capability in full, as Markdown, by any of its names: how it is written, its
+    arguments, what computes it, its examples with their answers, and its notes, all from
+    what its integration declares. A name no integration declares is a :class:`KeyError`.
+    """
+    declared = integrations.find(name)
+    lines = [f"# {declared.name}", "", _sentence(declared.summary), ""]
+    if isinstance(declared, integrations.Optimizer):
+        lines.append(
+            "- **Written:** as an optimum, `\\min_{x} f(x)`, `\\arg\\max_{x} f(x)` or "
+            "`\\sup_{x} f(x)`, which consults it in turn"
+        )
+    else:
+        lines.append("- **Written:** " + ", ".join(_code(form) for form in _forms(declared)))
+    if not isinstance(declared, integrations.Optimizer | integrations.Rewrite):
+        lines.append(f"- **Arguments:** {_arguments(declared)}")
+    if declared.takes not in ("its parameters", "its arguments"):
+        lines.append(f"- **Takes:** {declared.takes}")
+    lines += [
+        f"- **Computed by:** {_computed(declared)}",
+        f"- **Kind:** {_KINDS.get(declared.kind, declared.kind)}, declared by the integration "
+        f"`{declared.module}`: {_title(declared.module)}",
+        "",
+        "## Examples",
+        "",
+    ]
+    lines += [f"- {_example(example)}" for example in declared.examples]
+    notes = _notes(declared)
+    if notes:
+        lines += ["", "## Notes", ""]
+        lines += [f"- {note}" for note in notes]
+    return "\n".join(lines) + "\n"
+
+
+def _sentence(text: str) -> str:
+    """A phrase as a sentence: with a capital, unless it starts with code, and a full
+    stop."""
+    text = text[:1].upper() + text[1:]
+    return text if text.endswith(".") else f"{text}."
+
+
+def _forms(declared: integrations.Capability) -> list[str]:
+    """Every way a capability is written: called by each of its names, as the command
+    LaTeX has for it, and in the forms books write it in."""
+    if isinstance(declared, integrations.Rewrite):
+        return list(declared.latex)
+    parameters = declared.text().removeprefix(declared.name)
+    commands = [
+        f"\\{command}"
+        for command, called in vocab.FUNCTION_COMMANDS.items()
+        if called in declared.names
+    ]
+    return [
+        *(f"{name}{parameters}" for name in declared.names),
+        *commands,
+        *declared.latex,
+        *declared.unicode,
+    ]
+
+
+def _arguments(declared: integrations.Capability) -> str:
+    """The arguments a call takes, in words: how many, and their names."""
+    parameters = list(declared.signature.parameters.values())
+    named = [p for p in parameters if p.name in declared.parameters]
+    needed = [_code(p.name) for p in named if p.default is p.empty]
+    optional = [_code(p.name) for p in named if p.default is not p.empty]
+    said = _listed(needed)
+    if optional:
+        said += f"{', then ' if needed else ''}{_listed(optional)} if given"
+    if any(p.kind is p.VAR_POSITIONAL for p in parameters):
+        said += ", then any number more"
+    return f"{_arity(declared)}, {said}" if said else "none"
+
+
+def _listed(items: Sequence[str]) -> str:
+    """``a``, ``a and b``, ``a, b and c``."""
+    if len(items) < 2:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} and {items[-1]}"
+
+
+def _computed(declared: integrations.Capability) -> str:
+    """What computes a capability, in words: SymPy, exactly, and what computes it with
+    arrays, if anything does, then what installs a library it needs."""
+    library = _LIBRARIES.get(declared.requires, declared.requires) if declared.requires else ""
+    if isinstance(declared, integrations.Rewrite):
+        said = f"{_code(declared.computes)}, to the same numbers, faster"
+    elif isinstance(declared, integrations.Optimizer):
+        numerically = f"{library or 'its own method'}, numerically"
+        said = numerically if declared.numerical else "SymPy, exactly"
+    elif isinstance(declared, integrations.Distribution):
+        said = "SymPy's sympy.stats, exactly; SciPy's scipy.stats, numerically"
+    elif declared.numeric is not None:
+        arrays = library or "its own method, with the array module of the data, NumPy or JAX"
+        said = f"SymPy, exactly; on data, {arrays}"
+    elif isinstance(declared, integrations.Function) and declared.lifts:
+        said = "SymPy, exactly; on data, NumPy and SciPy, into which SymPy translates it"
+    else:
+        said = "SymPy, exactly"
+    if declared.requires is None:
+        return said
+    extra = extra_for(declared.requires)
+    install = f'"relativisticpy[{extra}]"' if extra else declared.requires
+    return f"{said} (`pip install {install}`)"
+
+
+def _example(example: integrations.Example) -> str:
+    """An example, its program statement by statement, then its answer and where the
+    answer comes from."""
+    statements = _statements_of(example.program)
+    program = ", then ".join(_code(" ".join(each.split())) for each in statements)
+    after = "," if len(statements) > 1 else ""
+    answer = _code(display.unicode(example.answer))
+    return f"{program}{after} gives {answer} ({example.source})"
+
+
+def _statements_of(program: str) -> list[str]:
+    """The statements of a program, as written: from where the language reads each to
+    start to where it reads the next to, without the separator between them."""
+    text = program.strip()
+    try:
+        starts = [each.span.start for each in parse(Source(text)).statements]
+    except ParseError:  # pragma: no cover - the conformance suite runs every example
+        return text.splitlines()
+    cuts = [0, *starts[1:], len(text)]
+    pieces = (text[start:end].strip() for start, end in pairwise(cuts))
+    return [piece.removesuffix(";").removesuffix("\\\\").strip() for piece in pieces]
+
+
+def _notes(declared: integrations.Capability) -> list[str]:
+    """What the help of a capability notes: how it meets tensors and data, and what its
+    declaration says of it besides its forms and its examples."""
+    notes = []
+    if isinstance(declared, integrations.Function):
+        notes.append(
+            "Given a tensor, it applies to each component, and given data, to each number."
+            if declared.lifts
+            else "It takes its arguments whole, never a component of a tensor at a time."
+        )
+        letters = [*declared.latex, *declared.unicode]
+        if declared.integers and letters:
+            integer = "is an integer" if len(declared.integers) == 1 else "are integers"
+            notes.append(
+                f"{_code(letters[0])} is read as {declared.name} only where "
+                f"{_listed([_code(name) for name in declared.integers])} {integer}, as a name "
+                f"is after `{declared.integers[0]} \\in \\mathbb{{N}}`; elsewhere the letter "
+                "means what it would otherwise."
+            )
+    elif isinstance(declared, integrations.MapFunction):
+        notes.append(
+            "Given a map written with its indices, as `A^a{}_b`, it acts on the map, and its "
+            "value is over the same spaces."
+            if declared.lifts
+            else "It does not act on a map written with its indices, as `A^a{}_b`, since its "
+            "value is not over the same spaces: it takes a matrix."
+        )
+    if declared.takes_names:
+        notes.append("Text in quotes is read as names, never run as Python.")
+    if declared.name in builtins.SPACETIMES:
+        notes += _spacetime(declared)
+    if isinstance(declared, integrations.Transform):
+        conventions = [
+            f"of {display.unicode_name(given)} to one of {display.unicode_name(gives)}"
+            for given, gives in declared.variables
+        ]
+        if conventions:
+            notes.append(f"It takes a function {', or '.join(conventions)}.")
+        if declared.inverse:
+            notes.append(f"Its inverse is {_code(declared.inverse)}.")
+    if isinstance(declared, integrations.Distribution):
+        notes += _distribution(declared)
+    if isinstance(declared, integrations.Optimizer):
+        notes.append(_consulted())
+    return notes
+
+
+def _distribution(declared: integrations.Distribution) -> list[str]:
+    """What the help of a distribution notes: how a random variable is declared with it,
+    what values it takes, and where its moments come from."""
+    notes = []
+    if declared.latex:
+        declaration = _code("X \\sim " + declared.latex[0])
+        notes.append(f"A random variable is declared with it after `\\sim`, as {declaration}.")
+    if declared.discrete:
+        notes.append("It is discrete: its values are whole numbers.")
+    else:
+        notes.append("It is continuous.")
+    if declared.moments:
+        notes.append(f"Its mean and variance are declared, from {declared.moments}.")
+    return notes
+
+
+def _spacetime(declared: integrations.Capability) -> list[str]:
+    """What the help of a spacetime notes: its coordinates, and its units."""
+    factory = declared.exact
+    choices = spacetimes.choices(factory)
+    if choices:
+        named = "; ".join(f"{_code(choice)}, {_coordinates(factory, choice)}" for choice in choices)
+        coordinates = f"Its first parameter chooses its coordinates: {named}."
+    else:
+        coordinates = f"Its coordinates are {_coordinates(factory)}."
+    return [coordinates, "Units are geometric, G = c = 1, unless `G` and `c` are given."]
+
+
+def _coordinates(factory: Callable[..., Metric], choice: str | None = None) -> str:
+    """The coordinates of a spacetime, as it declares them, in the ``choice`` named."""
+    return ", ".join(display.unicode(each) for each in spacetimes.coordinates_of(factory, choice))
+
+
+def _consulted() -> str:
+    """The order an optimum consults the optimizers in, as the help of each says."""
+    from relativisticpy.integrations._optimizers import optimizers
+
+    order = ", ".join(_code(each.name) for each in optimizers())
+    return (
+        f"An optimum consults the optimizers in this order: {order}; those that compute "
+        "numerically only where it has no parameters."
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:

@@ -13,6 +13,7 @@ relativisticpy -c '\int_0^1 x^2 \, dx'         # run code given on the command l
 printf 'x := 2\nx^3\n' | relativisticpy       # run standard input
 relativisticpy check paper.tex --strict        # check the equations of a paper
 relativisticpy help                            # the documentation, offline
+relativisticpy help besselj                    # one function of the language, in full
 relativisticpy                                 # the prompt, in a terminal
 ```
 
@@ -239,7 +240,7 @@ Definitions persist from one input to the next, and no error ends the session.
 | Ctrl-D | leaves, at an empty prompt; on an unfinished input, runs what there is |
 | Tab | completes built-in functions, spacetimes, constants, LaTeX commands, and what you defined |
 | Up, Down | the inputs before, kept from one session to the next |
-| `help`, `help TOPIC` | what the language looks like and the topics; one topic |
+| `help`, `help TOPIC` | what the language looks like and the topics; one topic, or one function in full |
 | `who` | what is defined, by kind: coordinates, metric, functions, tensors, values, spaces |
 | `reset` | forgets every definition, once you say yes |
 | `exit`, `quit` | leaves |
@@ -319,6 +320,40 @@ may be asked for by another name, as `check` for `checking`, and a topic that do
 not exist is told what it may have meant. At the prompt, `help` and `help TOPIC` do
 the same. `relativisticpy --help` and `relativisticpy check --help` list every
 option, with examples.
+
+[The language reference](reference.md) lists every function of the language by name,
+a line for each family. `relativisticpy help NAME` describes one in full, generated from
+what its integration declares: the forms it is written in, its arguments, what computes
+it, with SymPy or a library on data and what installs that library, its examples with
+their answers and where each answer comes from, and its notes. Another of its names
+does the same, as `arcsin` for `asin`, and so does its name in another case, where only
+one function has it. A page comes first: `relativisticpy help latex` is the page on
+LaTeX, and `relativisticpy help 'latex()'`, with brackets, the function.
+
+```text
+$ relativisticpy help besselj
+# besselj
+
+The Bessel function of the first kind, of order `\nu`.
+
+- **Written:** `besselj(nu, x)`, `J_{\nu}(x)`
+- **Arguments:** 2, `nu` and `x`
+- **Takes:** numbers and expressions
+- **Computed by:** SymPy, exactly; on data, SciPy (`pip install "relativisticpy[numeric]"`)
+- **Kind:** a function, declared by the integration `relativisticpy.integrations.bessel`: Bessel and Airy functions
+
+## Examples
+
+- `J_0(1)` gives `0.7651976865579666` (scipy.special.jv(0, 1.0))
+- `J_{1/2}(\pi/2)` gives `2/π` (DLMF 10.16.1)
+
+## Notes
+
+- Given a tensor, it applies to each component, and given data, to each number.
+```
+
+A name that is neither a topic nor a function is told what it may have meant, among
+both: `relativisticpy help besselk2` suggests `besselk`.
 
 ## Options of a run
 
