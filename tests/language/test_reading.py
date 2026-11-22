@@ -34,8 +34,11 @@ class TestScripts:
         ],
     )
     def test_a_script_without_braces_is_one_letter(self, schwarzschild, unbraced, braced):
-        # R^a_b has two indices, a up and b down, as TeX sets it: not one, named a_b
-        assert str(schwarzschild.expr(unbraced)) == str(schwarzschild.expr(braced))
+        # R^a_b has two indices, a up and b down, as TeX sets it: not one, named a_b. The
+        # values agree; each is shown as it was written.
+        mine, theirs = schwarzschild.expr(unbraced), schwarzschild.expr(braced)
+        assert getattr(mine, "indices", None) == getattr(theirs, "indices", None)
+        assert getattr(mine, "components", mine) == getattr(theirs, "components", theirs)
 
     def test_data_bound_with_mixed_indices_reads_back(self):
         with Workbook() as wb:
