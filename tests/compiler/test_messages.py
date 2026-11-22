@@ -223,6 +223,12 @@ class TestArity:
             "Schwarzschild(M, G, c) takes at most 3 arguments, not 4"
         )
 
+    def test_a_parameter_left_out_is_the_symbol_the_table_names_it_with(self, wb):
+        # as docs/tensors.md says: Kerr(M) is Kerr(M, a), not a guess at a value of a
+        assert wb.expr("Kerr(M)") == wb.expr("Kerr(M, a)")
+        wb.exe(r"g_{\mu\nu} := Kerr(M)")
+        assert sorted(map(str, wb.expr(r"g_{t\phi}").free_symbols)) == ["M", "a", "r", "theta"]
+
     def test_one_argument_is_singular(self, wb):
         assert error(wb, "solve()").message == "solve() takes at least 1 argument, not 0"
         assert error(wb, "log(1, 2, 3)").message == "log() takes 1 or 2 arguments, not 3"
@@ -358,6 +364,17 @@ class TestWhatAMetricIsNeededFor:
         assert error(wb, "V_a").message == (
             "V is defined as V^{a}; writing V_a lowers an index, which needs a metric"
         )
+
+    def test_the_hints_for_coordinates_and_a_metric_are_examples_that_work(self, wb):
+        found = error(wb, "R_{tt}")
+        assert found.message == "the Ricci tensor needs coordinates"
+        assert found.hint == r"declare them first, for example Coordinates := [t, r, \theta, \phi]"
+        wb.exe(r"Coordinates := [t, r, \theta, \phi]")  # the hint works
+        found = error(wb, "R_{tt}")
+        assert found.message == "the Ricci tensor needs a metric"
+        assert found.hint == r"define one first, for example g_{\mu\nu} := diag(-1, 1, 1, 1)"
+        wb.exe(r"g_{\mu\nu} := diag(-1, 1, 1, 1)")  # and so does this one
+        assert wb.expr("R_{tt}") == 0
 
     def test_a_metric_dropped_with_its_coordinates(self, wb):
         wb.exe(SCHWARZSCHILD + "\nCoordinates := [t, x, y, z]")
