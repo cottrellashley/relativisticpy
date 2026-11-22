@@ -176,19 +176,24 @@ def _script_letters(text: str, start: int) -> int:
     return 1
 
 
-def tokenize(source: str | Source) -> list[Token]:
-    """Split source text into tokens. The last token is always ``EOF``."""
+def tokenize(source: str | Source, *, recover: bool = False) -> list[Token]:
+    """Split source text into tokens. The last token is always ``EOF``.
+
+    What cannot be read raises a :class:`~relativisticpy.errors.ParseError`; with
+    ``recover``, it becomes an ``ERROR`` token carrying the error instead, and the
+    lexer goes on after it."""
     if isinstance(source, str):
         source = Source(source)
-    return Lexer(source).tokenize()
+    return Lexer(source, recover=recover).tokenize()
 
 
 class Lexer:
     """Converts one :class:`Source` into a list of tokens. Use :func:`tokenize`."""
 
-    def __init__(self, source: Source) -> None:
+    def __init__(self, source: Source, *, recover: bool = False) -> None:
         self.source = source
         self.text = source.text
+        self.recover = recover  # go on past errors, as ERROR tokens
         self.pos = 0
         self.tokens: list[Token] = []
         self.space_before = False
@@ -212,14 +217,22 @@ class Lexer:
     def tokenize(self) -> list[Token]:
         if self.source.unreadable is not None:  # as a document's macros that do not expand
             message, start, end = self.source.unreadable
-            raise ParseError(message, span=Span(self.source, start, end))
+            self._fail(ParseError(message, span=Span(self.source, start, end)))
+            self.pos = len(self.text)
         while self.pos < len(self.text):
-            self._scan()
-        if self._open_left:
-            raise ParseError(r"'\left' has no matching '\right'", span=self._open_left[-1][1])
-        if self._environments:
-            name, span = self._environments[-1]
-            raise ParseError(f"\\begin{{{name}}} has no matching \\end{{{name}}}", span=span)
+            if not self.recover:
+                self._scan()
+                continue
+            before = self.pos
+            try:
+                self._scan()
+            except ParseError as error:
+                self._fail(error, before)
+        for _, span in reversed(self._open_left):  # the innermost first
+            self._fail(ParseError(r"'\left' has no matching '\right'", span=span))
+        for name, span in reversed(self._environments):
+            message = f"\\begin{{{name}}} has no matching \\end{{{name}}}"
+            self._fail(ParseError(message, span=span))
         # The input ends just after its last token, which is where what is missing goes,
         # not on a blank line after it.
         end = next(
@@ -227,6 +240,25 @@ class Lexer:
         )
         self._emit(TokenKind.EOF, "", end, end)
         return self.tokens
+
+    def _fail(self, error: ParseError, before: int | None = None) -> None:
+        """Raise ``error`` or, going on past errors, put an ``ERROR`` token where it is
+        and go on after it: after what was being read from ``before``, or, for an
+        opener that is never closed, in the place of the opener's token."""
+        if not self.recover:
+            raise error
+        span = error.span if error.span is not None else Span(self.source, self.pos, self.pos)
+        if before is None:
+            for index, token in enumerate(self.tokens):
+                if token.span.start == span.start and token.kind is not TokenKind.ERROR:
+                    self.tokens[index] = replace(token, kind=TokenKind.ERROR, error=error)
+                    return
+        self.tokens.append(Token(TokenKind.ERROR, "", span, error=error))
+        if before is not None:
+            self.pos = max(self.pos if self.pos > before else before + 1, span.start + 1)
+            if self.text[span.start : span.start + 1] == "\n":  # the line still ends there
+                newline = Span(self.source, span.start, span.start + 1)
+                self.tokens.append(Token(TokenKind.NEWLINE, "\n", newline))
 
     def _scan(self) -> None:
         char = self.text[self.pos]

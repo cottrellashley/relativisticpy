@@ -1125,6 +1125,69 @@ class TestWhereErrorsAre:
         assert to_sexpr(parse(Source("x_{} + 1", latex=True))) == "(+ x 1)"
 
 
+def recovered(text: str) -> tuple[list[str], list[tuple[str, int]]]:
+    """The statements of a program read past its errors, and each error and its line."""
+    program = parse(text, recover=True)
+    errors = []
+    for caught in program.errors:
+        assert caught.span is not None
+        errors.append((caught.message, caught.span.line))
+    return [to_sexpr(statement) for statement in program.statements], errors
+
+
+class TestRecovery:
+    """parse(source, recover=True) goes on past each statement that cannot be read."""
+
+    def test_every_error_and_every_statement_that_parses(self):
+        statements, errors = recovered(
+            "a := 1\nT_{ab} u^a\nb := 2\n\\frca{1}{2}\nS_{ab} v^b\na + b"
+        )
+        assert statements == [
+            "(:= a 1)", "(* (T _[a b]) (u ^[a]))", "(:= b 2)", "(* (S _[a b]) (v ^[b]))",
+            "(+ a b)",
+        ]  # fmt: skip
+        assert errors == [(r"unknown LaTeX command \frca", 4)]
+
+    def test_errors_of_the_lexer_too(self):
+        statements, errors = recovered("x := 1\ny := 2 @ 3\nz := \frac\nw := 4")
+        assert statements == ["(:= x 1)", "(:= w 4)"]
+        assert errors == [
+            ("unexpected character '@'", 2),
+            (r"Python turned \f in \frac into a form feed", 3),
+        ]
+
+    @pytest.mark.parametrize(
+        ("text", "message"),
+        [
+            ("Coordinates := [t, r\ng := 1", "unclosed '['"),  # costs its own line only
+            ("x := 1 +\ng := 1", "the expression on line 1 ends with '+'"),
+            ("x := 1 )\ng := 1", "unmatched ')'"),
+            ("\\begin{equation} x + 1\ng := 1", r"\begin{equation} has no matching \end{equation}"),
+            ("M := [[1, 2],\n  [3 @ 4],\n  [5, 6]]\ng := 1", "unexpected character '@'"),
+            ("\\begin{align} a &= 1 \\\\ b &= \\frca \\end{align}\ng := 1",
+             r"unknown LaTeX command \frca"),
+            ("y := a\n  + \\frca\n  + b\ng := 1", r"unknown LaTeX command \frca"),
+        ],
+    )  # fmt: skip
+    def test_one_error_for_one_statement_and_the_next_is_read(self, text, message):
+        statements, errors = recovered(text)
+        assert [error for error, _ in errors] == [message]
+        assert statements[-1] == "(:= g 1)"
+
+    def test_errors_and_statements_in_the_order_they_are_written(self):
+        program = parse("x := (1\ny := 2\nz := \\frca", recover=True)
+        assert [type(item).__name__ for item in program.in_order()] == [
+            "ParseError",
+            "Define",
+            "ParseError",
+        ]
+
+    def test_without_recover_the_first_error_is_raised(self):
+        with pytest.raises(ParseError, match="unclosed"):
+            parse("x := (1\ny := \\frca")
+        assert parse("x := 1").errors == ()
+
+
 class TestSpans:
     def test_nodes_know_their_source(self):
         node = parse_expression("1 + f(x)")

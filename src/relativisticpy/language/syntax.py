@@ -425,7 +425,22 @@ class FunctionDefinition(Statement):
 
 @dataclass(frozen=True)
 class Program(Node):
+    """A program's statements. Parsed with ``recover``, it also holds ``errors``: the
+    error of each statement that could not be read, in the order of the source, while
+    ``statements`` holds those that could. :meth:`in_order` gives both, as written."""
+
     statements: tuple[Statement, ...]
+    errors: tuple[ParseError, ...] = field(default=(), compare=False)
+
+    def in_order(self) -> list[Statement | ParseError]:
+        """The statements and the errors of those that could not be read, in the order
+        they are written, so that each can be run or reported in turn."""
+
+        def start(item: Statement | ParseError) -> int:
+            span = item.span
+            return span.start if span is not None else 0
+
+        return sorted([*self.statements, *self.errors], key=start)
 
 
 # ---------------------------------------------------------------------------

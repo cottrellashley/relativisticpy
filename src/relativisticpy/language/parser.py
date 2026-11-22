@@ -132,11 +132,35 @@ def _environment_list() -> str:
 _ENVIRONMENT_LIST = _environment_list()
 
 
-def parse(source: str | Source) -> ast.Program:
-    """Parse a program: a sequence of statements separated by line breaks, ``;`` or ``\\\\``."""
+def parse(source: str | Source, *, recover: bool = False) -> ast.Program:
+    r"""Parse a program: a sequence of statements separated by line breaks, ``;`` or ``\\``.
+
+    The first statement that cannot be read raises its
+    :class:`~relativisticpy.errors.ParseError`. With ``recover``, the parser goes on
+    past each such statement instead, to the next one, so that every error can be
+    reported and every statement that can be read can be run: the program holds the
+    statements that parse, and in ``errors`` the error of each that does not, both in
+    the order of the source. :meth:`~relativisticpy.language.syntax.Program.in_order`
+    gives them together, as written::
+
+        >>> from relativisticpy.language import parse, to_sexpr
+        >>> program = parse("a := 1\nb := (2\nc := a + \\frca{1}{2}\nd := 4", recover=True)
+        >>> [to_sexpr(statement) for statement in program.statements]
+        ['(:= a 1)', '(:= d 4)']
+        >>> [(error.message, error.span.line) for error in program.errors]
+        [("unclosed '('", 2), ('unknown LaTeX command \\frca', 3)]
+        >>> [type(item).__name__ for item in program.in_order()]
+        ['Define', 'ParseError', 'ParseError', 'Define']
+
+    A statement that cannot be read ends where the brackets and environments it opens
+    close, at a line break, ``;`` or ``\\``; if they never close, at the end of the
+    line its error is on. So an unclosed bracket costs its own line, and the statement on
+    the next line is read.
+    """
     if isinstance(source, str):
         source = Source(source)
-    return Parser(_generalised_fractions(tokenize(source)), source).parse_program()
+    tokens = _generalised_fractions(tokenize(source, recover=recover))
+    return Parser(tokens, source, recover=recover).parse_program()
 
 
 def parse_expression(source: str | Source) -> ast.Expr:
@@ -184,9 +208,10 @@ def split_index_labels(name: str) -> list[str]:
 class Parser:
     """Parses one token list. Use :func:`parse` or :func:`parse_expression`."""
 
-    def __init__(self, tokens: list[Token], source: Source) -> None:
+    def __init__(self, tokens: list[Token], source: Source, *, recover: bool = False) -> None:
         self.tokens = tokens
         self.source = source
+        self.recover = recover  # go on past a statement that cannot be read
         self.pos = 0
         self.previous = tokens[0]
         # Inside brackets and environments line breaks are insignificant.
@@ -227,11 +252,16 @@ class Parser:
             if self.tokens[index].kind is K.EOF:
                 break
             index = self._significant(index + 1)
-        return self.tokens[index]
+        token = self.tokens[index]
+        if token.error is not None and not offset:  # what the lexer could not read
+            raise token.error
+        return token
 
     def advance(self) -> Token:
         self.pos = self._significant(self.pos)
         token = self.tokens[self.pos]
+        if token.error is not None:
+            raise token.error
         if token.kind is not K.EOF:
             self.pos += 1
         self.previous = token
@@ -262,7 +292,7 @@ class Parser:
             raise ParseError(f"unexpected {token.describe()}", span=token.span)
 
     def skip_separators(self) -> None:
-        while self.peek().kind in _SEPARATORS:
+        while self.tokens[self._significant(self.pos)].kind in _SEPARATORS:
             self.advance()
 
     def _skip_newlines(self) -> None:
@@ -306,17 +336,63 @@ class Parser:
     # -- statements -----------------------------------------------------------
 
     def parse_program(self) -> ast.Program:
-        first = self.peek()
         statements: list[ast.Statement] = []
+        errors: list[ParseError] = []
         self.skip_separators()
-        while not self.check(K.EOF):
-            made = self.statement()
-            statements.extend(made)
-            if not self.check(K.EOF):
-                self._expect_separator(made)
+        while self.tokens[self._significant(self.pos)].kind is not K.EOF:
+            start = self._significant(self.pos)
+            try:
+                made = self.statement()
+                if not self.check(K.EOF):
+                    self._expect_separator(made)
+            except ParseError as error:
+                if not self.recover:
+                    raise
+                errors.append(error)
+                self.pos = self._resume(start, error)
+                self.previous = self.tokens[self.pos - 1]
+            else:
+                statements.extend(made)
             self.skip_separators()
-        span = first.span.to(self.peek().span)
-        return ast.Program(tuple(statements), span=span)
+        span = self.tokens[0].span.to(self.tokens[-1].span)
+        return ast.Program(tuple(statements), tuple(errors), span=span)
+
+    def _resume(self, start: int, error: ParseError) -> int:
+        """Where to go on after the statement from token ``start``, which cannot be read:
+        after its end, a separator at which the brackets and environments it opened are
+        closed, and which no continuation line follows; or, if they never close, after
+        the line of its error."""
+        tokens = self.tokens
+        at = tokens[start].span.start
+        if error.span is not None and error.span.source is self.source:
+            at = max(at, error.span.start)
+        depth, index = 0, start
+        while tokens[index].kind is not K.EOF:
+            token = tokens[index]
+            if token.kind in _OPENERS or token.kind is K.BEGIN:
+                depth += 1
+            elif token.kind in _CLOSERS or token.kind is K.END:
+                depth = max(0, depth - 1)
+            elif (
+                token.kind in _SEPARATORS
+                and depth == 0
+                and token.span.start >= at
+                and not self._continued_after(index)
+            ):
+                return index + 1
+            index += 1
+        for index in range(start, len(tokens) - 1):  # the brackets never close
+            if tokens[index].kind in _SEPARATORS and tokens[index].span.start >= at:
+                return index + 1
+        return len(tokens) - 1
+
+    def _continued_after(self, index: int) -> bool:
+        """Whether the line after the line break at ``index`` continues the statement
+        before it, as a line starting with ``+`` does."""
+        if self.tokens[index].kind is not K.NEWLINE:
+            return False
+        following = self.tokens[index + 1]
+        return following.kind in _CONTINUING and following.kind not in _SIGNS_FIRST
 
     def _expect_separator(self, made: list[ast.Statement] | None = None) -> None:
         """Expect what ends a statement: a line break, ';' or '\\\\'. ``made`` are the

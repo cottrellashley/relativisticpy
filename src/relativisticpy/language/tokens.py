@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING
 
 from relativisticpy.language.source import Span
+
+if TYPE_CHECKING:
+    from relativisticpy.errors import ParseError
 
 
 class TokenKind(Enum):
@@ -70,6 +74,9 @@ class TokenKind(Enum):
     ROW_SEP = r"\\"
     EOF = "end of input"
 
+    # What could not be read, when the lexer goes on past its errors
+    ERROR = "what could not be read"
+
 
 @dataclass(frozen=True)
 class Token:
@@ -87,6 +94,8 @@ class Token:
     letters it has. ``aligned`` marks a token that follows an alignment marker
     ``&``, as at the start of the continuation row of an ``align``. ``wide_space``
     marks one after wide spacing such as ``\\quad``, which can separate equations.
+    An ``ERROR`` token, which the lexer makes when it goes on past what it cannot
+    read, carries the ``error``.
     """
 
     kind: TokenKind
@@ -97,6 +106,7 @@ class Token:
     verbatim: bool = False
     aligned: bool = False
     wide_space: bool = False
+    error: ParseError | None = field(default=None, compare=False, repr=False)
 
     def describe(self) -> str:
         """Describe the token for an error message, e.g. ``name 'x'`` or ``'+'``."""
@@ -109,7 +119,7 @@ class Token:
             return f"'{self.value}'"
         if kind in (TokenKind.BEGIN, TokenKind.END):
             return f"{kind.value}{{{self.value}}}"
-        if kind in (TokenKind.NEWLINE, TokenKind.EOF):
+        if kind in (TokenKind.NEWLINE, TokenKind.EOF, TokenKind.ERROR):
             return str(kind.value)
         return f"'{kind.value}'"
 
