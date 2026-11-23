@@ -49,7 +49,7 @@ from relativisticpy.ir import (
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.language.vocabulary import FUNCTION_WORDS, GREEK
 from relativisticpy.lowering.linalg import LinearAlgebra
 from relativisticpy.reading import evaluations
 from relativisticpy.reading.names import (
@@ -88,6 +88,7 @@ from relativisticpy.typing.syntax import (
     _is_minus_one,
     _operand,
     _plain_label,
+    _product_factors,
     _rank,
     _tensor_pattern,
     _tensor_pattern_of_one,
@@ -516,6 +517,7 @@ class Expressions(LinearAlgebra):
 
     def _Call(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
         func = node.func
+        self._note_unbracketed(node, ctx)  # sin x y, in plain text: sin(x y)
         if isinstance(func, ast.Prime):
             return self._prime(func, node.args, node.span, scope, ctx)
         if isinstance(func, ast.Primed):  # (x^3)'(2)
@@ -1089,6 +1091,29 @@ class Expressions(LinearAlgebra):
                 partial=node.partial,
             )
         return self._differentiate(value, variables, node.span)
+
+    def _note_unbracketed(self, node: ast.Call, ctx: Context) -> None:
+        """Say how far a function written in letters without brackets reaches, in plain
+        text, where it takes a product of names: ``sin x y`` is sin(x y), as LaTeX reads
+        ``\\sin x y`` (design/notation.md, decisions 11 and 39), where it could be sin(x) y.
+        A number before a name, as in ``sin 2x``, is no such product."""
+        func = node.func
+        if ctx.latex or len(node.args) != 1 or not isinstance(func, ast.Name):
+            return
+        written, argument = func.span.text, node.args[0]
+        if written not in FUNCTION_WORDS:
+            return
+        between = Span(func.span.source, func.span.end, argument.span.start).text
+        factors = _product_factors(argument)
+        names = [factor for factor in factors if isinstance(factor, ast.Name)]
+        if any(bracket in between for bracket in "([{") or len(names) < 2:
+            return  # sin(x y), or sin 2x
+        first = factors[0].span.text
+        rest = " ".join(factor.span.text for factor in factors[1:])
+        self._note(
+            f"{written} {argument.span.text} is read as {written}({argument.span.text}), as "
+            f"LaTeX reads it; for {written}({first}) times {rest}, write {written}({first}) {rest}"
+        )
 
     def _differentiated_by(self, variables: Sequence[tuple[Node, int]]) -> dict[str, str]:
         """The names of the variables a derivative is by, each as the statement writes it."""

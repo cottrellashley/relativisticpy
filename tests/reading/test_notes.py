@@ -71,6 +71,13 @@ class TestSilentReadingsAreSaid:
         ]
         assert notes(wb, "logic + cost2") == []  # words, as names are
 
+    def test_a_function_without_brackets_over_names_says_how_far_it_reaches(self, wb):
+        # sin x y was sin(x) y in plain text; it is sin(x y), as \sin x y is (decision 11)
+        assert notes(wb, "sin x y") == [
+            "sin x y is read as sin(x y), as LaTeX reads it; for sin(x) times y, write sin(x) y"
+        ]
+        assert notes(wb, "sin 2x + sin(x y) + sin x") == []
+
     def test_a_letter_followed_by_brackets_is_a_function_and_says_so(self, wb):
         assert notes(wb, r"\gamma(t - v x)") == [
             r"\gamma is not defined, so \gamma(t - v x) is an unknown function applied to "
