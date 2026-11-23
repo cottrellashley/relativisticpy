@@ -493,6 +493,11 @@ class TestUnicode:
     def test_subscripts_are_spelled_out(self):
         assert lex("x₀") == "x _ { 0 }"
 
+    def test_letters_set_as_scripts_are_scripts(self):
+        # rₛ and eˣ were refused as characters the language had no use for
+        assert lex("rₛ + aᵢⱼ") == "r _ { s } + a _ { i j }"
+        assert lex("eˣ + 2ⁱ") == "e ^ { x } + 2 ^ { i }"
+
     def test_prime_symbol(self):
         assert lex("f′(x)") == "f ' ( x )"
 

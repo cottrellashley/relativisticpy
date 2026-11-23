@@ -284,6 +284,8 @@ def test_unicode_fractions_divide(wb):
     # ½ and the fraction slash of 3⁄4 were refused
     assert wb.expr("½ + ⅓") == Rational(5, 6)
     assert wb.expr("(x + 1)⁄(x − 1)") == (x + 1) / (x - 1)
+    assert wb.expr("rₛ/(2r)") == Symbol("r_s") / (2 * Symbol("r"))  # a letter as a subscript
+    assert wb.expr("eˣ") == exp(x)
 
 
 def test_unicode_spells_latexs_functions_in_letters(wb):

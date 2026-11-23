@@ -403,17 +403,23 @@ UNICODE_RELATIONS: Mapping[str, str] = MappingProxyType(
     }
 )  # fmt: skip
 
-#: Unicode superscript characters (``r²``) and their plain equivalents.
+#: Unicode superscript characters (``r²``, ``eˣ``) and their plain equivalents.
 UNICODE_SUPERSCRIPTS: Mapping[str, str] = MappingProxyType(
-    dict(zip("⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿᵀ", "0123456789+-nT", strict=True))
+    dict(
+        zip(
+            "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻ⁿᵀᵃᵇᶜᵈᵉᶠᵍʰⁱʲᵏˡᵐᵒᵖʳˢᵗᵘᵛʷˣʸᶻ",
+            "0123456789+-nTabcdefghijklmoprstuvwxyz",
+            strict=True,
+        )
+    )
 )
 
 #: Unicode marks set as a superscript after what they mark, as ``A†`` is ``A^\dagger``.
 UNICODE_MARKS: Mapping[str, str] = MappingProxyType({"†": "dagger"})
 
-#: Unicode subscript characters (``x₀``) and their plain equivalents.
+#: Unicode subscript characters (``x₀``, ``rₛ``) and their plain equivalents.
 UNICODE_SUBSCRIPTS: Mapping[str, str] = MappingProxyType(
-    dict(zip("₀₁₂₃₄₅₆₇₈₉₊₋", "0123456789+-", strict=True))
+    dict(zip("₀₁₂₃₄₅₆₇₈₉₊₋ₐₑₒₓₕₖₗₘₙₚₛₜᵢⱼᵣᵤᵥ", "0123456789+-aeoxhklmnpstijruv", strict=True))
 )
 
 #: Combining accents, which Unicode puts after a letter, mapped to the accent command
