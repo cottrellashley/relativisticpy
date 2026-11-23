@@ -20,34 +20,56 @@ server and the editor give it::
     >>> [step] = wb.each("y := 3")
     >>> in_words(defined_between(before, snapshot(wb)))
     'defines y'
+
+Each value says whether it is a complete answer, and whether it is approximate:
+:func:`incomplete` gives the reasons a value is not complete, as ``integral`` where SymPy
+found no closed form of one, and :func:`approximate` whether it holds floating-point
+numbers::
+
+    >>> [step] = Workbook().each(r"\int_0^1 \sin(\sin x) \, dx")
+    >>> value = as_data(step)["values"][0]
+    >>> value["complete"], value["reasons"], value["approximate"]
+    (False, ['integral'], False)
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+import sympy
+from sympy.core.function import AppliedUndef
 
 from relativisticpy import display
 from relativisticpy.errors import ParseError, place
 from relativisticpy.language import Span
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.syntax import Program
+from relativisticpy.tensors import Tensor, arrays, numerical
+from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.indices import latex_label
 
 if TYPE_CHECKING:
     from relativisticpy.workbook import Step, Workbook
 
 __all__ = [
+    "LEFT_UNDONE",
+    "REASONS",
     "Defined",
     "Planned",
     "Snapshot",
+    "approximate",
     "as_data",
     "defined_between",
     "in_words",
+    "incomplete",
+    "left_undone",
     "snapshot",
     "statements_of",
     "steps_of",
+    "value_data",
     "written_in",
 ]
 
@@ -260,8 +282,10 @@ def written_in(written: str, form: str) -> str:
 
 def as_data(step: Step, defined: Sequence[Defined] = ()) -> dict[str, Any]:
     """A step as data, as ``relativisticpy --format json`` prints it: where its statement
-    is, what it is, and what came of it, with each value as
-    :func:`relativisticpy.display.data` describes it and what it ``defined``."""
+    is, what it is, and what came of it, with what it ``defined`` and each value as
+    :func:`relativisticpy.display.data` describes it, and besides whether it is
+    ``complete``, the ``reasons`` it is not (see :func:`incomplete`), and whether it is
+    ``approximate``."""
     where = place(step.span)
     return {
         "file": where["file"],
@@ -270,12 +294,139 @@ def as_data(step: Step, defined: Sequence[Defined] = ()) -> dict[str, Any]:
         "end_line": where["end_line"],
         "end_column": where["end_column"],
         "statement": where["text"],
-        "values": [display.data(value) for value in step.values or []],
+        "values": [value_data(value, step.notes) for value in step.values or []],
         "defines": [{"name": d.name, "kind": d.kind, "written": d.written} for d in defined],
         "notes": list(step.notes),
         "assuming": list(step.assuming),
         "error": step.error.to_dict() if step.error is not None else None,
     }
+
+
+def value_data(value: Any, notes: Sequence[str] = ()) -> dict[str, Any]:
+    """A value as data: as :func:`relativisticpy.display.data` describes it, and whether it
+    is a complete answer, why not, and whether it is approximate, told by the value and
+    the ``notes`` of the step that gave it."""
+    described = display.data(value)
+    reasons = incomplete(value, notes)
+    described["complete"] = not reasons
+    described["reasons"] = reasons
+    described["approximate"] = approximate(value)
+    return described
+
+
+# -- whether a value is an answer --------------------------------------------------------
+
+#: What a value may keep as written, as SymPy could not carry it out, by the reason
+#: :func:`incomplete` gives for it, with the note a step says it in.
+LEFT_UNDONE: dict[str, str] = {
+    "integral": "an integral is left as written: SymPy could not compute it",
+    "sum": "a sum is left as written: SymPy found no closed form for it",
+    "product": "a product is left as written: SymPy found no closed form for it",
+    "limit": "a limit is left as written: SymPy could not compute it",
+    "derivative": "a derivative is left as written: SymPy could not take it",
+}
+
+#: Every reason a value is not a complete answer, in the order :func:`incomplete` gives
+#: them: what of it is kept as written; a call of a function the program does not know,
+#: kept as it is; and the time a closed form is given, which ran out before one was found.
+REASONS = (*LEFT_UNDONE, "unknown function", "time budget")
+
+#: How a step's note says a call is of a function the program does not know, which it
+#: keeps as an unknown function (the reader's ``_check_unknown_function``).
+_UNKNOWN_FUNCTION = "is not a function RelativisticPy knows"
+#: How a step's note says that SymPy found no closed form in the time it is given, of a
+#: sum, a product or an integral, which is kept as written (``runtime.core`` and
+#: ``assumptions.integrated``).
+_PAST_THE_BUDGET = re.compile(r"SymPy found no closed form of the \w+ in the \S+ s it is given")
+
+
+def incomplete(value: Any, notes: Sequence[str] = ()) -> list[str]:
+    """Why a value is not a complete answer, as :data:`REASONS` names them: none for one
+    that is. A value is incomplete where the program kept part of it as written, as it
+    could not carry it out: what SymPy left undone (see :func:`left_undone`), a call of a
+    function the program does not know, or a closed form whose time ran out, as the
+    ``notes`` of its step say.
+
+    >>> x = sympy.Symbol("x")
+    >>> incomplete(sympy.Integral(sympy.exp(x**3), (x, 0, 1)))
+    ['integral']
+    >>> incomplete(sympy.sin(x)), incomplete(sympy.Derivative(sympy.Function("f")(x), x))
+    ([], [])
+    """
+    reasons = left_undone(value)
+    parts = _symbolic(value)
+    if any(_UNKNOWN_FUNCTION in note for note in notes) and any(
+        part.atoms(AppliedUndef) for part in parts
+    ):
+        reasons.append("unknown function")
+    if reasons and any(_PAST_THE_BUDGET.search(note) for note in notes):
+        reasons.append("time budget")
+    return reasons
+
+
+def left_undone(value: Any) -> list[str]:
+    """What of a value SymPy left undone, kept as written, by its reason in
+    :data:`LEFT_UNDONE`: an integral, a sum, a product or a limit it did not carry out, and
+    a derivative of what is no function; in a list, in a tensor's components, or in the
+    sides of a tensor equation too. The derivative of an unknown function, as f'(x), is
+    the answer, not something left undone."""
+    found: dict[str, None] = {}
+    for part in _symbolic(value):
+        if part.has(sympy.Integral):
+            found["integral"] = None
+        if part.has(sympy.Sum):
+            found["sum"] = None
+        if part.has(sympy.Product):
+            found["product"] = None
+        if part.has(sympy.Limit):
+            found["limit"] = None
+        if any(not d.expr.has(AppliedUndef) for d in part.atoms(sympy.Derivative)):
+            found["derivative"] = None
+    return [reason for reason in LEFT_UNDONE if reason in found]
+
+
+def approximate(value: Any) -> bool:
+    """Whether a value holds floating-point numbers, as a decimal written in it or a
+    numerical method gives: a complete answer, to the digits shown, but not exact.
+
+    >>> approximate(sympy.Float(0.5) * sympy.Symbol("x")), approximate(sympy.Rational(1, 2))
+    (True, False)
+    """
+    if isinstance(value, bool) or value is None:
+        return False
+    if isinstance(value, float | complex):
+        return True
+    if isinstance(value, list | tuple):
+        return any(approximate(item) for item in value)
+    if isinstance(value, Tensor):
+        return approximate(value.components)
+    if isinstance(value, TensorEquation):
+        return approximate(value.lhs) or approximate(value.rhs)
+    dtypes = getattr(value, "dtypes", None)  # a table of pandas, a dtype for each column
+    if dtypes is not None and not isinstance(value, sympy.Basic):
+        return any(getattr(dtype, "kind", "O") in "fc" for dtype in dtypes)
+    if numerical.is_numerical(value) or (type(value).__module__ or "").startswith("pandas"):
+        kind = getattr(getattr(value, "dtype", None), "kind", "O")
+        if kind == "O":  # numbers of Python's or SymPy's, in an array of objects
+            return any(approximate(item) for item in arrays.flatten(value))
+        return kind in "fc"
+    return any(part.has(sympy.Float) for part in _symbolic(value))
+
+
+def _symbolic(value: Any) -> list[Any]:
+    """The values of SymPy a value holds: itself, the items of a list, a tensor's
+    components or the sides of a tensor equation, where they are SymPy's."""
+    if isinstance(value, list | tuple):
+        return [part for item in value for part in _symbolic(item)]
+    if isinstance(value, Tensor):
+        return [] if value.numerical else _symbolic(value.components)
+    if isinstance(value, TensorEquation):
+        return [] if value.numerical else [*_symbolic(value.lhs), *_symbolic(value.rhs)]
+    if isinstance(value, sympy.NDimArray):
+        return [component for component in arrays.flatten(value) if hasattr(component, "has")]
+    if isinstance(value, sympy.Basic | sympy.MatrixBase):
+        return [value]
+    return []
 
 
 def _listed(names: Sequence[str]) -> str:

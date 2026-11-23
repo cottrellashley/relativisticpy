@@ -156,7 +156,7 @@ computed. Its keys:
 |---|---|
 | `file`, `line`, `column`, `end_line`, `end_column` | where the statement is, from 1 |
 | `statement` | the statement as written |
-| `values` | each value it showed, as `relativisticpy.display.data` describes it: its `kind`, `text`, `unicode` and `latex` forms, and its structure |
+| `values` | each value it showed, as `relativisticpy.display.data` describes it: its `kind`, `text`, `unicode` and `latex` forms, and its structure; and whether it is `complete`, the `reasons` it is not, and whether it is `approximate` (below) |
 | `defines` | what it defined: each with its `name`, `kind` and how it is `written` |
 | `notes` | how it was read, where that could surprise, and what its computation did, as dropping the solutions an assumption rules out |
 | `assuming` | what its values are given under that books assume and the program did not say, as `a > 0` |
@@ -165,7 +165,28 @@ computed. Its keys:
 ```python
 >>> main(["-c", "x := 2; x^3", "--format", "json"])
 {"file": "<command line>", "line": 1, "column": 1, "end_line": 1, "end_column": 7, "statement": "x := 2", "values": [], "defines": [{"name": "x", "kind": "value", "written": "x"}], "notes": [], "assuming": [], "error": null}
-{"file": "<command line>", "line": 1, "column": 9, ..., "values": [{"kind": "number", "digits": 1, "value": 8, "text": "8", "unicode": "8", "latex": "8"}], ...}
+{"file": "<command line>", "line": 1, "column": 9, ..., "values": [{"kind": "number", "digits": 1, "value": 8, "text": "8", "unicode": "8", "latex": "8", "complete": true, "reasons": [], "approximate": false}], ...}
+0
+
+```
+
+A value is `complete` unless the program kept part of it as written, as it could not
+carry it out; `reasons` then says why, each in a word or two:
+
+| Reason | What is kept as written |
+|---|---|
+| `integral`, `sum`, `product`, `limit` | one SymPy found no closed form of |
+| `derivative` | a derivative SymPy could not take |
+| `unknown function` | a call of a function RelativisticPy does not know, as `foo(x)` |
+| `time budget` | besides one of the above: SymPy was stopped looking for its closed form, at the end of the time it is given |
+
+The statement's `notes` say the same in words. `approximate` is `true` for a value with a
+floating-point number in it, from a decimal written, as `0.1`, or a numerical method: an
+answer to the digits shown, not exactly.
+
+```python
+>>> main(["-c", r"\int_0^1 \sin(\sin x) \, dx", "--format", "json"])
+{..., "values": [{"kind": "expression", ..., "complete": false, "reasons": ["integral"], "approximate": false}], ..., "notes": ["an integral is left as written: SymPy could not compute it"], ...}
 0
 
 ```

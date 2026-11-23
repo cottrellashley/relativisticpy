@@ -13,7 +13,6 @@ from typing import Any, TypeVar
 
 import sympy
 from sympy import Symbol
-from sympy.core.function import AppliedUndef
 from sympy.core.relational import Relational
 
 from relativisticpy import checking, display, integrations
@@ -62,7 +61,7 @@ from relativisticpy.reading.families import Family
 from relativisticpy.reading.readings import Explanation
 from relativisticpy.runtime import Executor
 from relativisticpy.runtime.kernels import differs
-from relativisticpy.steps import steps_of
+from relativisticpy.steps import LEFT_UNDONE, left_undone, steps_of
 from relativisticpy.tensors import Indices, Space, Tensor, arrays, numerical
 from relativisticpy.tensors.equation import TensorEquation, UndecidedError, asymptotic, holds
 from relativisticpy.tensors.indices import latex_label
@@ -1318,27 +1317,27 @@ def _gives_form(op: ops.Op) -> bool:
 
 def _left_undone(value: Any) -> list[str]:
     """The notes on what a value leaves undone, which shown as it is would read as an
-    answer (guard 7 of wave 0): an integral, a sum or a limit SymPy did not carry out, a
-    derivative of what is no function, and the conditions SymPy puts on its parameters."""
-    if isinstance(value, list | tuple):  # the solutions of a solve
-        return list(dict.fromkeys(note for item in value for note in _left_undone(item)))
-    if not isinstance(value, sympy.Basic):
-        return []
-    notes = []
-    if value.has(sympy.Integral):
-        notes.append("an integral is left as written: SymPy could not compute it")
-    if value.has(sympy.Sum, sympy.Product):
-        notes.append("a sum is left as written: SymPy found no closed form for it")
-    if value.has(sympy.Limit):
-        notes.append("a limit is left as written: SymPy could not compute it")
-    if any(not d.expr.has(AppliedUndef) for d in value.atoms(sympy.Derivative)):
-        notes.append("a derivative is left as written: SymPy could not take it")
-    if any(_on_conditions(piecewise) for piecewise in value.atoms(sympy.Piecewise)):
+    answer (guard 7 of wave 0): an integral, a sum, a product or a limit SymPy did not
+    carry out, a derivative of what is no function, each as
+    :func:`~relativisticpy.steps.left_undone` finds it, in a list, a tensor or a tensor
+    equation too; and the conditions SymPy puts on its parameters."""
+    notes = [LEFT_UNDONE[reason] for reason in left_undone(value)]
+    if _conditional(value):
         notes.append(
             "this holds under the conditions SymPy gives, as it takes every symbol to be "
             "complex; saying what the parameters are, as in a > 0, may remove them"
         )
     return notes
+
+
+def _conditional(value: Any) -> bool:
+    """Whether a value, or an item of a list of them, as the solutions of a solve, holds
+    a result under the conditions SymPy puts on its parameters."""
+    if isinstance(value, list | tuple):
+        return any(_conditional(item) for item in value)
+    if not isinstance(value, sympy.Basic):
+        return False
+    return any(_on_conditions(piecewise) for piecewise in value.atoms(sympy.Piecewise))
 
 
 def _on_conditions(piecewise: sympy.Piecewise) -> bool:

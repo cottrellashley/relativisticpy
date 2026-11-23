@@ -1,23 +1,33 @@
 """The statements of a program and its steps, listed before any runs, and what came of each
 step: what it defined, in words, and the step as data."""
 
+import signal
+import time
+
 import pytest
+import sympy
 
 from relativisticpy import Workbook
 from relativisticpy.errors import ParseError
 from relativisticpy.language import Source, parse
 from relativisticpy.language import syntax as ast
 from relativisticpy.steps import (
+    LEFT_UNDONE,
+    REASONS,
     Defined,
     Snapshot,
+    approximate,
     as_data,
     defined_between,
     in_words,
+    incomplete,
+    left_undone,
     snapshot,
     statements_of,
     steps_of,
     written_in,
 )
+from relativisticpy.tensors import Tensor
 
 
 def program(text):
@@ -117,3 +127,102 @@ class TestAStepAsData:
     @pytest.mark.parametrize("form", ["unicode", "latex"])
     def test_a_name_that_cannot_be_shown_is_written_as_it_is(self, form):
         assert written_in("\\frac{", form) == "\\frac{"
+
+
+def last(source):
+    """The values of a program's last step, as data, and its notes."""
+    *_, step = Workbook().each(source)
+    assert step.error is None, step.error
+    return as_data(step)["values"], step.notes
+
+
+class TestWhetherAValueIsAnAnswer:
+    """Each value says whether it is a complete answer, why not, and whether it is
+    approximate, so that a program reading it, as an agent, can tell an answer from a
+    value kept as written."""
+
+    @pytest.mark.parametrize(
+        ("source", "reason"),
+        [
+            (r"\int_0^1 \sin(\sin x) \, dx", "integral"),
+            (r"\sum_{n=1}^{\infty} \frac{1}{n^n}", "sum"),
+            (r"\prod_{n=1}^{\infty} \left(1 + \frac{1}{n^3}\right)", "product"),
+        ],
+    )
+    def test_what_sympy_left_undone_is_kept_as_written_and_says_so(self, source, reason):
+        [value], notes = last(source)
+        assert (value["complete"], value["reasons"]) == (False, [reason])
+        assert notes == [LEFT_UNDONE[reason]]
+
+    def test_each_kind_of_operation_left_undone_has_its_reason(self):
+        x = sympy.Symbol("x")
+        f = sympy.Function("f")
+        assert left_undone(sympy.Limit(sympy.sin(x) / x, x, 0)) == ["limit"]
+        assert left_undone(sympy.Derivative(x**2, x)) == ["derivative"]
+        assert left_undone(sympy.Derivative(f(x), x)) == []  # f'(x) is the answer
+        integral = sympy.Integral(sympy.sin(sympy.sin(x)), (x, 0, 1))
+        assert left_undone([1, sympy.Sum(1 / x**x, (x, 1, sympy.oo)) + integral]) == [
+            "integral",
+            "sum",
+        ]
+        assert set(REASONS) == {*LEFT_UNDONE, "unknown function", "time budget"}
+
+    def test_a_tensor_with_an_integral_in_a_component_is_incomplete(self):
+        x = sympy.Symbol("x")
+        components = sympy.Array([sympy.Integral(sympy.sin(sympy.sin(x)), (x, 0, 1)), 0])
+        assert incomplete(Tensor(components, "^a", (x, sympy.Symbol("y")))) == ["integral"]
+
+    def test_a_call_of_a_function_the_program_does_not_know(self):
+        [value], notes = last("foo(x)")
+        assert value["reasons"] == ["unknown function"]
+        assert notes == [
+            "foo is not a function RelativisticPy knows, so foo(x) is an unknown function"
+        ]
+        [value], _ = last("f(x)")  # a function of the program's own, as books write one
+        assert value["complete"]
+
+    @pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
+    def test_a_closed_form_whose_time_ran_out(self, monkeypatch):
+        from relativisticpy.runtime import core
+
+        def searching(*args, **kwargs):
+            time.sleep(2)
+            raise AssertionError("the budget should have stopped this")
+
+        monkeypatch.setattr(core, "_CLOSED_FORM_BUDGET", 0.05)
+        monkeypatch.setattr(core.assumptions, "summed", searching)
+        [value], notes = last(r"\sum_{n=1}^{\infty} \frac{1}{n^n}")
+        assert value["reasons"] == ["sum", "time budget"]
+        assert "SymPy found no closed form of the sum in the 0.05 s it is given" in notes
+
+    def test_an_answer_is_complete(self):
+        [value], notes = last(r"\int_0^1 x^2 \, dx")
+        assert (value["text"], value["complete"], value["reasons"]) == ("1/3", True, [])
+        assert not value["approximate"]
+        assert notes == []
+
+    @pytest.mark.parametrize(
+        ("source", "approximate"),
+        [
+            ("x := 0.5\nx^2", True),
+            ("[1, 2.5]", True),
+            (r"\begin{pmatrix} 1.5 & 2 \\ 3 & 4 \end{pmatrix}", True),
+            ("0.5 x", True),
+            (r"\frac{1}{3}", False),
+            (r"\sqrt{2}", False),
+            ("[1, 2]", False),
+        ],
+    )
+    def test_a_value_with_a_decimal_in_it_is_approximate(self, source, approximate):
+        [value], _ = last(source)
+        assert value["approximate"] is approximate
+        assert value["complete"]
+
+    def test_numbers_in_arrays_are_approximate_by_their_type(self):
+        numpy = pytest.importorskip("numpy")
+        assert approximate(numpy.array([1.0, 2.0]))
+        assert approximate(numpy.float64(1.0))
+        assert approximate(1 + 2j)
+        assert not approximate(numpy.array([1, 2]))
+        assert not approximate(True)
+        assert not approximate("text")
