@@ -55,6 +55,7 @@ from relativisticpy.reading.names import (
     _STATISTICS,
     _TRANSPOSES,
     _a_component,
+    _a_differential,
     _a_name,
     _a_pair,
     _a_word,
@@ -95,6 +96,7 @@ from relativisticpy.reading.names import (
     _writes_tensor,
     _written_as_letter,
     _written_with,
+    glued_function,
     to_text,
 )
 from relativisticpy.reading.readings import Decision, Resolution
@@ -517,6 +519,8 @@ class Reader(Typer):
         known = name in BUILTINS or name in CONSTANTS or scope.lookup(name) is not None
         if known or any(self._builtin_tensor(name, rank) for rank in range(5)):
             return node
+        if (glued := glued_function(name)) is not None:  # sinx², not s i n x²
+            raise self._glued(base, glued, ctx)
         letters = split_index_labels(name)
         if len(letters) < 2:
             return node
@@ -586,6 +590,8 @@ class Reader(Typer):
         if _names_builtin(node, latex=ctx.latex) and written_so and not greek:
             self._resolve(node.span, f"the builtin function {name}")
             return FunctionReference(node.span, name)
+        if not ctx.latex:  # 2ab, with a and b written alone, and sinx: one name, said so
+            self._note_one_name(node, scope)
         # A name made of what is written, as y_s of y_{s} or r^* of r^*, is shown so.
         made = node.verbatim and node.span.text != name and not node.span.text.startswith("\\")
         written_as = name if made else None
@@ -634,8 +640,50 @@ class Reader(Typer):
             return "kretschmann"
         return None
 
+    def _note_one_name(self, node: ast.Name, scope: Scope) -> None:
+        """Say how a name of several letters that nothing defines is read in plain text,
+        where it could be meant otherwise (design/notation.md, decision 40): as one name,
+        where it runs a function's name into its argument, as ``sinx`` does, and where each
+        of its letters is a name the statement or the program writes alone, as ``ab`` is in
+        ``(a + b)^2 - (a^2 + 2ab + b^2)``."""
+        name = written = node.id  # as written, without the brackets of (xy)
+        if node.verbatim or len(name) < 2 or name in GREEK or name in FUNCTION_WORDS:
+            return
+        if (glued := glued_function(name)) is not None:
+            function, argument = glued
+            self._note(
+                f"{written} is one name; for {function} of {argument}, write "
+                f"{function} {argument} or {function}({argument})"
+            )
+            return
+        letters = split_index_labels(name)
+        if not name.isalpha() or len(letters) not in (2, 3) or _a_differential(name):
+            return  # a word, as rate is, or a differential, as dr is
+        alone = self._factors | self.session.factors
+        if all(letter in alone or scope.lookup(letter) is not None for letter in letters):
+            self._note(
+                f"{written} is one name, as plain text writes names; for the product, write "
+                f"{' '.join(letters)} or {'*'.join(letters)}"
+            )
+
+    def _glued(self, node: ast.Name, glued: tuple[str, str], ctx: Context) -> CompileError:
+        """The error for a run of letters, in LaTeX or Unicode, that runs a function's name
+        into its argument, as ``sinx`` does: read as letters, as such a run is, its i would
+        be the imaginary unit (design/notation.md, decision 40)."""
+        function, argument = glued
+        shown = _shown(argument, ctx.latex)
+        return CompileError(
+            f"{node.span.text} runs the name of {function} into what it applies to",
+            span=node.span,
+            notes=[f"as a run of letters, it would be the product of {', '.join(node.id)}"],
+            hint=f"for {function} of {argument}, write {function} {shown} or \\{function} "
+            f"{shown}; for one name, write \\mathrm{{{node.id}}}",
+        )
+
     def _latex_letters(self, node: ast.Name, scope: Scope, ctx: Context) -> Node:
         r"""In LaTeX, ``GM`` is :math:`G \cdot M`: one factor per letter (or Greek name)."""
+        if (glued := glued_function(node.id)) is not None:  # sinx, not s i n x
+            raise self._glued(node, glued, ctx)
         letters = " ".join(split_index_labels(node.id))
         why = "in LaTeX a run of letters that names nothing is a product"
         self._decide("letters", node.span, letters, why)

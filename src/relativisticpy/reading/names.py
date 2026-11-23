@@ -244,6 +244,39 @@ def _in_brackets(node: ast.Name) -> bool:
     return node.span.text != node.id and node.span.text.startswith(_GROUP_OPENERS)
 
 
+#: LaTeX's functions whose argument books write right after the name, as in sin x, ln x and
+#: e^x: a name that begins with one and goes on with an argument, as sinx, runs them
+#: together. Not det, dim, arg, min and the like, which begin names of their own, as args.
+_ARGUMENT_AFTER = frozenset(
+    {
+        "sin", "cos", "tan", "cot", "sec", "csc", "sinh", "cosh", "tanh", "coth", "sech",
+        "csch", "arcsin", "arccos", "arctan", "arccot", "exp", "ln", "log",
+    }
+)  # fmt: skip
+_ARGUMENT = re.compile(
+    r"[0-9]*(?:" + "|".join(sorted(GREEK, key=len, reverse=True)) + r"|[A-Za-z])|[0-9]+"
+)
+
+
+def _a_differential(name: str) -> bool:
+    """Whether a name reads as a differential, d and a letter or a Greek letter's name, as
+    dx and dtheta do."""
+    return name.startswith("d") and (len(name) == 2 or name[1:] in GREEK)
+
+
+def glued_function(name: str) -> tuple[str, str] | None:
+    """The function and the argument that a name runs together, as ``sinx`` runs sin and
+    x, ``cos2theta`` cos and 2theta, and ``ln2`` ln and 2: one of LaTeX's functions whose
+    argument is written after it, then a letter or a Greek letter's name, maybe after a
+    number, or a number alone. ``None`` for any other name, as sinh, cost2 and logic."""
+    if name in FUNCTION_WORDS:
+        return None
+    for word in sorted(_ARGUMENT_AFTER, key=len, reverse=True):
+        if name.startswith(word) and _ARGUMENT.fullmatch(name, len(word)):
+            return word, name[len(word) :]
+    return None
+
+
 def _letter(label: str, span: Span, *, first: bool) -> ast.Name:
     """One letter, or Greek name, of a run of letters read as a product, as G is of GM.
     No letter is split again. A d is the letter d, as in ad - bc, except first in its run,

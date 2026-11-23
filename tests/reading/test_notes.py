@@ -50,6 +50,27 @@ class TestSilentReadingsAreSaid:
         ]
         assert wb.expr("dy/dx") == 2
 
+    def test_a_name_whose_letters_are_written_alone_is_one_name_and_says_so(self, wb):
+        # (a+b)^2 - (a^2 + 2ab + b^2) was 2ab - 2 ab, without a word (decision 40)
+        assert notes(wb, "(a+b)^2 - (a^2 + 2ab + b^2)") == [
+            "ab is one name, as plain text writes names; for the product, write a b or a*b"
+        ]
+        assert wb.expr("(a+b)^2 - (a^2 + 2a b + b^2)") == 0  # the hint works
+        assert notes(wb, "2pq") == []  # p and q are written nowhere alone: one name
+        wb.exe("x := 2\ny := 3")
+        assert notes(wb, "xy + 1") == [
+            "xy is one name, as plain text writes names; for the product, write x y or x*y"
+        ]
+
+    def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
+        # sinx and lnx were names, without a word that sin x and ln x were meant
+        assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]
+        assert notes(wb, "1 + lnx") == ["lnx is one name; for ln of x, write ln x or ln(x)"]
+        assert notes(wb, "cos2theta") == [
+            "cos2theta is one name; for cos of 2theta, write cos 2theta or cos(2theta)"
+        ]
+        assert notes(wb, "logic + cost2") == []  # words, as names are
+
     def test_a_letter_followed_by_brackets_is_a_function_and_says_so(self, wb):
         assert notes(wb, r"\gamma(t - v x)") == [
             r"\gamma is not defined, so \gamma(t - v x) is an unknown function applied to "

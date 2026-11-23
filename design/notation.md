@@ -436,3 +436,16 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 4. A solidus between differentials is Leibniz's fraction set in a line of text, as Stewart sets `dy/dx` in prose and AsciiMath types it, read as `\frac` reads it, with its guards: `d/dx f` is `\frac{d}{dx} f`, `dy/dx` is `\frac{dy}{dx}`, `d(x^3)/dx` is `\frac{d(x^3)}{dx}`, `df(x)/dx` the derivative of f(x), `d^2y/dx^2`, `∂f/∂x`, and `(del f)/(del x)`, del being AsciiMath's ∂. A differential is never called, so that `d/dx(x^3)` is the derivative of x^3, and one written with its d apart, as `dθ`, is one. After factors in a product, the fraction is a factor of its own, as `x dy/dx` is `x \frac{dy}{dx}`, and a sign before it negates it, as in `-d/dx (x^2)`. Where the program defines a name a differential is written with, as `dx := 0.01`, the solidus divides them, with a note: a user's definition wins. A solidus with no differential on one side divides, as in `dx/2` and `dr^2/(1 - 2M/r)`.
 
 The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11), where it was sin(x) y.
+
+## 40. A run of letters that nothing defines
+
+**Added** on 23 November 2026, for agents, which type mathematics in plain text and Unicode.
+
+**Waiting on it:** `implicit-relations`, where `x^3 + y^3 = 6xy` is written in plain text.
+
+**Why it is open.** In plain text a run of letters is one name, as a program writes names, and in LaTeX and Unicode it is a product of letters, as TeX sets it (decision 10). Either reading can be the one not meant, silently: in plain text `(a+b)^2 - (a^2 + 2ab + b^2)` was 2ab − 2·ab, `xy` after `x := 2` and `y := 3` the symbol xy, and `sinx` the symbol sinx; in Unicode `sinx` was s·i·n·x, its i the imaginary unit.
+
+**Recommendation.** Keep each notation's reading, and say so, or refuse, where the other was likely meant:
+
+1. In plain text, a name of two or three letters, a Greek letter's name counting as one, that nothing defines, and each of whose letters the statement or the program writes alone or defines, is one name, with a note that says how to write the product: `ab` beside `(a+b)^2`, `kT` after `k := 1`. A longer word, as rate is, and a differential, as dr is, have no note: a product of four letters is written apart.
+2. A name that runs one of LaTeX's functions whose argument books write after it, the trigonometric and hyperbolic functions and their inverses, exp, ln and log, into a letter, a Greek letter's name or a number, as `sinx`, `cos2theta` and `ln2` do, is in plain text one name, with a note that says how to write the function of it. In LaTeX and Unicode, where it would be a product of letters, it is refused, saying how to write either reading. The functions that begin names of their own, as arg, dim and min begin args, dims and mins, are not among them.

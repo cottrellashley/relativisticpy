@@ -617,3 +617,19 @@ class TestDependencesAreKept:
         x = sympy.Symbol("x")
         assert wb.expr(f"series({catalan}, x, 0, 11)").coeff(x, 10) == 16796
         assert wb.expr("[x + 1] y") == (x + 1) * sympy.Symbol("y")  # brackets that group
+
+
+class TestRunsOfLettersThatHoldAFunction:
+    """In LaTeX and Unicode a run of letters is a product, so that sinx was s·i·n·x, with
+    i the imaginary unit: a run that begins with a function's name and goes on with its
+    argument is refused, saying how to write either reading (decision 40)."""
+
+    @pytest.mark.parametrize("source", ["θ + sinx", r"\alpha + sinx", "sinx²", "2π lnx"])
+    def test_it_is_refused(self, wb, source):
+        found = error(wb, source)
+        assert "runs the name of" in found.message
+        assert found.hint is not None
+        assert "\\mathrm{" in found.hint
+
+    def test_the_hint_works(self, wb):
+        assert wb.expr("θ + sin x") == theta + sympy.sin(x)
