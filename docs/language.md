@@ -780,6 +780,25 @@ refused, as is defining a name declared a random variable:
 
 ```
 
+Events of several random variables that share one are not independent, and are not
+computed as if they were. Of discrete variables, an event is summed over the values one of
+them can take where it holds, and a variable an event gives a value takes it in the others.
+What SymPy gives of several continuous variables together is kept only where a simulation
+bears it out, and refused otherwise, saying so:
+
+```python
+>>> counts = Workbook()
+>>> counts.exe(r"""
+...     X \sim \operatorname{Poisson}(2)
+...     Y \sim \operatorname{Poisson}(3)
+...     P(X = 1 \mid X + Y = 3)
+...     P(X = 1, X + Y = 3)
+...     \mathbb{E}[X \mid X + Y = 3]
+... """)
+[54/125, 9*exp(-5), 6/5]
+
+```
+
 `f_X(x)`, `F_X(x)` and `F_X^{-1}(q)` are X's density, distribution function and quantile, and
 `M_X(t)` and `\varphi_X(t)` its moment-generating and characteristic functions. Where a
 probability holds only for some values of a parameter the program says nothing of, it is

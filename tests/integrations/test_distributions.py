@@ -143,6 +143,30 @@ class TestComputing:
         with pytest.raises(EvaluationError, match="SciPy's integral of it does not converge"):
             distributions._numeric_expectation(sympy.Abs(variable), variable)
 
+    def test_a_value_of_sympys_that_a_simulation_contradicts_is_refused(self):
+        # SymPy gives the probability that the product of two uniform variables is below
+        # 1/2 as 0; it is (1 + ln 2)/2
+        from sympy.stats.crv_types import UniformDistribution
+
+        u, v = (
+            distributions.variable(sympy.Symbol(name), UniformDistribution(0, 1)) for name in "UV"
+        )
+        with pytest.raises(EvaluationError, match="SymPy gives 0, and a simulation of it") as no:
+            distributions.probability(u * v < sympy.Rational(1, 2))
+        assert "0.846" in no.value.message
+        assert distributions.probability(sympy.And(u > 0, v > 0)) == 1  # events apart multiply
+
+    def test_the_values_a_relation_leaves_a_variable(self):
+        from sympy.stats.drv_types import PoissonDistribution
+
+        x, y = (distributions.variable(sympy.Symbol(name), PoissonDistribution(2)) for name in "XY")
+        left = distributions._left_by
+        assert left(sympy.Eq(x + y, 3), x, [y]) == [0, 1, 2, 3]
+        assert left(sympy.Le(2 * x + y, 4), x, [y]) == [0, 1, 2]
+        assert left(sympy.Ge(x + y, 3), x, [y]) is None  # every value: not finitely many
+        assert left(sympy.Eq(x - y, 1), x, [y]) is None
+        assert left(sympy.Eq(x * y, 4), x, [y]) is None  # no linear relation
+
 
 class TestSamples:
     """The members of a sample at symbols: which are the same one is decided, or said not

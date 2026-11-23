@@ -48,6 +48,7 @@ SciPy, and that SymPy's density and distribution function agree with SciPy's.
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
@@ -728,13 +729,24 @@ def _conditioned(compute: Callable[[Any], Any], value: Any, given: Sequence[Any]
 
 def _defined(found: Any, value: Any, what: str) -> Any:
     """What was computed of random variables, where it is a value: not where it is
-    undefined, as the mean of a law without one, which is refused, saying so."""
+    undefined, as the mean of a law without one, which is refused, saying so; nor where
+    it still holds a random variable whose law is given, which SymPy left in it."""
     shown = _shown(value.args[0] if isinstance(value, Tuple) and len(value) == 1 else value)
     if found is sympy.nan:
         raise EvaluationError(
             f"the {what} of {shown} is not defined: an expectation it is made of does not "
             "exist, or is infinite",
             notes=["a law with tails as heavy as Cauchy's has no mean, and so no variance"],
+        )
+    symbolic = (stats.Expectation, stats.Variance, stats.Covariance, stats.Probability)
+    bare = found.replace(lambda each: isinstance(each, symbolic), lambda each: sympy.S.Zero)
+    names = {str(each.symbol) for each in _randoms(value) if not _unknown(each)}
+    left = {str(each) for each in _randoms(bare) if not _unknown(each)}
+    left |= {s.name for s in bare.free_symbols if type(s) is Symbol and s.name in names}
+    if left:
+        raise EvaluationError(
+            f"the {what} of {shown} is not computed: what SymPy gives of it still holds "
+            f"{assumptions.listed(sorted(left))}, which the {what} is no function of",
         )
     return found
 
@@ -755,16 +767,57 @@ def _given_event(compute: Callable[[Any], Any], value: Any, condition: Any, what
     if what == "probability":
         return _tidy(_probability(sympy.And(value, condition)) / weight)
     if what == "expectation":
-        randoms = sorted(_randoms(value) | _randoms(condition), key=str)
-        if len(randoms) == 1 and not _given(randoms[0]) and not _unknown(randoms[0]):
-            partial = _partial(value, randoms[0], condition)
-            if partial is not None:
-                return _tidy(partial / weight)
-        return _tidy(_expect(sympy.Piecewise((value, condition), (0, True))) / weight)
+        return _tidy(_where(value, condition) / weight)
     raise EvaluationError(
         f"the {what} given an event is not computed",
         hint="write it with expectations, as E[X^2 | B] - E[X | B]^2",
     )
+
+
+def _where(value: Any, condition: Any) -> Any:
+    """``\\mathbb{E}[value 1_B]``, the expectation of a value where an event B holds and of
+    0 elsewhere: of one random variable, by :func:`_partial`; of several, independent, the
+    sum, over the values a discrete one of the event's can take where it holds, of what it
+    is at each, where they are finitely many, as of X where X + Y = 3; else as SymPy
+    finds the expectation of the value in cases."""
+    condition = sympy.sympify(condition)
+    if condition is sympy.true:
+        return _expect(value)
+    if condition is sympy.false:
+        return sympy.S.Zero
+    randoms = sorted(_randoms(value) | _randoms(condition), key=str)
+    declared_so = not any(_given(each) or _unknown(each) for each in randoms)
+    if len(randoms) == 1 and declared_so:
+        partial = _partial(value, randoms[0], condition)
+        if partial is not None:
+            return partial
+    split = _split(condition, sorted(_randoms(condition), key=str)) if declared_so else None
+    if split is not None:
+        variable, values = split
+        held = sympy.sympify(value)
+        return _over_values(
+            variable,
+            values,
+            lambda v: _where(held.xreplace({variable: v}), condition.xreplace({variable: v})),
+        )
+    return _expect(sympy.Piecewise((value, condition), (0, True)))
+
+
+def _over_values(variable: RandomSymbol, values: Sequence[Any], of: Callable[[Any], Any]) -> Any:
+    """The sum, over values a discrete random variable takes, of the probability of each
+    times what ``of`` gives there: the law of total probability, within four times the
+    time a closed form is given, past which it is refused, saying so."""
+    from relativisticpy.runtime import core
+
+    try:
+        with core._budget(4 * BUDGET):
+            return sum((_mass(variable, each) * of(each) for each in values), sympy.S.Zero)
+    except core._OverBudget:
+        raise EvaluationError(
+            f"a sum over the {len(values)} values of {variable} an event leaves it is not "
+            f"computed within {4 * BUDGET:g} s",
+            hint="give the event fewer values to hold at",
+        ) from None
 
 
 def _partial(value: Any, variable: RandomSymbol, condition: Any) -> Any | None:
@@ -936,7 +989,53 @@ def _declared_expectation(expr: Any) -> Any:
         def numerically() -> Any:
             return _numeric_expectation(expr, variable)
 
-    return _found(exactly, numerically, parameters, f"the expectation of {_shown(expr)}")
+    what = f"the expectation of {_shown(expr)}"
+    found = _found(exactly, numerically, parameters, what)
+    return _borne_out(found, expr, what) if len(randoms) > 1 else found
+
+
+#: How many times each random variable is drawn to bear out a value SymPy gives of several.
+_DRAWS = 200_000
+
+
+def _borne_out(value: Any, expr: Any, what: str) -> Any:
+    """A value SymPy gives of several random variables together, as the expectation of
+    ``expr``, where a simulation bears it out. SymPy's sums and integrals over several
+    variables are not all right: it gives the probability that the product of two uniform
+    variables is below 1/2 as 0. A value a simulation contradicts is refused, saying so;
+    one written with parameters, or left undone, which no simulation checks, is as it is."""
+    randoms = sorted(_randoms(expr), key=str)
+    value = sympy.sympify(value)
+    if _parameters(*randoms, expr) or _unfinished(value) or not value.is_finite:
+        return value
+    try:
+        estimate, error = _simulated(expr, randoms)
+    except Exception:  # what cannot be simulated is not checked
+        return value
+    number = complex(sympy.N(value))
+    if not math.isfinite(estimate + error) or abs(number - estimate) <= 6 * error + 10 / _DRAWS:
+        return value
+    raise EvaluationError(
+        f"{what} is not computed: SymPy gives {_shown(value)}, and a simulation of it, of "
+        f"{_DRAWS} draws, {estimate:.4g}, with a standard error of {error:.2g}",
+        notes=["SymPy's sums and integrals over several random variables are not all right"],
+    )
+
+
+def _simulated(expr: Any, randoms: Sequence[RandomSymbol]) -> tuple[float, float]:
+    """The mean of an expression of independent random variables over draws of them with a
+    fixed seed, by SciPy, and its standard error."""
+    import numpy as np
+
+    generator = np.random.default_rng(0)
+    points = [Dummy(str(each.symbol), real=True) for each in randoms]
+    function = sympy.lambdify(
+        points, expr.xreplace(dict(zip(randoms, points, strict=True))), modules=["scipy", "numpy"]
+    )
+    draws = [_frozen(each).rvs(size=_DRAWS, random_state=generator) for each in randoms]
+    with np.errstate(all="ignore"):
+        values = np.broadcast_to(np.asarray(function(*draws), dtype=float), (_DRAWS,))
+    return float(np.mean(values)), float(np.std(values) / np.sqrt(_DRAWS))
 
 
 def _by_moments(expr: Any, randoms: Sequence[RandomSymbol]) -> Any | None:
@@ -1085,12 +1184,177 @@ def _probability(event: Any) -> Any:
     if len(randoms) == 1:
         (variable,) = randoms
         return _of_one(event, variable)
+    return _of_several(event, sorted(randoms, key=str))
+
+
+#: The most values of a random variable an event of several is summed over, and the most
+#: events joined by or whose probabilities are put together.
+_MOST_VALUES = 1000
+_MOST_EVENTS = 4
+
+
+def _of_several(event: Any, randoms: Sequence[RandomSymbol]) -> Any:
+    """The probability of an event of several independent random variables. Events that
+    share no variable are independent, and their probabilities multiply; a variable one
+    of them gives a value, as X = 1 does beside X + Y = 3, takes it in the others; and an
+    event is else summed over the values a discrete variable of it can take where it
+    holds, where they are finitely many. One relation none of these takes apart is as
+    SymPy finds it; events joined together are never given to SymPy, which multiplies and
+    adds their probabilities as if they shared no variable."""
+    what = f"the probability of {_shown(event)}"
+    if isinstance(event, sympy.Not):
+        return _tidy(1 - _probability(event.args[0]))
+    if isinstance(event, sympy.Or):
+        return _either(event.args, what)
+    conjuncts = list(sympy.And.make_args(event))
+    groups = _sharing(conjuncts)
+    if len(groups) > 1:
+        return _tidy(sympy.Mul(*(_probability(sympy.And(*group)) for group in groups)))
+    for conjunct in conjuncts if len(conjuncts) > 1 else ():
+        fixed = _fixed(conjunct)
+        if fixed is None:
+            continue
+        variable, value = fixed
+        if not _discrete(variable):
+            return sympy.S.Zero
+        others = sympy.And(*(each for each in conjuncts if each is not conjunct))
+        rest = _probability(others.xreplace({variable: value}))
+        return _tidy(_mass(variable, value) * rest)
+    split = _split(event, randoms)
+    if split is not None:
+        variable, values = split
+        return _tidy(
+            _over_values(variable, values, lambda v: _probability(event.xreplace({variable: v})))
+        )
+    if isinstance(event, sympy.Lt | sympy.Le | sympy.Gt | sympy.Ge):
+        opposite = sympy.Not(event)  # X + Y ≥ 2 holds wherever X + Y < 2 does not
+        if _split(opposite, randoms) is not None:
+            return _tidy(1 - _of_several(opposite, randoms))
     parameters = _parameters(*randoms, event)
+    holds = sympy.Piecewise((1, event), (0, True))
+    if len(conjuncts) == 1:
+        return _borne_out(_found(lambda: stats.P(event), None, parameters, what), holds, what)
+    if any(_discrete(each) for each in randoms):
+        raise EvaluationError(
+            f"{what} is not computed: its events share random variables, and the values "
+            "they hold at together are not found",
+            hint="write the events as one, or give one of the variables a value, as X = 1",
+        )
+    found = _found(lambda: stats.E(holds), None, parameters, what)  # an integral over where
+    return _borne_out(found, holds, what)
 
-    def exactly() -> Any:
-        return stats.P(event)
 
-    return _found(exactly, None, parameters, f"the probability of {_shown(event)}")
+def _either(events: Sequence[Any], what: str) -> Any:
+    """The probability that one at least of several events holds, by inclusion and
+    exclusion: the sum of the probabilities of each, less those of each two together, and
+    so on."""
+    if len(events) > _MOST_EVENTS:
+        raise EvaluationError(
+            f"{what}, of {len(events)} events joined by or, is not computed: more than "
+            f"{_MOST_EVENTS} are not put together",
+        )
+    total = sympy.S.Zero
+    for size in range(1, len(events) + 1):
+        for chosen in itertools.combinations(events, size):
+            total += (-1) ** (size + 1) * _probability(sympy.And(*chosen))
+    return _tidy(total)
+
+
+def _sharing(events: Sequence[Any]) -> list[list[Any]]:
+    """Events in groups, those of one group sharing random variables, from one to the
+    next, and those of two groups none: the groups are independent of each other."""
+    groups: list[tuple[set[RandomSymbol], list[Any]]] = []
+    for event in events:
+        variables = set(_randoms(event))
+        joined = [group for group in groups if group[0] & variables]
+        kept = [group for group in groups if not group[0] & variables]
+        merged = (
+            variables.union(*(group[0] for group in joined)),
+            [each for group in joined for each in group[1]] + [event],
+        )
+        groups = [*kept, merged]
+    return [group[1] for group in groups]
+
+
+def _fixed(event: Any) -> tuple[RandomSymbol, Any] | None:
+    """The random variable an event gives a value, and the value, as X and 1 of X = 1;
+    ``None`` of any other event."""
+    if not isinstance(event, sympy.Eq):
+        return None
+    for variable, value in ((event.lhs, event.rhs), (event.rhs, event.lhs)):
+        if isinstance(variable, RandomSymbol) and not _randoms(value):
+            return variable, value
+    return None
+
+
+def _split(event: Any, randoms: Sequence[RandomSymbol]) -> tuple[RandomSymbol, list[Any]] | None:
+    """A discrete random variable of an event of several, with finitely many values that
+    hold every one it can take where the event holds: every value it takes, where they are
+    finitely many, or else those a relation of the event leaves it, as X + Y = 3 leaves X
+    those from 0 to 3 where Y is at least 0. ``None`` where no variable has such."""
+    for variable in randoms:
+        if not _discrete(variable):
+            continue
+        others = [each for each in randoms if each is not variable]
+        try:
+            values = _taken(variable)
+            if values is None:
+                found = (_left_by(each, variable, others) for each in sympy.And.make_args(event))
+                values = next((each for each in found if each is not None), None)
+        except (TypeError, ValueError, AttributeError, NotImplementedError):
+            continue  # a law whose values are not known, as of a symbol's trials
+        if values is not None and len(values) <= _MOST_VALUES:
+            return variable, values
+    return None
+
+
+def _taken(variable: RandomSymbol) -> list[Any] | None:
+    """Every value a discrete random variable takes, where they are finitely many."""
+    support = _support(_law(variable))
+    if isinstance(support, sympy.FiniteSet):
+        return sorted(support, key=sympy.default_sort_key)
+    return None
+
+
+def _left_by(
+    relation: Any, variable: RandomSymbol, others: Sequence[RandomSymbol]
+) -> list[Any] | None:
+    """The whole numbers a relation that is linear in the random variables leaves one of
+    them, whatever the others take: of a x + r, with r between its least and its greatest
+    value over what the others take, compared with 0. More than it can take where the
+    relation is strict, never fewer. ``None`` of any other relation, or where they are
+    infinitely many."""
+    if not isinstance(relation, sympy.Eq | sympy.Lt | sympy.Le | sympy.Gt | sympy.Ge):
+        return None
+    try:
+        linear = sympy.Poly(relation.lhs - relation.rhs, variable, *others)
+    except sympy.PolynomialError:
+        return None
+    if linear.total_degree() > 1 or not all(c.is_number for c in linear.coeffs()):
+        return None
+    slope = linear.coeff_monomial(variable)
+    least = greatest = linear.coeff_monomial(1)
+    for other in others:
+        weight = linear.coeff_monomial(other)
+        if weight == 0:
+            continue
+        support = _support(_law(other))
+        ends = sorted((weight * support.inf, weight * support.sup))
+        least, greatest = least + ends[0], greatest + ends[1]
+    if slope == 0 or sympy.nan in (least, greatest):
+        return None
+    # slope x + r holds the relation with 0 for some r from least to greatest
+    low, high = -sympy.oo, sympy.oo
+    if isinstance(relation, sympy.Eq | sympy.Lt | sympy.Le):
+        high = -least  # slope x + least <= 0
+    if isinstance(relation, sympy.Eq | sympy.Gt | sympy.Ge):
+        low = -greatest  # slope x + greatest >= 0
+    low, high = sorted((low / slope, high / slope))
+    support = _support(_law(variable))
+    first, last = sympy.Max(low, support.inf), sympy.Min(high, support.sup)
+    if not (first.is_finite and last.is_finite):
+        return None
+    return [sympy.Integer(k) for k in range(int(sympy.ceiling(first)), int(sympy.floor(last)) + 1)]
 
 
 def _of_one(event: Any, variable: RandomSymbol) -> Any:

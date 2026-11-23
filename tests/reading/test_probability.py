@@ -225,6 +225,59 @@ class TestProbabilities:
         assert same(wb.expr(r"\Pr(Y = 1 \mid X > 0)"), (1 + sympy.erf(1 / sympy.sqrt(2))) / 2)
 
 
+class TestEventsThatShareAVariable:
+    """Events of several random variables that share one are not independent: SymPy
+    multiplies the probabilities of events joined by and, and adds those joined by or."""
+
+    POISSON = "X \\sim \\operatorname{Poisson}(2)\nY \\sim \\operatorname{Poisson}(3)"
+
+    @pytest.mark.parametrize(
+        ("written", "value"),
+        [
+            (r"P(X = 1 \mid X + Y = 3)", sympy.Rational(54, 125)),  # of Bin(3, 2/5)
+            (r"P(X = 1, X + Y = 3)", 9 * sympy.exp(-5)),  # P(X = 1) P(Y = 2)
+            (r"\mathbb{E}[X \mid X + Y = 3]", sympy.Rational(6, 5)),
+            (r"P(X + Y = 3)", 125 * sympy.exp(-5) / 6),  # of Poisson(5)
+            (r"P(X + Y \le 2)", sympy.Rational(37, 2) * sympy.exp(-5)),
+            (r"P(X + Y \ge 2)", 1 - 6 * sympy.exp(-5)),
+            (r"P(2X + Y = 4)", sympy.Rational(115, 8) * sympy.exp(-5)),
+            (r"\mathbb{E}[X Y \mid X + Y = 3]", sympy.Rational(36, 25)),
+            (r"P(X > 0, Y > 0)", (1 - sympy.exp(-2)) * (1 - sympy.exp(-3))),
+            (r"P(X > 0 \text{ or } Y > 0)", 1 - sympy.exp(-5)),
+            (r"P(X = 1 \mid Y = 1)", 2 * sympy.exp(-2)),  # they are independent
+        ],
+    )
+    def test_of_discrete_variables_they_are_summed_over_the_values_of_one(self, wb, written, value):
+        wb.run(self.POISSON)
+        assert same(wb.expr(written), value)
+
+    def test_with_rates_that_are_symbols(self, wb):
+        wb.run("X \\sim \\operatorname{Poisson}(\\lambda)\nY \\sim \\operatorname{Poisson}(\\mu)")
+        assert same(wb.expr(r"P(X = 1 \mid X + Y = 2)"), 2 * lam * mu / (lam + mu) ** 2)
+
+    def test_of_variables_that_take_finitely_many_values(self, wb):
+        wb.run("D \\sim \\operatorname{Bin}(2, 1/2)\nE \\sim \\operatorname{Bin}(2, 1/2)")
+        assert wb.expr("P(D = E)") == sympy.Rational(3, 8)
+        assert wb.expr("P(D E = 1)") == sympy.Rational(1, 4)  # no linear relation
+        assert wb.expr(r"\mathbb{E}[D \mid D \ge E]") == sympy.Rational(14, 11)
+
+    def test_of_continuous_variables_apart_and_together(self, wb):
+        wb.run("X \\sim \\mathcal{N}(0, 1)\nY \\sim \\mathcal{N}(0, 1)")
+        assert wb.expr("P(X > 0, Y > 0)") == sympy.Rational(1, 4)
+        assert wb.expr(r"P(X > 0 \text{ or } Y > 0)") == sympy.Rational(3, 4)
+        assert wb.expr("P(X = 1, X + Y = 3)") == 0
+        assert wb.expr("P(X + Y < 0)") == sympy.Rational(1, 2)  # SymPy's, borne out
+
+    def test_what_sympy_gives_wrongly_is_refused(self, wb):
+        # SymPy gives the expectation of X where X + Y > 0, and 0 elsewhere, as 0: it is
+        # 1/(2√π), and so E[X | X + Y > 0] is 1/√π
+        wb.run("X \\sim \\mathcal{N}(0, 1)\nY \\sim \\mathcal{N}(0, 1)")
+        with pytest.raises(EvaluationError, match="SymPy gives 0, and a simulation of it"):
+            wb.expr(r"\mathbb{E}[X \mid X + Y > 0]")
+        with pytest.raises(EvaluationError, match="still holds X"):
+            wb.expr("P(X > 0, X + Y < 1)")
+
+
 class TestMoments:
     def test_the_variance_of_an_affine_function_holds_whatever_the_law(self, wb):
         assert wb.expr(r"\operatorname{Var}(a X + b) = a^2 \operatorname{Var}(X)") is sympy.true
