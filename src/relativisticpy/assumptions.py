@@ -488,13 +488,26 @@ def _sum(body: Any, *limits: Any) -> Any:
     return sympy.Sum(rewritten, (index, lower, upper)).doit().xreplace(ratios)
 
 
+#: What SymPy raises where it cannot decide a relation of the parameters, as a - r >= 0 of
+#: the integral of |a + r cos θ|, which the bounds the program assumes may decide.
+_UNDECIDED = (TypeError, ValueError, NotImplementedError)
+
+
 def _computed(
     compute: Callable[..., Any], f: Any, limits: Sequence[Any], bounds: Sequence[Any]
 ) -> Any:
     """What ``compute`` gives of ``f`` over ``limits``, an integral or a sum: where it holds
-    conditions, computed again under the bounds the program assumes, and else under the
-    assumption books make (see :func:`integrated`)."""
-    found = compute(f, *limits)
+    conditions, or where SymPy fails for want of a relation of its parameters, as a > r,
+    computed again under the bounds the program assumes, and else under the assumption
+    books make (see :func:`integrated`)."""
+    try:
+        found = compute(f, *limits)
+    except _UNDECIDED:
+        if not bounds:
+            raise
+        found = _within_bounds(compute, f, limits, bounds, None)
+        if found is None:
+            raise
     if bounds and _conditional(found):
         found = _within_bounds(compute, f, limits, bounds, found)
     if not _conditional(found):
@@ -505,10 +518,11 @@ def _computed(
 def _within_bounds(
     compute: Callable[..., Any], f: Any, limits: Sequence[Any], bounds: Sequence[Any], found: Any
 ) -> Any:
-    """An integral or a sum that holds conditions, computed again where the bounds hold:
-    each symbol they limit written as the new positive symbols that keep them, x > 1 as
-    1 + p, and the value written with the symbol again, p as x - 1. Its conditions decided
-    by the bounds, where that gives no value."""
+    """An integral or a sum that holds conditions, or that SymPy could not compute at all,
+    ``found`` as ``None``, computed again where the bounds hold: each symbol they limit
+    written as the new positive symbols that keep them, x > 1 as 1 + p, and the value
+    written with the symbol again, p as x - 1. Its conditions decided by the bounds, where
+    that gives no value."""
     written = f.free_symbols.union(*(sympy.sympify(limit).free_symbols for limit in limits))
     limited = {x: e for x, e in within(bounds).items() if x in written}
     steps = sorted(
@@ -517,10 +531,15 @@ def _within_bounds(
     if limited and steps:
         inverse = sympy.solve([sympy.Eq(x, e) for x, e in limited.items()], steps, dict=True)
         if len(inverse) == 1:
-            again = compute(f.xreplace(limited), *_put(limits, limited))
+            try:
+                again = compute(f.xreplace(limited), *_put(limits, limited))
+            except _UNDECIDED:
+                if found is not None:
+                    raise
+                return None  # SymPy fails here too: what it said first is the error
             if not _conditional(again):
                 return sympy.simplify(again.xreplace(inverse[0]))
-    return settled(found, bounds)
+    return None if found is None else settled(found, bounds)
 
 
 def settled(value: Any, bounds: Sequence[Any]) -> Any:

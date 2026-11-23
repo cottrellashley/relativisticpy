@@ -205,6 +205,7 @@ geom.curves.helix-curvature
 geom.gauss-bonnet.chern-four-sphere
 geom.gauss-bonnet.geodesic-triangle
 geom.gauss-bonnet.latitude
+geom.gauss-bonnet.torus
 geom.hyperbolic.circumference
 geom.hyperbolic.modular-domain
 geom.surfaces.catenoid-minimal
