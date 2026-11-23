@@ -429,6 +429,21 @@ optimum, how, and whether it is proven global:
 
 ```
 
+An optimum is said to be global only where that is proven: of a function of one variable,
+where every stationary point in its domain is found, those of a periodic function too, and
+every point where it is not defined, toward which its values are approached and never
+reached; of several, of a convex problem, or of a polynomial one over a bounded region.
+A search by SciPy gives an optimum only where it converged and nothing lower is found far
+away, and it is not said to be global unless the problem is convex. Where more than one
+point reaches the optimum, the note says which, an interval or a curve of them too, and
+`\arg\min` gives the least:
+
+```python
+>>> [step.notes for step in optima.each(r"\arg\min_x \left(|x - 1| + |x + 1|\right)")]
+[['the global minimum, found exactly by SymPy, from its stationary points, the points where it has no derivative, and the ends of its domain (extrema); every point of [−1, 1] reaches it, and −1 is given']]
+
+```
+
 The variables are real, or whole numbers, as `n \in \mathbb{N}` says. A variable is a
 vector where its set is `\mathbb{R}^n` or `\{0, 1\}^n`, or a matrix it is multiplied by
 gives its length, as `A \mathbf{x}` does, and its components may be written `x_1, x_2`; a

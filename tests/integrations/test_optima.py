@@ -304,6 +304,56 @@ class TestSeveralVariables:
             wb.expr(r"\min_{x, y} \; (x - y)^2 - x - y")
 
 
+class TestNumerically:
+    """What SciPy finds is an optimum only where its search converged, and nothing lower is
+    found far away; and it is the number SciPy found, not a whole number near it."""
+
+    @pytest.mark.parametrize(
+        "objective",
+        [x**2 - 1.0 * y, x**3 - 3.0 * x, sympy.exp(-x) * 1.0, -1.0 * x * y],
+    )
+    def test_a_search_that_runs_away_finds_no_minimum(self, objective):
+        variables = tuple(sorted(objective.free_symbols, key=str))
+        problem = Problem("min", objective, variables)
+        assert integrations.find("minimize").exact(problem) is None
+
+    @pytest.mark.parametrize(
+        ("source", "said"),
+        [
+            (r"\min_{x, y} \left(x^2 - 1.0 y\right)", "grows without bound, to −∞"),
+            (r"\min_{x} \left(x^3 - 3.0 x\right)", "grows without bound, to −∞"),
+            (r"\min_{x} e^{-x} \cdot 1.0", "as near as you like to 0, which no point reaches"),
+        ],
+    )
+    def test_what_has_no_minimum_is_said_to_have_none(self, wb, source, said):
+        with pytest.raises(EvaluationError, match=said):
+            wb.expr(source)
+
+    def test_one_that_is_bounded_is_found_as_before(self, wb):
+        source = r"\min_{x} \; x^4 - 3.0 x^2 + x"
+        assert wb.expr(source) == pytest.approx(-3.513905038934789)
+        assert "not proven global" in notes(wb, source)[-1]
+
+    def test_a_value_near_a_whole_number_is_not_made_one(self, wb):
+        assert wb.expr(r"\min_{x, y} \left(x^2 + y^2 + 0.0000000003\right)") == pytest.approx(
+            3e-10, rel=1e-9
+        )
+        where = wb.expr(r"\arg\min_{x, y} \left((x - 0.0000000004)^2 + y^2\right)")
+        assert [float(each) for each in where] == pytest.approx([4e-10, 0.0], abs=1e-18)
+
+    def test_whole_numbers_of_whole_data_stay_whole(self, wb):
+        source = (
+            r"\max_{x, y \in \mathbb{Z}} \; x + y \quad \text{subject to} \quad "
+            r"2x + 2y \leq 7, \quad x, y \geq 0"
+        )
+        assert isinstance(wb.expr(source), sympy.Integer)
+        program = (
+            r"\max_{x, y} \; 0.5x + 0.3y \quad \text{subject to} \quad x + y \leq 10, \quad "
+            r"x \leq 6, \quad x, y \geq 0"
+        )
+        assert isinstance(wb.expr(program), sympy.Float)  # of data, a decimal
+
+
 class TestOverAnIndex:
     def test_the_greatest_value_along_an_index_of_data(self, wb):
         wb["y_t"] = np.array([1.0, 2.0, 0.0, -1.0])

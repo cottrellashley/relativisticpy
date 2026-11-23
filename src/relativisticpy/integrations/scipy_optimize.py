@@ -39,10 +39,26 @@ def _coefficients(expr: Any, variables: Sequence[Symbol]) -> tuple[list[float], 
     return coefficients, constant
 
 
-def _number(value: Any) -> Any:
-    """A number SciPy found, as SymPy writes it: a whole number where it is one."""
+def _number(value: Any, whole: bool) -> Any:
+    """A number SciPy found, as SymPy writes it: of a problem whose data are ``whole``
+    numbers, a whole number where it is one but for rounding, as 2.0000000000004 is; else
+    the decimal SciPy found, as 3e-10 is, which is no rounding of 0."""
     value = float(value)
-    return sympy.Integer(round(value)) if abs(value - round(value)) < 1e-9 else sympy.Float(value)
+    nearest = round(value)
+    if whole and abs(value - nearest) <= 1e-9 * max(1.0, abs(value)):
+        return sympy.Integer(nearest)
+    return sympy.Float(value)
+
+
+def _whole(problem: Problem) -> bool:
+    """Whether every number a problem is written with is a whole number, as the numbers
+    of a linear program of counts are: what is found of it may be one but for rounding."""
+    given = [each for _, values in problem.finite for each in values]
+    numbers = set().union(
+        *(sympy.sympify(e).atoms(sympy.Number, sympy.NumberSymbol) for e in problem.expressions),
+        {sympy.sympify(each) for each in given},
+    )
+    return all(n.is_Number and n.is_finite and n == int(n) for n in numbers)
 
 
 @optimizer(
@@ -131,8 +147,9 @@ class LinearProgram:
             return Found(infinite, None, how, proven=True, attained=False, numeric=True)
         if result.status != 0 or result.x is None:
             return None
-        point = tuple(_number(v) for v in result.x)
-        value = _number(sign * result.fun + constant)
+        counted = _whole(problem)
+        point = tuple(_number(v, counted) for v in result.x)
+        value = _number(sign * result.fun + constant, counted)
         return Found(value, point, how, proven=True, numeric=True)
 
 
@@ -229,15 +246,60 @@ class QuadraticProgram:
         if best is None:
             return None
         sign = 1 if problem.sense == "min" else -1
-        point = tuple(_number(v) for v in best[1])
+        counted = _whole(problem)
+        point = tuple(_number(v, counted) for v in best[1])
         how = "by SciPy's linear algebra, from the KKT conditions at each set of active constraints"
-        return Found(_number(sign * best[0]), point, how, proven=True, numeric=True)
+        return Found(_number(sign * best[0], counted), point, how, proven=True, numeric=True)
 
 
 def _numeric(expr: Any, variables: Sequence[Symbol]) -> Callable[..., Any]:
     """An expression of the variables as a function of a vector of their values."""
     function = sympy.lambdify([list(variables)], expr, modules=["scipy", "numpy"])
     return lambda values: float(function(list(values)))
+
+
+#: How far from a minimum found, in its own distance from 0 or 1 if that is more, what is
+#: made least is looked at again, along each line through it.
+_FAR = (2.0, 10.0, 100.0, 1000.0)
+#: How often the minimum is sought again from a lower point found far away.
+_RESTARTS = 2
+
+
+def _beyond(
+    objective: Callable[..., Any], problem: Problem, point: Any, value: float
+) -> tuple[bool, Any] | None:
+    """What is made least far from a minimum found, along each axis and a few other lines
+    through it, either way: nothing, where no point there that keeps the constraints is
+    lower. Else whether it keeps falling the farther out, as x^3 - 3x does without bound,
+    and e^{-x} toward 0, a value no point reaches, so that the point found is no minimum
+    but where the search stopped; and, where it does not, a lower point, to seek the
+    minimum from again."""
+    import numpy as np
+
+    size = len(point)
+    reach = max(1.0, float(np.linalg.norm(point)))
+    drawn = np.random.default_rng(0).normal(size=(4, size))
+    lines = [*np.eye(size), np.ones(size), *drawn]
+    lower_point = None
+    for line in lines:
+        for direction in (line / np.linalg.norm(line), -line / np.linalg.norm(line)):
+            lower: list[float] = []
+            for scale in _FAR:
+                far = point + scale * reach * direction
+                if problem.violations([sympy.Float(v) for v in far], 1e-7, whole=False):
+                    continue
+                try:
+                    with np.errstate(all="ignore"):
+                        there = objective(far)
+                except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+                    continue
+                if math.isfinite(there) and there < value - 1e-9 * abs(value) and there < value:
+                    if lower and there < lower[-1]:
+                        return True, None
+                    if lower_point is None:
+                        lower_point = far
+                    lower.append(there)
+    return None if lower_point is None else (False, lower_point)
 
 
 def _starts(problem: Problem, size: int) -> list[Any]:
@@ -319,33 +381,53 @@ class Minimize:
             (float(low) if low.is_finite else None, float(high) if high.is_finite else None)
             for low, high in (ranges[v] for v in variables)
         ]
-        best: tuple[float, Any] | None = None
+
+        def search(starts: Sequence[Any]) -> tuple[float, Any] | None:
+            """The least value SLSQP converges to from the starts, at a point that keeps the
+            constraints, with the point."""
+            best: tuple[float, Any] | None = None
+            for start in starts:
+                try:
+                    with np.errstate(all="ignore"):
+                        result = minimize(
+                            objective,
+                            np.clip(
+                                start,
+                                [b[0] if b[0] is not None else -np.inf for b in bounds],
+                                [b[1] if b[1] is not None else np.inf for b in bounds],
+                            ),
+                            jac=jacobian,
+                            method="SLSQP",
+                            bounds=bounds,
+                            constraints=constraints,
+                            options={"maxiter": 500, "ftol": 1e-14},
+                        )
+                except (ValueError, TypeError, OverflowError, ZeroDivisionError):
+                    continue
+                if not result.success:  # it did not converge, as where it runs away
+                    continue
+                if not np.all(np.isfinite(result.x)) or not math.isfinite(float(result.fun)):
+                    continue
+                if problem.violations([sympy.Float(v) for v in result.x], 1e-7, whole=False):
+                    continue
+                if best is None or result.fun < best[0] - 1e-12:
+                    best = (float(result.fun), np.asarray(result.x))
+            return best
+
         starts = _starts(problem, size)
-        for start in starts:
-            try:
-                with np.errstate(all="ignore"):
-                    result = minimize(
-                        objective,
-                        np.clip(
-                            start,
-                            [b[0] if b[0] is not None else -np.inf for b in bounds],
-                            [b[1] if b[1] is not None else np.inf for b in bounds],
-                        ),
-                        jac=jacobian,
-                        method="SLSQP",
-                        bounds=bounds,
-                        constraints=constraints,
-                        options={"maxiter": 500, "ftol": 1e-14},
-                    )
-            except (ValueError, TypeError, OverflowError, ZeroDivisionError):
-                continue
-            if not np.all(np.isfinite(result.x)) or not math.isfinite(float(result.fun)):
-                continue
-            if problem.violations([sympy.Float(v) for v in result.x], 1e-7, whole=False):
-                continue
-            if best is None or result.fun < best[0] - 1e-12:
-                best = (float(result.fun), np.asarray(result.x))
-        if best is None:
+        best = search(starts)
+        for _ in range(_RESTARTS + 1):
+            if best is None:
+                return None
+            beyond = _beyond(objective, problem, best[1], best[0])
+            if beyond is None:
+                break
+            falls, lower = beyond
+            again = None if falls else search([lower])
+            if again is None or again[0] >= best[0]:
+                return None  # not bounded below, or not reached, as far as it can tell
+            best = again
+        else:
             return None
         how = f"by SciPy's minimize (SLSQP), from {len(starts)} starting points"
         point = [float(v) for v in best[1]]
