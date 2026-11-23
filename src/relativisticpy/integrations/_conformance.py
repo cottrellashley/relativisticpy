@@ -52,7 +52,13 @@ import sympy
 
 from relativisticpy.errors import InternalError, RelativisticPyError, translate
 from relativisticpy.integrations import _distributions, _objects, _optimizers, _transforms
-from relativisticpy.integrations._declarations import Capability, Example, Function, MapFunction
+from relativisticpy.integrations._declarations import (
+    Capability,
+    Example,
+    Function,
+    MapFunction,
+    near,
+)
 from relativisticpy.integrations._discovery import (
     Exactly,
     Numerically,
@@ -421,7 +427,7 @@ def agreement(capability: Capability) -> list[str]:
             continue
         numeric = complex(np.asarray(_numerically(capability, point)).item())
         computed.append(numeric)
-        if not _close(numeric, exact):
+        if not near(numeric, exact, AGREEMENT):
             failures.append(
                 f"{name}: numeric and exact differ at {_at(capability, point)}: numeric gives "
                 f"{_number(numeric)}, exact {_number(exact)}; fix numeric, or, if the point is "
@@ -432,7 +438,7 @@ def agreement(capability: Capability) -> list[str]:
     columns = [np.asarray([point[k] for point in points]) for k in range(len(points[0]))]
     together = np.asarray(_numerically(capability, tuple(columns)))
     if together.shape != (len(points),) or not all(
-        _close(complex(a), b) for a, b in zip(together.ravel(), computed, strict=False)
+        near(complex(a), b, AGREEMENT) for a, b in zip(together.ravel(), computed, strict=False)
     ):
         failures.append(
             f"{name}: numeric given arrays of the points at once does not give an array of "
@@ -574,7 +580,7 @@ def _past_at(
         if isinstance(found, str):
             return [f"{name} applied to data past its points {found}"]
         for (value, exact), number in zip(computed, found, strict=True):
-            if not _close(complex(number), exact):
+            if not near(complex(number), exact, AGREEMENT):
                 return [
                     f"{name} applied to data past its points gives {_number(complex(number))} "
                     f"at {_at(capability, (*point[:place], value, *point[place + 1 :]))}, where "
@@ -765,8 +771,6 @@ def _map_lifting(capability: Capability) -> list[str]:
 def _over_the_map(capability: Capability, result: Any, expected: Any, what: str) -> list[str]:
     """The failures of the value of a function of a matrix applied to a map: a number where
     it gives one, and otherwise a map over the same space, with exact's entries."""
-    import numpy as np
-
     from relativisticpy.tensors import Tensor
 
     name = capability.name
@@ -779,7 +783,7 @@ def _over_the_map(capability: Capability, result: Any, expected: Any, what: str)
     found, wanted = _entries(result), _entries(expected)
     if found is None or wanted is None or found.shape != wanted.shape:
         return [f"{name} applied to {what} gives {_value(result)}, not {_value(expected)}"]
-    if not np.allclose(found, wanted, rtol=1e-9, atol=1e-9 * max(1.0, float(np.abs(wanted).max()))):
+    if not _close_entries(found, wanted, 1e-9):
         return [
             f"{name} applied to {what} gives {_shown_entries(found)}, not its value at the map's "
             f"matrix, {_shown_entries(wanted)}; {_FROM_DATA if what == 'data' else _FROM_TENSOR}"
@@ -819,8 +823,8 @@ def _entries(value: Any) -> Any:
 
 
 def _close_entries(found: Any, expected: Any, tolerance: float) -> bool:
-    """Whether the entries found are finite and close to those expected, relative to the
-    largest of them."""
+    """Whether the entries found are near those expected, as :func:`near` compares numbers,
+    relative to the largest of them."""
     import numpy as np
 
     if not np.all(np.isfinite(found)):
@@ -1082,12 +1086,6 @@ def _numerically(capability: Capability, point: tuple[Any, ...], xp: Any = None)
         return Numerically(capability.name)(np if xp is None else xp, *arrays)
 
 
-def _close(numeric: complex, exact: complex) -> bool:
-    if not (math.isfinite(numeric.real) and math.isfinite(numeric.imag)):
-        return False
-    return abs(numeric - exact) <= AGREEMENT * max(1.0, abs(exact))
-
-
 def _numeric_value(value: Any) -> bool:
     if not _scalar(value):
         return False
@@ -1127,8 +1125,7 @@ def _same(value: Any, answer: Any, tolerance: float) -> bool:
     if value == answer:
         return True
     if value.is_number and answer.is_number:
-        a, b = complex(sympy.N(value, 30)), complex(sympy.N(answer, 30))
-        return abs(a - b) <= tolerance * max(1.0, abs(b))
+        return near(complex(sympy.N(value, 30)), complex(sympy.N(answer, 30)), tolerance)
     try:
         return bool(sympy.simplify(value - answer) == 0)
     except (TypeError, AttributeError):

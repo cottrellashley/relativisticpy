@@ -45,7 +45,7 @@ from typing import Any, ClassVar
 import sympy
 
 from relativisticpy.errors import RelativisticPyError
-from relativisticpy.integrations._declarations import Capability, Example, _declare
+from relativisticpy.integrations._declarations import Capability, Example, _declare, near
 from relativisticpy.integrations._discovery import catalogue, on_change
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
@@ -554,7 +554,7 @@ def _function_checks(capability: Transform) -> list[str]:
                     f"{_shown(found)}; declare points where it is one"
                 )
                 break
-            if not _close(computed, expected):
+            if not near(computed, expected, AGREEMENT):
                 failures.append(
                     f"{name} of {_shown(function)} at {taken} = {value} is {_number(computed)}, "
                     f"but its integral is {_number(expected)}: fix exact, or the integral"
@@ -588,7 +588,7 @@ def _undone(
                 f"{inverse.name} of {capability.name} of {_shown(function)} is "
                 f"{_shown(back)}, no number at {given} = {value}"
             ]
-        if not _close(then, now):
+        if not near(then, now, AGREEMENT):
             return [
                 f"{inverse.name} does not undo {capability.name}: of {_shown(function)} it "
                 f"gives back {_shown(back)}, {_number(then)} at {given} = {value}, not "
@@ -611,12 +611,6 @@ def _number(value: complex) -> str:
     if abs(value.imag) <= AGREEMENT * max(1.0, abs(value.real)):
         return f"{value.real:.10g}"
     return f"{value:.10g}"
-
-
-def _close(computed: complex, expected: complex) -> bool:
-    if not (math.isfinite(computed.real) and math.isfinite(computed.imag)):
-        return False
-    return abs(computed - expected) <= AGREEMENT * max(1.0, abs(expected))
 
 
 #: The samples a transform of data is checked on: real and complex, of even and odd size.

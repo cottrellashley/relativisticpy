@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 
 from relativisticpy import integrations
+from relativisticpy.integrations._declarations import near
 
 CAPABILITIES = integrations.capabilities()
 
@@ -109,3 +110,12 @@ def test_every_check_is_run_for_some_capability():
     }  # fmt: skip
     for check in integrations.CHECKS:
         assert applicable(check.name), f"no capability is checked for {check.name}"
+
+
+def test_every_check_compares_numbers_one_way():
+    assert near(1e9 + 0.5, 1e9, 1e-9)  # relative to the size of the number expected
+    assert not near(1.001, 1, 1e-9)
+    assert near(1e-15, 0, 1e-12)  # and to 1, where that is smaller
+    assert near(2 + 1e-13j, 2, 1e-12)
+    assert not near(float("nan"), 0, 1)  # a number that is not finite is near none
+    assert not near(float("inf"), float("inf"), 1)

@@ -32,6 +32,7 @@ JAX's. A capability is checked by the conformance suite, ``tests/integrations``.
 from __future__ import annotations
 
 import inspect
+import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from functools import cached_property
@@ -54,6 +55,15 @@ class Example:
     source: str
     tolerance: float = 1e-12
     given: Callable[[], Mapping[str, Any]] | None = None
+
+
+def near(found: complex, expected: complex, tolerance: float) -> bool:
+    """Whether a number is the one expected, to ``tolerance``, as every check compares
+    numbers: relative to the size of the one expected, or to 1 where that is smaller, so
+    that 1e-15 is near 0. A number that is not finite is near none."""
+    if not (math.isfinite(found.real) and math.isfinite(found.imag)):
+        return False
+    return abs(found - expected) <= tolerance * max(1.0, abs(expected))
 
 
 @dataclass(frozen=True, eq=False)
