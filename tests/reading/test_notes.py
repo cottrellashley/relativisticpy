@@ -112,6 +112,19 @@ class TestSilentReadingsAreSaid:
         wb.exe(r"\bar{x} := \frac{1}{4} \sum_{i=1}^{4} x_i")
         assert wb.expr(r"\bar{x}") == 3  # the hint works
 
+    def test_a_numbered_partial_derivative_says_which_variable_it_is_by(self, wb):
+        # Stewart's f_1 and D_1 f were a name, and D_1 times f (decisions 5.6 and 18)
+        wb.exe("f(x, y) := x^2 y^3")
+        assert notes(wb, "f_{12}") == [
+            "f_{12} is read as the partial derivative of f(x, y) by x, then y, the variables "
+            "its subscript numbers, as Stewart writes it; for a name of its own, define f_{12} "
+            "first"
+        ]
+        assert notes(wb, r"D_1 f + 0 \cdot x") == [
+            "D_1 f is read as the partial derivative of f(x, y) by x, the variable the "
+            r"subscript of D numbers, as Stewart writes it; for D_1 times f, write D_1 \cdot f"
+        ]
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

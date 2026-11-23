@@ -88,7 +88,25 @@ PRIMES = [
     ("f(x) := x^3\n(f(x))'", 3 * x**2),
 ]
 
+F_XY = "f(x, y) := x^2 y^3\n"
+
 DERIVATIVES = [
+    # Stewart numbers the variables of a function of several: f_1, f_{12} and D_1 f were
+    # names of their own, and D_1 times f
+    (F_XY + "f_1", 2 * x * y**3),
+    (F_XY + "f_2", 3 * x**2 * y**2),
+    (F_XY + "f_{12}", 6 * x * y**2),
+    (F_XY + "f_{11}", 2 * y**3),
+    (F_XY + "f_1(1, 2)", 16),
+    (F_XY + "D_1 f", 2 * x * y**3),
+    (F_XY + "D_2 f(x, y)", 3 * x**2 * y**2),
+    (F_XY + "2 D_1 f", 4 * x * y**3),
+    (F_XY + r"D_1 \cdot f", sympy.Symbol("D_1") * x**2 * y**3),  # set apart, a product
+    ("f(x, y, z) := x y z^2\nf_{13}", 2 * y * z),
+    ("h(r, \\theta) := r^2 \\sin\\theta\nh_2", r**2 * cos(theta)),
+    ("g(x) := x^2\ng_1", sympy.Symbol("g_1")),  # of one variable, a name of its own
+    (F_XY + "f_3", sympy.Symbol("f_3")),  # f has no third variable
+    (F_XY + "f_1 := 5\nf_1", 5),  # a name the program defines wins
     # d with brackets against it, atop a fraction (sin^2(theta)/theta before)
     (r"\frac{d(\sin^2\theta)}{d\theta}", diff(sin(theta) ** 2, theta)),
     (r"\frac{d(x^2)}{dx}", 2 * x),

@@ -717,6 +717,13 @@ class Expressions(LinearAlgebra):
             if following is not None and _side_by_side(factor, following):  # not D \cdot f(x)
                 derivative = self._euler(factor, following, scope, ctx)
             if following is not None and derivative is None:
+                numbered = None
+                if _side_by_side(factor, following):  # D_1 f, not D_1 \cdot f
+                    numbered = self._numbered_derivative(factor, following, scope, ctx)
+                if numbered is not None:
+                    merged.append(numbered)
+                    position += 2
+                    continue
                 operator = self._joined_derivative(factor, scope)  # D_x f(x)
                 if operator is not None:
                     merged.append(operator)

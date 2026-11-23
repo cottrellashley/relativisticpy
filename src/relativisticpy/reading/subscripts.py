@@ -244,6 +244,20 @@ def subscripted(node: ast.Expr) -> Subscripted | None:
     return Subscripted(node, node.base, base, body, labels, shown.replace(" ", ""), raised)
 
 
+def _numbered_variables(subscript: ast.Expr | None, params: Sequence[str]) -> list[str] | None:
+    """The variables of a function of several variables that a subscript numbers, as
+    Stewart writes f_1 for the derivative by the first and f_{12} for that by the first and
+    then the second: x of ``1`` and x and y of ``12``, of f(x, y). ``None`` for a subscript
+    that is no whole number, or names a variable the function does not have, as 3 of f(x,
+    y), and for a function of one variable, whose f_1 is a name of its own."""
+    if len(params) < 2 or not isinstance(subscript, ast.Number):
+        return None
+    digits = subscript.text
+    if not digits.isdigit() or not all(1 <= int(digit) <= len(params) for digit in digits):
+        return None
+    return [params[int(digit) - 1] for digit in digits]
+
+
 def member_written(node: ast.Expr, base: str, subscript: ast.Expr, shown: str) -> Subscripted:
     """A name of ``base`` with a ``subscript`` that a layer read apart from the name it is
     written in, as the 1 of ``E^{(0)}_1``, whose base is ``E^(0)``."""
@@ -913,9 +927,11 @@ class Subscripts(Matrices):
     def _reads_as_partial(self, written: Subscripted, scope: Scope) -> Reading | None:
         """A partial derivative of a function the program defines, by the parameters the
         subscript names in turn, a run of letters each naming one, as ``f_x`` and
-        ``f_{xy}`` of f(x, y) (decision 5.6); not of a family, whose subscripts pick its
-        members, nor of a sequence or a frequency response, which are written at points."""
-        if written.labels is None or isinstance(written.head, ast.Prime):
+        ``f_{xy}`` of f(x, y) (decision 5.6), or numbers them, as Stewart's ``f_1`` and
+        ``f_{12}`` of a function of several variables; not of a family, whose subscripts
+        pick its members, nor of a sequence or a frequency response, which are written at
+        points."""
+        if isinstance(written.head, ast.Prime):
             return None
         binding = scope.lookup(written.base)
         if not isinstance(binding, FunctionBinding):
@@ -923,6 +939,11 @@ class Subscripts(Matrices):
         if isinstance(binding.definition, Family | SequenceDefinition | Response):
             return None
         params = binding.definition.params
+        if written.labels is None:  # f_1 and f_{12}: by the first, then the second
+            numbered = _numbered_variables(written.subscript, params)
+            if numbered is None:
+                return None
+            return Reading(Kind.PARTIAL, written, binding=binding, labels=tuple(numbered))
         labels = [written.shown] if written.joined else list(written.labels)
         if not all(label in params for label in labels):
             labels = [letter for label in labels for letter in label]

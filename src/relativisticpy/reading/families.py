@@ -58,6 +58,7 @@ from relativisticpy.reading.subscripts import (
     _WORD,
     Kind,
     Reading,
+    _numbered_variables,
     _raised,
     family_of,
     label_name,
@@ -605,6 +606,44 @@ class Families(Labels):
         label = ast.Name(labels[0], span=span)
         script = ast.Script("_", label, ast.IndexList(items, span=span), span=span)
         return ast.Scripted(ast.Name(base, span=span), (script,), span=span)
+
+    def _numbered_derivative(
+        self, node: ast.Expr, operand: ast.Expr, scope: Scope, ctx: Context
+    ) -> ast.Derivative | None:
+        """``D_1 f``: D, which nothing defines, with a number as its subscript, which the
+        lexer joins into one name, before a function of several variables the program
+        defines, named alone or applied: the partial derivative by the variable the number
+        counts, as Stewart writes it, with a note (decisions 5.6 and 18). ``None`` for any
+        other factor."""
+        if not isinstance(node, ast.Name):
+            return None
+        base, underscore, tail = node.id.partition("_")
+        if not (underscore and base == "D" and tail.isdigit()):
+            return None
+        if scope.lookup(node.id) is not None or scope.lookup(base) is not None:
+            return None
+        func = operand.func if isinstance(operand, ast.Call) else operand
+        if not isinstance(func, ast.Name):
+            return None
+        binding = scope.lookup(func.id)
+        if not isinstance(binding, FunctionBinding) or isinstance(binding.definition, Family):
+            return None
+        params = binding.definition.params
+        number = ast.Number(tail, span=node.span)
+        variables = _numbered_variables(number, params)
+        if variables is None:
+            return None
+        written = f"{node.span.text} {operand.span.text}"
+        function = f"{func.span.text}({', '.join(_shown(p, ctx.latex) for p in params)})"
+        by = ", then ".join(_shown(variable, ctx.latex) for variable in variables)
+        self._note(
+            f"{written} is read as the partial derivative of {function} by {by}, the "
+            f"variable{'s' * (len(variables) > 1)} the subscript of D numbers, as Stewart "
+            f"writes it; for D_{tail} times {operand.span.text}, write {node.span.text} "
+            f"\\cdot {operand.span.text}"
+        )
+        pairs = tuple((ast.Name(variable, span=node.span), 1) for variable in variables)
+        return ast.Derivative(operand, pairs, partial=True, span=node.span.to(operand.span))
 
     def _family_alone(
         self,

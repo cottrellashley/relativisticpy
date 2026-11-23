@@ -1053,11 +1053,17 @@ class VectorCalculus(Vectors, Probability):
         written_function = form.base if form.joined else form.head.span.text
         params = binding.definition.params
         written = node.span.text
-        shown = ", ".join(params)
-        by = " and ".join(dict.fromkeys(labels))
+        shown = ", ".join(_shown(param, ctx.latex) for param in params)
+        by = ", then ".join(_shown(label, ctx.latex) for label in labels)  # f_{xx}: x, then x
         why = f"{written_function} is a function of {shown}, and nothing defines {written}"
         read_as = f"the partial derivative of {written_function}({shown}) by {by}"
         note = f"{written} is read as {read_as}"
+        if isinstance(form.subscript, ast.Number):  # f_1 and f_{12}, as Stewart writes them
+            counted = "variables" if len(set(labels)) > 1 else "variable"
+            note += (
+                f", the {counted} its subscript numbers, as Stewart writes it; for a name of "
+                f"its own, define {written} first"
+            )
         self._note(note)
         self._decide(VECTOR, node.span, read_as, why, note)
         symbols = [self.graph.const(self.session.symbol(param), SCALAR) for param in params]
