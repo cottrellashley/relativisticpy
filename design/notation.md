@@ -407,3 +407,13 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 **Why it is open.** Concrete Mathematics writes `\sum_k \binom{r}{k} \binom{s}{n-k}`, a sum over every integer k, its range left to the binomial coefficients, which vanish where their lower index is negative. Index notation writes `\sum_a w^a`, a sum over the values of an index of a tensor, and a sum without limits of anything else says nothing of its range.
 
 **Recommendation.** A sum over a name with no limits, which no subscript in its body writes and which is the lower index of a binomial coefficient in it, is over every integer, with a note; its terms are summed where its binomial coefficients can be other than 0: `binomial(a, k + c)` from k = -c, `binomial(a, c - k)` up to k = c, and, of a whole number a, up to a. A sum over an index of a tensor or of data is read as before, and any other sum without limits is refused, as before. A sum of finitely many terms, from an integer to an integer, has the closed form SymPy finds for it without the conditions under which the infinite series SymPy sums it by would converge, which say nothing of it: the binomial theorem is `(x + y)^n` for every natural n.
+
+## 39. The p of chemists
+
+**Added** on 23 November 2026, from chemistry.
+
+**Waiting on it:** `chem.equilibrium.henderson-hasselbalch` (1).
+
+**Why it is open.** Chemists write pX for −log₁₀ X, as in pH, pOH and pK_a, with the p set upright: `\mathrm{p}K_\mathrm{a}`. Read as written, it was p times K_a, so that the pH of a buffer by the Henderson–Hasselbalch equation was 1.8×10⁻⁵ p + log₁₀ 2.
+
+**Recommendation.** An upright p written against what follows it, `\mathrm{p}K_\mathrm{a}`, and `\mathrm{p}(X)`, is the cologarithm of it, −log₁₀ X, the capability `colog` of `integrations/chemistry.py`, with a note. Written apart, `\mathrm{p} \cdot K_\mathrm{a}`, it multiplies; an italic p is a letter, a pressure, a momentum or a probability; a name set upright whole, `\mathrm{pH}`, is a name of its own (decision 9); and a program that gives p a value has its own p.

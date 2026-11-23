@@ -109,6 +109,7 @@ A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a comma
 
 - **Algebra and calculus:** `simplify` `tsimplify`, `expand`, `factor`, `collect`, `cancel`, `apart`, `together`, `trigsimp`, `powsimp`, `expand_trig`, `nsimplify`, `diff`, `integrate`, `limit` `lim`, `series`, `subs`, `N` `numerical` `evalf`, `doit`
 - **Bessel and Airy functions:** `besselj` `J_{\nu}(x)`, `bessely` `Y_{\nu}(x)`, `besseli` `I_{\nu}(x)`, `besselk` `K_{\nu}(x)`, `jn` `j_n(x)`, `yn` `y_n(x)`, `airyai` `\operatorname{Ai}(x)`, `airybi` `\operatorname{Bi}(x)`
+- **The notation of chemistry:** `colog` `\mathrm{p}X` `\mathrm{p}(X)`
 - **Combinatorics:** `stirling2`, `stirling1`, `catalan`, `fibonacci`, `bell`, `bernoulli` `B_n`, `harmonic` `H_n`, `partition` `p(n)`, `multinomial`
 - **Elementary functions:** `sin`, `cos`, `tan`, `cot`, `sec`, `csc`, `asin` `arcsin`, `acos` `arccos`, `atan` `arctan`, `acot`, `asec`, `acsc`, `sinh`, `cosh`, `tanh`, `coth`, `sech`, `csch`, `asinh`, `acosh`, `atanh`, `acoth`, `asech`, `acsch`, `exp`, `ln`, `sqrt`, `abs` `Abs`, `sign`, `floor`, `ceiling`, `factorial`, `factorial2`, `gamma` `\Gamma(x)`, `re` `Re`, `im` `Im`, `conjugate` `conj`, `arg`, `erf`
 - **Equations:** `solve`, `dsolve`, `RHS` `rhs`, `LHS` `lhs`, `Eq`, `symbols`, `latex`

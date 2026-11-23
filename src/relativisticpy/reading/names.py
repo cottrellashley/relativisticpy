@@ -214,6 +214,17 @@ def _splittable(node: ast.Name) -> bool:
     return not node.verbatim and len(name) > 1 and name.isalpha() and name not in GREEK
 
 
+def _side_by_side(left: ast.Expr, right: ast.Expr) -> bool:
+    """Whether two factors are written side by side, with nothing but space between them,
+    as D and f(x) are in ``D f(x)``, and not in ``D \\cdot f(x)``."""
+    if left.span.source is not right.span.source or left.span.end > right.span.start:
+        return False
+    between = Span(left.span.source, left.span.end, right.span.start).text
+    for space in ("\\,", "\\;", "\\:", "\\ ", "~"):
+        between = between.replace(space, "")
+    return not between.strip()
+
+
 #: How a bracket that groups begins: (, [, \{, \left( or \left[, and \big( or \Bigl(.
 _GROUP_OPENERS = ("(", "[", "\\{", "\\lbrace", "\\lbrack", "\\left", "\\big", "\\Big")
 

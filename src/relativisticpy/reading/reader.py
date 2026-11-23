@@ -83,6 +83,7 @@ from relativisticpy.reading.names import (
     _other_names,
     _recurrence,
     _shown,
+    _side_by_side,
     _splittable,
     _styled,
     _subscripted,
@@ -1938,9 +1939,9 @@ class Reader(Typer):
             factor = factors[position]
             following = factors[position + 1] if position + 1 < len(factors) else None
             if isinstance(factor, ast.Name | ast.Scripted) and following is not None:
-                shape = forms.pair_shape(factor, following) or forms.operator_shape(
-                    factor, following
-                )
+                shape = forms.pair_shape(factor, following)
+                if shape is None and _side_by_side(factor, following):  # not \mathrm{p} \cdot x
+                    shape = forms.operator_shape(factor, following)
                 if shape is not None:
                     span = factor.span.to(following.span)
                     call = ast.Call(factor, shape.arguments, span=span)

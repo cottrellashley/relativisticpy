@@ -69,6 +69,7 @@ from relativisticpy.reading.names import (
     _names_builtin,
     _names_omega,
     _shown,
+    _side_by_side,
     _slashed,
     _splittable,
     _subscripted_name,
@@ -551,6 +552,13 @@ class Expressions(LinearAlgebra):
             why = f"{name} has a value, which depends on {arguments}"
             self._decide(CALL, node.span, f"the value of {name}", why)
             return binding.node
+        if (
+            func.verbatim
+            and binding is None
+            and not _names_builtin(func, latex=ctx.latex)
+            and (book := self._book_call(node, scope))
+        ):  # \mathrm{p}K_\mathrm{a}: an upright name books write a capability with is it
+            return self._capability(book, node.span, scope, ctx)
         multiplies = self._multiplies(node, binding, scope, ctx)
         if multiplies == "product":  # r(\partial_1 \beta - 1), with r a coordinate
             times = ast.Binary("*", func, _group(node), implicit=True, span=node.span)
@@ -1861,14 +1869,3 @@ def _a_power(script: ast.Script) -> bool:
     if script.kind != "^" or body is None or _decoration(script):
         return False
     return not (isinstance(body, ast.Name) and body.id in (*_TRANSPOSES, "dagger"))
-
-
-def _side_by_side(left: ast.Expr, right: ast.Expr) -> bool:
-    """Whether two factors are written side by side, with nothing but space between them,
-    as D and f(x) are in ``D f(x)``, and not in ``D \\cdot f(x)``."""
-    if left.span.source is not right.span.source or left.span.end > right.span.start:
-        return False
-    between = Span(left.span.source, left.span.end, right.span.start).text
-    for space in ("\\,", "\\;", "\\:", "\\ ", "~"):
-        between = between.replace(space, "")
-    return not between.strip()

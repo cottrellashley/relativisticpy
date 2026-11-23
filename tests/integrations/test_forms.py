@@ -4,6 +4,8 @@ saying what it is; and a call prints in its form, which reads back."""
 
 from __future__ import annotations
 
+import math
+
 import pytest
 import sympy
 
@@ -172,6 +174,18 @@ class TestSpecialFunctions:
         assert wb.expr("gamma m c^2") == gamma * m * c**2
         assert wb.expr("beta x") == sympy.Symbol("beta") * x
         assert wb.expr("zeta(2)") == sympy.pi**2 / 6
+
+    def test_the_upright_p_of_chemists_is_the_cologarithm(self, wb):
+        # \mathrm{p}K_\mathrm{a} was p times K_a: the Henderson-Hasselbalch pH, 5.05, was
+        # 1.8e-5 p + log10(2)
+        wb.exe(r"K_\mathrm{a} := 1.8 \times 10^{-5}")
+        (step,) = list(wb.each(r"\mathrm{p}K_\mathrm{a} + \log_{10} \frac{0.20}{0.10}"))
+        assert abs(float(step.values[0]) - (-math.log10(1.8e-5) + math.log10(2))) < 1e-12
+        assert step.notes[0].startswith(r"\mathrm{p} is read as the p of chemists")
+        p = sympy.Symbol("p")
+        K_a = sympy.Float(1.8e-5)
+        assert wb.expr(r"\mathrm{p} \cdot K_\mathrm{a}") == p * K_a  # a product, written so
+        assert wb.expr(r"p K_\mathrm{a}") == p * K_a  # an italic p is a letter
 
     def test_a_function_lifts_over_the_argument_that_is_a_tensor(self, wb):
         import numpy as np
