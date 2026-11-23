@@ -1162,6 +1162,7 @@ calculus.definite-integral/differential-first/gaussian
 calculus.definite-integral/differential-first/in-t
 calculus.definite-integral/differential-first/letters-as-limits
 calculus.definite-integral/differential-first/negative-limit
+calculus.definite-integral/differential-first/pole-inside
 calculus.definite-integral/differential-first/product
 calculus.definite-integral/differential-first/reciprocal
 calculus.definite-integral/differential-first/scale
@@ -1172,11 +1173,13 @@ calculus.definite-integral/differential-first/to-infinity
 calculus.definite-integral/differential-first/two-letters
 calculus.definite-integral/differential-first/x^2
 calculus.definite-integral/differential-in-numerator/in-t
+calculus.definite-integral/differential-in-numerator/pole-inside
 calculus.definite-integral/differential-in-numerator/reciprocal
 calculus.definite-integral/integrate/gaussian
 calculus.definite-integral/integrate/in-t
 calculus.definite-integral/integrate/letters-as-limits
 calculus.definite-integral/integrate/negative-limit
+calculus.definite-integral/integrate/pole-inside
 calculus.definite-integral/integrate/product
 calculus.definite-integral/integrate/reciprocal
 calculus.definite-integral/integrate/scale
@@ -1190,6 +1193,7 @@ calculus.definite-integral/limits/gaussian
 calculus.definite-integral/limits/in-t
 calculus.definite-integral/limits/letters-as-limits
 calculus.definite-integral/limits/negative-limit
+calculus.definite-integral/limits/pole-inside
 calculus.definite-integral/limits/product
 calculus.definite-integral/limits/reciprocal
 calculus.definite-integral/limits/scale
@@ -1203,6 +1207,8 @@ calculus.definite-integral/named-limits/gaussian
 calculus.definite-integral/named-limits/in-t
 calculus.definite-integral/named-limits/letters-as-limits
 calculus.definite-integral/named-limits/negative-limit
+calculus.definite-integral/named-limits/oscillation
+calculus.definite-integral/named-limits/pole-inside
 calculus.definite-integral/named-limits/product
 calculus.definite-integral/named-limits/reciprocal
 calculus.definite-integral/named-limits/scale
@@ -1216,6 +1222,7 @@ calculus.definite-integral/no-space/gaussian
 calculus.definite-integral/no-space/in-t
 calculus.definite-integral/no-space/letters-as-limits
 calculus.definite-integral/no-space/negative-limit
+calculus.definite-integral/no-space/pole-inside
 calculus.definite-integral/no-space/product
 calculus.definite-integral/no-space/reciprocal
 calculus.definite-integral/no-space/scale
@@ -1239,6 +1246,8 @@ calculus.definite-integral/physics-dd/gaussian
 calculus.definite-integral/physics-dd/in-t
 calculus.definite-integral/physics-dd/letters-as-limits
 calculus.definite-integral/physics-dd/negative-limit
+calculus.definite-integral/physics-dd/oscillation
+calculus.definite-integral/physics-dd/pole-inside
 calculus.definite-integral/physics-dd/product
 calculus.definite-integral/physics-dd/reciprocal
 calculus.definite-integral/physics-dd/scale
@@ -1252,6 +1261,7 @@ calculus.definite-integral/thin-space/gaussian
 calculus.definite-integral/thin-space/in-t
 calculus.definite-integral/thin-space/letters-as-limits
 calculus.definite-integral/thin-space/negative-limit
+calculus.definite-integral/thin-space/pole-inside
 calculus.definite-integral/thin-space/product
 calculus.definite-integral/thin-space/reciprocal
 calculus.definite-integral/thin-space/scale
@@ -1270,6 +1280,7 @@ calculus.definite-integral/unicode-sign-braces/gaussian
 calculus.definite-integral/unicode-sign-braces/in-t
 calculus.definite-integral/unicode-sign-braces/letters-as-limits
 calculus.definite-integral/unicode-sign-braces/negative-limit
+calculus.definite-integral/unicode-sign-braces/pole-inside
 calculus.definite-integral/unicode-sign-braces/product
 calculus.definite-integral/unicode-sign-braces/reciprocal
 calculus.definite-integral/unicode-sign-braces/sine
@@ -1288,6 +1299,7 @@ calculus.definite-integral/upright-d/gaussian
 calculus.definite-integral/upright-d/in-t
 calculus.definite-integral/upright-d/letters-as-limits
 calculus.definite-integral/upright-d/negative-limit
+calculus.definite-integral/upright-d/pole-inside
 calculus.definite-integral/upright-d/product
 calculus.definite-integral/upright-d/reciprocal
 calculus.definite-integral/upright-d/scale

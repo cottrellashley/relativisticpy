@@ -72,23 +72,46 @@ s = symbols("s", positive=True)
 | `subscripts-as-limits` | latex | `2x` | `x` | `x_0` | `x_1` | | | | limits that are names with subscripts |
 | | text | `2*x` | `x` | `x_0` | `x_1` | | | | |
 | | python | `2*x` | `x` | `x_0` | `x_1` | | | | |
+| `oscillation` | latex | `\sin x` | `x` | `0` | `\infty` | | | | an integral whose value never settles, which has none: it must be refused |
+| | text | `sin(x)` | `x` | `0` | `oo` | | | | |
+| | unicode | `sin x` | `x` | `0` | `∞` | | | | |
+| | python | `sin(x)` | `x` | `0` | `oo` | | | | |
+| `pole-inside` | latex | `\frac{1}{x}` | `x` | `-1` | `1` | `x` | | | a pole between the limits, which leaves the integral no value: it must be refused |
+| | text | `1/x` | `x` | `-1` | `1` | | | | |
+| | unicode | `1/x` | `x` | `−1` | `1` | | | | |
+| | python | `1/x` | `x` | `-1` | `1` | | | | |
 
 ## Oracle
 
+An integral that SymPy finds undefined, or bounded only between two values, has no value.
+
 ```python
-expected = integrate(f, (var, lower, upper))
+value = integrate(f, (var, lower, upper))
+if value is nan or isinstance(value, AccumBounds):
+    error = "RelativisticPyError"
+else:
+    expected = value
 ```
 
 ## Second route
 
-Numerical quadrature, with a number for each parameter.
+Numerical quadrature, with a number for each parameter. Of an integral that has no value,
+the integral up to t has no limit as t runs to the point where the integrand misbehaves:
+a pole between the limits, or else the upper limit.
 
 ```python
-at = {y: Rational(13, 10), s: Rational(7, 5), a: Rational(2, 5), b: Rational(9, 5)}
-at.update({x_0: Rational(1, 2), x_1: Rational(3, 2)})
-limits = (var, S(lower).subs(at), S(upper).subs(at))
-by_quadrature = Integral(f.subs(at), limits).evalf(25)
-assert abs(N(expected.subs(at), 25) - by_quadrature) < 1e-15
+if "error" in dir():
+    t = symbols("t")
+    poles = [p for p in singularities(f, var) if S(lower) < p < S(upper)]
+    up_to_t = integrate(f, (var, lower, t))
+    reached = limit(up_to_t, t, poles[0] if poles else S(upper), "-")
+    assert isinstance(reached, AccumBounds) or reached.is_infinite
+else:
+    at = {y: Rational(13, 10), s: Rational(7, 5), a: Rational(2, 5), b: Rational(9, 5)}
+    at.update({x_0: Rational(1, 2), x_1: Rational(3, 2)})
+    limits = (var, S(lower).subs(at), S(upper).subs(at))
+    by_quadrature = Integral(f.subs(at), limits).evalf(25)
+    assert abs(N(expected.subs(at), 25) - by_quadrature) < 1e-15
 ```
 
 ## Forms
@@ -117,7 +140,7 @@ assert abs(N(expected.subs(at), 25) - by_quadrature) < 1e-15
 \int_«lower»^«upper» «f» \, d«var»
 ```
 
-**Not of** · `gaussian`, `negative-limit`, `subscripts-as-limits` · a limit of more than one token is written in braces
+**Not of** · `gaussian`, `negative-limit`, `subscripts-as-limits`, `pole-inside` · a limit of more than one token is written in braces
 
 ### An upright d
 
@@ -185,7 +208,7 @@ integrate(«f», («var», «lower», «upper»))
 int_«lower»^«upper» «f» d«var»
 ```
 
-**Not of** · `gaussian`, `negative-limit`, `subscripts-as-limits` · a limit of more than one token needs brackets, which AsciiMath writes round
+**Not of** · `gaussian`, `negative-limit`, `subscripts-as-limits`, `pole-inside` · a limit of more than one token needs brackets, which AsciiMath writes round
 
 ### The integral sign in Unicode
 
@@ -195,7 +218,7 @@ int_«lower»^«upper» «f» d«var»
 ∫_«lower»^«upper» «f» d«var»
 ```
 
-**Not of** · `gaussian`, `negative-limit` · a limit of more than one character is written in braces
+**Not of** · `gaussian`, `negative-limit`, `pole-inside` · a limit of more than one character is written in braces
 
 ### The integral sign in Unicode, limits in braces
 
