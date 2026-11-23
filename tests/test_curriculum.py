@@ -211,6 +211,17 @@ x := 10^{-8}
     assert r"\operatorname{fl} is not a function RelativisticPy knows" in result.reason
 
 
+def test_a_function_nothing_defines_applied_to_a_number_is_kept_not_wrong():
+    # data.finance.black-scholes-call: Hull's N, the normal distribution function, is a
+    # function nothing defines in LaTeX, and the note says it is left as written
+    program = r"""d_1 := 0.77
+d_2 := 0.63
+42 N(d_1) - 38 N(d_2)"""
+    result = curriculum.run(_case(program, "expected = 4.76"))
+    assert result.outcome == "kept", result.describe()
+    assert result.reason.startswith("N is a function nothing defines, so it is left as written")
+
+
 def test_a_program_that_gives_another_value_is_wrong():
     result = curriculum.run(_case("x := 2\nx + 1", "expected = 4"))
     assert result.outcome == "wrong", result.describe()

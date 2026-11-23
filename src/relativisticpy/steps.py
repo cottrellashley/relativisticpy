@@ -331,9 +331,13 @@ LEFT_UNDONE: dict[str, str] = {
 #: kept as it is; and the time a closed form is given, which ran out before one was found.
 REASONS = (*LEFT_UNDONE, "unknown function", "time budget")
 
+#: How the workbook's note says that a value applies a function nothing defines to a
+#: number, which it leaves as written, as N(0.77): no answer.
+NOTHING_DEFINES = "is a function nothing defines"
 #: How a step's note says a call is of a function the program does not know, which it
-#: keeps as an unknown function (the reader's ``_check_unknown_function``).
-_UNKNOWN_FUNCTION = "is not a function RelativisticPy knows"
+#: keeps as an unknown function: the reader's (``_check_unknown_function``), and the
+#: workbook's, of a function nothing defines applied to a number.
+_UNKNOWN_FUNCTION = ("is not a function RelativisticPy knows", NOTHING_DEFINES)
 #: How a step's note says that SymPy found no closed form in the time it is given, of a
 #: sum, a product or an integral, which is kept as written (``runtime.core`` and
 #: ``assumptions.integrated``).
@@ -355,7 +359,7 @@ def incomplete(value: Any, notes: Sequence[str] = ()) -> list[str]:
     """
     reasons = left_undone(value)
     parts = symbolic(value)
-    if any(_UNKNOWN_FUNCTION in note for note in notes) and any(
+    if any(said in note for note in notes for said in _UNKNOWN_FUNCTION) and any(
         part.atoms(AppliedUndef) for part in parts
     ):
         reasons.append("unknown function")

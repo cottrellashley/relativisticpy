@@ -47,6 +47,7 @@ from relativisticpy.__main__ import fix_hash_seed
 from relativisticpy.checking import _time_limit
 from relativisticpy.errors import InternalError, RelativisticPyError
 from relativisticpy.language.source import Source
+from relativisticpy.steps import NOTHING_DEFINES
 
 ROOT = Path(__file__).resolve().parent.parent / "curriculum"
 PASSING = ROOT / "passing.txt"
@@ -561,7 +562,8 @@ def kept(actual: Any, expected: Any, notes: Sequence[str]) -> str | None:
     unknown = _unknown_functions(mine) - _unknown_functions(theirs)
     for name in sorted(unknown):
         spellings = {name, display.unicode(sympy.Symbol(name))}
-        note = next((n for n in notes if "unknown" in n and _names(n, spellings)), None)
+        said_so = (n for n in notes if ("unknown" in n or NOTHING_DEFINES in n))
+        note = next((n for n in said_so if _names(n, spellings)), None)
         if note is None:
             return None
         said.append(note)

@@ -181,6 +181,12 @@ class TestWhetherAValueIsAnAnswer:
         [value], _ = last("f(x)")  # a function of the program's own, as books write one
         assert value["complete"]
 
+    def test_a_function_nothing_defines_applied_to_a_number(self):
+        # Hull's N(d_1) in LaTeX: N is no function the language knows there, and kept
+        [value], notes = last(Source(r"42 N(0.77) - 38 N(0.63)", latex=True))
+        assert (value["complete"], value["reasons"]) == (False, ["unknown function"])
+        assert notes[-1].startswith("N is a function nothing defines, so it is left as written")
+
     @pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
     def test_a_closed_form_whose_time_ran_out(self, monkeypatch):
         from relativisticpy.runtime import core
