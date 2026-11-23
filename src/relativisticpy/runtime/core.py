@@ -363,6 +363,8 @@ def _limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
             said = re.search(r"left hand limit = (.+) and right hand limit = (.+)", str(error))
             why = f": it is {said[1]} from below and {said[2]} from above" if said else ""
             raise ValueError(f"the limit does not exist{why}") from None
+        if found is sympy.zoo and direction == "+-" and not _complex(variable):
+            found = _from_both_sides(near, variable, point)
         return _existing(found)
     # SymPy takes a case as it holds at the point: each side is approached by a step
     step = sympy.Dummy("h", positive=True)
@@ -376,6 +378,26 @@ def _limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
             f"the limit does not exist: it is {values['-']} from below and {values['+']} from above"
         )
     return next(iter(values.values()))
+
+
+def _from_both_sides(body: Any, variable: Any, point: Any) -> Any:
+    """A limit from both sides that SymPy gives as complex infinity, zoo, as of 1/x at 0:
+    what both sides tend to, where they agree; where they do not, as 1/x tends to -∞ from
+    below and ∞ from above, a ValueError that says so: there is no limit."""
+    below, above = (sympy.limit(body, variable, point, side) for side in ("-", "+"))
+    if below != above:
+        raise ValueError(
+            f"the limit does not exist: it is {below} from below and {above} from above"
+        )
+    return above
+
+
+def _complex(variable: Any) -> bool:
+    """Whether a variable is complex, as z is, whose limit at a pole is ∞ from every way,
+    the complex infinity: one assumed not real, or named as books name a complex one."""
+    return getattr(variable, "is_real", None) is False or str(variable) in (
+        assumptions._COMPLEX_VARIABLES
+    )
 
 
 def _existing(value: Any) -> Any:

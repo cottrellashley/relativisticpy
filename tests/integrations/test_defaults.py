@@ -130,6 +130,7 @@ class TestLimits:
         ("source", "said"),
         [
             ("limit(abs(x)/x, x, 0)", "it is -1 from below and 1 from above"),
+            ("limit(1/x, x, 0)", "it is -oo from below and oo from above"),  # SymPy: zoo
             ("limit(floor(x), x, 1)", "it is 0 from below and 1 from above"),
             ("limit(sin(1/x), x, 0)", "the values keep between -1 and 1"),
         ],

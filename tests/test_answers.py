@@ -142,6 +142,13 @@ class TestLimitsAreOfTheValuesNear:
         with pytest.raises(EvaluationError, match="it is -1 from below and 1 from above"):
             wb.exe(r"\lim_{x \to 0} \frac{|x|}{x}")
 
+    def test_a_limit_from_two_sides_that_tend_to_infinities_of_two_signs(self, wb):
+        # SymPy gives zoo, the complex infinity, which no side of a real variable tends to
+        with pytest.raises(EvaluationError, match="it is -oo from below and oo from above"):
+            wb.exe(r"\lim_{x \to 0} \frac{1}{x}")
+        assert wb.expr(r"\lim_{x \to 0} \frac{1}{x^2}") == sympy.oo
+        assert wb.expr(r"\lim_{z \to 0} \frac{1}{z}") == sympy.zoo  # of a complex variable
+
     def test_values_that_never_settle(self, wb):
         with pytest.raises(EvaluationError) as raised:  # SymPy gives AccumBounds(-1, 1)
             wb.exe(r"\lim_{h \to 0} \sin\frac{1}{h}")
