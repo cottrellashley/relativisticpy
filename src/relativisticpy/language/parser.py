@@ -4145,11 +4145,14 @@ def _definable(target: ast.Expr) -> bool:
 
 def _parameter(node: ast.Expr) -> str | None:
     """The name a function or a parameter is defined with: ``x``, or ``t'``, as a prime on
-    the left of := is part of the name; ``None`` for anything else."""
+    the left of := is part of the name, or ``x_0`` of ``x_{0}`` and of Unicode's ``x₀``, as
+    a whole number subscript is; ``None`` for anything else."""
     if isinstance(node, ast.Name):
         return node.id
     if isinstance(node, ast.Prime):
         return node.func.id + "'" * node.order
+    if isinstance(node, ast.Scripted) and (numbered := _numbered(node)) is not None:
+        return numbered.id
     return None
 
 

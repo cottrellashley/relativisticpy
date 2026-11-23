@@ -296,6 +296,8 @@ def test_unicode_spells_latexs_functions_in_letters(wb):
     assert wb.expr("lim_{x→0} sin(x)/x") == 1
     wb.exe("y(x) := x² sin x")
     assert wb.expr("y'(x)") == diff(x**2 * sin(x), x)
+    wb.exe("g(x₀) := a x₀²")  # a parameter with a number as its subscript
+    assert wb.expr("g'(x₀)") == 2 * Symbol("a") * Symbol("x_0")
     # applied to nothing, it is a name, with a note; in LaTeX too, never s i n
     assert wb.expr("θ + sin") == theta + Symbol("sin")
     assert wb.expr(r"\theta sin x") == theta * sin(x)

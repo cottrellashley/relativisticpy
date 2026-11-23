@@ -1936,3 +1936,8 @@ class TestPlainTextAndUnicodeSpellLatex:
         # √16 was √1 beside 6, two numbers side by side, as TeX reads \sqrt16
         assert sexpr("√16") == sexpr(r"\sqrt{16}") == "(sqrt 16)"
         assert sexpr("√2x") == "(* (sqrt 2) x)"
+
+    @pytest.mark.parametrize("written", ["f(x₀) := a x₀²", "f(x_{0}) := a x_{0}^2"])
+    def test_a_parameter_with_a_number_as_its_subscript_is_one_name(self, written):
+        # f(x₀) := ... was refused: "function parameters must be names"
+        assert program(written) == ["(def f (x_0) (* a (x _[0] ^2)))"]
