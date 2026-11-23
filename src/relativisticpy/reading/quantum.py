@@ -188,16 +188,15 @@ RULE = "⟨rule "
 
 def name_written(expr: ast.Expr) -> str | None:
     """The name something is written as, if it is one: ``phat`` of ``\\hat{p}``, ``L_x`` of
-    ``L_x`` and ``a_-`` of ``a_-``; ``None`` for anything else."""
+    ``L_x``, ``a_-`` of ``a_-`` and ``Lhat_z`` of ``\\hat{L}_z``; ``None`` for anything
+    else."""
     named = _named(expr)
     if isinstance(named, ast.Name):
         return named.id
-    if (
-        isinstance(named, ast.Scripted)
-        and isinstance(named.base, ast.Name)
-        and all(script.kind == "_" for script in named.scripts)
-    ):
-        return _subscripted_name(named)
+    if isinstance(named, ast.Scripted) and all(script.kind == "_" for script in named.scripts):
+        base = _named(named.base)  # \hat{L}_z, the subscript on a hatted name
+        if isinstance(base, ast.Name):
+            return _subscripted_name(replace(named, base=base))
     return None
 
 

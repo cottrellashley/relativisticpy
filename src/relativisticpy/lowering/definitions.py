@@ -120,12 +120,49 @@ class Definitions(Expressions):
         if isinstance(target, _UNDEFINABLE):  # \psi_n(x), \Delta\phi, \langle p, q \rangle
             raise self._cannot_define(target, value)
         if not isinstance(target, ast.Scripted) or not isinstance(target.base, ast.Name):
-            raise CompileError("cannot define this", span=target.span)
+            raise self._not_definable(target, value)
         entries = self._entries(target, "a definition")
         if target.base.id == self.session.names["metric"]:
             self._define_metric(target, entries, value, scope, ctx)
         else:
             self._define_tensor(target, entries, value, scope, ctx)
+
+    def _not_definable(self, target: ast.Expr, value: ast.Expr) -> CompileError:
+        """The error for a left side of ``:=`` that is none of what ``:=`` defines, saying
+        what it was tried as, and why each fails: ``\\hat{L}_z := 5``, whose value does not
+        act on what follows it, and ``f(x)^{a} := 2``, a script on what is no letter."""
+        written = target.span.text
+        notes = []
+        hint = (
+            "the left of := is a name (x), a tensor (T^{a}_{b}), a function (f(x)) or an "
+            "operator (\\hat{p} := -i\\hbar \\frac{d}{dx})"
+        )
+        if isinstance(target, ast.Scripted):
+            base = target.base
+            if isinstance(base, ast.Accent) and isinstance(base.base, ast.Name):
+                notes.append(  # \hat{L}_z := 5, \bar{h}_{ab} := 0
+                    f"as a tensor, it would be named with a letter, and {base.span.text} is "
+                    "a letter under an accent, which takes a number, a sign or a word as a "
+                    "label, as in \\hat{x}_0, but no index"
+                )
+                plain = written.replace(base.span.text, base.base.span.text, 1)
+                hint = f"give it a name without the accent, as in {plain} := ..."
+            else:
+                notes.append(
+                    f"as a tensor, or a name with a label, it would be written on a letter, "
+                    f"and {base.span.text} is not one"
+                )
+            if isinstance(base, ast.Accent) and base.accent == "hat":
+                notes.append(
+                    "as an operator, its value would act on what follows it, as "
+                    f"-i\\hbar \\frac{{d}}{{dx}} does, and {value.span.text} does not"
+                )
+        return CompileError(
+            f"cannot define {written} as a name, a function, a tensor or an operator",
+            span=target.span,
+            notes=notes,
+            hint=hint,
+        )
 
     @contextlib.contextmanager
     def _atomically(self) -> Iterator[None]:

@@ -43,8 +43,14 @@ def test_destructuring_needs_names(wb):
 
 
 def test_cannot_define_a_power_of_a_call(wb):
-    with pytest.raises(CompileError, match="cannot define this"):
+    with pytest.raises(CompileError) as refused:
         wb.expr("f(x)^{a} := 2")
+    assert refused.value.message == (
+        "cannot define f(x)^{a} as a name, a function, a tensor or an operator"
+    )
+    assert refused.value.notes == [
+        "as a tensor, or a name with a label, it would be written on a letter, and f(x) is not one"
+    ]
 
 
 def test_definition_index_rules(plane):

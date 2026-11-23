@@ -374,6 +374,33 @@ class TestOperators:
         assert list(wb.expr(r"\mathbf{v}(2)")) == [2, 4, 0]  # not 2 x + 4 yhat
         assert list(wb.copy().expr(r"\mathbf{v}(2)")) == [2, 4, 0]  # and so in a copy
 
+    def test_an_operator_with_a_hat_and_a_subscript(self, wb):
+        # the review's programs, each refused as "cannot define this"
+        wb.exe(
+            r"\hat{L}_z := -i\hbar \frac{d}{d\phi}" "\n"
+            r"\hat{p}_x := -i\hbar \frac{\partial}{\partial x}"
+        )  # fmt: skip
+        phi, mz = sympy.symbols("phi m")
+        assert same(wb.expr(r"\hat{L}_z e^{i m \phi}"), hbar * mz * sympy.exp(IMAGINARY * mz * phi))
+        assert same(wb.expr(r"\hat{p}_x e^{i k x}"), hbar * k * sympy.exp(IMAGINARY * k * x))
+        assert wb.expr(r"[\hat{x}, \hat{p}_x] = i\hbar") is sympy.true
+
+    def test_what_cannot_be_defined_says_what_it_was_tried_as(self, wb):
+        found = error(wb, r"\hat{L}_z := 5")
+        assert found.message == (
+            r"cannot define \hat{L}_z as a name, a function, a tensor or an operator"
+        )
+        assert found.notes == [
+            r"as a tensor, it would be named with a letter, and \hat{L} is a letter under an "
+            r"accent, which takes a number, a sign or a word as a label, as in \hat{x}_0, but "
+            "no index",
+            r"as an operator, its value would act on what follows it, as -i\hbar \frac{d}{dx} "
+            "does, and 5 does not",
+        ]
+        assert found.hint == "give it a name without the accent, as in L_z := ..."
+        wb.exe(found.hint.removeprefix("give it a name without the accent, as in ")[:-3] + "5")
+        assert wb.expr("L_z + 1") == 6  # the hint works
+
     def test_an_operator_in_brackets_acts_on_what_follows(self, wb):
         found = wb.expr(r"\left(-\hbar^2 \frac{d^2}{dx^2} + x\right) \sin(kx)")
         assert same(found, (hbar**2 * k**2 + x) * sympy.sin(k * x))
