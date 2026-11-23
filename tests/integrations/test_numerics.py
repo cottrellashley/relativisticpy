@@ -235,6 +235,11 @@ class TestComplexValues:
         found = of_data(program, z, COMPLEX_PAIR, "z^l")
         assert np.allclose(found, [complex(exact(v)) for v in z], rtol=1e-12)
 
+    def test_lambert_w_of_complex_data_keeps_its_imaginary_part(self):
+        z = [0.5 + 1.0j, 2.0 - 3.0j]
+        found = of_data(r"W_0(z^l)", z, COMPLEX_PAIR, "z^l")
+        assert np.allclose(found, [complex(mpmath.lambertw(v)) for v in z], rtol=1e-12)
+
     def test_data_in_the_real_domain_stays_real(self):
         found = of_data(r"\sqrt{x^l} + J_0(x^l)", [1.5, 2.5])
         assert found.dtype.kind == "f"
@@ -310,3 +315,25 @@ class TestRefusals:
         with Workbook() as wb:
             assert str(wb.expr("N(pi, 5)")) == "3.1416"
             assert str(wb.expr("N(pi, 5.0)")) == "3.1416"
+
+    @pytest.mark.parametrize(
+        ("program", "said"),
+        [
+            ("divisor_sigma(12, 1/2)", "divisor_sigma takes a power k that is a whole number"),
+            ("fft([])", "the discrete Fourier transform is of a sequence of one number or more"),
+            ("ifft([])", "the discrete Fourier transform is of a sequence of one number or more"),
+        ],
+    )
+    def test_what_failed_inside_is_refused(self, program, said):
+        # 27: each was an internal error, with SymPy's TypeError in its notes
+        assert refused(program).startswith(said)
+
+    def test_the_poles_of_a_quintic(self):
+        # 27: its roots were sorted by their real parts, which of CRootOf are no numbers
+        with Workbook() as wb:
+            poles = wb.expr("poles(1/(z^5 - z - 1))")
+        z = sympy.Symbol("z")
+        assert set(poles) == set(sympy.Poly(z**5 - z - 1).all_roots())
+        values = [complex(sympy.N(pole)) for pole in poles]
+        assert values == sorted(values, key=lambda value: (value.real, value.imag))
+        assert all(abs(value**5 - value - 1) < 1e-12 for value in values)

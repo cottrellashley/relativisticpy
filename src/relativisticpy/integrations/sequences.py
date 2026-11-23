@@ -155,8 +155,9 @@ def _roots(H: Any, z: Any, part: Callable[[Any], Any], what: str) -> list[Any]:
     if len(found) != polynomial.degree():
         found = polynomial.all_roots()
     numbers = all(root.is_number for root in found)
-    if numbers:
-        return sorted(found, key=lambda root: (sympy.re(root), sympy.im(root)))
+    if numbers:  # by their values: the real part of CRootOf(z^5 - z - 1, 2) is no number
+        values = {root: complex(sympy.N(root, 30)) for root in found}
+        return sorted(found, key=lambda root: (values[root].real, values[root].imag))
     return list(found)
 
 

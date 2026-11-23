@@ -22,6 +22,7 @@ import sympy
 
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.numerical import whole_number
 
 _WHOLE = [(1,), (12,), (36,), (97,)]  # positive integers, where the functions are defined
 
@@ -30,9 +31,7 @@ def whole(n: Any, name: str) -> Any:
     """``n`` as a function of integers takes it: a whole number given as a decimal, as data
     gives it, made an integer; a symbol or an expression kept as it is, for a value later;
     and a number that is no positive integer refused, saying so."""
-    n = sympy.sympify(n)
-    if n.is_Float and float(n).is_integer():
-        n = sympy.Integer(int(n))
+    n = whole_number(n)
     if n.is_number and not (n.is_Integer and n > 0):
         raise EvaluationError(
             f"{name} takes positive integers, not {n}",
@@ -144,7 +143,13 @@ class PrimeCounting:
 )
 class DivisorSigma:
     def exact(self, n: Any, k: Any) -> Any:
-        return sympy.divisor_sigma(whole(n, "divisor_sigma"), k)
+        power = whole_number(k)
+        if power.is_number and not (power.is_Integer and power >= 0):
+            raise EvaluationError(
+                f"divisor_sigma takes a power k that is a whole number from 0, not {power}",
+                hint="sigma_k(n) sums the kth powers of the divisors of n, for k = 0, 1, 2, ...",
+            )
+        return sympy.divisor_sigma(whole(n, "divisor_sigma"), power)
 
     def numeric(self, xp: Any, n: Any, k: Any) -> Any:
         return elementwise(self.exact, n, k)

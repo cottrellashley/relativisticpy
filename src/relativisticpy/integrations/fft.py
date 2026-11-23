@@ -32,13 +32,25 @@ def _sequence(values: Any, transform: Callable[[list[Any]], list[Any]]) -> Any:
     if isinstance(values, sympy.NDimArray):
         if values.rank() != 1:
             raise EvaluationError("the discrete Fourier transform is of a sequence, one index")
-        return sympy.ImmutableDenseNDimArray(transform(list(values)))
+        return sympy.ImmutableDenseNDimArray(transform(_samples(list(values))))
     if not isinstance(values, list | tuple):
         raise EvaluationError(
             f"the discrete Fourier transform is of a sequence, not of {display.text(values)}",
             hint="transform a list, as in fft([1, 2, 0, -1]), or data over an index",
         )
-    return transform(list(values))
+    return transform(_samples(list(values)))
+
+
+def _samples(values: list[Any]) -> list[Any]:
+    """The samples of a sequence to transform; an error where there are none, as NumPy's
+    FFT refuses them: a transform of nothing has no frequencies."""
+    if not values:
+        raise EvaluationError(
+            "the discrete Fourier transform is of a sequence of one number or more, and this "
+            "one is empty",
+            hint="transform a list, as in fft([1, 2, 0, -1]), or data over an index",
+        )
+    return values
 
 
 def _dft(values: list[Any], sign: int = -1) -> list[Any]:
