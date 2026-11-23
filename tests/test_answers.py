@@ -104,8 +104,8 @@ class TestUndoneResultsAreNoted:
 
     def test_an_integral(self, wb):
         undone = ["an integral is left as written: SymPy could not compute it"]
-        assert notes(wb, r"\int_0^\infty \frac{x^3}{e^x - 1} \, dx") == undone
-        assert notes(wb, r"[1, \int_0^\infty \frac{x^3}{e^x - 1} \, dx]") == undone  # in a list
+        assert notes(wb, r"\int_0^1 x^x \, dx") == undone  # the sophomore's dream
+        assert notes(wb, r"[1, \int_0^1 x^x \, dx]") == undone  # in a list
 
     def test_conditions_on_the_parameters(self, wb):
         # that no assumption books make removes, as they do of a Gaussian's width

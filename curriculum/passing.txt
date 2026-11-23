@@ -488,6 +488,8 @@ statmech.ising.ring
 statmech.ising.transfer-eigenvalues
 statmech.quantum.fermi-dirac
 statmech.quantum.planck-distribution
+statmech.quantum.planck-integral
+statmech.quantum.stefan-boltzmann
 statmech.thermo.carnot
 statmech.thermo.isothermal-work
 statmech.thermo.van-der-waals

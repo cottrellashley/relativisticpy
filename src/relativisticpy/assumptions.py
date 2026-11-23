@@ -387,9 +387,10 @@ _SIMPLIFYING = 5.0
 
 def _otherwise(f: Any, limits: Sequence[Any], bounds: Sequence[Any], found: Any) -> Any:
     """An integral SymPy left undone, computed another way where one applies: with its
-    integrand simplified where its variables lie (:func:`_where_it_lies`); as SymPy left
-    it, ``found``, where that gives no value."""
-    for route in (_where_it_lies,):
+    integrand simplified where its variables lie (:func:`_where_it_lies`), or, over a
+    half-line, as a series of exponentials, term by term (:func:`_term_by_term`); as SymPy
+    left it, ``found``, where neither gives a value."""
+    for route in (_where_it_lies, _term_by_term):
         try:
             value = route(f, limits, bounds)
         except Exception:  # a way that fails says nothing of the integral
@@ -430,6 +431,97 @@ def _where_it_lies(f: Any, limits: Sequence[Any], bounds: Sequence[Any]) -> Any:
         return None
     value = _computed(sympy.integrate, simpler, _put(limits, lying), bounds)
     return value.xreplace({each: variable for variable, each in lying.items()})
+
+
+def _term_by_term(f: Any, limits: Sequence[Any], bounds: Sequence[Any]) -> Any:
+    """The integral of ``f`` from a ≥ 0 to ∞, where it is a function over c₁e^{kx} + c₀
+    with k > 0 and |c₀| ≤ |c₁|, as a geometric series in e^{-kx}, integrated term by term:
+    1/(c₁e^{kx} + c₀) is the sum of r^{n-1} e^{-nkx}/c₁ over n from 1, with r = -c₀/c₁.
+    Terms C/n^p sum to C Li_p(r)/r, C ζ(p) where r is 1, as the integrals of Bose and
+    Einstein do, ∫₀^∞ x^{s-1}/(e^x - 1) dx = Γ(s)ζ(s), and of Fermi and Dirac,
+    (1 - 2^{1-s})Γ(s)ζ(s); others as SymPy sums them. Where k is positive only if
+    parameters are, they are taken to be, as books take a scale to be, which a remark
+    says. ``None`` of any other integral, or where the series does not sum."""
+    if len(limits) != 1 or not (isinstance(limits[0], tuple) and len(limits[0]) == 3):
+        return None
+    variable, lower, upper = (sympy.sympify(each) for each in limits[0])
+    if upper != sympy.oo or not lower.is_nonnegative or not isinstance(variable, Symbol):
+        return None
+    x = sympy.Dummy(variable.name, nonnegative=True)
+    numerator, denominator = sympy.fraction(sympy.together(f.xreplace({variable: x})))
+    for factor in sympy.Mul.make_args(denominator):
+        parts = _exponential_plus(factor, x)
+        if parts is not None:
+            break
+    else:
+        return None
+    rest = numerator / (denominator / factor)
+    scale, k, constant = parts
+    positive = {} if k.is_positive or k.is_negative else _positive_making(k)
+    if positive is None:
+        return None
+    rest, scale, k, constant = (part.xreplace(positive) for part in (rest, scale, k, constant))
+    if k.is_negative:  # c₁e^{-κx} + c₀ is (c₀e^{κx} + c₁) e^{-κx}
+        rest, scale, k, constant = rest * sympy.exp(-k * x), constant, -k, scale
+    ratio = sympy.simplify(-constant / scale)
+    if not k.is_positive or (sympy.Abs(ratio) <= 1) is not sympy.true:
+        return None
+    n = sympy.Dummy("n", integer=True, positive=True)
+    term = sympy.integrate(rest * sympy.exp(-n * k * x), (x, lower, sympy.oo))
+    if term.has(sympy.Integral, sympy.Piecewise):
+        return None
+    total = _dirichlet(term, n, ratio)
+    if total is None:
+        total = sympy.summation(term * ratio ** (n - 1), (n, 1, sympy.oo))
+    if total.has(sympy.Sum, sympy.nan, sympy.zoo, sympy.oo) or total.is_finite is False:
+        return None
+    return _assumed(total / scale, positive)
+
+
+def _exponential_plus(factor: Any, x: Any) -> tuple[Any, Any, Any] | None:
+    """c₁, k and c₀ of a factor c₁e^{kx} + c₀ whose c₀, c₁ and k do not hold x, and c₀ is
+    not 0; ``None`` of any other."""
+    if not isinstance(factor, sympy.Add):
+        return None
+    constant, varying = factor.as_independent(x, as_Add=True)
+    scale, power = varying.as_independent(x, as_Add=False)
+    if constant == 0 or not isinstance(power, sympy.exp):
+        return None
+    exponent = sympy.expand(power.args[0])
+    k = exponent.coeff(x)
+    shift = sympy.expand(exponent - k * x)
+    if k == 0 or k.has(x) or shift.has(x):
+        return None
+    return scale * sympy.exp(shift), k, constant
+
+
+def _positive_making(expr: Any) -> dict[Any, Any] | None:
+    """The fewest parameters of ``expr`` the program says nothing of which, taken positive,
+    give it a sign, each as a positive symbol; ``None`` where no choice does."""
+    involved = sorted(
+        (s for s in expr.free_symbols if isinstance(s, Symbol) and _general(s)), key=str
+    )[:_MOST_TRIED]
+    for size in range(1, len(involved) + 1):
+        for chosen in itertools.combinations(involved, size):
+            positive = {s: sympy.Dummy(s.name, positive=True) for s in chosen}
+            signed = expr.xreplace(positive)
+            if signed.is_positive or signed.is_negative:
+                return positive
+    return None
+
+
+def _dirichlet(term: Any, n: Any, ratio: Any) -> Any:
+    """The sum over n from 1 of r^{n-1} C/n^p, where ``term`` is C/n^p, as C Li_p(r)/r, and
+    C ζ(p) where r is 1; ``None`` of another term, or where the series is not known to
+    converge: p > 1 where r is 1, and p > 0 where |r| ≤ 1 otherwise."""
+    coefficient, power = term.as_independent(n, as_Add=False)
+    base, exponent = power.as_base_exp()
+    if base != n or exponent.has(n):
+        return None
+    p = -exponent
+    if ratio == 1:
+        return coefficient * sympy.zeta(p) if (p > 1) is sympy.true else None
+    return coefficient * sympy.polylog(p, ratio) / ratio if (p > 0) is sympy.true else None
 
 
 def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:
