@@ -11,6 +11,7 @@ from sympy.stats.crv_types import ExponentialDistribution, NormalDistribution
 from sympy.stats.frv_types import BinomialDistribution
 
 from relativisticpy import Workbook, integrations
+from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, distribution
 from relativisticpy.integrations import _distributions as distributions
 
@@ -132,3 +133,12 @@ class TestComputing:
             wb.run("Y \\sim \\operatorname{Poisson}(1)\nX \\mid Y = 0 \\sim \\mathcal{N}(0, 1)")
             with pytest.raises(integrations._discovery.EvaluationError, match="not 1"):
                 wb.expr(r"\mathbb{E}[X]")
+
+    def test_an_integral_scipy_says_diverges_is_no_expectation(self):
+        # the mean of |T| of Cauchy's law is infinite: SciPy's quadrature gives a number
+        # of it, with a warning
+        from sympy.stats.crv_types import StudentTDistribution
+
+        variable = distributions.variable(sympy.Symbol("T"), StudentTDistribution(1))
+        with pytest.raises(EvaluationError, match="SciPy's integral of it does not converge"):
+            distributions._numeric_expectation(sympy.Abs(variable), variable)

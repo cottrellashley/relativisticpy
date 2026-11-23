@@ -276,6 +276,9 @@ class Exponential:
     def mgf(self, t: Any, rate: Any) -> Any:
         return rate / (rate - t)
 
+    def mgf_domain(self, t: Any, rate: Any) -> Any:
+        return sympy.Lt(t, rate)
+
 
 @distribution(
     "GammaDistribution",
@@ -311,6 +314,9 @@ class Gamma:
     def mgf(self, t: Any, k: Any, theta: Any) -> Any:
         return (1 - theta * t) ** -k
 
+    def mgf_domain(self, t: Any, k: Any, theta: Any) -> Any:
+        return sympy.Lt(t, 1 / sympy.sympify(theta))
+
 
 @distribution(
     "ChiSquared",
@@ -341,6 +347,9 @@ class ChiSquared:
 
     def mgf(self, t: Any, k: Any) -> Any:
         return (1 - 2 * t) ** (-k / 2)
+
+    def mgf_domain(self, t: Any, k: Any) -> Any:
+        return sympy.Lt(t, R(1, 2))
 
 
 @distribution(
@@ -444,3 +453,6 @@ class Geometric:
 
     def mgf(self, t: Any, p: Any) -> Any:
         return p * sympy.exp(t) / (1 - (1 - p) * sympy.exp(t))
+
+    def mgf_domain(self, t: Any, p: Any) -> Any:
+        return sympy.Lt(t, -sympy.log(1 - sympy.sympify(p)))

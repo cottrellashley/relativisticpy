@@ -256,6 +256,24 @@ class TestMoments:
         e = sympy.E
         assert same(wb.expr(r"\mathbb{E}[X \mid X > 1]"), (2 - 2 * e**2) / (3 - e**2))
 
+    def test_the_second_moment_of_a_law_without_a_mean_is_infinite(self, wb):
+        # the variance and the mean it was built of are both undefined
+        wb.run(r"T \sim t_1")
+        assert wb.expr(r"\mathbb{E}[T^2]") == sympy.oo
+        assert wb.expr(r"\mathbb{E}[T^4]") == sympy.oo
+        for written in (r"\mathbb{E}[T]", r"\operatorname{Var}(T)", r"\mathbb{E}[T^3]"):
+            with pytest.raises(EvaluationError, match="is not defined") as refused:
+                wb.expr(written)
+            assert "Cauchy" in refused.value.notes[0]
+
+    def test_a_law_with_a_mean_and_no_variance(self, wb):
+        wb.run(r"T \sim t_2")
+        assert wb.run("\\mathbb{E}[T]\n\\mathbb{E}[T^2]\n\\operatorname{Var}(T)") == [
+            0,
+            sympy.oo,
+            sympy.oo,
+        ]
+
     def test_of_data_the_statistic_is_written_with_its_index(self, wb):
         import numpy as np
 
@@ -288,6 +306,39 @@ class TestFunctionsOfARandomVariable:
         wb.run(r"X \sim \operatorname{Poisson}(\lambda)")
         assert same(wb.expr("M_X(t)"), sympy.exp(lam * (sympy.exp(t) - 1)))
         assert same(wb.expr(r"\varphi_X(t)"), sympy.exp(lam * (sympy.exp(sympy.I * t) - 1)))
+
+    @pytest.mark.parametrize(
+        ("law", "written"),
+        [
+            (r"T \sim \operatorname{Exp}(1)", r"\mathbb{E}[e^{2T}]"),  # finite where t < λ
+            (r"G \sim \Gamma(2, 1)", r"\mathbb{E}[e^{2G}]"),  # where t < 1/θ
+            (r"C \sim \chi^2_2", r"\mathbb{E}[e^{C}]"),  # where t < 1/2
+            (r"G \sim \operatorname{Geom}(1/2)", r"\mathbb{E}[e^{G}]"),  # where t < -ln(1 - p)
+            (r"T \sim \operatorname{Exp}(1)", r"\mathbb{E}[e^{T}]"),  # nor at its end
+        ],
+    )
+    def test_past_where_a_generating_function_is_finite_the_expectation_is_infinite(
+        self, wb, law, written
+    ):
+        # the closed forms give -1, 1, -1 and -3.78 there
+        wb.run(law)
+        assert wb.expr(written) == sympy.oo
+
+    def test_a_generating_function_is_used_where_it_is_finite(self, wb):
+        wb.run(r"T \sim \operatorname{Exp}(1)")
+        assert wb.expr(r"\mathbb{E}[e^{T/2}]") == 2
+        with pytest.raises(EvaluationError, match=r"the variance of .* is not defined"):
+            wb.expr(r"\operatorname{Var}(e^{T})")  # ∞ - ∞
+
+    def test_of_a_symbol_it_says_where_it_is_finite(self, wb):
+        wb.run(r"T \sim \operatorname{Exp}(\lambda)")
+        assert same(wb.expr("M_T(t)"), lam / (lam - t))
+        assert assumed(wb, "M_T(t)") == ["t < λ"]
+        assert notes(wb, "M_T(t)")[-1] == (
+            "assuming t < λ, where the moment-generating function is finite"
+        )
+        assert assumed(wb, r"\varphi_T(t)") == []  # the characteristic function always is
+        assert assumed(wb, r"\mathbb{E}[e^{-T}]") == []
 
     def test_of_a_name_that_is_no_random_variable_they_are_as_before(self, wb):
         assert isinstance(wb.expr("f_0(x)"), sympy.Expr)

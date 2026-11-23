@@ -106,6 +106,13 @@ class Distribution(Capability):
         method = getattr(self.implementation, "mgf", None)
         return None if method is None else method(t, *parameters)
 
+    def generating_domain(self, t: Any, *parameters: Any) -> Any:
+        """Where the moment-generating function it declares is finite, as a condition on a
+        real ``t``, as t < λ of the exponential distribution: every t, where it declares
+        none."""
+        method = getattr(self.implementation, "mgf_domain", None)
+        return sympy.true if method is None else sympy.sympify(method(t, *parameters))
+
     def frozen(self, *parameters: Any) -> Any:
         """SciPy's law of its parameters, as numbers."""
         import numpy as np
@@ -131,7 +138,9 @@ def distribution(
     """Declare a distribution, checked at ``points``, each its parameters. Its class has
     ``exact``, which gives SymPy's law, ``numeric``, which gives SciPy's frozen law, and
     ``mean`` and ``variance``, the closed forms of its moments, from ``moments``; it may have
-    ``mgf(t, ...)``, its moment-generating function, where SymPy's law has none."""
+    ``mgf(t, ...)``, its moment-generating function, where SymPy's law has none, and then
+    ``mgf_domain(t, ...)``, the condition on t it is finite under, where that is not every
+    t: outside it the closed form is no expectation, which is infinite there."""
 
     def decorate(cls: type) -> Distribution:
         for method, does in (("mean", "gives its mean"), ("variance", "gives its variance")):
@@ -618,7 +627,20 @@ def _conditioned(compute: Callable[[Any], Any], value: Any, given: Sequence[Any]
         found = _given_event(compute, value, condition, what)
     else:
         found = compute(value)
-    return sympy.sympify(found).xreplace(restored)
+    return _defined(sympy.sympify(found), value, what).xreplace(restored)
+
+
+def _defined(found: Any, value: Any, what: str) -> Any:
+    """What was computed of random variables, where it is a value: not where it is
+    undefined, as the mean of a law without one, which is refused, saying so."""
+    shown = _shown(value.args[0] if isinstance(value, Tuple) and len(value) == 1 else value)
+    if found is sympy.nan:
+        raise EvaluationError(
+            f"the {what} of {shown} is not defined: an expectation it is made of does not "
+            "exist, or is infinite",
+            notes=["a law with tails as heavy as Cauchy's has no mean, and so no variance"],
+        )
+    return found
 
 
 def _a_variable(value: Any) -> bool:
@@ -842,17 +864,23 @@ def _by_moments(expr: Any, randoms: Sequence[RandomSymbol]) -> Any | None:
 def _moment(variable: RandomSymbol, power: int) -> Any:
     """``\\mathbb{E}[X^k]``: 1, the mean, and the variance plus the square of the mean, as the
     distribution declares them; a higher one from its moment-generating function, or by
-    SymPy."""
+    SymPy. The second moment of a law is never undefined: it is ∞ where the law has no
+    mean, as of Cauchy's, and every moment above it is then ∞ too, or, of an odd power,
+    undefined."""
     if power == 0:
         return sympy.S.One
     known = declared(_law(variable))
     if known is not None:
         capability, parameters = known
-        mean = capability.mean(*parameters)
+        mean = sympy.sympify(capability.mean(*parameters))
         if power == 1:
             return mean
+        second = sympy.piecewise_fold(capability.variance(*parameters) + mean**2)
+        second = second.xreplace({sympy.nan: sympy.oo})  # no mean: E|X| is ∞, and so E[X²]
         if power == 2:
-            return capability.variance(*parameters) + mean**2
+            return second
+        if second == sympy.oo:
+            return sympy.oo if power % 2 == 0 else sympy.nan
         t = Dummy("t")
         generating_function = capability.generating(t, *parameters)
         if generating_function is not None:
@@ -874,7 +902,9 @@ def _declared_expectation_by_sympy(expr: Any, variable: RandomSymbol) -> Any:
 
 def _by_generating(expr: Any, randoms: Sequence[RandomSymbol]) -> Any | None:
     """``\\mathbb{E}[e^{a + bX}]``, of one random variable: e^a times its moment-generating
-    function at b, or its characteristic function at b/i; ``None`` for anything else."""
+    function at b, or its characteristic function at b/i; ``None`` for anything else. The
+    moment-generating function a distribution declares is the expectation only where it is
+    finite (see :func:`_finite_at`): elsewhere the expectation of a real exponential is ∞."""
     if len(randoms) != 1 or not isinstance(expr, sympy.exp):
         return None
     (variable,) = randoms
@@ -889,6 +919,9 @@ def _by_generating(expr: Any, randoms: Sequence[RandomSymbol]) -> Any | None:
     if known is not None:
         capability, parameters = known
         generated = capability.generating(slope, *parameters)
+        if generated is not None and not _finite_at(capability, slope, parameters):
+            real = slope.is_extended_real and rest.is_extended_real
+            return sympy.oo if real else None
     if generated is None and slope.has(sympy.I):
         found = law._characteristic_function(sympy.expand(slope / sympy.I))
         generated = found
@@ -897,6 +930,34 @@ def _by_generating(expr: Any, randoms: Sequence[RandomSymbol]) -> Any | None:
     if generated is None:
         return None
     return sympy.exp(rest) * generated
+
+
+def _finite_at(capability: Distribution, slope: Any, parameters: Sequence[Any]) -> bool:
+    """Whether the moment-generating function a distribution declares is finite at
+    ``slope``, as that of the exponential distribution is where its real part is below λ;
+    always where it is imaginary, as the characteristic function's is. Where what is
+    written with symbols does not decide it, it is taken to be, which a remark says, the
+    symbols nothing is said of real and the parameters of the law those it allows."""
+    general = [s for s in slope.free_symbols if isinstance(s, Symbol) and assumptions._general(s)]
+    real = {s: Dummy(s.name, real=True) for s in general}
+    part = sympy.re(slope.xreplace(real))
+    if part == 0:
+        return True
+    condition = capability.generating_domain(part, *parameters)
+    allowed = {
+        s: Dummy(s.name, positive=True)
+        for each in parameters
+        for s in sympy.sympify(each).free_symbols
+        if isinstance(s, Symbol) and assumptions._general(s)
+    }
+    verdict = assumptions.holds(condition.xreplace(allowed), ())
+    if verdict is None:
+        said = _shown(condition.xreplace({dummy: s for s, dummy in real.items()}))
+        assumptions.remark(
+            f"assuming {said}, where the moment-generating function is finite", assuming=[said]
+        )
+        return True
+    return verdict
 
 
 # -- probabilities --------------------------------------------------------------------------
@@ -1342,14 +1403,29 @@ def _frozen(variable: RandomSymbol) -> Any:
 
 
 def _numeric_expectation(expr: Any, variable: RandomSymbol) -> Any:
-    """The expectation of a function of one random variable, by SciPy."""
+    """The expectation of a function of one random variable, by SciPy; refused, saying so,
+    where SciPy warns that its integral does not converge, whose value is then no
+    expectation."""
+    import warnings
+
+    from scipy.integrate import IntegrationWarning
+
     point = Dummy("x", real=True)
     function = sympy.lambdify(point, expr.xreplace({variable: point}), modules=["scipy", "numpy"])
     frozen = _frozen(variable)
-    found = complex(frozen.expect(lambda x: complex(function(x)).real))
     imaginary = sympy.sympify(expr).has(sympy.I)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", IntegrationWarning)
+        try:
+            found = complex(frozen.expect(lambda x: complex(function(x)).real))
+            if imaginary:
+                found += 1j * complex(frozen.expect(lambda x: complex(function(x)).imag)).real
+        except IntegrationWarning:
+            raise EvaluationError(
+                f"the expectation of {_shown(expr)} is not found: SymPy finds no closed form "
+                "of it, and SciPy's integral of it does not converge",
+            ) from None
     if imaginary:
-        found += 1j * complex(frozen.expect(lambda x: complex(function(x)).imag)).real
         return sympy.Float(found.real) + sympy.I * sympy.Float(found.imag)
     return sympy.Float(found.real)
 

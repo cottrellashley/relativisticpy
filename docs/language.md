@@ -796,6 +796,25 @@ note says so:
 
 ```
 
+A moment-generating function is the expectation of an exponential only where it is finite,
+as where `t < \lambda` of the exponential distribution: past it the expectation is ∞, and of
+a symbol a note says what is assumed. A mean or a variance that does not exist, as of
+Student's t with one degree of freedom, Cauchy's law, is refused, and its second moment is ∞:
+
+```python
+>>> [step.assuming for step in rv.each("M_T(s)")]
+[['s < λ']]
+>>> rv.exe(r"""
+...     V \sim \operatorname{Exp}(1)
+...     \mathbb{E}[e^{V/2}]
+...     \mathbb{E}[e^{2V}]
+...     C \sim t_1
+...     \mathbb{E}[C^2]
+... """)
+[2, oo, oo]
+
+```
+
 Over data, `\mathbb{E}_t`, `\operatorname{Var}_t` and `\operatorname{Cov}_t` are statistics
 along an index, as [Beyond spacetime](spaces.md#statistics) says; without an index, of data,
 they are refused, saying so.
