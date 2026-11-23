@@ -117,6 +117,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** A program given as LaTeX (a `latex` fence, a document, `--latex`) is LaTeX in every statement.
 
+*The curriculum's fences* (23 November 2026). The curriculum gave a case's `latex` fence to the workbook as text, which decides each statement by its own commands: Black–Scholes' last line, `S_0 N(d_1) - K e^{-r T} N(d_2)`, has none, so N was numerical evaluation, as in plain text, and the call was worth 8.42, silently. A `latex` fence is now read as LaTeX in every statement, so that N is a function of the program's own (decision 15), and a result that holds it at a number says so (decision 26). Text given to a workbook, with no fence, is still decided a statement at a time: plain text and LaTeX mix (docs/latex.md).
+
 ## 11. How far an unbracketed function argument runs
 
 **Waiting on it:** `function-argument-extent` (2).

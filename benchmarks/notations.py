@@ -52,7 +52,6 @@ from typing import Any
 
 from relativisticpy import errors
 from relativisticpy.__main__ import fix_hash_seed
-from relativisticpy.language.source import Source
 
 
 def _beside(name: str) -> ModuleType:
@@ -238,9 +237,6 @@ class Cell:
         program in LaTeX is given as LaTeX, which every statement of it then is, whatever
         it is written with (``design/notation.md``, decision 10); one in plain text or in
         Unicode is given as it is typed."""
-        program: Any = self.program
-        if self.form.notation == "latex":
-            program = Source(self.program, latex=True)
         return curriculum.Case(
             id=self.id,
             title=self.form.title,
@@ -248,11 +244,12 @@ class Cell:
             topic=self.construct.path.stem,
             level=1,
             source=self.form.source,
-            program=program,
+            program=self.program,
             oracle=self.oracle,
             path=self.construct.path,
             line=self.form.line,
             scope=self.scope or "",
+            latex=self.form.notation == "latex",
         )
 
     def shown(self) -> str:

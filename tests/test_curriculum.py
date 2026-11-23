@@ -52,6 +52,28 @@ def test_a_case_that_passed_still_passes(case):
     assert result.passed, result.describe()
 
 
+def test_a_program_in_a_latex_fence_is_latex_in_every_statement(tmp_path, monkeypatch):
+    # design/notation.md, 10: S_0 N(d_1), with no command of LaTeX, was plain text, where N
+    # is numerical evaluation, so that Hull's call price was 8.42, silently
+    monkeypatch.setattr(curriculum, "ROOT", tmp_path / "curriculum")
+    topic = tmp_path / "curriculum" / "domain" / "topic.md"
+    topic.parent.mkdir(parents=True)
+    fence = "```"
+    topic.write_text(
+        "# Topic\n\n## A product of letters\n\n**Level 1** · `t.letters` · standard\n\n"
+        f"{fence}latex\nx := 2\ny := 3\n6xy\n{fence}\n\n"
+        f"{fence}python\nexpected = 36\n{fence}\n\n"
+        "## The same in plain text\n\n**Level 1** · `t.plain` · standard\n\n"
+        f"{fence}relativisticpy\nxy := 5\n6xy\n{fence}\n\n"
+        f"{fence}python\nexpected = 30\n{fence}\n",
+        encoding="utf-8",
+    )
+    letters, plain = curriculum.read(topic)
+    assert (letters.latex, plain.latex) == (True, False)
+    assert curriculum.run(letters).passed  # in LaTeX, 6 x y
+    assert curriculum.run(plain).passed  # in plain text, xy is one name
+
+
 # -- what counts as the answer ---------------------------------------------------------------
 
 s, t, x = sympy.symbols("s t x")

@@ -202,8 +202,8 @@ def test_an_oracle_is_given_the_operand_alone(halves):
 
 def test_a_program_in_latex_is_given_as_latex(halves):
     frac, _, slash, _ = halves.cells()
-    assert frac.case().program.latex
-    assert slash.case().program == "x/2"
+    assert frac.case().latex
+    assert (slash.case().program, slash.case().latex) == ("x/2", False)
 
 
 def test_a_cell_is_run_as_the_curriculum_runs_a_case():

@@ -45,6 +45,7 @@ from relativisticpy import Workbook
 from relativisticpy.__main__ import fix_hash_seed
 from relativisticpy.checking import _time_limit
 from relativisticpy.errors import RelativisticPyError
+from relativisticpy.language import Source
 
 ROOT = Path(__file__).resolve().parent.parent / "curriculum"
 PASSING = ROOT / "passing.txt"
@@ -83,6 +84,7 @@ class Case:
     path: Path
     line: int
     scope: str = ""  # Python run first, whose names the program may read: \texttt{prices}
+    latex: bool = False  # written in a ```latex fence: LaTeX in every statement (decision 10)
 
     @property
     def where(self) -> str:
@@ -136,7 +138,7 @@ def read(path: Path) -> list[Case]:
         if metadata is None:
             continue  # prose, not a case
         fences = list(_FENCE.finditer(section))
-        programs = [f["body"] for f in fences if f["info"] in _PROGRAMS]
+        programs = [f for f in fences if f["info"] in _PROGRAMS]
         oracles = [f["body"] for f in fences if f["info"] == "python"]
         scopes = [f["body"] for f in fences if f["info"] == "python-scope"]
         cases.append(
@@ -147,11 +149,12 @@ def read(path: Path) -> list[Case]:
                 topic=path.stem,
                 level=int(metadata["level"]),
                 source=(metadata["source"] or "").strip(),
-                program=programs[0] if programs else "",
+                program=programs[0]["body"] if programs else "",
                 oracle=oracles[0] if oracles else "",
                 path=path,
                 line=text.count("\n", 0, heading.start()) + 1,
                 scope=scopes[0] if scopes else "",
+                latex=bool(programs) and programs[0]["info"] == "latex",
             )
         )
     return cases
@@ -237,7 +240,7 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
         return Result(case, "broken", f"the scope fails: {type(error).__name__}: {error}")
     try:
         with _beside(case), workbook, _time_limit(time_limit):
-            values = workbook.exe(case.program)
+            values = workbook.exe(Source(case.program, latex=case.latex))
     except TimeoutError:
         seconds = time.perf_counter() - start
         return Result(case, "timeout", f"over {time_limit:g} s", seconds=seconds)
