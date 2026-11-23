@@ -301,6 +301,14 @@ class TestOperators:
         assert same(wb.expr(r"\hat{p}^2 \sin(kx)"), hbar**2 * k**2 * sympy.sin(k * x))
         assert same(wb.expr(r"\hat{p} \hat{p} \sin(kx)"), hbar**2 * k**2 * sympy.sin(k * x))
 
+    def test_an_operator_acts_on_the_rest_of_the_term(self, wb):
+        # as d/dx does: \hat{p} x \psi(x) is \hat{p}(x \psi), not (\hat{p} x) \psi
+        wb.exe(MOMENTUM + "\n" r"\psi(x) := e^{-x^2}")
+        expected = IMAGINARY * hbar * (2 * x**2 - 1) * sympy.exp(-(x**2))
+        for written in (r"\hat{p} \hat{x} \psi(x)", r"\hat{p} x \psi(x)", r"\hat{p}\psi(x) x"):
+            assert same(wb.expr(written), expected), written
+        assert same(wb.expr(r"x \hat{p} \psi(x)"), 2 * IMAGINARY * hbar * x**2 * sympy.exp(-(x**2)))
+
     def test_an_operator_in_brackets_acts_on_what_follows(self, wb):
         found = wb.expr(r"\left(-\hbar^2 \frac{d^2}{dx^2} + x\right) \sin(kx)")
         assert same(found, (hbar**2 * k**2 + x) * sympy.sin(k * x))

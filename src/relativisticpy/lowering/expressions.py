@@ -359,9 +359,10 @@ class Expressions(LinearAlgebra):
                 term = self._components_of(term, inner, ctx, factor.span)
             terms.append(term)
             chosen.append(self._selections[mark:])
-        # Operators act on what follows them, innermost (rightmost) first. As in
-        # physics texts, ∂_μ acts on the next factor (∂_μφ ∂^μφ is (∂_μφ)(∂^μφ)) while
-        # d/dx acts on the rest of the term (d/dx x² y³ is d/dx (x² y³)).
+        # Operators act on what follows them, innermost (rightmost) first, as far as each
+        # reaches. As in physics texts, ∂_μ acts on the next factor (∂_μφ ∂^μφ is
+        # (∂_μφ)(∂^μφ)) while d/dx, and an operator defined with it, acts on the rest of the
+        # term (d/dx x² y³ is d/dx (x² y³), and \hat{p} x ψ is \hat{p} (x ψ)).
         stack: list[Node] = []
         selected: list[list[Node]] = []
         for term, selections in zip(reversed(terms), reversed(chosen), strict=True):
@@ -375,7 +376,7 @@ class Expressions(LinearAlgebra):
                     continue
                 if not stack:
                     raise self._nothing_to_act_on(term, scope)
-                if isinstance(term, LeibnizDerivative):
+                if term.reach == "term":
                     rest = self._multiply(stack[::-1], node.span)
                     stack = [self._apply(term, rest, node.span, scope, ctx)]
                     selected = [[s for group in selected for s in group]]

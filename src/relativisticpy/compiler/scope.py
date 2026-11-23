@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import ClassVar, Literal
 
 from relativisticpy.ir import Node
 from relativisticpy.language import syntax as ast
@@ -120,15 +121,19 @@ class Check:
     hint: str | None = None
 
 
-# -- operators: compile-time values that act on the factor after them ------------
+# -- operators: compile-time values that act on what is written after them --------
 
 
 @dataclass(frozen=True)
 class Operator:
-    """Something that acts on the factor written after it, as ``∂_μ`` does in
-    ``∂_μ φ`` and ``sin`` in ``sin x``."""
+    """Something that acts on what is written after it, as far as its ``reach``: the
+    factor after it, as ``∂_μ`` does in ``∂_μ φ ∂^μ φ`` and ``sin`` in ``sin x``, or the
+    rest of the term, as ``\\frac{d}{dx}`` does in ``\\frac{d}{dx} x^2 y^3``."""
 
     span: Span
+
+    #: What it acts on: the ``factor`` after it, or the rest of the ``term``.
+    reach: ClassVar[Literal["factor", "term"]] = "factor"
 
     def describe(self) -> str:
         return self.span.text
@@ -144,9 +149,11 @@ class IndexDerivative(Operator):
 
 @dataclass(frozen=True)
 class LeibnizDerivative(Operator):
-    """``\\frac{d}{dx}`` or ``\\frac{\\partial^2}{\\partial x \\partial y}``."""
+    """``\\frac{d}{dx}`` or ``\\frac{\\partial^2}{\\partial x \\partial y}``, which acts on the
+    rest of the term."""
 
     variables: tuple[tuple[Node, int], ...] = ()
+    reach: ClassVar[Literal["factor", "term"]] = "term"
 
 
 @dataclass(frozen=True)

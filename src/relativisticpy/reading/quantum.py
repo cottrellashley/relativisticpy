@@ -17,8 +17,10 @@ each reading recorded with why, and a note where another was possible:
   ``\langle p, q\rangle := ...``; else the inner product of two vectors, or the expectation
   value of an operator in the state the program names;
 - an expression that ends in an operator with nothing to act on, as ``-i\hbar\frac{d}{dx}``,
-  is an operator: defined, it is a value, applied by juxtaposition, composed by products and
-  powers, and a claim between operators is decided on a test function;
+  is an operator: defined, it is a value, applied by juxtaposition to the rest of the term,
+  as ``\frac{d}{dx}`` is, composed by products and powers, and a claim between operators is
+  decided on a test function; beside it, a hat on the variable it differentiates by is the
+  position, as \hat{x} is beside ``\hat{p} := -i\hbar \frac{d}{dx}``;
 - ``[A, B]`` of operators or matrices is their commutator and ``\{A, B\}`` their
   anticommutator; of anything else, a list and a set, as before;
 - an ``=`` whose left side holds operators and kets nothing defines, as
@@ -33,7 +35,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from dataclasses import dataclass, fields, replace
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 import sympy
 from sympy.physics.quantum import Operator as AbstractOperator
@@ -122,12 +124,14 @@ class BracketBinding(ShownFunction):
 @dataclass(frozen=True)
 class Operation(Operator):
     """An operator written as an expression, as ``-i\\hbar \\frac{d}{dx}``, ``\\hat{p}^2`` or
-    ``[x, \\hat{p}]``, which acts on the value after it; its names are those of ``scope``,
-    and it is read as LaTeX if it is written in it."""
+    ``[x, \\hat{p}]``, which acts on the rest of the term after it, as ``\\frac{d}{dx}``
+    does, so that ``\\hat{p} x \\psi(x)`` is :math:`\\hat{p}(x\\psi)`; its names are those of
+    ``scope``, and it is read as LaTeX if it is written in it."""
 
     expression: ast.Expr
     scope: Scope
     latex: bool
+    reach: ClassVar[Literal["factor", "term"]] = "term"
 
 
 @dataclass(frozen=True)

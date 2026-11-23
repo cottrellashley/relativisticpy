@@ -645,7 +645,11 @@ class VectorCalculus(Vectors, Probability):
             if isinstance(term, Operator):
                 if not values:
                     raise self._nothing_to_act_on(term, scope)
-                values[-1] = self._apply(term, values[-1], term.span, scope, ctx)
+                if term.reach == "term":
+                    rest = self._multiply(values[::-1], term.span)
+                    values = [self._apply(term, rest, term.span, scope, ctx)]
+                else:
+                    values[-1] = self._apply(term, values[-1], term.span, scope, ctx)
             else:
                 values.append(term)
         span = _span_of(run[0], None).to(_span_of(run[-1], None))
