@@ -1979,7 +1979,13 @@ class Parser:
             return self._raw_group(K.LBRACE, K.RBRACE, command)[1:-1]
         if token.kind is K.LPAREN:
             return self._raw_group(K.LPAREN, K.RPAREN, command)
-        if token.kind in (K.NUMBER, K.IDENT) and len(token.value) > 1 and not _is_latex(token):
+        sign = not command.span.text.startswith("\\")  # √16 is the root of 16, \sqrt16 not
+        if (
+            token.kind in (K.NUMBER, K.IDENT)
+            and len(token.value) > 1
+            and not _is_latex(token)
+            and not (sign and token.kind is K.NUMBER)
+        ):
             first, rest = _split_first_character(token, self.source)
             self.tokens[self.pos] = rest
             self.previous = first

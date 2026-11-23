@@ -1931,3 +1931,8 @@ class TestPlainTextAndUnicodeSpellLatex:
     def test_leibnizs_fraction_spans_what_is_written(self, text):
         # (del f)/(del x) was shown as del f)/(del x), without its first bracket
         assert parse(text).statements[0].span.text == text
+
+    def test_the_root_sign_takes_the_whole_number_after_it(self):
+        # √16 was √1 beside 6, two numbers side by side, as TeX reads \sqrt16
+        assert sexpr("√16") == sexpr(r"\sqrt{16}") == "(sqrt 16)"
+        assert sexpr("√2x") == "(* (sqrt 2) x)"
