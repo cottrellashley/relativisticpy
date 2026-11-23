@@ -25,7 +25,7 @@ import sympy
 from relativisticpy.errors import NO_INVERSE, EvaluationError
 from relativisticpy.integrations import Example, map_function
 from relativisticpy.tensors import Tensor
-from relativisticpy.tensors.numerical import whole_number
+from relativisticpy.tensors.numerical import traced, whole_number
 
 a, b, c, d, k, t = sympy.symbols("a b c d k t")
 
@@ -664,14 +664,45 @@ class MatrixExponential:
 class MatrixLogarithm:
     def exact(self, A: Any) -> Any:
         matrix = _square(A, "the logarithm of a matrix")
-        return _of_decimals(matrix, "logm") or _simplified(matrix.log())
+        decimals = matrix.has(sympy.Float) and not matrix.free_symbols
+        if _singular(_numbers(matrix)) if decimals else matrix.rank(simplify=True) < matrix.rows:
+            raise _no_logarithm()
+        try:
+            return _of_decimals(matrix, "logm") or _simplified(matrix.log())
+        except sympy.matrices.exceptions.MatrixError:  # an eigenvalue 0 its rank did not show
+            raise _no_logarithm() from None
 
     def numeric(self, xp: Any, A: Any) -> Any:
+        if not traced(A) and _singular(A):
+            raise _no_logarithm()
         if xp.__name__.startswith("jax"):
             return _through_eigenvalues(xp, A, xp.log)
         import scipy.linalg
 
         return scipy.linalg.logm(A)
+
+
+def _numbers(matrix: sympy.MatrixBase) -> Any:
+    """A matrix of numbers as an array of complex numbers."""
+    import numpy as np
+
+    return np.array(matrix.evalf(30).tolist(), dtype=complex)
+
+
+def _singular(matrix: Any) -> bool:
+    """Whether a matrix of numbers has 0 among its eigenvalues, to rounding error: whether
+    its rank, by its singular values, is below its size."""
+    import numpy as np
+
+    values = np.asarray(matrix)
+    return bool(np.linalg.matrix_rank(values) < values.shape[-1])
+
+
+def _no_logarithm() -> EvaluationError:
+    return EvaluationError(
+        "a matrix with the eigenvalue 0 has no logarithm, as 0 has none, and this one is singular",
+        hint="the logarithm of a matrix is of one whose determinant is not 0",
+    )
 
 
 @map_function(

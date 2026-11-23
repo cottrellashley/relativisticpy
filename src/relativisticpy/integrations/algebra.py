@@ -14,6 +14,7 @@ import sympy
 from relativisticpy import assumptions, display
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.numerical import whole_number
 
 x, y, a, b, n, N = sympy.symbols("x y a b n N")
 
@@ -304,7 +305,20 @@ class Substitute:
 )
 class Numerical:
     def exact(self, value: Any, digits: Any = 15) -> Any:
-        return sympy.N(value, digits)
+        return sympy.N(value, _digits(digits))
+
+
+def _digits(digits: Any) -> int:
+    """How many significant digits ``N`` gives: a whole number from 1, given as a decimal as
+    data gives it; an error for any other, which SymPy would read as some number of digits."""
+    count = whole_number(digits)
+    if not (count.is_Integer and count >= 1):
+        shown = format(float(count), "g") if count.is_Float else count
+        raise EvaluationError(
+            f"N gives a number to a whole number of significant digits from 1, not {shown}",
+            hint="as in N(pi, 5), pi to five digits",
+        )
+    return int(count)
 
 
 @function(

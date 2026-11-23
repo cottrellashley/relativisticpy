@@ -285,3 +285,28 @@ class TestMatrices:
             wb["A^{a}{}_{b}"] = data
             assert np.isclose(wb.expr("eigenvalue(1, A)"), (5 - np.sqrt(5)) / 2)
             assert np.isclose(wb.expr("eigenvalue(2.0, A)"), (5 + np.sqrt(5)) / 2)
+
+    def test_the_logarithm_of_a_singular_matrix_is_refused(self):
+        # 15: of data it was -46.05 times the identity, and of numbers a failure inside (27)
+        said = "a matrix with the eigenvalue 0 has no logarithm"
+        assert said in refused("logm(A)", MAP, np.zeros((2, 2)), "A^{a}{}_{b}")
+        assert said in refused("logm(A)", MAP, np.array([[1.0, 2.0], [2.0, 4.0]]), "A^{a}{}_{b}")
+        assert said in refused("logm(A)", MAP + "\nA^{a}{}_{b} := [[0, 0], [0, 0]]")
+        assert said in refused("logm([[0, 0], [0, 0]])")
+        assert said in refused("logm([[1, 2], [2, 4]])")
+        assert said in refused("logm([[1.0, 2.0], [2.0, 4.0]])")
+        with Workbook() as wb:  # and a matrix that has one keeps it
+            assert wb.expr("logm([[1, 0], [0, e^2]])") == sympy.Array([[0, 0], [0, 2]])
+
+
+class TestRefusals:
+    @pytest.mark.parametrize("digits", ["-5", "0", "1/2", "2.5", "x"])
+    def test_numerical_evaluation_to_fewer_than_one_digit(self, digits):
+        # 15: N(pi, -5) was 4.0
+        said = f"N gives a number to a whole number of significant digits from 1, not {digits}"
+        assert refused(f"N(pi, {digits})") == said
+
+    def test_numerical_evaluation_to_digits(self):
+        with Workbook() as wb:
+            assert str(wb.expr("N(pi, 5)")) == "3.1416"
+            assert str(wb.expr("N(pi, 5.0)")) == "3.1416"
