@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import contextlib
 import gc
+import inspect
 import itertools
 import math
 import re
@@ -173,7 +174,8 @@ class _Passing(BaseException):
 
 @dataclass(eq=False)
 class _Limit:
-    """A budget in force: when it ends, by :func:`time.monotonic`, and its token."""
+    """A budget in force: when it ends, by :func:`time.monotonic`, or, once it has, when
+    its alarm is raised again; and its token."""
 
     end: float
     token: object
@@ -264,7 +266,10 @@ def _ring(signum: int, frame: FrameType | None) -> None:
         if _LIMITS:
             _arm()
         return
-    if not _collecting(frame):  # where it would be lost, the next alarm raises it
+    # Raised now, and again then: never at once, as the alarm set again while a block
+    # inside ends would ring in its leaving, for that block's ``except`` to take as its own.
+    due.end = now + _AGAIN
+    if not (_collecting(frame) or _entering(frame)):  # there the next alarm raises it
         raise _OverBudget(due.token)
 
 
@@ -277,6 +282,20 @@ def _leave() -> None:
     if around.end is not None:
         remaining = max(around.end - time.monotonic(), 1e-6)
         signal.setitimer(signal.ITIMER_REAL, remaining, around.again)
+
+
+def _entering(frame: FrameType | None) -> bool:
+    """Whether ``frame`` is in a budget's own entering or leaving. An alarm raised there
+    would stop it half way, and leave its limit in force for ever."""
+    while frame is not None:
+        if frame.f_code in _OWN:
+            return True
+        frame = frame.f_back
+    return False
+
+
+#: The code of a budget's entering and leaving.
+_OWN = frozenset({inspect.unwrap(_budget).__code__, _arm.__code__, _leave.__code__})
 
 
 def _weak_callbacks() -> frozenset[CodeType]:

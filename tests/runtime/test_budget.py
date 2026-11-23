@@ -130,7 +130,55 @@ def test_a_budget_inside_another_leaves_it_its_alarm(monkeypatch):
     with pytest.raises(core._OverBudget):
         summing_then_going_on()
     assert given == []
-    assert time.monotonic() - started < 2.4
+    assert time.monotonic() - started < 2.9  # before the three seconds of the search
+
+
+def test_an_alarm_on_its_way_out_is_not_set_to_ring_at_once(monkeypatch):
+    # The alarm of a budget that has run out is raised again half a second on, never at
+    # once. Set for at once as a block inside it ended, it rang in that block's leaving on
+    # a slower machine, and the block's own ``except`` took it: a sum gave itself as written
+    # where the computation around it was to stop.
+    arm = core._arm
+    set_for = []
+
+    def arming() -> None:
+        arm()
+        set_for.append(signal.getitimer(signal.ITIMER_REAL)[0])
+
+    monkeypatch.setattr(core, "_arm", arming)
+    with pytest.raises(core._OverBudget), core._budget(0.05), core._budget(5):
+        time.sleep(1)
+    assert len(set_for) == 3  # entering the two, and leaving the inner one
+    assert set_for[-1] > core._AGAIN / 2
+
+
+def test_an_alarm_is_not_raised_while_a_block_is_left(monkeypatch):
+    # Raised there, it would leave the block as that block's own alarm does, for its
+    # ``except`` to take; and raised while a block is entered, its limit would stay in
+    # force for ever.
+    arm = core._arm
+    armed = []
+
+    def leaving_slowly() -> None:
+        arm()
+        armed.append(time.monotonic())
+        if len(armed) == 3:  # entering the two, and now leaving the inner one
+            time.sleep(core._AGAIN + 0.2)  # the outer budget's alarm rings again in here
+
+    monkeypatch.setattr(core, "_arm", leaving_slowly)
+    taken = []
+
+    def sleeping_in_a_block_of_its_own() -> None:
+        try:
+            with core._budget(5):
+                time.sleep(1)
+        except core._OverBudget:
+            taken.append("as the inner block's own")
+
+    with pytest.raises(core._OverBudget), core._budget(0.05):
+        sleeping_in_a_block_of_its_own()
+    assert not taken
+    assert not core._LIMITS
 
 
 def test_an_inner_budget_that_runs_out_first_is_its_own():
