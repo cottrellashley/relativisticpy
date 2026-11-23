@@ -1360,7 +1360,7 @@ def _left_undone(value: Any) -> list[str]:
     :func:`~relativisticpy.steps.left_undone` finds it, in a list, a tensor or a tensor
     equation too; and the conditions SymPy puts on its parameters."""
     notes = [LEFT_UNDONE[reason] for reason in left_undone(value)]
-    if isinstance(value, IndexEquation) and not value.holds():
+    if isinstance(value, IndexEquation) and _no_identity(value):
         notes.append(
             "this is no identity of index notation: it relates its tensors, as a law does, "
             "and nothing here decides it"
@@ -1382,6 +1382,16 @@ def _left_undone(value: Any) -> list[str]:
         for name in sorted(at_numbers)
     )
     return notes
+
+
+def _no_identity(equation: IndexEquation) -> bool:
+    """Whether an equation of index notation is shown to be no identity. Where SymPy fails
+    to tell, as of T_{[abc]d} beside a sum of the T it permutes, nothing is said here: the
+    equation is shown, and a check that judges it reports the failure."""
+    try:
+        return not equation.holds()
+    except Exception:  # SymPy's tensors refuse some sums of differently written terms
+        return False
 
 
 def _conditional(value: Any) -> bool:
