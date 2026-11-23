@@ -195,6 +195,28 @@ RELATIONS = [
     ("2 = 2 = 2", [sympy.true, sympy.true]),
 ]
 
+CONJUGATES = [
+    # a bar over a quantity the program defines, or declares complex, is its conjugate, and
+    # so is a star on brackets (the name zbar, and (3 + 4i) to the power of a name *, before)
+    ("z := 3 + 4i\n\\bar{z}", 3 - 4 * sympy.I),
+    ("z := 3 + 4i\n\\bar z", 3 - 4 * sympy.I),
+    ("z := 3 + 4i\n\\overline{z}", 3 - 4 * sympy.I),
+    ("z := \\frac{1}{1 + i}\n\\bar{z}", (1 + sympy.I) / 2),
+    ("z := e^{i \\pi / 3}\n\\bar{z}", exp(-sympy.I * pi / 3)),
+    (r"\overline{3 + 4i}", 3 - 4 * sympy.I),
+    (r"(3 + 4i)^*", 3 - 4 * sympy.I),
+    (r"(2i)^*", -2 * sympy.I),
+    (r"(5)^*", 5),
+    (r"\left(\frac{1}{1 + i}\right)^*", (1 + sympy.I) / 2),
+    (r"(e^{i \pi / 3})^*", exp(-sympy.I * pi / 3)),
+    ("w \\in \\mathbb{C}\n\\bar{w}", sympy.conjugate(sympy.Symbol("w", complex=True))),
+    ("w \\in \\mathbb{C}\nw^*", sympy.conjugate(sympy.Symbol("w", complex=True))),
+    # a bar on a name that means nothing is a name of its own, and one the program gives wins
+    (r"\bar{q}", sympy.Symbol("qbar")),
+    ("\\bar{x} := 7\n\\bar{x}", 7),
+    ("x := [1, 2, 3, 6]\n\\bar{x}", sympy.Symbol("xbar")),
+]
+
 CHEMISTRY = [
     # the upright p of chemists (decision 39)
     (
@@ -238,6 +260,7 @@ def same(found: Any, expected: Any) -> bool:
     + case(SCRIPTS)
     + case(ABSOLUTE_VALUES_AND_ROOTS)
     + case(NUMBERS)
+    + case(CONJUGATES)
     + case(CHEMISTRY),
 )
 def test_a_form_gives_what_sympy_computes_or_is_refused(source, expected):

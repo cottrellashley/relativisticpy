@@ -92,6 +92,26 @@ class TestSilentReadingsAreSaid:
         ]
         assert wb.expr("x_1 x_2") == 15  # the hint works
 
+    def test_a_bar_over_a_quantity_the_program_defines_is_its_conjugate_and_says_so(self, wb):
+        # \bar{z} of z := 3 + 4i was a new name, zbar, without a word (decision 8.1)
+        wb.exe("z := 3 + 4i")
+        assert notes(wb, r"\bar{z}") == [
+            r"\bar{z} is read as the complex conjugate of z, since z is defined on line 1; for "
+            r"a name of its own, define \bar{z} first"
+        ]
+        assert notes(wb, r"\overline{1 + i}") == [
+            r"\overline{1 + i} is read as the complex conjugate of 1 + i, since a bar over an "
+            "expression names nothing"
+        ]
+        assert notes(wb, r"\bar{q}") == []  # a name of its own, as q means nothing
+        wb.exe("x := [1, 2, 3, 6]")
+        assert notes(wb, r"\bar{x}") == [
+            r"x is a list, so \bar{x} is read as a name of its own, not its mean; for the mean, "
+            r"define it, as \bar{x} := \frac{1}{4} \sum_{i=1}^{4} x_i"
+        ]
+        wb.exe(r"\bar{x} := \frac{1}{4} \sum_{i=1}^{4} x_i")
+        assert wb.expr(r"\bar{x}") == 3  # the hint works
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

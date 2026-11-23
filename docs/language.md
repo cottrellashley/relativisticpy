@@ -155,6 +155,12 @@ parameters, as y is in `\frac{dy}{dx}`:
 `Workbook.explain` says how each was read, and a note says so where another reading was
 possible.
 
+A bar over a quantity the program defines or declares complex, `\bar{z}` or
+`\overline{z}`, is its complex conjugate, and so is a bar over an expression,
+`\overline{3 + 4i}`; a star is too, on such a name or on brackets, `z^*` and
+`(3 + 4i)^*`. Over a name that means nothing, `\bar{x}` is a name of its own, as it is
+where the program defines it, `\bar{x} := \ldots`.
+
 State what a symbol is as books do, with a relation on its name alone: `a > 0`,
 `0 < x < 1`, `a, b > 0`, `x \in \mathbb{R}`, `n \in \mathbb{N}` or `n \in \mathbb{Z}_{>0}`.
 It is an assumption for the rest of the program, shows nothing, and SymPy simplifies

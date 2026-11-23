@@ -29,7 +29,7 @@ from relativisticpy.compiler.scope import (
     VariableBinding,
 )
 from relativisticpy.errors import CompileError, IndexNotationError
-from relativisticpy.ir import SCALAR, Node, TensorType
+from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.vocabulary import GREEK
@@ -38,6 +38,7 @@ from relativisticpy.reading.names import (
     _number_then_letters,
     _shown,
     _written_as_letter,
+    accented,
 )
 from relativisticpy.reading.subscripts import (
     Subscripts,
@@ -260,14 +261,63 @@ class Labels(Subscripts):
         return self._call("conjugate", [value], SCALAR, node.span)
 
     def _starred_conjugate(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
-        """``\\psi_1(x)^*`` or ``z^*`` after ``z := 1 + i``: the complex conjugate of what a
-        call gives, or of a number the program defines; ``None`` for anything else, as
-        ``r^*``, a name of its own where r means nothing."""
+        """``\\psi_1(x)^*``, ``z^*`` after ``z := 1 + i`` or ``z \\in \\mathbb{C}``, and
+        ``(3 + 4i)^*``: the complex conjugate of what a call gives, of a number the program
+        defines or a name it declares complex, or of what brackets hold; ``None`` for
+        anything else, as ``r^*``, a name of its own where r means nothing."""
         base = node.base
-        named = isinstance(base, ast.Name) and isinstance(scope.lookup(base.id), VariableBinding)
-        if not (isinstance(base, ast.Call) or named):
+        if isinstance(base, ast.Name):
+            named = isinstance(scope.lookup(base.id), VariableBinding)
+            if not (named or self._declared_complex(base, scope)):
+                return None
+        elif not isinstance(base, ast.Call) and not _in_brackets_of_its_own(base):
             return None
         return self._starred(node, base, node.scripts, scope, ctx)
+
+    def _declared_complex(self, name: ast.Name, scope: Scope) -> bool:
+        """Whether nothing defines a name and the program declares it complex, as
+        ``z \\in \\mathbb{C}`` does, and not real."""
+        if scope.lookup(name.id) is not None:
+            return False
+        symbol = self.session.assumptions.get(name.id)
+        return symbol is not None and symbol.is_complex is True and symbol.is_real is not True
+
+    def _barred(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node | None:
+        """``\\bar{z}`` or ``\\overline{z}``: the complex conjugate of a quantity the
+        program defines, of a name it declares complex, or of an expression, as
+        ``\\overline{3 + 4i}`` (decision 8.1 of design/notation.md), with a note. ``None``
+        where it is a name of its own: on a name nothing defines, or one the program gives
+        with its bar, as ``\\bar{x} := ...``; and on a list, whose mean it may be, said so."""
+        base, written = node.base, node.span.text
+        if isinstance(base, ast.Name):
+            if scope.lookup(accented(base.id, node.accent)) is not None:
+                return None  # \bar{x} := ..., the program's own
+            binding = scope.lookup(base.id)
+            if isinstance(binding, VariableBinding):
+                if (count := _list_length(binding.node)) is not None:
+                    self._note(
+                        f"{base.span.text} is a list, so {written} is read as a name of its own, "
+                        f"not its mean; for the mean, define it, as {written} := "
+                        f"\\frac{{1}}{{{count}}} \\sum_{{i=1}}^{{{count}}} {base.span.text}_i"
+                    )
+                    return None
+                if binding.node.type not in (SCALAR, VALUE):
+                    return None  # a tensor, or an equation
+                why = f"{base.span.text} is defined{self._line_of(binding)}"
+            elif self._declared_complex(base, scope):
+                why = f"{base.span.text} is declared complex"
+            else:
+                return None
+        else:
+            why = "a bar over an expression names nothing"
+        value = self.value(base, scope, ctx)
+        reading = f"the complex conjugate of {base.span.text}"
+        note = f"{written} is read as {reading}, since {why}"
+        if isinstance(base, ast.Name):
+            note += f"; for a name of its own, define {written} first"
+        self._decide(LABEL, node.span, reading, why, note)
+        self._note(note)
+        return self._call("conjugate", [value], value.type, node.span)
 
     def _check_statistic_name(self, factor: ast.Expr, scope: Scope) -> None:
         """A Greek letter with a subscript, as ``\\sigma_1``, or a name with a subscript the
@@ -463,3 +513,20 @@ def _a_star(script: ast.Script) -> bool:
     """Whether a superscript is a star, ``^*`` or ``^{*}``."""
     body = script.body
     return script.kind == "^" and isinstance(body, ast.Name) and body.verbatim and body.id == "*"
+
+
+def _list_length(node: Node) -> int | None:
+    """How many items a list the program gives has, as ``x := [1, 2, 3]`` has 3; ``None``
+    for any other value."""
+    if isinstance(node.op, ops.Call) and node.op.name == "core.list":
+        return len(node.args)
+    if isinstance(node.op, ops.Const) and isinstance(node.op.value, list | tuple):
+        return len(node.op.value)
+    return None
+
+
+def _in_brackets_of_its_own(node: ast.Expr) -> bool:
+    """Whether what a script is raised on is written in brackets, as ``(3 + 4i)`` is in
+    ``(3 + 4i)^*``: the parser gives it the span of its brackets."""
+    text = node.span.text.strip()
+    return text.startswith(("(", "\\left(", "\\big", "\\Big")) and text.endswith(")")

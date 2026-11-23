@@ -102,6 +102,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 3. `\hat x` and `\hat{\mathbf{x}}`, with x a coordinate, are unit vectors, while `\hat p :=` names an operator;
 4. `\dot q` is independent of q in ∂L/∂\dot q and is dq/dt under d/dt, and a script after an accent applies to the accented name.
 
+**What implementing the conjugate settled** (23 November 2026). `\bar{z}`, `\bar z` and `\overline{z}` were the name zbar whatever z was, so that `z := 3 + 4i` then `\bar{z}` gave a new symbol. A bar over a name the program gives a number, an expression or a matrix, or declares complex (`z \in \mathbb{C}`), is now its complex conjugate, and a bar over an expression, `\overline{3 + 4i}` and `\overline{z_1 + z_2}` as Churchill and Brown write it, the conjugate of the expression; each with a note that says so. A star is read alike (decision 6.4): on a name the program declares complex, `z^*`, and on brackets, `(3 + 4i)^*`, where it was a power of a name `*`. A bar over a name nothing defines is a name of its own, as before, and so is one the program defines with its bar, `\bar{x} := \ldots`, which wins. A bar over a list is no conjugate: it may be the mean, which statistics writes so, and a note says that it is a name of its own and how to define the mean, `\bar{x} := \frac{1}{n} \sum_{i=1}^{n} x_i`; computing it unasked would take a reading the program did not state.
+
 ## 9. Do typefaces make different names?
 
 **Waiting on it:** `typeface-names` (4).
