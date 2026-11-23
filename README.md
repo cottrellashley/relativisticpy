@@ -6,7 +6,7 @@
 
 <p align="center">
   <b>RelativisticPy reads mathematics as it is written, in LaTeX, plain text or Unicode, and computes it.</b><br>
-  General Relativity with SymPy, numerical data in index notation over any space, and the equations of LaTeX papers, which it checks.
+  Calculus, linear algebra, probability, signals, quantum mechanics and General Relativity, in the notation of their books; data from NumPy and pandas; and the equations of LaTeX papers, which it checks.
 </p>
 
 <p align="center">
@@ -16,10 +16,11 @@
 
 ---
 
-Type a line element and get its curvature. Write index notation over NumPy or pandas
-data. Run `relativisticpy check paper.tex` to see which of a paper's equations hold.
-RelativisticPy is a Python package and a language: you write the mathematics, and it
-computes it.
+Write an integral, a matrix, a random variable or a line element as a book writes it,
+and get its value. Write index notation over NumPy or pandas data. Run
+`relativisticpy check paper.tex` to see which of a paper's equations hold. RelativisticPy
+is a Python package and a language: you write the mathematics, it computes it, and it
+says how it read each line.
 
 ## Install
 
@@ -71,6 +72,144 @@ R_{μν} = 0: holds in all 10 components
 The line element is written as a paper writes it, and names its own coordinates: t, r, θ
 and φ. In Python, write LaTeX in raw strings, `r"..."`, as here: in an ordinary string,
 Python turns `\f` in `\frac`, and `\t` in `\theta`, into control characters.
+
+## Mathematics, as its books write it
+
+Each field is read in its own notation, by the names its books use. Every block here is
+a session of its own.
+
+Calculus, series and differential equations:
+
+```python
+>>> from relativisticpy import Workbook
+>>> wb = Workbook()
+>>> wb.expr(r"\int_0^\infty e^{-x^2} \, dx")
+sqrt(pi)/2
+>>> wb.expr(r"\sum_{n=1}^{\infty} \frac{1}{n^2}")
+pi**2/6
+>>> wb.expr(r"dsolve(y'' + y = 0, y(x))")
+Eq(y(x), C1*sin(x) + C2*cos(x))
+
+```
+
+Special functions, and transforms:
+
+```python
+>>> wb = Workbook()
+>>> wb.expr(r"\Gamma\left(\tfrac{1}{2}\right)")
+sqrt(pi)
+>>> wb.expr(r"{}_2F_1(1, 1; 2; z)")
+-log(1 - z)/z
+>>> wb.expr(r"\mathcal{L}\{t^2 e^{-t}\}(s)")
+2/(s + 1)**3
+
+```
+
+Matrices and vectors:
+
+```python
+>>> wb = Workbook()
+>>> wb.exe(r"A := \begin{pmatrix} 2 & 1 \\ 1 & 3 \end{pmatrix}")
+[]
+>>> wb.expr(r"\operatorname{tr} A"), wb.expr(r"\det A"), wb.expr(r"\lambda_{\max}(A)")
+(5, 5, sqrt(5)/2 + 5/2)
+>>> wb.expr(r"\nabla \times (-y, x, 0)")
+[0, 0, 2]
+
+```
+
+Probability, with random variables declared as books declare them:
+
+```python
+>>> wb = Workbook()
+>>> wb.exe(r"X \sim \mathcal{N}(0, 1)")
+[]
+>>> wb.expr(r"\operatorname{Var}(3X + 1)")
+9
+>>> wb.expr(r"\Pr(X > 1)")
+1/2 - erf(sqrt(2)/2)/2
+
+```
+
+Optima, with their constraints:
+
+```python
+>>> wb = Workbook()
+>>> wb.expr(r"\min_{x, y} \left( x^2 + y^2 \right) \quad \text{subject to} \quad x + y = 1")
+1/2
+
+```
+
+Sequences, sums and number theory:
+
+```python
+>>> wb = Workbook()
+>>> wb.exe(r"x[n] := \left(\tfrac{1}{2}\right)^n u[n]")
+[]
+>>> wb.expr(r"\mathcal{Z}\{x[n]\}(z)")
+2*z/(2*z - 1)
+>>> wb.expr(r"\varphi(36)"), wb.expr(r"7^{-1} \bmod 26"), wb.expr(r"\sum_{d \mid 12} d")
+(12, 15, 28)
+
+```
+
+Quantum mechanics, with operators and Dirac's notation:
+
+```python
+>>> wb = Workbook()
+>>> wb.exe(r"\hat{p} := -i\hbar \frac{d}{dx}")
+[]
+>>> wb.expr(r"[\hat{x}, \hat{p}] = i\hbar")
+True
+>>> wb.exe(r"|+\rangle := \frac{1}{\sqrt{2}} \begin{pmatrix} 1 \\ 1 \end{pmatrix}")
+[]
+>>> wb.expr(r"\langle +|+\rangle")
+1
+
+```
+
+[The language](docs/language.md) has each of these in full, and `relativisticpy help NAME`
+describes any function: how it is written, what it takes, and what computes it.
+
+## It says how it read you
+
+Notation is ambiguous, and RelativisticPy never guesses silently. Where it assumes what
+a book would, a note says so:
+
+```python
+>>> step = next(iter(Workbook().each(r"\int_0^\infty e^{-s t} \, dt")))
+>>> step.values, step.notes
+([1/s], ['assuming s > 0, as books take a scale to be; the program does not say what s is'])
+
+```
+
+Write `s > 0` before it, and that is an assumption for the rest of the program.
+`explain` shows how a statement is read, computing nothing:
+
+```python
+>>> print(Workbook().explain(r"\Gamma\left(\tfrac{1}{2}\right)"))
+line 1: \Gamma\left(\tfrac{1}{2}\right)
+  book name: \Gamma\left(\tfrac{1}{2}\right) is gamma, Euler's gamma function, since \Gamma(x) is how books write it, and nothing defines \Gamma
+  note: \Gamma is read as Euler's gamma function, gamma; for a function of your own, define \Gamma first
+
+```
+
+What it cannot read, or cannot decide, it refuses, saying why, where, and what to write
+instead. A claim that numbers support but nothing proves is not shown as true:
+
+```python
+>>> Workbook().expr(r"\arctan x + \arctan \frac{1}{x} = \frac{\pi}{2}")
+Traceback (most recent call last):
+  ...
+relativisticpy.tensors.equation.UndecidedError: whether \arctan x + \arctan \frac{1}{x} = \frac{\pi}{2} holds is not decided: the sides agree numerically, but this was not proven
+ --> <input>:1:1
+  |
+1 | \arctan x + \arctan \frac{1}{x} = \frac{\pi}{2}
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: shown as it is, an undecided claim would read as an answer
+hint: to see what is left, write the difference of its sides alone, as an expression
+
+```
 
 ## General Relativity
 
@@ -139,21 +278,6 @@ limit.
   With a metric, the solution has components: for an FLRW universe, `T_{tt}` is the
   Friedmann equation's energy density.
 
-- **The rest of mathematics.** Every derivative notation, integrals, limits, sums and
-  products, `solve`, `dsolve`, `series`, `simplify` and more, piecewise functions,
-  matrices, complex numbers, and functions of your own:
-
-  ```python
-  >>> wb.expr(r"\int_0^\infty e^{-x^2} \, dx")
-  sqrt(pi)/2
-  >>> wb.expr(r"""
-  ...     f(x) := x^2 e^{-x}
-  ...     f'(x)
-  ... """)
-  (-x**2 + 2*x)*exp(-x)
-
-  ```
-
 - **Numbers when you need them.** Compile any result to a NumPy function, or send a
   particle around a black hole with SciPy:
 
@@ -188,8 +312,51 @@ Cholesky solves rather than an inverse:
 
 ```
 
-Portfolios, quantum systems, graphs and regressions are worked through in
-[Beyond spacetime](docs/spaces.md).
+Python objects are read by name. Give a workbook a scope, and `\texttt{name}` is the
+object of that name in it: a NumPy array, a pandas table, whose labels become the bases
+of its spaces, a SymPy expression or a Python function. Here a sampled tone, and the bin
+where its spectrum peaks:
+
+```python
+>>> signal = np.sin(2 * np.pi * 5 * np.arange(64) / 64)
+>>> wb = Workbook(scope={"signal": signal})
+>>> wb.exe(r"x_t := \texttt{signal}")
+[]
+>>> wb.expr(r"\operatorname*{arg\,max}_k \left| \operatorname{fft}(x)_k \right|")
+5
+
+```
+
+A paper that is checked, and a program an AI agent sends, are given no scope: neither
+can reach into Python. Portfolios, quantum systems, graphs and regressions are worked
+through in [Beyond spacetime](docs/spaces.md).
+
+## In notebooks
+
+Results are typeset in Jupyter and marimo. `show` runs a program and shows each statement
+with what came of it:
+
+```python
+>>> from relativisticpy.live import show
+>>> show(r"""
+... f(x) := x^2 e^{-x}
+... f'(x)
+... \int_0^\infty f(x) \, dx
+... """)
+f(x) := x^2 e^{-x}
+  defines f(x)
+f'(x)
+  (2x − x²) e^(−x)
+\int_0^\infty f(x) \, dx
+  2
+
+```
+
+In a notebook the same call shows them typeset. `Editor` is a widget that computes
+mathematics as it is typed, underlines an error where it is, and computes any part of a
+statement from a menu; in marimo, a cell that passes its data to `show` runs again when
+the data changes. [Live mathematics](docs/live.md) has both, and they need the `live`
+extra.
 
 ## Checking papers
 
@@ -289,6 +456,7 @@ Everything needed to use RelativisticPy is in the installed package, offline.
   | 1 | a statement failed, or a check failed by `--strict` |
   | 2 | the command line was wrong: an unknown option or a missing file |
   | 130 | interrupted with Ctrl-C |
+  | 143 | stopped with SIGTERM |
 
 - **Pitfalls.**
   1. In Python, write LaTeX in raw strings, `r"\frac{1}{2}"`.
@@ -306,6 +474,20 @@ The documentation is also served for language models as
 [llms.txt](https://relativisticpy.org/llms.txt), an index, and
 [llms-full.txt](https://relativisticpy.org/llms-full.txt), every page in one file.
 
+## Extending it
+
+Every function of the language is a capability that an integration declares: a module
+of `relativisticpy/integrations/` that follows one pattern, with examples whose answers
+come from outside it. A conformance suite holds every capability to the pattern, and
+says in words what to fix. So adding a library, by a person or by an agent, is writing
+one module: there is no configuration. SymPy, SciPy, NumPy and JAX are integrated this
+way, and [Integrations](docs/integrations.md) shows how to add another.
+
+What the language should read is measured by a [curriculum](curriculum/README.md): 734
+problems across 32 fields at five levels, each written as its book writes it, with an
+answer computed without RelativisticPy. The test suite keeps every problem that passes
+passing, and the ones that fail say what to build next.
+
 ## Documentation
 
 The documentation is in [docs](docs/), and `relativisticpy help` prints it offline:
@@ -314,9 +496,11 @@ The documentation is in [docs](docs/), and `relativisticpy help` prints it offli
 [solving tensor equations](docs/notation.md), [checking papers](docs/checking.md),
 [beyond spacetime](docs/spaces.md), [numerics](docs/numerics.md),
 [the language reference](docs/reference.md), [the Python API](docs/python.md),
-[troubleshooting](docs/troubleshooting.md), [coming from other tools](docs/coming-from.md),
-[upgrading from 1.x](docs/upgrading.md), [Jupyter and notebooks](docs/jupyter.md) and
-[how it works](docs/architecture.md). The [examples](examples/) are Markdown notebooks and
+[the command line](docs/cli.md), [the MCP server](docs/mcp.md),
+[integrations](docs/integrations.md), [troubleshooting](docs/troubleshooting.md),
+[coming from other tools](docs/coming-from.md), [upgrading from 1.x](docs/upgrading.md),
+[Jupyter and notebooks](docs/jupyter.md), [live mathematics](docs/live.md),
+[how it works](docs/architecture.md) and the [roadmap](docs/roadmap.md). The [examples](examples/) are Markdown notebooks and
 Python scripts, shown with their results in [Examples](docs/examples.md).
 
 ## Development

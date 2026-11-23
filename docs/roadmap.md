@@ -45,7 +45,7 @@ that grew from it, and where each stands.
   say where, why and what to do; `relativisticpy help` works offline.
 - **A tool for AI agents**: `relativisticpy mcp` serves computing, verifying and
   checking over the Model Context Protocol ([the MCP server](mcp.md)).
-- **A curriculum with known answers**: 407 problems in 18 domains, from notation
+- **A curriculum with known answers**: 734 problems in 32 domains, from notation
   to research, each with an independent answer. It measures what the language
   can do, and the test suite keeps what passes passing.
 

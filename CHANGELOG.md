@@ -257,8 +257,8 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
   refusals of the asterisk between sequences and of `\circledast`. In plain text too,
   `f(t)*g(t)` is a convolution, as the decision says; a product is written side by side,
   as the text form of a result now writes two functions nothing defines, `A(r) B(r)`.
-- A curriculum of mathematics with known answers, `curriculum/`: 407 cases across
-  18 domains at five levels, from notation to the frontier, each a program and an
+- A curriculum of mathematics with known answers, `curriculum/`: 734 cases across
+  32 domains at five levels, from notation to the frontier, each a program and an
   oracle that computes its answer independently. `benchmarks/curriculum.py` runs
   it, and the test suite keeps every case that passes passing. Both run under one hash
   seed, and `benchmarks/curriculum.py --seeds 0,1,2` lists the cases whose outcome
