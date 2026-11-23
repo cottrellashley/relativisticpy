@@ -656,7 +656,7 @@ def _finding(step: Step, session: Workbook, state: _State) -> Finding:
         elif isinstance(expr, ast.Comparison) and "==" not in expr.ops:
             detail = "the inequality does not hold"
         elif difference is not None:
-            verdict, detail = _differs_or_relates(difference, session, state)
+            verdict, detail = _differs_or_relates(difference, session, state, step.statement)
         elif _false(step.values[-1]) and step.sides is not None:
             # sides of other kinds, as a value beside an equation a definition gave
             verdict, detail = _sides_differ_or_relate(lhs, rhs, session, state)
@@ -739,16 +739,66 @@ def _judge(value: Any, session: Workbook, state: _State) -> tuple[Verdict, str, 
     return Verdict.COMPUTES, _shown(value), None
 
 
-def _differs_or_relates(difference: Any, session: Workbook, state: _State) -> tuple[Verdict, str]:
+def _differs_or_relates(
+    difference: Any, session: Workbook, state: _State, statement: ast.Statement | None = None
+) -> tuple[Verdict, str]:
     """An equation whose sides are not equal differs if every quantity in the difference
     of its sides is known: the coordinates, what the metric is written with, and what
     the document declared or defined. Otherwise it relates quantities nothing defines,
-    as a law or an equation to solve does, and is not a mistake."""
+    as a law or an equation to solve does, and is not a mistake.
+
+    A function the metric is written with, as α(t, r), is known by its name, not by its
+    values: an equation of such functions alone, as ∂_t β = 0, is one for them, a
+    condition a derivation finds, and relates them; one that gives a quantity computed
+    from them, as R_{00} = ..., is an identity of every metric they make, and differs."""
     shown = f"the left side minus the right is {_shown(difference)}"
     unknown = _unknowns(difference, session, state)
     if not unknown:
+        unknown = _solved_for(difference, session, statement)
+    if not unknown:
         return Verdict.DIFFERS, shown
     return Verdict.RELATES, f"nothing defines {_listed(unknown)}: {shown}"
+
+
+def _solved_for(difference: Any, session: Workbook, statement: ast.Statement | None) -> list[str]:
+    """The functions an equation that does not hold is one for, as they are shown: the
+    functions nothing defines in the difference of its sides, as α(t, r) of a metric
+    written with it, f(r) of α = f(r) + g(t), or a path's r(τ). None where it has none, or
+    where it gives a quantity computed from the metric and some of them are functions of
+    the coordinates, which the metric is made of."""
+    if not isinstance(difference, sympy.Basic) or statement is None:
+        return []
+    functions = sorted(difference.atoms(AppliedUndef), key=sympy.default_sort_key)
+    coordinates = set(session._session.coordinates or ())
+    of_coordinates = any(set(function.args) <= coordinates for function in functions)
+    if of_coordinates and _gives_computed(statement, session):
+        return []
+    return list(dict.fromkeys(_shown(function) for function in functions))
+
+
+def _gives_computed(statement: ast.Statement, session: Workbook) -> bool:
+    """Whether a statement writes a tensor the workbook computes, as R_{00}, \\Gamma^0_{00},
+    g_{tt} or the curvature scalar R."""
+    for node in _nodes(statement):
+        if isinstance(node, ast.Scripted) and isinstance(node.base, ast.Name):
+            rank = sum(len(s.indices.items) for s in node.scripts if s.indices is not None)
+            if rank and session._knows_tensor(node.base.id, rank):
+                return True
+        elif isinstance(node, ast.Name) and session._knows_tensor(node.id, 0):
+            return True
+    return False
+
+
+def _nodes(node: ast.Node) -> Iterator[ast.Node]:
+    """Every node of a syntax tree, without recursion."""
+    pending: list[object] = [node]
+    while pending:
+        current = pending.pop()
+        if isinstance(current, tuple):
+            pending.extend(current)
+        elif isinstance(current, ast.Node):
+            yield current
+            pending.extend(vars(current).values())
 
 
 def _false(value: Any) -> bool:

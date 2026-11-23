@@ -237,6 +237,27 @@ class TestScalarEquations:
             == 36 * sympy.Symbol("G") ** 2 * sympy.Symbol("M") ** 2 / sympy.Symbol("r") ** 6
         )
 
+    def test_an_equation_for_the_functions_of_a_metric_relates(self):
+        # Carroll (7.16) to (7.18), Birkhoff's theorem: the metric is written with
+        # α(t, r) and β(t, r), which nothing defines. R_{01} = (2/r) ∂_0 β is an identity
+        # of every such metric; written with 1/r, it is a mistake. ∂_0 β = 0 is not an
+        # identity but a condition the text derives from R_{01} = 0: it relates.
+        report = Workbook().check(
+            Document(r"""
+            \begin{equation} ds^2 = -e^{2\alpha(t,r)} dt^2 + e^{2\beta(t,r)} dr^2
+                + r^2 d\Omega^2 \end{equation}
+            \begin{equation} R_{01} = {2\over{r}}\partial_0\beta \end{equation}
+            \begin{equation} R_{01} = {1\over{r}}\partial_0\beta \end{equation}
+            \begin{equation} \partial_0\beta = 0 \end{equation}
+            \begin{equation} \partial_0\partial_1\alpha = 0 \end{equation}
+            """)
+        )
+        verdicts = ["defines", "holds", "differs", "relates", "relates"]
+        assert [finding.verdict for finding in report] == verdicts
+        assert report.findings[3].detail == (
+            "nothing defines β(t, r): the left side minus the right is ∂_t β(t, r)"
+        )
+
     def test_names_declared_by_a_relation_are_known(self):
         # an index range declares nu: nu + 1 = 1 is a condition on it, which differs
         report = Workbook().check(
