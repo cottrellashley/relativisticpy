@@ -848,6 +848,9 @@ class TestDerivatives:
             (r"\frac{\partial^2 f}{\partial x \partial y}", "(∂^2/∂x∂y f)"),
             (r"\frac{\partial^2{x^2}}{\partial{\tau}^2}", "(∂^2/∂tau^2 (^ x 2))"),
             (r"\frac{\partial}{\partial r}", "(∂/∂r _)"),
+            # d with brackets against it, which alone would be a call of d
+            (r"\frac{d(\sin^2\theta)}{d\theta}", "(d/dtheta (^ (call sin theta) 2))"),
+            (r"\frac{\mathrm{d}\left(x^2\right)}{\mathrm{d}x}", "(d/dx (^ x 2))"),
             # as SymPy typesets them: a function's arguments in braces, and a derivative
             # of the function after it alone
             (r"a{\left(t \right)}", "(call a t)"),
@@ -876,6 +879,7 @@ class TestDerivatives:
         assert sexpr(text) == expected
 
     def test_a_fraction_that_is_not_a_derivative(self):
+        assert sexpr(r"\frac{d(x + y)}{2}") == "(/ (call d (+ x y)) 2)"
         assert sexpr(r"\frac{d}{2}") == "(/ d 2)"
         assert sexpr(r"\frac{dx}{2}") == "(/ dx 2)"
         assert sexpr(r"\frac{a}{dx}") == "(/ a dx)"

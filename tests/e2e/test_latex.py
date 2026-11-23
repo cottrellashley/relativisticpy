@@ -119,6 +119,10 @@ def test_statements_separated_by_newline_commands(wb):
             diff(diff(sqrt(-(x**3) + y**2 - z), y, 2), x),
         ),
         (r"\frac{d}{dx} x^3", 3 * x**2),
+        # d(...) against its brackets was a call of d: sin^2(theta)/theta, and theta
+        (r"\frac{d(\sin^2\theta)}{d\theta}", diff(sin(theta) ** 2, theta)),
+        (r"\frac{d(\theta^2)}{d\theta}", 2 * theta),
+        (r"\frac{\mathrm{d}(\cos\theta)}{\mathrm{d}\theta}", -sin(theta)),
         (r"\frac{d^2 y}{dx^2}", 0),
         (r"\frac{\partial^2}{\partial x \partial y} x^2 y^3", 6 * x * y**2),
         ("sin'(x)", diff(sin(x), x)),

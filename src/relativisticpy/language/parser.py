@@ -3400,10 +3400,13 @@ def _joined_differential(node: ast.Expr) -> ast.Expr | None:
 
 
 def _leibniz_numerator(node: ast.Expr) -> tuple[bool, int | None, ast.Expr | None] | None:
-    """``d``, ``d^2 y``, ``dy``, ``\\partial^2 f``, ``d^2{f}`` → ``(partial, order, f)``."""
+    """``d``, ``d^2 y``, ``dy``, ``\\partial^2 f``, ``d^2{f}`` → ``(partial, order, f)``;
+    and ``d(\\sin^2\\theta)``, read as a call of d, → ``(False, None, \\sin^2\\theta)``."""
     head, *rest = _factors(node)
     if isinstance(head, ast.Differential):
         return False, head.order, _product([head.expr, *rest])
+    if isinstance(head, ast.Call) and _is_d(head.func) and len(head.args) == 1:
+        return False, None, _product([head.args[0], *rest])
     if (variable := _joined_differential(head)) is not None:
         return False, None, _product([variable, *rest])
     if (marker := _differential_marker(head)) is not None:
