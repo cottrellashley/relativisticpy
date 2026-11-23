@@ -69,6 +69,7 @@ from relativisticpy.tensors.equation import TensorEquation, UndecidedError, asym
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.numerical import double_precision as _double_precision
 from relativisticpy.tensors.simplification import is_zero, tidy
+from relativisticpy.typing.syntax import _walk
 from relativisticpy.typing.typer import shown_indices
 
 _F = TypeVar("_F", bound=Callable[..., Any])
@@ -239,6 +240,7 @@ class Workbook:
                 said = [r for output in outputs for r in self._executor.remarks(output.node)]
                 notes += [remark.note for remark in dict.fromkeys(said)]
                 notes += [note for value in values for note in _left_undone(value)]
+                notes += self._held(piece, values)  # x, after an equation in x, unsolved
                 assuming = [each for remark in said for each in remark.assuming]
                 sides = self._sides(piece)
                 yield Step(
@@ -249,6 +251,36 @@ class Workbook:
                     notes=list(dict.fromkeys(notes)),
                     assuming=list(dict.fromkeys(assuming)),
                 )
+
+    def _held(self, statement: ast.Statement, values: Sequence[Any]) -> list[str]:
+        """The notes on the symbols a statement's values hold that an equation shown before
+        holds too, unsolved, as x in ``-\\log_{10} x`` after ``\\frac{x^2}{0.10 - x} = 1.8
+        \\times 10^{-5}``: a symbol there, which no value was given, where a program may
+        mean the equation's solution (design/notation.md, decision 3). A symbol with a
+        subscript, as \\lambda_1, is held where its letter is, as \\lambda. The equations
+        :meth:`_present` remembers the equations it shows, unsolved. Only the symbols the
+        statement writes itself are said, not those of the values it names."""
+        shown = self._session.shown_equations
+        if any(_unsolved(value) for value in values):
+            return []  # an equation, remembered as it is shown
+        coordinates = {c.name for c in self._session.coordinates or ()}
+        written = {node.id for node in _walk(statement) if isinstance(node, ast.Name)}
+        names = sorted(
+            {symbol.name for value in values for symbol in _free_symbols(value)} - coordinates
+        )
+        notes = []
+        for name in names:
+            base = name.partition("_")[0]
+            if name not in written and base not in written:
+                continue  # a symbol of a value it names, as M of a metric is
+            held, lines = name, dict[int, Span]()
+            for equation, where in shown:
+                if name in equation or (base != name and base in equation):
+                    held = name if name in equation else base
+                    lines.setdefault(where.line, where)
+            if lines:
+                notes.append(_held_note(name, held, lines, latex=statement.latex))
+        return notes
 
     def _sides(self, statement: ast.Statement) -> tuple[Any, Any] | None:
         """The values of an equation's two sides, for saying how they differ."""
@@ -881,6 +913,9 @@ class Workbook:
         value = self._executor.evaluate(output.node)
         if value is NotImplemented:  # an operation SymPy declined, as [1, 2] < [3, 4]
             raise EvaluationError("this is not defined for these values", span=output.span)
+        if _unsolved(value):  # what holds its symbols, for the values shown after it
+            held = frozenset(symbol.name for symbol in _free_symbols(value))
+            self._session.shown_equations.append((held, output.span))
         if (undecided := _undecided(output, value)) is not None:
             raise undecided
         if (none := _no_answer(output, value, self._executor.evaluate)) is not None:
@@ -1351,6 +1386,41 @@ def _gives_form(op: ops.Op) -> bool:
         return integrations.find(op.name).gives_form
     except KeyError:  # an operation of the language's own, as core.sum
         return False
+
+
+def _unsolved(value: Any) -> bool:
+    """Whether a value is an equation shown as it is, neither true nor false: of scalars,
+    or of tensors that does not hold."""
+    if isinstance(value, TensorEquation):
+        return value.holds() is not True
+    return isinstance(value, sympy.Equality)
+
+
+def _free_symbols(value: Any) -> set[Symbol]:
+    """The symbols a value holds, in each of its SymPy parts."""
+    return {
+        symbol
+        for part in symbolic(value)
+        for symbol in getattr(part, "free_symbols", ())
+        if isinstance(symbol, Symbol)
+    }
+
+
+def _held_note(name: str, held: str, lines: Mapping[int, Span], *, latex: bool) -> str:
+    """The note on a symbol ``name`` a value holds where the equations on ``lines``,
+    shown and unsolved, hold ``held``, which is the name or its letter: what it is, and how
+    to give it the equation's values."""
+    shown, holding = ((display.latex(Symbol(n)) if latex else n) for n in (name, held))
+    numbers = sorted(lines)
+    if len(numbers) == 1:
+        equation = " ".join(lines[numbers[0]].text.split())
+        said = f"the equation on line {numbers[0]} holds {holding}, and is shown"
+        solve = f"solve it, as in solve({equation}, {holding})"
+    else:
+        listed = ", ".join(map(str, numbers[:-1])) + f" and {numbers[-1]}"
+        said = f"the equations on lines {listed} hold {holding}, and are shown"
+        solve = f"solve them for {holding}, with solve"
+    return f"{shown} is a symbol here: {said}, not solved; for the values of {holding}, {solve}"
 
 
 def _left_undone(value: Any) -> list[str]:

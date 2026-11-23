@@ -120,6 +120,10 @@ class Session:
     # the names each relates and where it is written: they tie y to x, so that a later
     # dy/dx is not the derivative of a constant.
     relations: list[tuple[frozenset[str], Span]] = field(default_factory=list)
+    # The equations shown so far and left unsolved, as x^2/(0.1 - x) = 1.8e-5 is, by the
+    # names of the symbols each holds and where it is written: a later value that holds one
+    # of them holds a symbol the equation constrains, which a note says.
+    shown_equations: list[tuple[frozenset[str], Span]] = field(default_factory=list)
     # Spaces other than spacetime, by name, and the index labels declared to range over
     # them, as by a, b \in \mathcal{A}. A space may be given a metric, by the node of
     # the tensor that is its metric, and a measure, by the node of its weights.
@@ -174,6 +178,7 @@ class Session:
             functions=dict(self.functions),
             factors=set(self.factors),
             relations=list(self.relations),
+            shown_equations=list(self.shown_equations),
             spaces=dict(self.spaces),
             labels=dict(self.labels),
             ranges=set(self.ranges),

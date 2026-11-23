@@ -169,6 +169,38 @@ class TestSilentReadingsAreSaid:
         assert sympy.expand(wb.expr(r"(3 + 4j)^2 + 0 \alpha")) == -7 + 24 * sympy.I
         assert notes(wb, "x2 + 1") == []  # x has no value
 
+    def test_a_symbol_an_equation_shown_before_holds_says_so(self, wb):
+        # chem.equilibrium.weak-acid: -\\log_{10} x after an equation in x was -log10(x),
+        # the equation shown and not solved, without a word (decision 3)
+        wb.exe("x > 0")
+        wb.exe(r"\frac{x^2}{0.10 - x} = 1.8 \times 10^{-5}")
+        assert notes(wb, r"-\log_{10} x") == [
+            r"x is a symbol here: the equation on line 1 holds x, and is shown, not solved; "
+            r"for the values of x, solve it, as in solve(\frac{x^2}{0.10 - x} = 1.8 \times "
+            r"10^{-5}, x)"
+        ]
+        assert notes(wb, r"\operatorname{solve}(\frac{x^2}{0.10 - x} = 1.8 \times 10^{-5}, x)")[
+            :1
+        ] == ["solve dropped x = −0.001350670973077975, as x is assumed positive"]
+        wb.exe(r"\sin^2 z + \cos^2 z = 1")  # an identity, which holds, and holds no z
+        assert notes(wb, "z + 1") == []
+        # de.bvp.robin: \lambda_1 is held where \lambda is
+        wb.exe(r"y'' + \lambda y = 0")
+        assert notes(wb, r"\lambda_1") == [
+            r"\lambda_{1} is a symbol here: the equation on line 1 holds \lambda, and is "
+            r"shown, not solved; for the values of \lambda, solve it, as in solve(y'' + "
+            r"\lambda y = 0, \lambda)"
+        ]
+
+    def test_a_symbol_of_a_value_a_statement_names_is_not_said_to_be_held(self, wb):
+        # M of an equation shown, in a value a later statement names but does not write
+        wb.exe("2 M + b = 5\nc := 3 M")
+        assert notes(wb, "c + 1") == []
+        assert notes(wb, "M + 1") == [
+            "M is a symbol here: the equation on line 1 holds M, and is shown, not solved; for "
+            "the values of M, solve it, as in solve(2 M + b = 5, M)"
+        ]
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]
