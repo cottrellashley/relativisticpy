@@ -131,3 +131,63 @@ class TestComponents:
         assert numerical.is_numerical(sp.eye(3, format="csr"))
         assert not numerical.is_numerical(sympy.Array([1, 2]))
         assert not numerical.is_numerical(2.0)
+
+
+class TestValuesPastTheRealDomain:
+    """Data has the value exact numbers have where an array leaves it undefined, nan, or
+    gives the real part of a complex value (the review of the engines, 6)."""
+
+    def test_a_function_is_continued_to_complex_numbers(self):
+        found = numerical.continued(np, np.sqrt, np.array([4.0, -4.0]))
+        assert np.allclose(found, [2, 2j])
+        assert numerical.continued(np, np.sqrt, np.array([4.0, 9.0])).dtype.kind == "f"
+
+    def test_a_real_part_alone_is_continued_below_a_number(self):
+        from scipy.special import sici
+
+        found = numerical.continued(np, lambda x: sici(x)[1], np.array([1.0, -1.0]), below=0)
+        assert np.allclose(found, [0.33740392290096816, 0.33740392290096816 + np.pi * 1j])
+
+    def test_what_numeric_leaves_undefined_is_computed_through_sympy(self):
+        x = np.array([0.5, 2.0])
+        found = numerical.apply(x, sympy.asin, numeric=lambda xp, array: xp.arcsin(array))
+        assert np.allclose(found, [np.arcsin(0.5), complex(sympy.asin(2))])
+        assert complex(sympy.asin(2)).imag < 0  # SymPy's side of the cut, not NumPy's
+
+    def test_complex_data_numeric_cannot_take_is_computed_through_sympy(self):
+        from scipy.special import ellipk
+
+        z = np.array([0.5 + 1.0j, 2.0 - 3.0j])
+        found = numerical.apply(z, sympy.elliptic_k, numeric=lambda xp, array: ellipk(array))
+        assert np.allclose(found, [complex(sympy.elliptic_k(sympy.sympify(v)).n()) for v in z])
+        with pytest.raises(TypeError):  # real data: the failure is numeric's own
+            numerical.apply(np.array([0.5]), sympy.sin, numeric=lambda xp, array: len(xp))
+
+    def test_a_number_missing_from_the_data_stays_missing(self):
+        x = np.array([np.nan, 4.0, np.inf])
+        found = numerical.apply(x, sympy.sqrt, numeric=lambda xp, array: xp.sqrt(array))
+        assert np.isnan(found[0])
+        assert found[1] == 2.0
+        assert np.isinf(found[2])
+
+    def test_the_arrays_of_jax_have_the_same_values(self):
+        jnp = pytest.importorskip("jax.numpy")
+        numerical.double_precision(pytest.importorskip("jax"))
+        x = jnp.asarray([0.5, 2.0, -4.0])
+        asin = numerical.apply(x, sympy.asin, numeric=lambda xp, array: xp.arcsin(array))
+        assert np.allclose(np.asarray(asin)[:2], [np.arcsin(0.5), complex(sympy.asin(2))])
+        assert numerical.is_jax(asin)
+        assert np.allclose(np.asarray(numerical.continued(jnp, jnp.sqrt, x))[2], 2j)
+
+    def test_what_jax_traces_is_as_numeric_computes_it(self):
+        jax = pytest.importorskip("jax")
+        numerical.double_precision(jax)
+
+        def total(x):
+            root = numerical.apply(
+                x, sympy.sqrt, numeric=lambda xp, a: numerical.continued(xp, xp.sqrt, a)
+            )
+            return root.sum()
+
+        gradient = jax.grad(total)(jax.numpy.asarray([4.0, 9.0]))
+        assert np.allclose(np.asarray(gradient), [0.25, 1 / 6])

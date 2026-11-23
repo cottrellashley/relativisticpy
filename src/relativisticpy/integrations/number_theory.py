@@ -42,11 +42,12 @@ def whole(n: Any, name: str) -> Any:
 
 
 def elementwise(compute: Callable[..., Any], *arrays: Any) -> Any:
-    """A function of integers computed at each number of arrays, which NumPy has none of."""
+    """A function of integers computed at each number of arrays, which NumPy has none of:
+    each as it is, a complex number too, which the function refuses, never its real part."""
     import numpy as np
 
     each = np.vectorize(lambda *values: float(compute(*values)), otypes=[float])
-    return each(*(np.asarray(array, dtype=float) for array in arrays))
+    return each(*(np.asarray(array) for array in arrays))
 
 
 @function(

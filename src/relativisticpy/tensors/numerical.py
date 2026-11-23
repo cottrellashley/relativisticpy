@@ -73,6 +73,16 @@ def double_precision(jax: Any) -> None:
         jax.config.update("jax_enable_x64", True)
 
 
+def traced(value: Any) -> bool:
+    """Whether ``value`` is what JAX traces to differentiate it, whose numbers are not
+    known yet, so that nothing can be decided by them."""
+    if not is_jax(value):
+        return False
+    import jax
+
+    return isinstance(value, jax.core.Tracer)
+
+
 def _xp(*values: Any) -> Any:
     """The array module of the values: JAX's for JAX arrays, NumPy's otherwise."""
     if any(is_jax(value) for value in values):
@@ -94,6 +104,15 @@ def number(value: Any) -> Any:
         f"{value} is a symbol, so it cannot be combined with numerical components",
         hint=f"give {value} a value, as in {value} := 0.5",
     )
+
+
+def whole_number(value: Any) -> Any:
+    """``value`` as SymPy takes it, where it is a whole number given as a decimal, as data
+    gives one: an integer, so that 3.0 counts as 3 does; anything else as it is."""
+    value = sympy.sympify(value)
+    if value.is_Float and float(value).is_integer():
+        return sympy.Integer(int(value))
+    return value
 
 
 def as_array(value: Any) -> Any:
@@ -365,27 +384,143 @@ def apply(
     with arrays itself, given the array module, the array and the ``extra`` arguments;
     otherwise by its translation into NumPy and SciPy, made once from what it does to a
     symbol, as ``erf`` becomes ``scipy.special.erf``; one component at a time, through
-    SymPy, only where there is none."""
+    SymPy, only where there is none. A component the arrays leave undefined, nan, as
+    they leave the inverse sine of 2, is computed through SymPy too, and so is complex data
+    a library takes no complex numbers for, as SciPy's Beta function takes none: data has
+    the values exact numbers have, never nan in their place. What JAX traces to
+    differentiate, whose numbers are not known yet, is as ``numeric`` computes it."""
     xp = _xp(array)
     array = dense(array)
     numbers = [number(e) for e in extra]
-    if numeric is not None:
-        return numeric(xp, array, *numbers)
     np = numpy()
+    tracing = any(traced(value) for value in (array, *numbers))
+    if numeric is not None:
+        try:
+            with np.errstate(invalid="ignore"):  # what is undefined is computed again
+                result = numeric(xp, array, *numbers)
+        except TypeError:  # "ufunc 'beta' not supported for the input types"
+            if tracing or not _complex(array, numbers):
+                raise
+            return _each(func, array, numbers)
+        return result if tracing else _defined(result, func, array, numbers)
     try:
         translated = _translated(func, tuple(numbers)) if xp is np else None
     except TypeError:  # what cannot be remembered, as a JAX array cannot
         translated = None
     if translated is not None:
         try:
-            result = np.asarray(translated(array))
+            with np.errstate(invalid="ignore"):
+                result = np.asarray(translated(array))
         except (NameError, TypeError, ValueError, AttributeError):
             pass  # SymPy wrote what NumPy cannot compute
         else:
             if result.dtype != object:  # a constant is one for every component
-                return np.broadcast_to(result, array.shape).copy() if result.ndim == 0 else result
-    vectorised = np.vectorize(lambda x: number(func(sympy.sympify(x), *numbers)))
-    return vectorised(array)
+                result = np.broadcast_to(result, array.shape).copy() if result.ndim == 0 else result
+                return _defined(result, func, array, numbers)
+    return _each(func, array, numbers)
+
+
+def _complex(array: Any, numbers: Sequence[Any]) -> bool:
+    """Whether data, or a number given with it, is complex."""
+    np = numpy()
+    given = [array, *(n for n in numbers if is_numerical(n) or isinstance(n, complex))]
+    return any(np.iscomplexobj(value) for value in given)
+
+
+def _defined(result: Any, func: Callable[..., Any], array: Any, numbers: Sequence[Any]) -> Any:
+    """``result`` with each component the arrays leave undefined, nan, where what it is
+    computed from is a finite number, computed through SymPy, which gives it its value:
+    the inverse sine of 2 is π/2 - 1.317i. A number missing from the data, nan, stays so."""
+    np = numpy()
+    values = np.asarray(result)
+    if values.dtype.kind not in "fc":
+        return result
+    undefined = np.isnan(values)
+    if not undefined.any():
+        return result
+    given = [np.asarray(array), *(np.asarray(n) for n in numbers if is_numerical(n))]
+    if np.broadcast_shapes(*(each.shape for each in given)) != values.shape:
+        return result  # no value for each component: nothing to compute one by one
+    for each in given:
+        undefined = undefined & np.isfinite(each)
+    if not undefined.any():
+        return result
+    computed = _each(func, array, numbers, where=undefined)
+    values = values.astype(np.result_type(values, computed), copy=True)
+    values[undefined] = computed[undefined]
+    return _xp(result).asarray(values) if is_jax(result) else values
+
+
+def _each(func: Callable[..., Any], array: Any, numbers: Sequence[Any], where: Any = None) -> Any:
+    """``func`` of components one at a time, through SymPy: of every one, or of those
+    ``where`` is true, and nan elsewhere; real numbers where every value is real. Data
+    given as another argument too, as both arguments of a Beta function, is taken a number
+    at a time with it. A value of a component that is no number, as a call SymPy keeps, is
+    refused, but where it is only one ``where`` NumPy left undefined, which stays so."""
+    np = numpy()
+    data = np.asarray(array)
+    others = [np.asarray(n) if is_numerical(n) else None for n in numbers]
+    shape = np.broadcast_shapes(data.shape, *(o.shape for o in others if o is not None))
+    data = np.broadcast_to(data, shape)
+    others = [None if o is None else np.broadcast_to(o, shape) for o in others]
+    values = np.full(shape, np.nan, dtype=complex)
+    for index in np.ndindex(*shape):
+        if where is not None and not where[index]:
+            continue
+        given = [n if o is None else o[index].item() for n, o in zip(numbers, others, strict=True)]
+        value = func(sympy.sympify(data[index].item()), *given)
+        try:
+            values[index] = number(value)
+        except EvaluationError:
+            if where is None:
+                raise
+    return values.real if not values.imag.any() else values
+
+
+def continued(
+    xp: Any, compute: Callable[[Any], Any], values: Any, below: float | None = None
+) -> Any:
+    """``compute`` at ``values``, and at complex numbers instead where its real value is
+    undefined, nan, as the logarithm of a negative number is, and where they are
+    ``below`` a number, past which a library gives only the real part of a complex value,
+    as SciPy's cosine integral does: its value is then the one complex arithmetic gives
+    there, which is where it is continued to. What JAX traces to differentiate, whose
+    numbers are not known yet, is as ``compute`` gives it."""
+    if xp.iscomplexobj(values) or traced(values):
+        return compute(values)
+    np = numpy()
+    values = xp.asarray(values)
+    with np.errstate(invalid="ignore"):
+        result = compute(values)
+    beyond = xp.isnan(result) & xp.isfinite(values)
+    if below is not None:
+        beyond = beyond | (values < below)
+    if not bool(xp.any(beyond)):
+        return result
+    with np.errstate(all="ignore"):  # of the values past it alone, which the rest is not
+        continuation = compute(values.astype(xp.result_type(values, 1j)))
+    return xp.where(beyond, continuation, result)
+
+
+def realised(xp: Any, values: Any) -> Any:
+    """Complex numbers as real ones where every imaginary part is 0, as a function's values
+    are where it is real; as they are otherwise."""
+    if not xp.iscomplexobj(values) or traced(values) or bool(xp.any(xp.imag(values))):
+        return values
+    return xp.real(values)
+
+
+def integers(xp: Any, values: Any) -> Any | None:
+    """Numbers that are each a whole number as integers, as SciPy evaluates a polynomial
+    of an integer degree by its recurrence, exactly, and of a decimal one by a series,
+    which loses its accuracy as the degree grows; ``None`` where any of them is not whole,
+    or complex."""
+    values = xp.asarray(values)
+    if xp.iscomplexobj(values) or not bool(xp.all(xp.isfinite(values))):
+        return None
+    if not bool(xp.all(values == xp.round(values))):
+        return None
+    return values.astype(int)
 
 
 @functools.lru_cache(maxsize=256)

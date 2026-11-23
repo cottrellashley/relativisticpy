@@ -4,8 +4,8 @@ The Bessel functions of the first and second kinds and their modified forms, by 
 book names, ``J_{\nu}(x)``, ``Y_{\nu}(x)``, ``I_{\nu}(x)`` and ``K_{\nu}(x)``; the spherical
 Bessel functions ``j_n(x)`` and ``y_n(x)``; and the Airy functions. Exact with SymPy, which
 writes those of half an odd integer as the elementary functions they are, and numeric with
-SciPy, for data. DLMF is the NIST Digital Library of Mathematical Functions, chapters 9
-and 10.
+SciPy, for data, in complex numbers past 0, where they are complex. DLMF is the NIST
+Digital Library of Mathematical Functions, chapters 9 and 10.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.numerical import continued
 
 _ORDERS = [(0, 1.5), (1, 2.5), (0.5, 3.0), (2.5, 0.7)]  # orders and arguments
 _DEGREES = [(0, 1.5), (1, 2.5), (2, 3.0), (3, 0.7)]  # whole orders, as SciPy takes them
@@ -47,7 +48,7 @@ class BesselJ:
     def numeric(self, xp: Any, nu: Any, x: Any) -> Any:
         from scipy.special import jv
 
-        return jv(nu, x)
+        return continued(xp, lambda values: jv(nu, values), x)
 
 
 @function(
@@ -68,7 +69,7 @@ class BesselY:
     def numeric(self, xp: Any, nu: Any, x: Any) -> Any:
         from scipy.special import yv
 
-        return yv(nu, x)
+        return continued(xp, lambda values: yv(nu, values), x)
 
 
 @function(
@@ -89,7 +90,7 @@ class BesselI:
     def numeric(self, xp: Any, nu: Any, x: Any) -> Any:
         from scipy.special import iv
 
-        return iv(nu, x)
+        return continued(xp, lambda values: iv(nu, values), x)
 
 
 @function(
@@ -110,7 +111,7 @@ class BesselK:
     def numeric(self, xp: Any, nu: Any, x: Any) -> Any:
         from scipy.special import kv
 
-        return kv(nu, x)
+        return continued(xp, lambda values: kv(nu, values), x)
 
 
 @function(

@@ -13,6 +13,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.numerical import continued
 
 _UNIT = [(0.3,), (0.7,)]  # inside (-1, 1), where the inverse sine, cosine and others are real
 _BEYOND = [(1.6,), (2.5,)]  # beyond 1, where the inverse hyperbolic cosine and others are real
@@ -397,7 +398,7 @@ class NaturalLogarithm:
         return sympy.log(x)
 
     def numeric(self, xp: Any, x: Any) -> Any:
-        return xp.log(x)
+        return continued(xp, xp.log, x)
 
 
 @function(
@@ -413,7 +414,7 @@ class SquareRoot:
         return sympy.sqrt(x)
 
     def numeric(self, xp: Any, x: Any) -> Any:
-        return xp.sqrt(x)
+        return continued(xp, xp.sqrt, x)
 
 
 @function(

@@ -17,6 +17,7 @@ import sympy
 
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.numerical import continued, integers, realised, whole_number
 
 x, z = sympy.symbols("x z")
 
@@ -82,7 +83,7 @@ class PrincipalLogarithm:
         return sympy.log(z)
 
     def numeric(self, xp: Any, z: Any) -> Any:
-        return xp.log(z)
+        return continued(xp, xp.log, z)
 
 
 @function(
@@ -177,7 +178,7 @@ class CosineIntegral:
     def numeric(self, xp: Any, x: Any) -> Any:
         from scipy.special import sici
 
-        return sici(x)[1]
+        return continued(xp, lambda values: sici(values)[1], x, below=0)
 
 
 @function(
@@ -193,12 +194,25 @@ class CosineIntegral:
 )
 class LambertW:
     def exact(self, x: Any, k: Any = 0) -> Any:
+        k = whole_number(k)
+        if k.is_number and not k.is_Integer:
+            raise _no_branch(k)
         return sympy.LambertW(x, k)
 
     def numeric(self, xp: Any, x: Any, k: Any = 0) -> Any:
         from scipy.special import lambertw
 
-        return lambertw(x, k).real
+        branches = integers(xp, k)
+        if branches is None:
+            raise _no_branch(k)
+        return realised(xp, lambertw(x, branches))
+
+
+def _no_branch(k: Any) -> EvaluationError:
+    return EvaluationError(
+        f"Lambert's W has a branch k for each whole number, and none for {k}",
+        hint="W_0 is the principal branch, and W_{-1} the other that is real, on [-1/e, 0)",
+    )
 
 
 @function(
@@ -250,6 +264,12 @@ def _parameters(values: Any) -> list[Any]:
     return list(values) if listed else [values]
 
 
+def _number(value: Any) -> float | complex:
+    """A parameter as mpmath takes it: a real number, or a complex one where it is."""
+    found = complex(value)
+    return found.real if found.imag == 0 else found
+
+
 @function(
     "hyper",
     latex="{}_pF_q(a; b; z)",
@@ -279,10 +299,9 @@ class Hypergeometric:
         import mpmath
         import numpy as np
 
-        a, b = [float(v) for v in _parameters(a)], [float(v) for v in _parameters(b)]
-        each = np.vectorize(lambda value: complex(mpmath.hyper(a, b, value)))
-        values = each(np.asarray(z, dtype=float))
-        return values.real if not values.imag.any() else values
+        a, b = [_number(v) for v in _parameters(a)], [_number(v) for v in _parameters(b)]
+        each = np.vectorize(lambda value: complex(mpmath.hyper(a, b, value)), otypes=[complex])
+        return realised(np, each(np.asarray(z)))
 
     def arguments(self, call: Any) -> dict[str, Any]:
         """The arguments that print a call of the hypergeometric function in its form."""
