@@ -216,10 +216,10 @@ The [LaTeX page](latex.md#notation-from-papers) lists the notation in full.
 Sean Carroll's *Lecture Notes on General Relativity*
 ([arXiv:gr-qc/9712019](https://arxiv.org/abs/gr-qc/9712019)) are the
 benchmark for this feature. Of their 797 display equations, 786 (98.6%)
-parse. The other eleven are mostly words laid out as matrices, and integrals
-written in ways that leave their variables unclear. Checked from end to end, in
-about five seconds, 116 statements hold, 75 of them with sides that are not both
-zero.
+parse. The other eleven are words laid out as matrices, integrals over
+\(d^n\eta\) or with their differential on another line, `<<` for "much less
+than", a primed index, and \(\exp_p\). Checked from end to end, in about eight
+seconds, 124 statements hold, 83 of them with sides that are not both zero.
 
 The notes' chapter on the Schwarzschild solution makes 25 claims about the
 general spherically symmetric metric: twelve Christoffel symbols, eight
@@ -251,18 +251,22 @@ differs. In the second, the left side of (7.30) minus its right is
 \(36G^2M^2/r^6\). Each check runs what comes before its lines in their section, for
 its definitions, and reports only the lines.
 
-In all, of the equations whose sides are not equal, 20 involve only what the
-notes have defined, and so differ, these two among them; most of the others are
-steps of a derivation whose conditions are stated in the prose, as
-\(\partial_0\beta = 0\) is. The other 175 relate quantities the notes never
-define, as laws, equations of motion and the interval
+In all, of the statements whose sides are not equal, 11 involve only what the
+notes have defined, and so differ. Besides these two, eight are steps of a
+derivation whose conditions the prose states: \(\partial_0\beta = 0\) and the
+other consequences of \(R_{\mu\nu} = 0\), and the Riemann tensor in Riemann
+normal coordinates. The check takes every equation for an identity, so such a
+condition reads as differs. The last is (7.21), which holds for the metric
+\(e^{2\beta(r)}\,dr^2\) of (7.13), but not for (7.20) just before it, which
+writes \(e^{\beta(r)}\,dr^2\): another slip. The other 204 relate quantities the
+notes never define, as laws, equations of motion and the interval
 \(s^2 = (\Delta x)^2 + (\Delta y)^2\) do. One equation is ill-formed: (1.56)
 writes \(\eta_{\rho\nu}\eta^{\nu\mu} = \delta^\rho_\mu\), whose free indices call
 for \(\delta^\mu_\rho\).
 
 Most of the notes concern tensors on general manifolds, without components.
 Their equations are read as [index notation](notation.md), and those that are
-identities are verified as such: four, among them
+identities are verified as such: five, among them
 \(g^{\mu\nu} g_{\nu\sigma} = \delta^\mu_\sigma\) and the definition of the
 Einstein tensor. Laws, such as Einstein's equation, are read but are not
 identities: they relate tensors, such as the stress–energy tensor, that nothing
@@ -284,18 +288,21 @@ uv run python benchmarks/corpus.py
 
 | Paper | Equations | Parse | Hold | Differ | Relate | Ill-formed |
 |---|---:|---:|---:|---:|---:|---:|
-| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 116 | 20 | 175 | 1 |
-| gr-qc 2611.26560 | 31 | 77.4% | 1 | 1 | 10 | 0 |
-| gr-qc 2611.26576 | 305 | 46.9% | 0 | 1 | 58 | 0 |
-| gr-qc 2611.26585 | 270 | 63.0% | 0 | 1 | 24 | 0 |
-| gr-qc 2611.26591 | 27 | 92.6% | 0 | 0 | 8 | 0 |
-| gr-qc 2611.26594 | 63 | 87.3% | 1 | 0 | 4 | 0 |
-| gr-qc 2611.26620 | 47 | 74.5% | 0 | 0 | 12 | 0 |
+| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 124 | 11 | 204 | 1 |
+| gr-qc 2611.26560 | 31 | 77.4% | 1 | 0 | 8 | 0 |
+| gr-qc 2611.26576 | 305 | 48.9% | 1 | 0 | 50 | 0 |
+| gr-qc 2611.26585 | 270 | 64.4% | 0 | 3 | 21 | 0 |
+| gr-qc 2611.26591 | 27 | 100.0% | 0 | 0 | 3 | 0 |
+| gr-qc 2611.26594 | 63 | 87.3% | 1 | 0 | 6 | 0 |
+| gr-qc 2611.26620 | 47 | 78.7% | 0 | 0 | 15 | 0 |
 
 Most of what the recent papers write between quantities they introduce relates
 them, as a paper's results do; few of their equations involve only what is
 defined. They lean on their own notation, from physics packages to macros built on
-TeX internals, so they are where the language grows next.
+TeX internals, so they are where the language grows next. The three equations that
+differ in 2611.26585 are misjudged, not mistakes of the paper: each, as
+\(\hat{\mathcal{H}}_1(\lambda) = \mathcal{H}_1(\lambda)\), is between quantities
+no equation of the paper defines, and should relate them.
 
 **Next:** [Solving tensor equations](notation.md), for how equations between tensors
 without components are verified, or the [verdicts](reference.md#verdicts-of-a-check) in
