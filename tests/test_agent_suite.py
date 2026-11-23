@@ -454,7 +454,6 @@ def test_a_number_computed_in_floating_point_says_it_is_approximate(agent, sourc
     assert abs(float(read(value["text"])) - float(sympy.N(expected()))) < 1e-12
 
 
-@xfail("display: _float_text shows a float of five digits with the seventeen of a double")
 def test_a_number_of_few_digits_shows_no_more(agent):
     _, _, value = answer(agent, r"evalf(\pi, 5)")
     assert value["approximate"]
