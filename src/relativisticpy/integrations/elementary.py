@@ -289,6 +289,7 @@ class HyperbolicCosecant:
 
 @function(
     "asinh",
+    aliases=["arsinh"],
     summary="the inverse hyperbolic sine",
     examples=[
         Example("asinh(0)", 0, "standard"),
@@ -302,6 +303,7 @@ class InverseHyperbolicSine:
 
 @function(
     "acosh",
+    aliases=["arcosh"],
     summary="the inverse hyperbolic cosine",
     examples=[
         Example("acosh(1)", 0, "standard"),
@@ -316,6 +318,7 @@ class InverseHyperbolicCosine:
 
 @function(
     "atanh",
+    aliases=["artanh"],
     summary="the inverse hyperbolic tangent",
     examples=[
         Example("atanh(0)", 0, "standard"),
@@ -330,6 +333,7 @@ class InverseHyperbolicTangent:
 
 @function(
     "acoth",
+    aliases=["arcoth"],
     summary="the inverse hyperbolic cotangent",
     examples=[
         Example("acoth(5/3)", sympy.log(2), "mpmath.acoth(mpmath.mpf(5) / 3)"),
@@ -344,6 +348,7 @@ class InverseHyperbolicCotangent:
 
 @function(
     "asech",
+    aliases=["arsech"],
     summary="the inverse hyperbolic secant",
     examples=[
         Example("asech(1)", 0, "standard"),
@@ -358,6 +363,7 @@ class InverseHyperbolicSecant:
 
 @function(
     "acsch",
+    aliases=["arcsch"],
     summary="the inverse hyperbolic cosecant",
     examples=[
         Example("acsch(4/3)", sympy.log(2), "mpmath.acsch(mpmath.mpf(4) / 3)"),

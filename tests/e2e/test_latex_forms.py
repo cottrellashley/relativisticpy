@@ -244,6 +244,10 @@ OPERATOR_NAMES = [
     (r"2 \operatorname{sinc} x + 1", 2 * Function("sinc")(x) + 1),
     (r"\operatorname{foo} \cdot x", sympy.Symbol("foo") * x),  # set apart, a product
     (r"\operatorname{erf} x", sympy.erf(x)),
+    # the ISO 80000-2 names of the inverse hyperbolic functions (an error before)
+    (r"\operatorname{arsinh} x", sympy.asinh(x)),
+    (r"\operatorname{arcosh}(x)", sympy.acosh(x)),
+    (r"\operatorname{artanh} \frac{3}{5}", sympy.log(2)),
 ]
 
 CHEMISTRY = [
