@@ -32,7 +32,6 @@ theta, phi, omega, beta = sympy.symbols("theta phi omega beta")
 a, Y = sympy.Function("a"), sympy.Function("y")
 
 #: The lines of work that own the causes of failures here, as they are named.
-TRACK_A = "reading, track A: "
 
 
 def xfail(cause):
@@ -223,19 +222,16 @@ ANSWERS = [
         "d/dx sin(x)",
         lambda: sympy.diff(sympy.sin(x), x),
         id="plain-d/dx",
-        marks=xfail(TRACK_A + "plain d/dx sin(x) is read as the product d sin(x) / dx"),
     ),
     pytest.param(
         "sin²x",
         lambda: sympy.sin(x) ** 2,
         id="unicode-sin²x",
-        marks=xfail(TRACK_A + "Unicode sin²x is read as the product s i n² x"),
     ),
     pytest.param(
         "∂/∂x (x² y)",
         lambda: sympy.diff(x**2 * y, x),
         id="unicode-∂/∂x",
-        marks=xfail("reading: ∂/∂x is refused, as '\\partial needs an index or a variable'"),
     ),
     pytest.param(
         r"\frac{\partial}{\partial y} (x^2 y^3)",
@@ -264,7 +260,6 @@ ANSWERS = [
         "∫_0^π sin x dx",
         lambda: sympy.integrate(sympy.sin(x), (x, 0, sympy.pi)),
         id="unicode-integral",
-        marks=xfail("reading: Unicode sin x, with no brackets, is read as the product s i n x"),
     ),
     pytest.param(
         r"\lim_{x \to 0} \frac{\sin x}{x}",
