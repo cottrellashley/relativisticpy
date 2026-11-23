@@ -25,6 +25,7 @@ import sympy
 from relativisticpy.errors import NO_INVERSE, EvaluationError
 from relativisticpy.integrations import Example, map_function
 from relativisticpy.tensors import Tensor
+from relativisticpy.tensors.numerical import whole_number
 
 a, b, c, d, k, t = sympy.symbols("a b c d k t")
 
@@ -577,15 +578,24 @@ class SmallestEigenvalue:
 class Eigenvalue:
     def exact(self, k: Any, A: Any) -> Any:
         values = _eigenvalues(A, "eigenvalue")
-        if not (sympy.sympify(k).is_integer and 1 <= int(k) <= len(values)):
-            raise EvaluationError(
-                f"this matrix has the eigenvalues \\lambda_1 to \\lambda_{len(values)}, "
-                f"counted from the smallest, and no \\lambda_{{{k}}}"
-            )
-        return values[int(k) - 1]
+        return values[_counted(k, len(values)) - 1]
 
     def numeric(self, xp: Any, k: Any, A: Any) -> Any:
-        return _numeric_eigenvalues(xp, A)[int(k) - 1]
+        values = _numeric_eigenvalues(xp, A)
+        return values[_counted(k, values.shape[-1]) - 1]
+
+
+def _counted(k: Any, count: int) -> int:
+    """Which eigenvalue λ_k is, counted from 1, the smallest, to ``count``, the largest; an
+    error for a k that counts none, as 0, -1, 3/2 or a symbol. Data gives k as a decimal."""
+    given = whole_number(k.item() if hasattr(k, "item") else k)
+    if not (given.is_Integer and 1 <= given <= count):
+        written = sympy.nsimplify(given) if given.is_Float else given
+        raise EvaluationError(
+            f"this matrix has the eigenvalues \\lambda_1 to \\lambda_{count}, counted from the "
+            f"smallest, and no \\lambda_{{{written}}}"
+        )
+    return int(given)
 
 
 @map_function(

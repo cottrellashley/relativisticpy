@@ -13,6 +13,7 @@ from relativisticpy.errors import EvaluationError
 
 PAIR = r"\mathcal{V} := \mathbb{R}^{2}" "\n" r"l \in \mathcal{V}"
 COMPLEX_PAIR = r"\mathcal{V} := \mathbb{C}^{2}" "\n" r"l \in \mathcal{V}"
+MAP = r"\mathcal{V} := \mathbb{R}^{2}" "\n" r"a, b \in \mathcal{V}"
 
 
 def of_data(program, values, setup=PAIR, name="x^l"):
@@ -269,3 +270,18 @@ class TestHypergeometric:
         assert integrations.check(integrations.find("hyper"), ["lifting"]) == {"lifting": []}
         (failure,) = integrations.check(wrong, ["lifting"])["lifting"]
         assert failure.startswith("wronghyper applied to data, as its argument 3, gives [0, 0, 0]")
+
+
+class TestMatrices:
+    def test_an_eigenvalue_of_data_is_counted_as_exact_counts_it(self):
+        # 10: of data, lambda_0 was the largest, lambda_{3/2} the first, lambda_3 an IndexError
+        data = np.array([[2.0, 1.0], [1.0, 3.0]])
+        for k in ["0", "-1", "3/2", "3"]:
+            of_data = refused(f"eigenvalue({k}, A)", MAP, data, "A^{a}{}_{b}")
+            assert of_data == refused(f"eigenvalue({k}, [[2, 1], [1, 3]])")
+            assert of_data.endswith(f"and no \\lambda_{{{k}}}")
+        with Workbook() as wb:
+            wb.exe(MAP)
+            wb["A^{a}{}_{b}"] = data
+            assert np.isclose(wb.expr("eigenvalue(1, A)"), (5 - np.sqrt(5)) / 2)
+            assert np.isclose(wb.expr("eigenvalue(2.0, A)"), (5 + np.sqrt(5)) / 2)
