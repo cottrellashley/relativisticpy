@@ -127,6 +127,19 @@ class TestPlainText:
     def test_a_script_without_braces_is_one_letter(self, text, expected):
         assert lex(text) == expected
 
+    @pytest.mark.parametrize("text", ["oo", "x^oo", r"\int_0^oo", "∫_0^oo", "a^{oo}"])
+    def test_oo_is_one_symbol_infinity_a_script_whole(self, text):
+        # x^oo was x^o o, and oo in LaTeX or Unicode the product of two o's
+        infinity = [t for t in tokenize(text)[:-1] if t.span.text == "oo"]
+        assert len(infinity) == 1
+        assert infinity[0].kind is TokenKind.IDENT
+        assert infinity[0].value == "oo"
+        assert infinity[0].verbatim
+
+    def test_a_name_with_oo_in_it_is_a_name(self):
+        assert lex("foo + oon + oo_1 + x^ooa") == "foo + oon + oo_1 + x ^ o oa"
+        assert not any(t.verbatim for t in tokenize("foo oon")[:-1])
+
     def test_escaped_underscores_join_a_name(self):
         assert lex(r"geodesic\_equations(x) x\_0a") == "geodesic_equations ( x ) x_0a"
 

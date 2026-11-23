@@ -48,6 +48,13 @@ def test_constants(wb):
     assert wb.expr("-2 - 1 + oo") == oo
 
 
+def test_oo_is_infinity_in_every_notation(wb):
+    # \int_0^oo was the integral to o of o e^{-x}, and 2^oo was 2^o o
+    assert wb.expr(r"\int_0^oo e^{-x} dx") == 1
+    assert wb.expr("∫_0^oo e^(−x) dx") == 1
+    assert wb.expr("2^oo") == oo
+
+
 def test_symbols(wb):
     assert wb.expr("2 * x") == 2 * x
     assert wb.expr("-2.5 * x * y") == -2.5 * x * y

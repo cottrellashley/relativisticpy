@@ -176,9 +176,11 @@ _LONGEST_GREEK = max(map(len, vocab.GREEK))
 
 def _script_letters(text: str, start: int) -> int:
     """How many letters at ``start`` a script without braces takes: one, or a Greek
-    letter's name, the longest that the letters begin with."""
+    letter's name, the longest that the letters begin with, or infinity, ``oo``, alone."""
     match = _LETTERS.match(text, start)
     letters = match.group() if match else text[start : start + 1]
+    if letters == vocab.INFINITY:
+        return len(letters)
     for length in range(min(_LONGEST_GREEK, len(letters)), 1, -1):
         if letters[:length] in vocab.GREEK:
             return length
@@ -453,11 +455,15 @@ class Lexer:
 
         A name that is a script without braces is one letter, as TeX reads it, or a
         Greek letter spelled out, as plain text writes ``\\mu``: ``R^a_b`` is
-        ``R^{a}_{b}``, ``x^ab`` is ``x^{a} b`` and ``x^mu`` is ``x^{mu}``."""
+        ``R^{a}_{b}``, ``x^ab`` is ``x^{a} b`` and ``x^mu`` is ``x^{mu}``.
+
+        ``oo``, infinity, is one symbol, as ``\\infty`` and ∞ are, in every notation: never
+        the product of two o's, and a script whole, as in ``\\int_0^oo``."""
         start = self.pos
         if self._at_script():
             end = start + _script_letters(self.text, start)
-            self._emit(TokenKind.IDENT, self.text[start:end], start, end)
+            name = self.text[start:end]
+            self._emit(TokenKind.IDENT, name, start, end, verbatim=name == vocab.INFINITY)
             return
         match = _IDENT.match(self.text, start)
         assert match is not None
@@ -467,7 +473,8 @@ class Lexer:
             if tail is None:
                 break
             end = tail.end()
-        self._emit(TokenKind.IDENT, self.text[start:end].replace("\\_", "_"), start, end)
+        name = self.text[start:end].replace("\\_", "_")
+        self._emit(TokenKind.IDENT, name, start, end, verbatim=name == vocab.INFINITY)
 
     def _at_script(self) -> bool:
         """Whether what comes next is a script without braces: after ``^`` or ``_``, and

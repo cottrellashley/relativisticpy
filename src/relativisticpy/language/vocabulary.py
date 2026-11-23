@@ -41,6 +41,9 @@ GREEK_VARIANTS: Mapping[str, str] = MappingProxyType(
     }
 )
 
+#: Infinity as plain text writes it, as SymPy does: one symbol, as ``\infty`` and ∞ are.
+INFINITY = "oo"
+
 #: Commands that stand for a symbol, mapped to the name of that symbol.
 SYMBOL_COMMANDS: Mapping[str, str] = MappingProxyType(
     {
