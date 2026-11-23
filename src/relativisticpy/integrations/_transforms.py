@@ -45,7 +45,7 @@ from typing import Any, ClassVar
 import sympy
 
 from relativisticpy.errors import RelativisticPyError
-from relativisticpy.integrations._declarations import Capability, Example, _declare, near
+from relativisticpy.integrations._declarations import Capability, Example, declares, near
 from relativisticpy.integrations._discovery import catalogue, on_change
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
@@ -115,7 +115,7 @@ def transform(
     pair for each convention the letters choose, and checked at ``points``, each a function
     it transforms, which gives a scalar; or of data, whose implementation has a ``space``
     method, which gives data over it. ``inverse`` names the transform that undoes it."""
-    return _declare(
+    return declares(
         Transform,
         name,
         summary=summary,
@@ -266,7 +266,7 @@ class Written:
 def head_of(node: ast.Node) -> Head | None:
     """The head a transform is written with: a name, as ``\\mathcal{L}``, or a name to the
     power -1, as ``\\mathcal{L}^{-1}``; ``None`` for anything else."""
-    from relativisticpy.integrations._forms import _style
+    from relativisticpy.integrations._forms import style_of
     from relativisticpy.typing.syntax import is_minus_one
 
     inverted = False
@@ -278,7 +278,7 @@ def head_of(node: ast.Node) -> Head | None:
         node, inverted = node.base, True
     if not isinstance(node, ast.Name):
         return None
-    return Head(node.id, _style(node), inverted)
+    return Head(node.id, style_of(node), inverted)
 
 
 def in_braces(node: ast.Node) -> bool:

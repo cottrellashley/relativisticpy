@@ -206,7 +206,7 @@ def _shape(expr: ast.Expr) -> forms.Shape | None:
                 return None
             (below if script.kind == "_" else above).append(script.body)
         base = expr.base
-        style = forms._style(base)
+        style = forms.style_of(base)
         return forms.Shape(
             "subscripted", base.id, style, base.span.text, below=tuple(below), above=tuple(above)
         )
@@ -218,7 +218,7 @@ def _bound(form: forms.Shape, shape: forms.Shape) -> tuple[tuple[ast.Expr, int],
     written to; ``None`` where it does not have the form's shape."""
     if form.kind != shape.kind or form.head != shape.head:
         return None
-    if not forms._set_alike(form, shape):
+    if not forms.set_alike(form, shape):
         return None
     counts = (len(form.before), len(form.below), len(form.above), len(form.arguments))
     if counts != (len(shape.before), len(shape.below), len(shape.above), len(shape.arguments)):

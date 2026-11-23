@@ -10,13 +10,11 @@ from pathlib import Path
 from relativisticpy import integrations
 
 #: The private names still reached, each by the module that reaches it: those of the time
-#: budget and of the assumptions, whose modules another line of work has in hand, and two
-#: of the framework's own, which the modules of that work take too. Each leaves this list
-#: when its name is public.
+#: budget and of the assumptions, whose modules another line of work has in hand. Each
+#: leaves this list when its name is public.
 STILL_PRIVATE = {
-    "_distributions.py": {"core._budget", "core._OverBudget", "assumptions._general", "_declare"},
+    "_distributions.py": {"core._budget", "core._OverBudget", "assumptions._general"},
     "_optimizers.py": {"_budget", "_OverBudget", "assumptions._general", "assumptions._assumed"},
-    "_transforms.py": {"_declare", "_style"},
 }
 
 

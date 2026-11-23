@@ -223,7 +223,7 @@ def function(
     it is given text in quotes as it is written, as ``limit`` is the side of a limit, '-',
     and never reads it as Python. One that ``gives_form``, as ``factor`` does, is shown as
     it computes its value, and its examples are held to the form of their answers."""
-    return _declare(
+    return declares(
         Function,
         name,
         summary=summary,
@@ -258,7 +258,7 @@ def map_function(
     matrix. It ``lifts`` to a map written with its indices, acting on it, unless its value
     is over other spaces, as a Kronecker product's is. ``points`` are the arguments it is
     checked at, matrices written as lists of rows."""
-    return _declare(
+    return declares(
         MapFunction,
         name,
         summary=summary,
@@ -282,7 +282,7 @@ def solver(
     requires: str | None = None,
 ) -> Callable[[type], Solver]:
     """Declare a solver: equations in, solutions out."""
-    return _declare(
+    return declares(
         Solver, name, summary=summary, examples=examples, aliases=aliases, requires=requires
     )
 
@@ -299,7 +299,7 @@ def constructor(
     """Declare what builds an object: a spacetime, whose ``exact`` declares its coordinates
     (:func:`relativisticpy.spacetimes.coordinates_of`), an equation, or symbols, from names
     given in quotes where it ``takes_names``."""
-    return _declare(
+    return declares(
         Constructor,
         name,
         summary=summary,
@@ -310,7 +310,7 @@ def constructor(
     )
 
 
-def _declare(kind: type[_Kind], name: str, **declared: Any) -> Callable[[type], _Kind]:
+def declares(kind: type[_Kind], name: str, **declared: Any) -> Callable[[type], _Kind]:
     """The decorator that makes a class the implementation of a capability of ``kind``."""
     for written in ("aliases", "latex", "unicode", "integers"):
         if written in declared:

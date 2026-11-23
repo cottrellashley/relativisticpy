@@ -156,11 +156,11 @@ def scripted_shape(node: ast.Scripted) -> Shape | None:
     ]
     name, written = node.base.id, node.base.span.text
     if len(labels) >= 2 and all(item.label is not None for item in labels):
-        return Shape("indexed", name, _style(node.base), written)
+        return Shape("indexed", name, style_of(node.base), written)
     (script, *others) = node.scripts
     if others or script.kind != "_" or script.body is None or "_" in name:
         return None
-    return Shape("subscripted", name, _style(node.base), written, below=(script.body,))
+    return Shape("subscripted", name, style_of(node.base), written, below=(script.body,))
 
 
 def subscripted_shape(node: ast.Name) -> Shape | None:
@@ -171,7 +171,7 @@ def subscripted_shape(node: ast.Name) -> Shape | None:
     name, before, below = parts
     if before or not below:
         return None
-    return Shape("subscripted", name, _style(node), name, below=tuple(below))
+    return Shape("subscripted", name, style_of(node), name, below=tuple(below))
 
 
 def operator_shape(head: ast.Expr, operand: ast.Expr) -> Shape | None:
@@ -192,7 +192,7 @@ def sample_shape(head: ast.Expr, bracket: ast.Expr) -> Shape | None:
         return None
     if len(bracket.items) != 1 or head.span.end != bracket.span.start:
         return None
-    style = _style(head)
+    style = style_of(head)
     letter = len(head.id) == 1 and head.id.isascii() and head.id.isalpha()
     if not bracket.span.text.startswith("[") or not (letter or style == "letter"):
         return None
@@ -251,7 +251,7 @@ def _head(node: ast.Expr, *, loose: bool = False) -> _Head | None:
         if slot is None:
             return None
         (below if script.kind == "_" else above).append(slot)
-    return name, _style(node), written, tuple(before), tuple(below), tuple(above)
+    return name, style_of(node), written, tuple(before), tuple(below), tuple(above)
 
 
 _PRESCRIPT = re.compile(r"_\{(?P<label>[^{}]*)\}(?P<rest>.+)")
@@ -294,7 +294,7 @@ def _slot(script: ast.Script) -> ast.Expr | None:
     return script.body
 
 
-def _style(node: ast.Name) -> Style:
+def style_of(node: ast.Name) -> Style:
     written = node.span.text.strip()
     if written.startswith(_UPRIGHT):
         return "upright"
@@ -405,7 +405,7 @@ def matching(shape: Shape) -> Match | None:
 
 def _binds(pattern: Pattern, shape: Shape) -> dict[str, ast.Node] | None:
     form = pattern.shape
-    if form.kind != shape.kind or form.bracket != shape.bracket or not _set_alike(form, shape):
+    if form.kind != shape.kind or form.bracket != shape.bracket or not set_alike(form, shape):
         return None
     counts = (len(form.before), len(form.below), len(form.above), len(form.arguments))
     if shape.kind == "indexed":
@@ -454,7 +454,7 @@ def _a_label(script: ast.Node) -> bool:
     return re.fullmatch(r"[A-Za-z]{2,}", written) is not None
 
 
-def _set_alike(form: Shape, shape: Shape) -> bool:
+def set_alike(form: Shape, shape: Shape) -> bool:
     """Whether a name is set as the form sets it: a single letter, Latin, in the same type
     (J is not \\mathrm{J}); a Greek letter as a letter, or spelled out, or upright; and a
     word in any type but a letter's, so that the form zeta(s) is never \\zeta(s)."""

@@ -47,7 +47,7 @@ from sympy import Symbol
 
 from relativisticpy import assumptions
 from relativisticpy.errors import EvaluationError, RelativisticPyError
-from relativisticpy.integrations._declarations import Capability, Example
+from relativisticpy.integrations._declarations import Capability, Example, near
 from relativisticpy.integrations._discovery import catalogue
 
 #: How long an exact optimizer may look for a closed form, in seconds, where a numeric
@@ -323,7 +323,8 @@ def _scale(value: Any) -> float:
 def _near(value: Any, other: Any, tolerance: float) -> bool:
     difference = sympy.sympify(value) - sympy.sympify(other)
     if difference.is_number:
-        return abs(complex(difference)) <= tolerance * max(1.0, abs(complex(sympy.sympify(other))))
+        expected = complex(sympy.sympify(other))
+        return near(expected + complex(difference), expected, tolerance)
     return bool(sympy.simplify(difference) == 0)
 
 

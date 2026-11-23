@@ -66,7 +66,7 @@ from sympy.stats.rv import PSpace, RandomSymbol
 
 from relativisticpy import assumptions
 from relativisticpy.errors import EvaluationError, RelativisticPyError
-from relativisticpy.integrations._declarations import Capability, Example, _declare
+from relativisticpy.integrations._declarations import Capability, Example, declares, near
 from relativisticpy.integrations._discovery import catalogue, on_change
 
 #: How long SymPy may look for a closed form, in seconds, before SciPy computes the value
@@ -151,7 +151,7 @@ def distribution(
                     f"{name}: {cls.__name__} has no {method} method, which {does}; declare "
                     f"def {method}(self, ...): ... with the parameters of exact"
                 )
-        declare = _declare(
+        declare = declares(
             Distribution,
             name,
             summary=summary,
@@ -2041,7 +2041,7 @@ def _agree(value: Any, expected: Any) -> bool:
         b = complex(sympy.N(sympy.sympify(expected), 30))
     except (TypeError, ValueError):
         return False
-    return abs(a - b) <= AGREEMENT * max(1.0, abs(b))
+    return near(a, b, AGREEMENT)
 
 
 def _at_point(capability: Distribution, point: Sequence[Any]) -> str:
