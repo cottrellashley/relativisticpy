@@ -53,10 +53,11 @@ from relativisticpy.reading.names import (
     _a_pair,
     _bold_one,
     _matrix_shape,
+    _shown,
     _written_as_letter,
     _written_with,
 )
-from relativisticpy.reading.subscripts import Reading
+from relativisticpy.reading.subscripts import Reading, subscripted
 from relativisticpy.reading.vectors import (
     BOLD,
     CARTESIAN,
@@ -1420,6 +1421,8 @@ class VectorCalculus(Vectors, Probability):
     # -- calls: fields at a point, functions of a vector -----------------------------------
 
     def _Call(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
+        if (partial := self._partial_at(node, scope, ctx)) is not None:  # f_x(x, y)
+            return partial
         if (why := self._coordinate_before_brackets(node.func, node.args, scope)) is not None:
             self._decide("product or call", node.span, "a product", why)
             group = node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
@@ -1428,6 +1431,35 @@ class VectorCalculus(Vectors, Probability):
         if (composed := self._at_a_vector(node, scope, ctx)) is not None:
             return composed
         return super()._Call(node, scope, ctx)
+
+    def _partial_at(self, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
+        """``f_x(x, y)`` or ``f_\\theta(r, \\theta)``, of a function f the program defines:
+        its partial derivative by what the subscript names (decision 5.6), at what the
+        brackets hold, as Stewart writes it; refused at a point of another number of
+        coordinates. ``None`` for any other call."""
+        written = subscripted(node.func)
+        if written is None or written.raised:
+            return None
+        reading = self._reads_as_partial(written, scope)
+        if reading is None:
+            return None
+        binding = reading.binding
+        assert isinstance(binding, FunctionBinding)
+        params = binding.definition.params
+        if len(node.args) != len(params):
+            shown = ", ".join(_shown(param, ctx.latex) for param in params)
+            function = node.func.span.text
+            raise CompileError(
+                f"{function} is a partial derivative of a function of {shown}, so it takes "
+                f"{len(params)} argument{'s' * (len(params) != 1)}, not {len(node.args)}",
+                span=node.span,
+                hint=f"write it at a point of {shown}, as in {function}({shown})",
+            )
+        derivative = self._partial_derivative(reading, scope, ctx)
+        pairs = []
+        for param, arg in zip(params, node.args, strict=True):
+            pairs += [self._symbol_of(param), self.value(arg, scope, ctx)]
+        return self._substituted(derivative, pairs, node.span)
 
     def _at_a_vector(self, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
         """A call with one vector as its argument: a field the program defines at that

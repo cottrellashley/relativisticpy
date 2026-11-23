@@ -85,6 +85,19 @@ class TestPrecedence:
         assert wb.expr("f_{xy}") == 2 * x
         assert wb.expr("f_x := 7\nf_x") == 7  # a definition of the name wins
 
+    def test_a_partial_derivative_at_a_point(self, wb):
+        # f_\theta(r, \theta) was the derivative times the pair (r, \theta), and f_x(x, y)
+        # an unknown function f_x: Stewart writes the partial derivative at a point so
+        r, theta = sympy.symbols("r theta")
+        wb.exe(r"f(r, \theta) := r^2 \sin\theta")
+        assert wb.expr(r"f_\theta(r, \theta)") == r**2 * sympy.cos(theta)
+        wb.exe("g(x, y) := x^2 y^3")
+        assert wb.expr("g_x(x, y)") == 2 * x * y**3
+        assert wb.expr("g_x(1, 2)") == 16
+        assert wb.expr("g_{xy}(1, 2)") == 24
+        with pytest.raises(CompileError, match="so it takes 2 arguments, not 1"):
+            wb.expr("g_x(1)")
+
     def test_a_component_of_a_tensor_however_its_number_is_written(self, wb):
         # V_0 was a name of its own, where V_{0} was the component, -5
         wb.exe("ds^2 = -dt^2 + dx^2 + dy^2 + dz^2\nV^\\mu := [5, 1, 2, 3]")

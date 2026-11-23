@@ -33,7 +33,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.reading.families import Families, Family
 from relativisticpy.reading.names import _bracketed_order, _shown, _with_arguments
-from relativisticpy.reading.subscripts import _base_name, label_name
+from relativisticpy.reading.subscripts import _base_name, label_name, subscripted
 
 #: The decision of whether a name before brackets is called or multiplies.
 CALL = "product or call"
@@ -184,13 +184,15 @@ class Functions(Families):
 
     def _names_a_function(self, node: ast.Expr, scope: Scope) -> bool:
         """Whether what a bracket follows is called: a name with scripts the program defines
-        as a function, or a family of them (see :meth:`Families._names_a_function`), an
-        order raised on a function of one variable, as ``f^{(4)}``, or a dot on one, as
-        ``\\dot{x}``."""
+        as a function, or a family of them (see :meth:`Families._names_a_function`), a
+        partial derivative of one, as ``f_\\theta`` of f(r, \\theta), an order raised on a
+        function of one variable, as ``f^{(4)}``, or a dot on one, as ``\\dot{x}``."""
         if super()._names_a_function(node, scope):
             return True
-        if isinstance(node, ast.Scripted):
-            return self._order_of(node, scope) is not None
+        if isinstance(node, ast.Scripted):  # f^{(4)}, or f_\theta of f(r, \theta)
+            written = subscripted(node)
+            partial = written is not None and self._reads_as_partial(written, scope) is not None
+            return partial or self._order_of(node, scope) is not None
         if not isinstance(node, ast.Accent):
             return False
         if node.accent in ("dot", "ddot"):
