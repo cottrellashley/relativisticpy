@@ -94,9 +94,14 @@ def _xp(*values: Any) -> Any:
 
 
 def number(value: Any) -> Any:
-    """A SymPy number as a Python one, to combine with numerical arrays."""
+    """A SymPy number as a Python one, to combine with numerical arrays; a list of them,
+    as the parameters of {}_pF_q are, as a list of Python numbers."""
     if is_numerical(value) or isinstance(value, int | float | complex):
         return value
+    if isinstance(value, sympy.NDimArray):
+        value = value.tolist()
+    if isinstance(value, list | tuple | sympy.Tuple):
+        return [number(each) for each in value]
     value = sympy.sympify(value)
     if value.is_number:
         complex_value = complex(value)

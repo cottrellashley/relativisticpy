@@ -462,7 +462,7 @@ def _lifted(capability: Capability, points: list[tuple[Any, ...]], place: int) -
         except RelativisticPyError as error:
             return [f"{name} applied to {what} fails: {error.kind}: {error.message}"]
         failures += _components(capability, result, expected, what, "V")
-        if not all(_numeric_value(value) for value in [*lifted, *first]):  # data is numbers
+        if not all(_numbers(value) for value in [*lifted, *first]):  # data is numbers
             return failures
         import numpy as np
 
@@ -483,6 +483,13 @@ def _lifted(capability: Capability, points: list[tuple[Any, ...]], place: int) -
 def _scalar(value: Any) -> bool:
     """Whether a value is a number or an expression, rather than a list of them."""
     return not isinstance(value, list | tuple | sympy.Tuple | sympy.NDimArray)
+
+
+def _numbers(value: Any) -> bool:
+    """Whether a value is a number, or a list of them, as the parameters of {}_pF_q are."""
+    if isinstance(value, list | tuple):
+        return all(_numbers(each) for each in value)
+    return _numeric_value(value)
 
 
 def _components(

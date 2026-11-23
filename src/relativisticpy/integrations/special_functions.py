@@ -264,6 +264,20 @@ def _parameters(values: Any) -> list[Any]:
     return list(values) if listed else [values]
 
 
+def _counted(a: Any, b: Any, p: Any, q: Any) -> tuple[list[Any], list[Any]]:
+    """The parameters of {}_pF_q before and after its first semicolon, as many as p and q
+    count where they are written; an error otherwise."""
+    a, b = _parameters(a), _parameters(b)
+    for count, parameters, where in ((p, a, "before"), (q, b, "after")):
+        if count is not None and count != len(parameters):
+            raise EvaluationError(
+                f"{{}}_{p}F_{q} takes {count} parameters {where} its first semicolon, "
+                f"not {len(parameters)}",
+                hint="the subscripts count the parameters of each list, as in {}_2F_1(a, b; c; z)",
+            )
+    return a, b
+
+
 def _number(value: Any) -> float | complex:
     """A parameter as mpmath takes it: a real number, or a complex one where it is."""
     found = complex(value)
@@ -284,22 +298,14 @@ def _number(value: Any) -> float | complex:
 )  # fmt: skip
 class Hypergeometric:
     def exact(self, a: Any, b: Any, z: Any, *, p: Any = None, q: Any = None) -> Any:
-        a, b = _parameters(a), _parameters(b)
-        for count, parameters, where in ((p, a, "before"), (q, b, "after")):
-            if count is not None and count != len(parameters):
-                raise EvaluationError(
-                    f"{{}}_{p}F_{q} takes {count} parameters {where} its first semicolon, "
-                    f"not {len(parameters)}",
-                    hint="the subscripts count the parameters of each list, as in "
-                    "{}_2F_1(a, b; c; z)",
-                )
+        a, b = _counted(a, b, p, q)
         return sympy.hyperexpand(sympy.hyper(a, b, z))
 
-    def numeric(self, xp: Any, a: Any, b: Any, z: Any) -> Any:
+    def numeric(self, xp: Any, a: Any, b: Any, z: Any, *, p: Any = None, q: Any = None) -> Any:
         import mpmath
         import numpy as np
 
-        a, b = [_number(v) for v in _parameters(a)], [_number(v) for v in _parameters(b)]
+        a, b = ([_number(v) for v in values] for values in _counted(a, b, p, q))
         each = np.vectorize(lambda value: complex(mpmath.hyper(a, b, value)), otypes=[complex])
         return realised(np, each(np.asarray(z)))
 

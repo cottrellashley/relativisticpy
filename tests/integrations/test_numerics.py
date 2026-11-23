@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 import sympy
 
-from relativisticpy import Workbook
+from relativisticpy import Workbook, integrations
 from relativisticpy.errors import EvaluationError
 
 PAIR = r"\mathcal{V} := \mathbb{R}^{2}" "\n" r"l \in \mathcal{V}"
@@ -237,3 +237,35 @@ class TestComplexValues:
     def test_data_in_the_real_domain_stays_real(self):
         found = of_data(r"\sqrt{x^l} + J_0(x^l)", [1.5, 2.5])
         assert found.dtype.kind == "f"
+
+
+class TestHypergeometric:
+    """21: the hypergeometric function lifts to data, and the lifting check tries it."""
+
+    def test_of_data(self):
+        found = of_data(r"{}_2F_1(1, 1; 2; x^l)", [0.3, 0.5])
+        assert np.allclose(found, [-np.log(1 - v) / v for v in (0.3, 0.5)], rtol=1e-12)
+        assert np.allclose(
+            of_data(r"hyper([1], [2], x^l)", [0.3, 0.5]), np.expm1([0.3, 0.5]) / [0.3, 0.5]
+        )
+
+    def test_of_complex_numbers(self):
+        # 6: SciPy's value of a complex z was cast to a real number
+        z = [0.5 + 1.0j, 2.0 - 3.0j]
+        found = of_data(r"{}_2F_1(1, 1; 2; z^l)", z, COMPLEX_PAIR, "z^l")
+        assert np.allclose(found, [complex(mpmath.hyp2f1(1, 1, 2, v)) for v in z], rtol=1e-12)
+
+    def test_the_lifting_check_tries_it_on_data(self):
+        class Wrong:
+            exact = integrations.find("hyper").implementation.exact
+
+            def numeric(self, xp, a, b, z):
+                return xp.zeros_like(z)
+
+        wrong = integrations.function(
+            "wronghyper", summary="the hypergeometric function, wrong of data", examples=[],
+            points=integrations.find("hyper").points,
+        )(Wrong)  # fmt: skip
+        assert integrations.check(integrations.find("hyper"), ["lifting"]) == {"lifting": []}
+        (failure,) = integrations.check(wrong, ["lifting"])["lifting"]
+        assert failure.startswith("wronghyper applied to data, as its argument 3, gives [0, 0, 0]")
