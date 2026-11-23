@@ -98,6 +98,14 @@ class TestPrecedence:
         with pytest.raises(CompileError, match="so it takes 2 arguments, not 1"):
             wb.expr("g_x(1)")
 
+    def test_a_partial_derivative_of_a_partial_derivative(self, wb):
+        # (f_x)_y was the Pochhammer symbol of f_x, RisingFactorial(3x^2y^2, y)
+        wb.exe("f(x, y) := x^3 y^2")
+        assert wb.expr("(f_x)_y") == wb.expr("f_{xy}") == 6 * x**2 * y
+        assert wb.expr("(a)_3") == sympy.Symbol("a") * (sympy.Symbol("a") + 1) * (
+            sympy.Symbol("a") + 2
+        )  # a bracket of anything else is Pochhammer's, as before
+
     def test_a_component_of_a_tensor_however_its_number_is_written(self, wb):
         # V_0 was a name of its own, where V_{0} was the component, -5
         wb.exe("ds^2 = -dt^2 + dx^2 + dy^2 + dz^2\nV^\\mu := [5, 1, 2, 3]")

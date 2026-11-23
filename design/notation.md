@@ -50,7 +50,7 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 1. a declared index label, or an index of a tensor in force, is an index, braced or not;
 2. on the left of `:=`, a one-letter subscript that occurs on the right makes a family, so `c_1`, `a_{n+1}` and `\psi_3(x)` evaluate it;
 3. on a list, it is an element, counted from the lower limit of the sum that ranges over the whole list (decision 17);
-4. after a parenthesised expression it is a Pochhammer length;
+4. after a parenthesised expression it is a Pochhammer length; but after a partial derivative in brackets, by a variable of its function, it is another derivative, as Stewart writes `(f_x)_y` for f_{xy} (23 November 2026: it was the Pochhammer symbol of f_x);
 5. otherwise it is part of the name, whatever the base: Greek letters, numbers, signs, ⊙. A built-in tensor claims a subscripted name only while a metric is in force;
 6. `f_x` is a partial derivative only on a defined function of x, with nothing defining `f_x`; with brackets after it, `f_x(1, 2)` and `f_\theta(r, \theta)`, it is the partial derivative at the point they hold, as Stewart writes it, a Latin or a Greek variable alike (23 November 2026: `f_\theta(r, \theta)` was the derivative times the pair, and `f_x(x, y)` an unknown function), and at a point of another number of coordinates it is refused;
 7. in a letter run the subscript binds to the last letter, as in TeX (`iE_1` is i·E_1);

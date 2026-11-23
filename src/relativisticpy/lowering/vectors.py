@@ -952,6 +952,8 @@ class VectorCalculus(Vectors, Probability):
         return super()._Name(node, scope, ctx)
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
+        if (second := self._partial_of_a_partial(node, scope)) is not None:  # (f_x)_y
+            return self.term(second, scope, ctx)
         if (unit := self._basis_vector(node, scope)) is not None:  # \mathbf{e}_r
             return unit
         if (epsilon := self._levi_civita(node, scope, ctx)) is not None:  # \epsilon_{ijk}
@@ -1431,6 +1433,34 @@ class VectorCalculus(Vectors, Probability):
         if (composed := self._at_a_vector(node, scope, ctx)) is not None:
             return composed
         return super()._Call(node, scope, ctx)
+
+    def _partial_of_a_partial(self, node: ast.Scripted, scope: Scope) -> ast.Scripted | None:
+        """``(f_x)_y``, as Stewart writes the second partial derivative, read as ``f_{xy}``:
+        a partial derivative of a function the program defines, in brackets, with variables
+        of the function as its subscript, which is never a Pochhammer symbol (decision 5.4).
+        ``None`` for anything else."""
+        if len(node.scripts) != 1 or node.scripts[0].kind != "_":
+            return None
+        script = node.scripts[0]
+        inner = subscripted(node.base)
+        if inner is None or inner.raised or script.indices is None:
+            return None
+        reading = self._reads_as_partial(inner, scope)
+        if reading is None:
+            return None
+        binding = reading.binding
+        assert isinstance(binding, FunctionBinding)
+        items = script.indices.items
+        labels = [str(item.label) for item in items if _plain_label(item)]
+        if len(labels) != len(items) or not set(labels) <= set(binding.definition.params):
+            return None
+        span, head = node.span, inner.head.span
+        at = head.text.find(inner.base) if "_" in head.text else -1  # f of (f_x), joined
+        named = Span(head.source, head.start + at, head.start + at + len(inner.base))
+        base = ast.Name(inner.base, span=named if at >= 0 else head)
+        every = tuple(ast.IndexItem(label, span=span) for label in (*reading.labels, *labels))
+        combined = ast.Script("_", None, ast.IndexList(every, span=span), span=span)
+        return ast.Scripted(base, (combined,), span=span)
 
     def _partial_at(self, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
         """``f_x(x, y)`` or ``f_\\theta(r, \\theta)``, of a function f the program defines:
