@@ -75,6 +75,22 @@ class TestLaplace:
         with pytest.raises(CompileError, match="acts on a function of a variable, not on a"):
             wb.expr(r"\mathcal{L}\{x_t\}")
 
+    def test_a_transform_binds_its_variable(self, wb):
+        # the review's programs: with t := 2, \mathcal{L}\{t^2\} was 4/s, the transform of 4
+        wb.exe("t := 2")
+        assert wb.expr(r"\mathcal{L}\{t^2\}") == 2 / s**3
+        assert wb.expr("t") == 2  # the program's t is as it was
+        fourier = Workbook()
+        fourier.exe("x := 5")
+        found = fourier.expr(r"\mathcal{F}\{e^{-x^2}\}")
+        expected = sympy.sqrt(sympy.pi) * sympy.exp(-(sympy.pi**2) * s**2)
+        assert sympy.simplify(found - expected) == 0
+
+    def test_a_function_named_alone_is_at_its_own_variable(self, wb):
+        wb.exe(r"f(t) := \cos at" "\n" "t := 3")
+        assert sympy.simplify(wb.expr(r"\mathcal{L}\{f\}") - s / (s**2 + a**2)) == 0
+        assert sympy.simplify(wb.expr(r"\mathcal{L}\{f(t)\}") - s / (s**2 + a**2)) == 0
+
 
 class TestFourier:
     def test_the_letters_choose_the_variables_and_the_convention(self, wb):

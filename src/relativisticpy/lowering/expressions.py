@@ -6,6 +6,7 @@ whether it keeps the rules.
 from __future__ import annotations
 
 import contextlib
+import itertools
 import re
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import replace
@@ -67,6 +68,7 @@ from relativisticpy.reading.names import (
     _shown,
     _slashed,
     _splittable,
+    _subscripted_name,
     _symbols_written,
     _unprimed,
     accented,
@@ -1394,6 +1396,26 @@ def _of_numbers() -> frozenset[str]:
         if capability.module.endswith(".elementary")
         for name in capability.names
     ) - {"abs", "Abs"}
+
+
+def _written_names(written: Sequence[ast.Expr | Node], *, latex: bool) -> list[str]:
+    """The names what is ``written`` is written with, each once, read from its syntax: y
+    of ``(x y)``, x and y of ``xy`` in LaTeX, where letters side by side multiply, and y_1
+    of ``y_1``; none of a factor that is compiled already."""
+    found: dict[str, None] = {}
+    parts = [part for part in written if isinstance(part, ast.Expr)]
+    for node in itertools.chain.from_iterable(map(_walk, parts)):
+        if isinstance(node, ast.Name) and not node.verbatim:
+            found[node.id] = None
+            if latex and _splittable(node):
+                found.update(dict.fromkeys(split_index_labels(node.id)))
+        elif (
+            isinstance(node, ast.Scripted)
+            and isinstance(node.base, ast.Name)
+            and all(script.kind == "_" for script in node.scripts)
+        ):
+            found[_subscripted_name(node)] = None
+    return list(found)
 
 
 def _unsigned(factor: ast.Expr) -> list[ast.Expr]:

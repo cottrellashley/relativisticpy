@@ -43,6 +43,7 @@ from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.definitions import Definitions
+from relativisticpy.lowering.expressions import _written_names
 from relativisticpy.reading.names import _elements
 from relativisticpy.reading.subscripts import Kind
 from relativisticpy.tensors import Index, Indices
@@ -130,7 +131,9 @@ class Transforms(Definitions):
         """What a transform acts on: a function the program defines, named alone, applied to
         its parameter, as f of ``f(t) := \\cos at`` in ``\\mathcal{L}\\{f\\}``; a letter
         nothing defines, a function of the transform's variable, as f in
-        ``\\mathcal{L}\\{f\\}``, said in a note; anything else, as it is."""
+        ``\\mathcal{L}\\{f\\}``, said in a note; anything else, as it is. The transform binds
+        its variable, as an integral does: t in ``\\mathcal{L}\\{t^2\\}`` is the variable
+        whatever value the program gives t."""
         operand = written.operand
         capability = written.capability
         if isinstance(operand, ast.Name) and not capability.on_data:
@@ -138,7 +141,7 @@ class Transforms(Definitions):
             if isinstance(binding, FunctionBinding) and len(binding.definition.params) == 1:
                 (param,) = binding.definition.params
                 call = ast.Call(operand, (ast.Name(param, span=operand.span),), span=operand.span)
-                return self.value(call, scope, ctx)
+                return self.value(call, self._transform_scope(scope, [param], operand.span), ctx)
             if binding is None and self._a_function_letter(operand.id, capability):
                 given, _ = self._pair(capability, None, point)
                 shown = _unbraced(operand.span.text)
@@ -149,7 +152,26 @@ class Transforms(Definitions):
                 symbol = self.graph.const(self.session.symbol(given), SCALAR, operand.span)
                 attributes = (("name", operand.id),)
                 return self._call("core.function", [symbol], SCALAR, operand.span, attributes)
-        return self.value(operand, scope, ctx)
+        if capability.on_data:
+            return self.value(operand, scope, ctx)
+        pair = self._pair(capability, None, point)
+        letters = [pair[0], *(given for given, _ in capability.variables if given != pair[0])]
+        names = _written_names([operand], latex=ctx.latex)
+        bound = next((letter for letter in letters if letter in names), None)
+        variables = [bound] if bound is not None else []
+        return self.value(operand, self._transform_scope(scope, variables, operand.span), ctx)
+
+    def _transform_scope(self, scope: Scope, variables: list[str], span: Span) -> Scope:
+        """A scope of its own for what a transform acts on, where each of ``variables`` the
+        program gives a value is a variable again, a symbol."""
+        defined = [name for name in variables if scope.lookup(name) is not None]
+        if not defined:
+            return scope
+        inner = scope.child()
+        for name in defined:
+            symbol = self.graph.const(self.session.symbol(name), SCALAR, span)
+            inner.bind(name, VariableBinding(symbol))
+        return inner
 
     def _a_function_letter(self, name: str, capability: Transform) -> bool:
         """Whether a name a transform acts on stands for a function: one letter, Latin or
