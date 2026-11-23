@@ -57,6 +57,8 @@ def test_functions_and_operators_written_in_letters_are_latexs(wb):
     assert wb.expr("sin^2 x + cos^2 x") == sin(x) ** 2 + cos(x) ** 2
     assert wb.expr("sin x / cos x") == sin(x) / cos(x)
     assert wb.expr("log_2 8") == 3
+    assert wb.expr("e^ln(2)") == 2  # was e^l n(2)
+    assert wb.expr("2^log_2(8)") == 8
     assert wb.expr("min_x x^2 - 4x + 7") == 3
     assert wb.expr("int_0^1 x^2 dx") == Rational(1, 3)
     assert wb.expr("int_0^oo exp(-x) dx") == 1

@@ -495,6 +495,12 @@ class Lexer:
         the product of two o's, and a script whole, as in ``\\int_0^oo``."""
         start = self.pos
         if self._at_script():
+            whole = _IDENT.match(self.text, start)
+            assert whole is not None
+            word = self._word(whole.group(), start, whole.end())
+            if word is not None and word in vocab.FUNCTION_WORDS:  # e^ln(2), not e^l n(2)
+                self._emit(TokenKind.COMMAND, word, start, start + len(word))
+                return
             end = start + _script_letters(self.text, start)
             name = self.text[start:end]
             self._emit(TokenKind.IDENT, name, start, end, verbatim=name == vocab.INFINITY)

@@ -221,6 +221,19 @@ class TestWords:
     @pytest.mark.parametrize(
         ("text", "expected"),
         [
+            # e^ln(2) was e^l n(2), the script taking one letter of the word
+            ("e^ln(2)", r"e ^ \ln ( 2 )"),
+            ("e^sin x", r"e ^ \sin x"),
+            ("2^log_2(8)", r"2 ^ \log _ 2 ( 8 )"),
+            ("x^ab + x^mu", "x ^ a b + x ^ mu"),
+        ],
+    )
+    def test_a_word_after_a_caret_that_applies_is_the_script(self, text, expected):
+        assert lex(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
             ("sin + 1", "sin + 1"),
             ("max := 10", "max := 10"),
             ("max_iter := 100", "max_iter := 100"),
