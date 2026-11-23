@@ -13,6 +13,7 @@ from typing import Any, TypeVar
 
 import sympy
 from sympy import Symbol
+from sympy.core.function import AppliedUndef
 from sympy.core.relational import Relational
 
 from relativisticpy import checking, display, integrations
