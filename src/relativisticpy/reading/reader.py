@@ -1645,6 +1645,10 @@ class Reader(Typer):
             return None  # r(\tau): a coordinate along a path, as the caller reads it
         if names and len(names) == len(args) and set(names) <= coordinates:
             return None  # \alpha(t, r): a function of the coordinates
+        if ctx.latex and (factor := arithmetic.a_factor(func, args)) is not None:
+            why, note = factor  # \hbar\omega(2n + 1)
+            self._note(note)
+            return why
         if name in self._factors:
             return f"{name} is written as a factor in this statement"
         written = name in self.session.factors and name not in self.session.functions

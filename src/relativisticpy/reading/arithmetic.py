@@ -6,12 +6,14 @@ condition under a sum or a product gives its index (design/notation.md, decision
 function, but ``\varphi(x)`` of a real x stays a function of the program's, and
 ``\mu(t)`` too. An argument is an integer where it is written as a whole number above 0, as
 a name the program assumes an integer, ``n \in \mathbb{N}``, or as the index of a sum or a
-product, or is made of these by sums, differences, products and powers. Two readings ask
-more: the letter of a constant, as the π of ``\pi(n)``, which physics multiplies, and a
-subscript, as the n of the Bernoulli number ``B_n``, where a number names a constant, as
-``H_0`` names Hubble's and ``B_0`` a field. Each reads so only of names the program assumes
-integers, never of a number or of the index of a sum, which ``B_n`` of a Fourier series
-is written with.
+product, or is made of these by sums, differences, products and powers. Three readings ask
+more. The letters physics writes as factors, ω, Ω, μ, Λ and φ, are functions only of a
+whole number or of one name that is an integer, and never where they stand right after
+another symbol: ``\hbar\omega(2n + 1)`` is a product. The letter of a constant, as the π
+of ``\pi(n)``, which physics multiplies, and a subscript, as the n of the Bernoulli number
+``B_n``, where a number names a constant, as ``H_0`` names Hubble's and ``B_0`` a field,
+read so only of names the program assumes integers, never of a number or of the index of a
+sum, which ``B_n`` of a Fourier series is written with.
 
 A condition under a sum gives its index its values: ``d \mid n`` the divisors of n,
 ``0 \le k \le n`` the integers between, ``k \le n`` those from 1, as number theory sums,
@@ -28,6 +30,7 @@ remainder theorem.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, Any
@@ -40,6 +43,7 @@ from relativisticpy.integrations import Capability
 from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import ops
 from relativisticpy.language import syntax as ast
+from relativisticpy.language.vocabulary import GREEK, GREEK_VARIANTS, SYMBOL_COMMANDS
 from relativisticpy.typing.syntax import _walk
 
 if TYPE_CHECKING:
@@ -60,8 +64,14 @@ def of_integers(
     shape = match.pattern.shape
     constant = shape.head in CONSTANTS
     subscripted = shape.kind == "subscripted"
-    named = [match.bindings[name] for name in capability.integers if name in match.bindings]
+    lone = shape.head in FACTOR_LETTERS and not shape.scripts
+    names = [name for name in capability.integers if name in match.bindings]
+    named = [match.bindings[name] for name in names]
+    if lone and after_a_symbol(node):
+        return None  # \hbar\omega(n): a factor beside \hbar, never a count of primes
     for argument in named:
+        if lone and not _a_lone_integer(reader, argument, scope):
+            return None
         if constant and not _assumed(reader, argument, scope):
             if isinstance(argument, ast.Number):
                 count = argument.span.text
@@ -78,10 +88,67 @@ def of_integers(
         return None
     shown = ", ".join(_written(argument, node) for argument in named)
     what = "symbol" if subscripted else "function"
+    brief = capability.brief
+    for name, argument in zip(names, named, strict=True):
+        brief = _of_the_argument(brief, name, _written(argument, node))
     return (
-        f"{node.span.text} is read as {capability.brief}, {capability.name}, as {shown} is an "
+        f"{node.span.text} is read as {brief}, {capability.name}, as {shown} is an "
         f"integer; for a {what} of your own, define {written} first"
     )
+
+
+#: The letters of arithmetic functions that physics writes for a frequency, a solid angle,
+#: a mass, a constant and an angle, most often as a factor beside other symbols.
+FACTOR_LETTERS = frozenset({"omega", "Omega", "mu", "Lambda", "phi"})
+
+#: What is written right before a letter, where it is a letter or a command.
+_BEFORE = re.compile(r"(?:\\(?P<command>[A-Za-z]+)|(?P<letter>[A-Za-z]))\s*$")
+
+
+def after_a_symbol(node: ast.Expr) -> bool:
+    """Whether what a call is written with stands right after another symbol, as
+    ``\\omega`` does after ``\\hbar`` in ``\\hbar\\omega(2n + 1)``: a letter, or a command
+    that writes one, as a Greek letter does. A factor is written so; a function of number
+    theory stands alone, or after a number."""
+    func = node.func if isinstance(node, ast.Call) else node
+    before = _BEFORE.search(func.span.source.text[: func.span.start])
+    if before is None:
+        return False
+    command = before["command"]
+    if command is None:
+        return True
+    return command in GREEK or command in GREEK_VARIANTS or command in SYMBOL_COMMANDS
+
+
+def a_factor(func: ast.Name, args: Sequence[ast.Expr]) -> tuple[str, str] | None:
+    """Why a letter of an arithmetic function with brackets after it multiplies what they
+    hold, and the note that says so: where it is written right after another symbol, as a
+    factor is, and the brackets hold more than one name, as in ``\\hbar\\omega(2n + 1)``.
+    ``None`` for any other letter, and where the brackets hold one name, as the k of a
+    frequency ``\\omega(k)``."""
+    if func.id not in FACTOR_LETTERS or not after_a_symbol(func):
+        return None
+    if len(args) == 1 and isinstance(args[0], ast.Name):
+        return None
+    letter = func.span.text
+    held = ", ".join(arg.span.text for arg in args)
+    why = f"{letter} is written right after another symbol, as a factor is"
+    note = f"{letter}({held}) is read as {letter} times {held}, as {why}"
+    shape = forms.call_shape(ast.Call(func, tuple(args), span=func.span))
+    found = forms.matching(shape) if shape is not None else None
+    if found is not None and isinstance(found.pattern.owner, Capability):
+        owner, brief = found.pattern.owner, found.pattern.owner.brief
+        for parameter in owner.integers:
+            brief = _of_the_argument(brief, parameter, held)
+        note += f"; {brief} is {owner.name}({held})"
+    return why, note
+
+
+def _of_the_argument(brief: str, parameter: str, shown: str) -> str:
+    """What a capability is, in brief, said of the argument as it is written where the
+    brief names its parameter: ``the number of distinct primes that divide k``."""
+    named = rf"(?<![A-Za-z]){re.escape(parameter)}(?![A-Za-z])"
+    return re.sub(named, lambda _: shown, brief)
 
 
 def _written(argument: ast.Node, node: ast.Expr) -> str:
@@ -98,6 +165,15 @@ def _an_integer(reader: Reader, node: ast.Node, scope: Scope) -> bool:
     if isinstance(node, ast.Number):
         return node.text.isdigit() and int(node.text) > 0
     return _integral(reader, node, scope, bound=True)
+
+
+def _a_lone_integer(reader: Reader, node: ast.Node, scope: Scope) -> bool:
+    """Whether an argument is a whole number above 0, or one name that is an integer, by
+    assumption or as the index of a sum: the conservative rule of decision 33, which the
+    letters physics writes as factors follow."""
+    if isinstance(node, ast.Number):
+        return node.text.isdigit() and int(node.text) > 0
+    return isinstance(node, ast.Name) and _integer_name(reader, node.id, scope, bound=True)
 
 
 def _assumed(reader: Reader, node: ast.Node, scope: Scope) -> bool:

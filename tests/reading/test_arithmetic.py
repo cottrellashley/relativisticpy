@@ -255,3 +255,59 @@ class TestCoefficients:
         wb.exe(r"n \in \mathbb{N}")
         with pytest.raises(EvaluationError, match="where the power is a whole number"):
             wb.expr(r"[x^n] \frac{1}{1 - x}")
+
+
+class TestLettersPhysicsWritesAsFactors:
+    """Finding 12 of the review of the reading stack: after ``n \\in \\mathbb{N}``,
+    ``E_n := \\hbar\\omega(2n+1)/2`` read ω as the number of distinct primes of 2n + 1, so
+    that E_0 was 0 and E_1 ħ/2, and ``\\sum_{n=0}^{3} \\hbar\\omega(2n+1)`` was 3ħ. ω, Ω, μ,
+    Λ and φ follow the conservative rule of decision 33: each is its arithmetic function
+    only of a whole number or of one name that is an integer, and never where it stands
+    right after another symbol, as a factor does."""
+
+    hbar, omega = sympy.symbols("hbar omega")
+
+    def test_a_frequency_beside_hbar_is_a_factor(self, wb):
+        wb.exe(r"n \in \mathbb{N}" "\n" r"E_n := \frac{\hbar\omega(2n+1)}{2}")
+        assert wb.expr("E_0") == self.hbar * self.omega / 2
+        assert wb.expr("E_1") == 3 * self.hbar * self.omega / 2
+
+    def test_it_is_one_whatever_was_written_before_it(self, wb):
+        written = r"\sum_{n=0}^{3} \hbar\omega(2n+1)"
+        assert wb.expr(written) == 16 * self.hbar * self.omega
+        assert notes(wb, written) == [
+            r"\omega(2n+1) is read as \omega times 2n+1, as \omega is written right after "
+            "another symbol, as a factor is; the number of distinct primes that divide 2n+1 "
+            "is primenu(2n+1)"
+        ]
+        wb.exe(r"T := \frac{2\pi}{\omega}")  # \omega as a factor before: the same reading
+        assert wb.expr(written) == 16 * self.hbar * self.omega
+
+    def test_beside_another_symbol_it_is_never_the_arithmetic_function(self, wb):
+        wb.exe(r"k \in \mathbb{N}")
+        value = wb.expr(r"\hbar\omega(k)")  # a frequency, a function of k
+        assert value == self.hbar * sympy.Function("omega")(sympy.Symbol("k", **n.assumptions0))
+        assert wb.expr(r"m\mu(2k + 1)") == sympy.Symbol("m") * sympy.Symbol("mu") * (
+            2 * sympy.Symbol("k", **n.assumptions0) + 1
+        )
+
+    @pytest.mark.parametrize("written", [r"\omega(2n+1)", r"\varphi(n^2)", r"\mu(n - 1)"])
+    def test_of_more_than_one_name_it_stays_a_function_of_the_program(self, wb, written):
+        wb.exe(r"n \in \mathbb{N}")
+        value = wb.expr(written)
+        assert isinstance(value, sympy.core.function.AppliedUndef)
+
+    def test_of_a_whole_number_or_one_integer_it_is_the_function_still(self, wb):
+        wb.exe(r"n \in \mathbb{N}")
+        assert wb.expr(r"\omega(30)") == 3
+        assert wb.expr(r"2\varphi(36)") == 24  # after a number, not a symbol
+        assert wb.expr(r"\omega(n)") == sympy.primenu(n)
+        assert wb.expr(r"\sum_{d \mid 36} \mu(d) \frac{36}{d}") == 12
+        assert wb.expr(r"p(5n + 4)") == sympy.partition(5 * n + 4)  # p is no such letter
+
+    def test_the_note_names_the_argument_as_it_is_written(self, wb):
+        wb.exe(r"k \in \mathbb{N}")
+        assert notes(wb, r"\omega(k)") == [
+            r"\omega(k) is read as the number of distinct primes that divide k, primenu, as k "
+            r"is an integer; for a function of your own, define \omega first"
+        ]
