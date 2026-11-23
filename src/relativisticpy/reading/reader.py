@@ -714,7 +714,7 @@ class Reader(Typer):
     ) -> Node:
         """In plain text, a name that nothing defines, made of the parameters of the
         function whose body it is in, is their product, as ``xy`` is x y in ``g(x, y) :=
-        x e^(xy)`` (design/notation.md, decision 41.3): one name there would be a constant
+        x e^(xy)`` (design/notation.md, decision 41.4): one name there would be a constant
         that the function does not depend on."""
         assert ctx.body is not None
         product = " ".join(letters)

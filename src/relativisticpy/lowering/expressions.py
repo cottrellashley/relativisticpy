@@ -671,6 +671,14 @@ class Expressions(LinearAlgebra):
         read = f"{' '.join(labels[:-1])} times {labels[-1]} called"
         why = "in LaTeX only the last letter of a run that names nothing is called"
         self._decide("letters", node.span, read, why)
+        if len(labels) > 2:  # foo(x), where a function foo may be meant, as plain text reads it
+            inside = ", ".join(arg.span.text for arg in node.args)
+            letters = " ".join(self._written_label(label) for label in labels[:-1])
+            self._note(
+                f"{node.span.text} is read as {letters} times {labels[-1]}({inside}), as LaTeX "
+                f"sets a run of letters; for a function {func.id}, write "
+                f"\\operatorname{{{func.id}}}({inside})"
+            )
         return "letters"
 
     def _raised_product(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:

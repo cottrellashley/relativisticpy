@@ -238,6 +238,15 @@ class TestSilentReadingsAreSaid:
             r"\Phi_N is not a function RelativisticPy knows, so \Phi_N(r) is an unknown function"
         ]
 
+    def test_a_run_of_letters_called_in_latex_says_how_it_is_read(self, wb):
+        # foo(x) was f o o(x), and in a derivative or an integral too, without a word
+        note = (
+            r"foo(x) is read as f o times o(x), as LaTeX sets a run of letters; for a function "
+            r"foo, write \operatorname{foo}(x)"
+        )
+        assert notes(wb, r"\frac{d}{dx} foo(x)") == [note]
+        assert notes(wb, r"2 G m(r) + \alpha Gm(r)") == []  # two letters, as physics writes them
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]
