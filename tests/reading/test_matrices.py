@@ -243,6 +243,40 @@ class TestProducts:
         chi = r"\begin{pmatrix} 0 \\ 1 \\ -1 \\ 0 \end{pmatrix}"
         assert matrix(wb.expr(rf"(X \otimes X) {chi}")) == sympy.Matrix([[0], [-1], [1], [0]])
 
+    def test_i_beside_a_matrix_in_a_product_is_the_identity(self, wb):
+        # the review's program: I \sigma_x gave [[0, I], [I, 0]], I a symbol printed as i
+        wb.exe(
+            r"|0\rangle := \begin{pmatrix} 1 \\ 0 \end{pmatrix}" "\n"
+            rf"\sigma_x := {self.SIGMA_X}"
+        )  # fmt: skip
+        sigma = sympy.Matrix([[0, 1], [1, 0]])
+        assert matrix(wb.expr(r"I \sigma_x")) == sigma
+        assert matrix(wb.expr(r"2 I \sigma_x")) == 2 * sigma
+        assert matrix(wb.expr(r"I|0\rangle")) == sympy.Matrix([[1], [0]])
+        assert matrix(wb.expr(r"\sigma_x - I")) == sigma - sympy.eye(2)
+        (step,) = list(wb.each(r"I \sigma_x"))
+        assert step.notes == [
+            r"I is read as the identity, as it multiplies the matrix \sigma_x; to name it, "
+            "define I"
+        ]
+        assert wb.expr("I x") == sympy.Symbol("I") * x  # beside no matrix, a symbol
+
+    def test_i_beside_a_matrix_in_a_kronecker_product_is_the_identity(self, wb):
+        wb.exe(rf"\sigma_x := {self.SIGMA_X}")
+        expected = sympy.Matrix(np.kron([[0, 1], [1, 0]], np.eye(2, dtype=int)))
+        assert matrix(wb.expr(r"\sigma_x \otimes I")) == expected
+        found = matrix(wb.expr(r"I \otimes \sigma_x"))
+        assert found == sympy.Matrix(np.kron(np.eye(2, dtype=int), [[0, 1], [1, 0]]))
+
+    def test_a_kronecker_product_with_what_is_no_matrix_is_refused(self, wb):
+        wb.exe(rf"\sigma_x := {self.SIGMA_X}")
+        with pytest.raises(CompileError) as refused:
+            wb.expr(r"\sigma_x \otimes a")
+        assert refused.value.message == (
+            r"\sigma_x \otimes a is read as a Kronecker product, which is of two matrices, "
+            "and a is no matrix"
+        )
+
     def test_a_direct_sum_of_matrices(self, wb):
         found = matrix(wb.expr(rf"{self.SIGMA_X} \oplus \begin{{pmatrix}} 5 \end{{pmatrix}}"))
         assert found == sympy.Matrix([[0, 1, 0], [1, 0, 0], [0, 0, 5]])

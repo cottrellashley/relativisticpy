@@ -8,12 +8,15 @@ r"""The notation of matrices that is no call, read by its operands (``design/not
   ``\Lambda^k`` or ``V^{1/2}``, is its power, or its square root;
 - I, ``\mathbb{1}`` and 𝟙, which nothing defines, added to a matrix are the identity of
   its size, and ``\mathbf{1}`` too, but beside a vector the vector of ones; a number added
-  to a square matrix is that multiple of the identity; a definition of any of them wins;
+  to a square matrix is that multiple of the identity; I, ``\mathbb{1}`` and 𝟙 multiplying
+  a matrix, or beside one in ``\otimes``, are the identity too; a definition of any of them
+  wins;
 - ``\mathbf{1}`` in a product with a matrix is the vector of ones it meets, and
   ``\mathbf{1}^T`` the row;
 - a product that is a 1 × 1 matrix, as a row times a matrix times a column is, is the
   number it holds;
-- ``\otimes`` between matrices is their Kronecker product, and ``\oplus`` their direct sum;
+- ``\otimes`` between matrices is their Kronecker product, and of a matrix and what is no
+  matrix refused; ``\oplus`` between matrices is their direct sum;
 - ``\|A\|_p`` of a matrix or a vector is its norm, and ``(A^3)_{12}`` or ``A_{12}`` of a
   matrix its entry, counted from 1.
 
@@ -419,19 +422,111 @@ class Matrices(Reader):
     # -- products ------------------------------------------------------------------------
 
     def _kronecker(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node | None:
-        """``A \\otimes B`` of two matrices: their Kronecker product. Between anything
-        else, as tensors written with their indices, ``\\otimes`` is a product, as before."""
+        """``A \\otimes B`` of two matrices: their Kronecker product; beside a matrix, I or
+        𝟙, which nothing defines, is the identity of its size, as in ``\\sigma_x \\otimes I``
+        (decision 12). A matrix and what is no matrix are refused; between anything else,
+        as tensors written with their indices, ``\\otimes`` is a product, as before."""
         if _joined_by(node) not in ("\\otimes", "⊗"):
             return None
+        sides = (node.left, node.right)
+        identities = [self._identity_alone(side, scope) for side in sides]
         try:
-            left, right = (self.value(side, scope, ctx) for side in (node.left, node.right))
+            values = [
+                None if identity else self.value(side, scope, ctx)
+                for side, identity in zip(sides, identities, strict=True)
+            ]
         except RelativisticPyError:  # an operator, as \partial_\mu \otimes dx^\nu
             return None
-        if not (_a_matrix(left) and _a_matrix(right)):
+        matrices = [
+            (value, side)
+            for value, side in zip(values, sides, strict=True)
+            if value is not None and _a_matrix(value)
+        ]
+        if not matrices:
             return None
+        met = matrices[0]
+        factors: list[Node] = []
+        for value, side in zip(values, sides, strict=True):
+            if value is None:
+                factors.append(self._identity_of(side, met, "it meets it in a Kronecker product"))
+            elif _a_matrix(value):
+                factors.append(value)
+            else:
+                raise CompileError(
+                    f"{node.span.text} is read as a Kronecker product, which is of two "
+                    f"matrices, and {side.span.text} is no matrix",
+                    span=node.span,
+                    hint="for the identity beside a matrix, write I; for a product, write "
+                    "the factors side by side",
+                )
         why = f"{node.left.span.text} and {node.right.span.text} are matrices"
         self._decide(MATRIX, node.span, "their Kronecker product, kron", why)
-        return self._of_a_matrix("kron", [left, right], node.span)
+        return self._of_a_matrix("kron", factors, node.span)
+
+    def _identity_alone(self, written: ast.Expr, scope: Scope) -> bool:
+        """Whether what is written is I, 𝟙 or ``\\mathbb{1}`` alone, which nothing defines."""
+        return (
+            isinstance(written, ast.Name)
+            and written.id in _IDENTITIES
+            and scope.lookup(written.id) is None
+        )
+
+    def _identity_of(self, identity: ast.Expr, beside: tuple[Node, ast.Expr], how: str) -> Node:
+        """The identity of the size of the matrix ``beside`` it, which I or 𝟙 is, as ``how``
+        says it meets the matrix, said in a note (decision 12)."""
+        matrix, written = beside[0], beside[1].span.text
+        one = identity.span.text
+        reading = f"the identity of the size of {written}"
+        note = f"{one} is read as {reading}, as {how}; to name it, define {one}"
+        self._note(note)
+        why = f"nothing defines {one}, and {how}"
+        self._decide(MATRIX, identity.span, reading, why, note)
+        attributes = (("ones", False),)
+        return self._call("linalg.identity", [matrix], VALUE, identity.span, attributes)
+
+    def _identities_in_a_product(
+        self, factors: Sequence[ast.Expr | Node], scope: Scope, ctx: Context
+    ) -> list[ast.Expr | Node]:
+        """The factors of a product with I or 𝟙, which nothing defines, beside a matrix:
+        the identity that meets the matrix, which multiplying leaves as it is, so that it is
+        left out, said in a note (decision 12), as of ``I \\sigma_x`` and ``I|0\\rangle``.
+        Beside no matrix, I is a symbol, as before; in a term of a sum that writes it, it is
+        read there."""
+        read = list(factors)
+        if self._identity is not None:
+            return read
+        identities = [
+            position
+            for position, factor in enumerate(factors)
+            if isinstance(factor, ast.Expr) and self._identity_alone(factor, scope)
+        ]
+        if not identities or len(identities) == len(factors):
+            return read
+        met = next(
+            (
+                other
+                for position, other in enumerate(factors)
+                if position not in identities
+                and (value := self._factor_value(other, scope, ctx)) is not None
+                and _a_matrix(value)
+            ),
+            None,
+        )
+        if met is None:
+            return read
+        written = met.span.text if isinstance(met, ast.Expr) else "the matrix"
+        for position in identities:
+            identity = factors[position]
+            assert isinstance(identity, ast.Expr)
+            one = identity.span.text
+            note = (
+                f"{one} is read as the identity, as it multiplies the matrix {written}; to "
+                f"name it, define {one}"
+            )
+            self._note(note)
+            why = f"nothing defines {one}, and it multiplies the matrix {written}"
+            self._decide(MATRIX, identity.span, "the identity", why, note)
+        return [factor for position, factor in enumerate(read) if position not in identities]
 
     def _kronecker_written(self, node: ast.Binary, scope: Scope, ctx: Context) -> bool:
         """Whether a product written with ``\\otimes`` is of two matrices, and so a factor

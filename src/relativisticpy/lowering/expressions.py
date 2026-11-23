@@ -323,6 +323,7 @@ class Expressions(LinearAlgebra):
         factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call
         grouped = self._statistic_factors(factors, scope, ctx)
         grouped = self._ones_vectors(grouped, scope, ctx)  # \mathbf{1}^T A \mathbf{1}
+        grouped = self._identities_in_a_product(grouped, scope, ctx)  # I \sigma_x
         if len(grouped) == 1 and isinstance(grouped[0], Node):
             return grouped[0]
         terms: list[Term] = []
