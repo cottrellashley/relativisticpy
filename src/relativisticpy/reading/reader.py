@@ -1437,20 +1437,26 @@ class Reader(Typer):
                 if name.endswith("hat") and len(name) > 3 and scope.lookup(name) is None
             )
             if units:
-                shown = _listed([f"\\hat{{{name[:-3]}}}" for name in dict.fromkeys(units)])
+                hats = [f"\\hat{{{name[:-3]}}}" for name in dict.fromkeys(units)]
+                shown = _listed(hats)
+                verb = "names" if len(hats) == 1 else "name"
                 self._decide(
                     "product or call",
                     node.span,
                     "a product of symbols",
-                    f"{shown} name nothing",
+                    f"{shown} {verb} nothing",
                 )
                 raise CompileError(
                     f"{left.span.text} {sign} {right.span.text} is read as a product of "
-                    f"symbols, not as a cross product: {shown} name nothing",
+                    f"symbols, not as a cross product: {shown} {verb} nothing",
                     span=node.span,
-                    notes=["unit vectors and the cross product of vectors are not supported yet"],
-                    hint="write each component of the cross product out, as in "
-                    "E_y B_z - E_z B_y for its x component",
+                    notes=[
+                        "a hat is a unit vector where it sits on a coordinate, as \\hat{x} and "
+                        "\\hat{r} do, in a statement whose plain hats all do, and \\times "
+                        "between vectors is their cross product"
+                    ],
+                    hint=f"define {hats[0]} as a vector, as in {hats[0]} := (0, 0, 1), or write "
+                    "each component of the cross product out",
                 )
 
     def _derivative_of_a_list(

@@ -363,6 +363,21 @@ class TestOperatorsReadWithAnotherMeaning:
         assert list(wb.expr(r"\mathbf{E} \times \mathbf{B}")) == [0, 0, E0 * B0]
         assert wb.expr(r"2 \times 10^{-5}") == sympy.Rational(1, 50000)  # numbers multiply
 
+    def test_a_cross_product_of_hats_on_no_coordinate(self, wb):
+        # the review's program: the note said unit vectors and the cross product were not
+        # supported, yet \hat{x} \times \hat{y} is (0, 0, 1)
+        found = error(wb, r"\hat{n}\times\hat{m}")
+        assert found.notes == [
+            r"a hat is a unit vector where it sits on a coordinate, as \hat{x} and \hat{r} do, "
+            r"in a statement whose plain hats all do, and \times between vectors is their "
+            "cross product"
+        ]
+        assert found.hint == (
+            r"define \hat{m} as a vector, as in \hat{m} := (0, 0, 1), or write each component "
+            "of the cross product out"
+        )
+        assert list(wb.expr(r"\hat{x}\times\hat{y}")) == [0, 0, 1]
+
     def test_a_tuple_compared_with_a_number(self, wb):
         # the review's program: x < 3 of x := (1, 2) was an internal error, and (1, 2) < 3 True
         wb.exe("x := (1, 2)")
