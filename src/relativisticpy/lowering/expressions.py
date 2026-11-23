@@ -54,12 +54,14 @@ from relativisticpy.lowering.linalg import LinearAlgebra
 from relativisticpy.reading import evaluations
 from relativisticpy.reading.names import (
     _LINEAR_ALGEBRA,
+    _TRANSPOSES,
     BOLD_ONE,
     _a_matrix,
     _a_pair,
     _an_index,
     _bold_one,
     _bracketed_order,
+    _decoration,
     _in_brackets,
     _letter,
     _mentions_symbol,
@@ -647,6 +649,41 @@ class Expressions(LinearAlgebra):
         why = "in LaTeX only the last letter of a run that names nothing is called"
         self._decide("letters", node.span, read, why)
         return "letters"
+
+    def _raised_product(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
+        """A power written on brackets after a name that multiplies them: a power of the
+        brackets alone, as TeX sets it, so that ``\\pi(x + 1)^2`` is π (x + 1)² and
+        ``x(x + 1)^2`` is x (x + 1)²; and on a run of letters of which only the last is
+        called, a power of that call, so that ``Gm(r)^2`` is G m(r)². ``None`` for a power
+        of a call, as ``f(x)^2`` is, and for any other script."""
+        call = node.base
+        if not (
+            isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Name)
+            and "_" not in call.func.id  # \psi_3(x), a member of a family, is called
+            and call.func.id not in _NOTATION_OPERATIONS
+            and all(_a_power(script) for script in node.scripts)
+        ):
+            return None
+        binding = scope.lookup(call.func.id)
+        if isinstance(binding, FunctionBinding) or self._depends(call, binding):
+            return None
+        linear = {"Tr": "tr", "inverse": "inv"}.get(call.func.id, call.func.id)
+        if binding is None and (call.func.id in ("trace", "tr", "Tr") or linear in _LINEAR_ALGEBRA):
+            return None
+        multiplies = self._multiplies(call, binding, scope, ctx)
+        if multiplies is None:
+            return None
+        if multiplies == "product":
+            group = _bracketed(call)
+            raised = ast.Scripted(group, node.scripts, span=group.span.to(node.span))
+            times = ast.Binary("*", call.func, raised, implicit=True, span=node.span)
+            return self.value(times, scope, ctx)
+        *leading, last = _letters_called(call)
+        factors = [self.value(n, scope, ctx) for n in leading]
+        raised = ast.Scripted(last, node.scripts, span=last.span.to(node.span))
+        factors.append(self.value(raised, scope, ctx))
+        return self._multiply(factors, node.span)
 
     def _metric_trace(self, argument: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """``trace(R_{\\mu\\nu})``: the two indices of a tensor on spacetime contracted with
@@ -1393,6 +1430,8 @@ class Expressions(LinearAlgebra):
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         if (book := self._book_scripted(node, scope)) is not None:  # (a)_n
             return self._capability(book, node.span, scope, ctx)
+        if (raised := self._raised_product(node, scope, ctx)) is not None:  # \pi(x + 1)^2
+            return raised
         if (matrix := self._matrix_scripted(node, scope, ctx)) is not None:  # A^T, \|A\|_2
             return matrix
         if (labelled := self._labelled(node, scope, ctx)) is not None:  # \lambda_1, R_\odot
@@ -1653,6 +1692,13 @@ def _group(node: ast.Call) -> ast.Expr:
     return node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
 
 
+def _bracketed(node: ast.Call) -> ast.Expr:
+    """What the brackets of a call hold, as :func:`_group` gives it, written in them: with
+    their span, so that ``(ab)`` is a run of letters in brackets."""
+    span = Span(node.span.source, node.func.span.end, node.span.end)
+    return replace(_group(node), span=span)
+
+
 def _letters_called(node: ast.Call) -> list[ast.Expr]:
     """The factors of a call of a run of letters that names nothing, in LaTeX: each letter
     but the last, then the last called, as G and m(r) are of ``Gm(r)``."""
@@ -1662,3 +1708,13 @@ def _letters_called(node: ast.Call) -> list[ast.Expr]:
     leading = [_letter(label, func.span, first=n == 0) for n, label in enumerate(labels[:-1])]
     last = _letter(labels[-1], func.span, first=False)
     return [*leading, replace(node, func=last)]
+
+
+def _a_power(script: ast.Script) -> bool:
+    """Whether a script raises what it is written on to a power, as ``^2`` and ``^{-1}``
+    do: a superscript that is no mark, as ``^*`` and ``^{(2)}`` are, nor a transpose, as
+    ``^T`` is."""
+    body = script.body
+    if script.kind != "^" or body is None or _decoration(script):
+        return False
+    return not (isinstance(body, ast.Name) and body.id in (*_TRANSPOSES, "dagger"))

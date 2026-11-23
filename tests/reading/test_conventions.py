@@ -7,7 +7,7 @@ product because ``r`` is a coordinate. These tests pin each convention down.
 """
 
 import pytest
-from sympy import Eq, Function, Symbol, diff, exp, sympify, true
+from sympy import Eq, Function, Symbol, diff, exp, pi, sympify, true
 
 from helpers import same, zero
 from relativisticpy import CompileError, IndexNotationError
@@ -85,6 +85,17 @@ class TestLatexReading:
         assert wb.expr(r"(xy)(x + 1) + \alpha") == x * y * (x + 1) + Symbol("alpha")
         wb.exe("f(x) := x^2")
         assert wb.expr(r"(f)(3) + \alpha") == 9 + Symbol("alpha")  # a function stays one
+
+    def test_a_power_on_brackets_a_name_multiplies_is_of_the_brackets(self, wb):
+        # \pi(x + 1)^2 was \pi^2 (x + 1)^2: the power squared the product
+        x, G = Symbol("x"), Symbol("G")
+        assert wb.expr(r"\pi(x + 1)^2") == pi * (x + 1) ** 2
+        assert wb.expr(r"x(x + 1)^2 + \alpha") == x * (x + 1) ** 2 + Symbol("alpha")
+        assert wb.expr(r"2Gm(r)^2 + \alpha") == 2 * G * Function("m")(r) ** 2 + Symbol("alpha")
+        assert wb.expr(r"(xy)(x + 1)^{-1} + \alpha") == x * Symbol("y") / (x + 1) + Symbol("alpha")
+        assert wb.expr(r"f(x)^2 + \alpha") == Function("f")(x) ** 2 + Symbol("alpha")  # a call
+        wb.exe("k := 3")
+        assert wb.expr(r"k(k + 1)^2 + \alpha") == 48 + Symbol("alpha")
 
     def test_only_the_last_letter_is_called(self, wb):
         assert wb.expr(r"2Gm(r) + \alpha") == 2 * Symbol("G") * Function("m")(r) + Symbol("alpha")
