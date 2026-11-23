@@ -337,3 +337,101 @@ DECIMALS = [
 @pytest.mark.parametrize("pair", DECIMALS)
 def test_a_decimal_is_the_fraction_it_denotes(pair):
     agree(pair)
+
+
+# -- plain text and Unicode, and the LaTeX they spell -----------------------------------
+#
+# What an agent types for algebra and calculus, in plain text and in Unicode, beside the
+# LaTeX it spells (design/notation.md, decisions 39 and 40). Each was read otherwise, or
+# refused, before: sin²x as c·o·s²·x + i·n²·s·x, int_0^1 x^2 dx as a product of names,
+# d/dx sin(x) as d sin(x)/dx, df/dx as the name df over dx.
+
+t, n, k, a, theta = sympy.symbols("t n k a theta")
+CUBIC = "f(x) := x^3"
+F_XY = "g(x, y) := x^2 y^3"
+
+SPELLINGS = [
+    case(Pair("", "sin²x + cos²x", r"\sin^2 x + \cos^2 x", sympy.sin(x) ** 2 + sympy.cos(x) ** 2),
+         "unicode-powers-of-functions"),
+    case(Pair("", "sin^2 x + cos^2 x", r"\sin^2 x + \cos^2 x",
+              sympy.sin(x) ** 2 + sympy.cos(x) ** 2), "plain-powers-of-functions"),
+    case(Pair("", "sin 2x", r"\sin 2x", sympy.sin(2 * x)), "an-argument-without-brackets"),
+    case(Pair("", "cos θ", r"\cos\theta", sympy.cos(theta)), "a-greek-argument"),
+    case(Pair("", "x² sin x", r"x^2 \sin x", x**2 * sympy.sin(x)), "after-a-factor"),
+    case(Pair("", "sin^(-1) x", r"\sin^{-1} x", sympy.asin(x)), "an-inverse"),
+    case(Pair("", "tan⁻¹(1)", r"\tan^{-1}(1)", sympy.atan(1)), "an-inverse-in-unicode"),
+    case(Pair("", "log_2 8", r"\log_2 8", sympy.Integer(3)), "a-logarithm-with-a-base"),
+    case(Pair("", "log₂ 8", r"\log_{2} 8", sympy.Integer(3)), "a-base-in-unicode"),
+    case(Pair("", "e^ln(2)", r"e^{\ln(2)}", sympy.Integer(2)), "a-function-in-an-exponent"),
+    case(Pair("", "√16 + ∛8", r"\sqrt{16} + \sqrt[3]{8}", sympy.Integer(6)), "roots"),
+    case(Pair("", "½ + 3⁄4", r"\frac{1}{2} + \frac{3}{4}", sympy.Rational(5, 4)), "fractions"),
+    case(Pair("", "min_x x^2 - 4x + 7", r"\min_x x^2 - 4x + 7", sympy.Integer(3)),
+         "a-minimum"),
+    case(Pair("", "d/dx (x^3)", r"\frac{d}{dx}(x^3)", 3 * x**2), "the-operator"),
+    case(Pair("", "d/dx sin(x)", r"\frac{d}{dx} \sin(x)", sympy.cos(x)), "of-a-function"),
+    case(Pair("", "d/dx x^2 sin(x)", r"\frac{d}{dx} x^2 \sin(x)",
+              sympy.diff(x**2 * sympy.sin(x), x)), "of-a-product"),
+    case(Pair("", "d(x^3)/dx", r"\frac{d(x^3)}{dx}", 3 * x**2), "the-operand-above"),
+    case(Pair("", "d^2/dx^2 (x^4)", r"\frac{d^2}{dx^2}(x^4)", 12 * x**2), "a-second-order"),
+    case(Pair("", "d²/dx² (x⁴)", r"\frac{d^2}{dx^2}(x^4)", 12 * x**2), "in-unicode"),
+    case(Pair("", "d/dθ (sin²θ)", r"\frac{d}{d\theta} \sin^2\theta",
+              sympy.diff(sympy.sin(theta) ** 2, theta)), "by-a-greek-letter"),
+    case(Pair("", "-d/dx (x^2)", r"-\frac{d}{dx}(x^2)", -2 * x), "negated"),
+    case(Pair("", "2 d/dx (x^3)", r"2 \frac{d}{dx}(x^3)", 6 * x**2), "after-a-factor"),
+    case(Pair(CUBIC, "df/dx", r"\frac{df}{dx}", 3 * x**2), "leibniz-of-a-name"),
+    case(Pair(CUBIC, "df(x)/dx", r"\frac{d}{dx} f(x)", 3 * x**2), "leibniz-of-a-call"),
+    case(Pair(CUBIC, "x df/dx", r"x \frac{df}{dx}", 3 * x**3), "leibniz-after-a-factor"),
+    case(Pair("y(x) := x^4", "d²y/dx²", r"\frac{d^2 y}{dx^2}", 12 * x**2),
+         "leibniz-of-a-second-order"),
+    case(Pair(F_XY, "∂g/∂x", r"\frac{\partial g}{\partial x}", 2 * x * y**3), "a-partial"),
+    case(Pair(F_XY, "∂²g/∂x∂y", r"\frac{\partial^2 g}{\partial x \partial y}", 6 * x * y**2),
+         "a-mixed-partial"),
+    case(Pair(F_XY, "(del g)/(del x)", r"\frac{\partial g}{\partial x}", 2 * x * y**3),
+         "asciimath-del"),
+    case(Pair("y(x) := x² sin x", "y'(x)", r"\frac{d}{dx} y(x)",
+              sympy.diff(x**2 * sympy.sin(x), x)), "a-prime-of-a-unicode-definition"),
+    case(Pair("", "int_0^1 x^2 dx", r"\int_0^1 x^2 \, dx", sympy.Rational(1, 3)),
+         "an-integral"),
+    case(Pair("", "int x^2 dx", r"\int x^2 \, dx", x**3 / 3), "an-indefinite-integral"),
+    case(Pair("", "int_0^oo exp(-x) dx", r"\int_0^\infty e^{-x} \, dx", sympy.Integer(1)),
+         "to-infinity"),
+    case(Pair("", "int_(-1)^1 x^2 dx", r"\int_{-1}^{1} x^2 \, dx", sympy.Rational(2, 3)),
+         "a-limit-in-brackets"),
+    case(Pair("", "∫_0^π sin x dx", r"\int_0^\pi \sin x \, dx", sympy.Integer(2)),
+         "the-sign-in-unicode"),
+    case(Pair("", "∫₀¹ x² dx", r"\int_0^1 x^2 \, dx", sympy.Rational(1, 3)),
+         "limits-as-unicode-scripts"),
+    case(Pair("", "int dx/(1 + x^2)", r"\int \frac{dx}{1 + x^2}", sympy.atan(x)),
+         "a-differential-over-a-solidus"),
+    case(Pair("", "lim_(x->0) sin(x)/x", r"\lim_{x \to 0} \frac{\sin x}{x}", sympy.Integer(1)),
+         "a-limit"),
+    case(Pair("", "lim_{x→∞} (1 + 1/x)^x", r"\lim_{x \to \infty} (1 + 1/x)^x", sympy.E),
+         "a-limit-in-unicode"),
+    case(Pair("", "sum_(n=1)^oo 1/n^2", r"\sum_{n=1}^{\infty} \frac{1}{n^2}", sympy.pi**2 / 6),
+         "a-sum"),
+    case(Pair("", "∑ₙ₌₁^∞ 1/n²", r"\sum_{n=1}^{\infty} \frac{1}{n^2}", sympy.pi**2 / 6),
+         "a-sum-in-unicode"),
+    case(Pair("", "sum(1/n^2, (n, 1, oo))", r"\sum_{n=1}^{\infty} \frac{1}{n^2}",
+              sympy.pi**2 / 6), "a-sum-called"),
+    case(Pair("", "prod_(k=1)^5 k", r"\prod_{k=1}^{5} k", sympy.Integer(120)), "a-product"),
+    case(Pair("", "product(k, (k, 1, 5))", r"\prod_{k=1}^{5} k", sympy.Integer(120)),
+         "a-product-called"),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("pair", SPELLINGS)
+def test_plain_text_and_unicode_are_the_latex_they_spell(pair):
+    agree(pair)
+
+
+REFUSED_SPELLINGS = [
+    case(Pair("", "θ + sinx", r"\theta + sinx", REFUSED), "a-function-run-into-its-argument"),
+    case(Pair("", "d*y/dx", r"d \cdot y / dx", REFUSED), "a-derivative-set-apart-by-a-star"),
+    case(Pair("", "lim x->0 sin(x)/x", r"\lim x \to 0 \frac{\sin x}{x}", REFUSED),
+         "a-limit-without-its-subscript"),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("pair", REFUSED_SPELLINGS)
+def test_what_is_ambiguous_is_refused_in_every_spelling(pair):
+    agree(pair)
