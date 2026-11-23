@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import contextlib
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -676,7 +676,8 @@ class Expressions(LinearAlgebra):
         scope = binding.closure.child()
         for param, arg in zip(definition.params, args, strict=True):
             scope.bind(param, VariableBinding(arg))
-        inner = Context(latex=definition.latex, calls=(*ctx.calls, definition.name))
+        calls = (*ctx.calls, definition.name)
+        inner = Context(latex=definition.latex, calls=calls, body=definition)
         if isinstance(definition.body, ast.Block):
             result = None
             for statement in definition.body.statements:
@@ -690,7 +691,20 @@ class Expressions(LinearAlgebra):
                     hint="end the function body with an expression",
                 )
             return self._at_arguments(result, definition, args, span)
-        return self._at_arguments(self.value(definition.body, scope, inner), definition, args, span)
+        with self._as_written_in(definition):
+            value = self.value(definition.body, scope, inner)
+        return self._at_arguments(value, definition, args, span)
+
+    @contextlib.contextmanager
+    def _as_written_in(self, definition: ast.FunctionDefinition) -> Iterator[None]:
+        """Read what a definition holds as the statement that makes it is written, wherever
+        it is used: a hat in the body of a function is read by the hats its definition
+        writes, not by those of the statement that calls it."""
+        saved, self._text = self._text, definition.span.text
+        try:
+            yield
+        finally:
+            self._text = saved
 
     def _at_arguments(
         self, value: Node, definition: ast.FunctionDefinition, args: Sequence[Node], span: Span

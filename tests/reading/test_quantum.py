@@ -309,6 +309,22 @@ class TestOperators:
             assert same(wb.expr(written), expected), written
         assert same(wb.expr(r"x \hat{p} \psi(x)"), 2 * IMAGINARY * hbar * x**2 * sympy.exp(-(x**2)))
 
+    def test_only_the_hat_on_the_variable_of_an_operator_is_the_position(self, wb):
+        # \hat{y} stays a unit vector beside \hat{p} := -i\hbar d/dx, and \hat{x} is one
+        # among unit vectors
+        wb.exe(MOMENTUM + "\n" r"\mathbf{F} := 3\hat{x} + 4\hat{y}")
+        assert wb.expr(r"|\mathbf{F}|") == 5
+        assert wb.expr(r"|3\hat{x}+4\hat{y}|") == 5
+        assert list(wb.expr(r"\hat{y}")) == [0, 1, 0]
+        assert same(wb.expr(r"\hat{x}"), x)
+
+    def test_a_function_is_read_as_it_was_where_it_is_defined(self, wb):
+        wb.exe(r"\mathbf{v}(t) := t\hat{x} + t^2\hat{y}")
+        assert list(wb.expr(r"\mathbf{v}(2)")) == [2, 4, 0]
+        wb.exe(MOMENTUM)
+        assert list(wb.expr(r"\mathbf{v}(2)")) == [2, 4, 0]  # not 2 x + 4 yhat
+        assert list(wb.copy().expr(r"\mathbf{v}(2)")) == [2, 4, 0]  # and so in a copy
+
     def test_an_operator_in_brackets_acts_on_what_follows(self, wb):
         found = wb.expr(r"\left(-\hbar^2 \frac{d^2}{dx^2} + x\right) \sin(kx)")
         assert same(found, (hbar**2 * k**2 + x) * sympy.sin(k * x))

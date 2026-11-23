@@ -9,7 +9,9 @@ another was possible:
   ``\mathbf{k}`` are the unit vectors of Cartesian coordinates where nothing defines them,
   and ``\hat{\mathbf{r}}``, ``\hat{\boldsymbol\theta}`` and ``\mathbf{e}_r`` those of the
   coordinates in force; a plain hat in a statement that writes one on a letter that is no
-  coordinate, as ``\hat{p}``, is an operator's, as before;
+  coordinate, as ``\hat{p}``, is an operator's, as before, and one on the variable an
+  operator in force differentiates by is the position, unless the statement writes it among
+  unit vectors (:mod:`relativisticpy.reading.quantum`);
 - the frame of vector calculus is that of the coordinates in force: a line element or a
   metric gives their scale factors; coordinates declared without one take them from the
   Cartesian coordinates the program writes in them, as ``x := r \sin\theta \cos\phi``, or
@@ -384,6 +386,24 @@ class Vectors(Reader):
             if letter not in names and _IJK.get(letter) not in names:
                 return False
         return True
+
+    def _among_unit_vectors(self, span: Span, differentiated: set[str], scope: Scope) -> bool:
+        """Whether the statement writes a plain hat that only a unit vector can be: one
+        that nothing defines, on a coordinate of the frame that no operator differentiates
+        by, as \\hat{y} is in ``3\\hat{x} + 4\\hat{y}`` beside ``\\hat{p} := -i\\hbar
+        \\frac{d}{dx}``, which ``differentiated`` names x for."""
+        frame = self._vector_frame(span)
+        if frame is None:
+            return False
+        for match in _HAT.finditer(self._text):
+            if match["bold"] or match["letter"] in _DOTLESS:
+                continue
+            letter = _letter(match["letter"])
+            on = letter in frame.names or (frame.cartesian and _IJK.get(letter) in frame.names)
+            named = scope.lookup(match["letter"] + "hat") is not None
+            if on and not named and letter not in differentiated:
+                return True
+        return False
 
 
 def _column(vector: Node) -> bool:

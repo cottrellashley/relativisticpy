@@ -34,7 +34,7 @@ The lowering of each is :mod:`relativisticpy.lowering.quantum`.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass, fields, replace
+from dataclasses import dataclass, field, fields, replace
 from typing import Any, ClassVar, Literal
 
 import sympy
@@ -43,6 +43,7 @@ from sympy.physics.quantum import Operator as AbstractOperator
 from relativisticpy.compiler.builtins import CONSTANTS
 from relativisticpy.compiler.scope import (
     Binding,
+    Context,
     FunctionBinding,
     Operator,
     Scope,
@@ -106,9 +107,13 @@ class ShownFunction(FunctionBinding):
 class OperatorBinding(ShownFunction):
     """An operator a program defines, as ``\\hat{p} := -i\\hbar \\frac{d}{dx}``: a function of
     what it acts on, its operand, and the ``expression`` it is written as, which acts on the
-    operand term by term and factor by factor."""
+    operand term by term and factor by factor. The functions whose definitions came
+    ``before`` it are read as they were where they are written, without it: in their bodies,
+    a hat on the variable it differentiates by is no position. They are known by their
+    definitions, which a fork of the session keeps."""
 
     expression: ast.Expr
+    before: tuple[ast.FunctionDefinition, ...] = field(default=(), compare=False, repr=False)
 
 
 @dataclass(frozen=True)
@@ -126,11 +131,13 @@ class Operation(Operator):
     """An operator written as an expression, as ``-i\\hbar \\frac{d}{dx}``, ``\\hat{p}^2`` or
     ``[x, \\hat{p}]``, which acts on the rest of the term after it, as ``\\frac{d}{dx}``
     does, so that ``\\hat{p} x \\psi(x)`` is :math:`\\hat{p}(x\\psi)`; its names are those of
-    ``scope``, and it is read as LaTeX if it is written in it."""
+    ``scope``, and it is read as LaTeX if it is written in it. One the program defines is
+    read as its ``definition`` is written."""
 
     expression: ast.Expr
     scope: Scope
     latex: bool
+    definition: ast.FunctionDefinition | None = None
     reach: ClassVar[Literal["factor", "term"]] = "term"
 
 
@@ -353,21 +360,32 @@ class QuantumNotation(Functions):
             return []
         return free
 
-    def _position(self, accent: ast.Accent, scope: Scope) -> str | None:
-        """The variable an operator differentiates by that ``\\hat{x}``, which nothing
-        defines, is written as: the position, which acts by multiplying, beside the momentum
-        ``\\hat{p} := -i\\hbar \\frac{d}{dx}``; ``None`` where none is."""
+    def _position(self, accent: ast.Accent, scope: Scope, ctx: Context) -> str | None:
+        """The variable ``\\hat{x}``, which nothing defines, is the position along, which
+        acts by multiplying, decided by its letter: one an operator in force differentiates
+        by, as x is beside ``\\hat{p} := -i\\hbar \\frac{d}{dx}``; ``None`` for any other, as
+        \\hat{y} is there."""
         if accent.accent != "hat" or not isinstance(accent.base, ast.Name):
             return None
         variable = accent.base.id
         if scope.lookup(variable + "hat") is not None:
             return None
-        for _, binding in _bindings(scope):
-            if isinstance(binding, OperatorBinding) and variable in self._variables_of(
-                binding.expression, binding.closure
-            ):
-                return variable
+        if variable in self._differentiated(scope, ctx):
+            return variable
         return None
+
+    def _differentiated(self, scope: Scope, ctx: Context) -> set[str]:
+        """The variables the operators in force differentiate by: those of every operator the
+        program defines, but, in the body of a function, of those it defined before the
+        function, as a definition is read as it was where it is written."""
+        found: set[str] = set()
+        for _, binding in _bindings(scope):
+            if not isinstance(binding, OperatorBinding):
+                continue
+            if any(ctx.body is earlier for earlier in binding.before):
+                continue
+            found.update(self._variables_of(binding.expression, binding.closure))
+        return found
 
     # -- states ---------------------------------------------------------------------------
 

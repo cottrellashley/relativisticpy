@@ -82,11 +82,15 @@ class Scope:
 
 @dataclass(frozen=True)
 class Context:
-    """What the compiler knows about the statement being compiled."""
+    """What the compiler knows about the statement being compiled: whether it is LaTeX or a
+    line element, the user functions being inlined, to catch recursion, and the definition
+    whose ``body`` is being compiled, the innermost of them, which is read as it was where
+    it is written."""
 
     latex: bool = False
     line_element: bool = False
-    calls: tuple[str, ...] = ()  # user functions being inlined, to catch recursion
+    calls: tuple[str, ...] = ()
+    body: ast.FunctionDefinition | None = None
 
 
 @dataclass(frozen=True)

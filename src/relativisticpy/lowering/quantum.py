@@ -39,6 +39,7 @@ from relativisticpy.reading.quantum import (
     OperatorBinding,
     ShownBinding,
     ShownFunction,
+    _bindings,
     _daggered,
     _power,
     _wavefunction,
@@ -186,7 +187,9 @@ class Quantum(Optima):
         ctx: Context,
     ) -> None:
         """``\\hat{p} := -i\\hbar \\frac{d}{dx}``: an operator, a function of its operand. With
-        ``\\pm`` in its name, as ``a_\\pm``, two, one for each sign."""
+        ``\\pm`` in its name, as ``a_\\pm``, two, one for each sign. The functions defined
+        before it are read without it, as they were where they are written."""
+        before = tuple(b.definition for _, b in _bindings(scope) if isinstance(b, FunctionBinding))
         for name, upper in names:
             written = value if upper is None else signed(value, upper)
             operand = ast.Name(OPERAND, verbatim=True, span=value.span)
@@ -195,7 +198,7 @@ class Quantum(Optima):
             test = self._test_function(self._variables_of(written, scope), value, scope)
             self._operate(written, test, scope, ctx)  # what cannot be applied is said here
             shown = target.span.text if upper is None else latex_label(name)
-            scope.bind(name, OperatorBinding(definition, scope, shown, written))
+            scope.bind(name, OperatorBinding(definition, scope, shown, written, before))
         shown = " and ".join(name for name, _ in names)
         reading = f"a definition of the operator{'s' if len(names) > 1 else ''} {shown}"
         why = f"{value.span.text} acts on what follows it, and has nothing to act on"
@@ -280,8 +283,8 @@ class Quantum(Optima):
         if binding is not None:
             line = binding.definition.span.line
             self._resolve(node.span, f"an operator, defined on line {line}")
-            closure, latex = binding.closure, binding.definition.latex
-            return Operation(node.span, binding.expression, closure, latex)
+            closure, definition = binding.closure, binding.definition
+            return Operation(node.span, binding.expression, closure, definition.latex, definition)
         if isinstance(node, ast.List | ast.Tuple):
             kind = bracket_kind(node)
             items = " and ".join(item.span.text for item in node.items)
@@ -301,7 +304,11 @@ class Quantum(Optima):
             if free:  # (a \frac{d}{d\lambda})(fg), of f and g nothing defines
                 raise self._acts_in_vain(operator_, free, span)
             inner = replace(ctx, latex=operator_.latex)
-            return self._operate(operator_.expression, operand, operator_.scope, inner)
+            if operator_.definition is None:
+                return self._operate(operator_.expression, operand, operator_.scope, inner)
+            inner = replace(inner, body=operator_.definition)
+            with self._as_written_in(operator_.definition):
+                return self._operate(operator_.expression, operand, operator_.scope, inner)
         return super()._apply(operator_, operand, span, scope, ctx)
 
     def _acts_in_vain(self, operator_: Operation, free: list[str], span: Span) -> CompileError:
@@ -413,7 +420,7 @@ class Quantum(Optima):
         return self.graph.add(ops.Equation(), sides, EquationType(SCALAR), node.span)
 
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
-        variable = self._position(node, scope)
+        variable = self._position(node, scope, ctx)
         if variable is not None:  # \hat{x} beside \hat{p} := -i\hbar \frac{d}{dx}
             note = (
                 f"{node.span.text} is read as the position, {variable}, which acts by "

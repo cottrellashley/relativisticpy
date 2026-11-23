@@ -47,7 +47,6 @@ from relativisticpy.lowering.probability import Probability
 from relativisticpy.reading.families import Family
 from relativisticpy.reading.labels import label_name
 from relativisticpy.reading.names import _a_pair, _matrix_shape, _written_as_letter, _written_with
-from relativisticpy.reading.quantum import OperatorBinding
 from relativisticpy.reading.subscripts import Reading
 from relativisticpy.reading.vectors import (
     BOLD,
@@ -859,24 +858,21 @@ class VectorCalculus(Vectors, Probability):
         ):
             letter, written_bold = found
             unnamed = scope.lookup(node.base.id + "hat") is None
-            if unnamed and (written_bold or not self._operator_near(node, scope)):
+            if unnamed and (written_bold or not self._a_position(node, scope, ctx)):
                 unit = self._unit_vector(letter, node, scope, written_bold=written_bold)
                 if unit is not None:
                     return unit
         return super()._Accent(node, scope, ctx)
 
-    def _operator_near(self, node: ast.Accent, scope: Scope) -> bool:
-        """Whether a plain hat is near an operator, and so an operator's: the program
-        defines one, as ``\\hat{p} := -i\\hbar \\frac{d}{dx}``, beside which ``\\hat{x}`` is
-        the position (:mod:`relativisticpy.reading.quantum`)."""
-        if self._position(node, scope) is not None:
-            return True
-        level: Scope | None = scope
-        while level is not None:
-            if any(isinstance(binding, OperatorBinding) for _, binding in level.bindings()):
-                return True
-            level = level.parent
-        return False
+    def _a_position(self, node: ast.Accent, scope: Scope, ctx: Context) -> bool:
+        """Whether a plain hat is the position, which acts by multiplying, rather than a
+        unit vector, decided by its letter (:mod:`relativisticpy.reading.quantum`): beside
+        an operator that differentiates by x, as ``\\hat{p} := -i\\hbar \\frac{d}{dx}``,
+        ``\\hat{x}`` is, unless the statement writes it among unit vectors, beside a hat on
+        a coordinate no operator differentiates by, as in ``3\\hat{x} + 4\\hat{y}``."""
+        if self._position(node, scope, ctx) is None:
+            return False
+        return not self._among_unit_vectors(node.span, self._differentiated(scope, ctx), scope)
 
     def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
         if node.id in ("i", "j", "k") and bold(node) and scope.lookup(node.id) is None:
