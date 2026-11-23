@@ -194,9 +194,11 @@ class Statement(TypedDict):
     """One statement of a program and what came of it, as ``relativisticpy --format json``
     gives it: where it is, the statement as written, its values (each as
     ``relativisticpy.display.data`` describes it, with its ``text``, ``unicode`` and
-    ``latex`` forms), what it defined, notes on how it was read, what its values are given
-    under that books assume and the program did not say, as ``a > 0``, and its error, if
-    it failed (``RelativisticPyError.to_dict()``: type, message, place, notes and hint)."""
+    ``latex`` forms, and whether it is ``complete``, the ``reasons`` it is not, and
+    whether it is ``approximate``), what it defined, notes on how it was read, what its
+    values are given under that books assume and the program did not say, as ``a > 0``,
+    and its error, if it failed (``RelativisticPyError.to_dict()``: type, message, place,
+    notes and hint)."""
 
     file: str | None
     line: int | None
@@ -213,12 +215,14 @@ class Statement(TypedDict):
 
 class Computed(TypedDict):
     """What a program gave: one entry for each statement, in order; whether every
-    statement ran and none failed; and notes, such as a time limit reached or a result
-    cut short."""
+    statement ran and none failed (``ok``), and whether besides every value is a complete
+    answer, with nothing kept as written (``complete``); and notes, such as a time limit
+    reached or a result cut short."""
 
     session: str | None
     statements: list[Statement]
     ok: bool
+    complete: bool
     seconds: float
     notes: list[str]
     truncated: bool
@@ -509,10 +513,12 @@ class _Engine:
                 workbook.close()
         if not source.strip():
             notes.append("the program is empty: there was nothing to run")
+        ok = complete and all(entry["error"] is None for entry in statements)
         result: dict[str, Any] = {
             "session": None,
             "statements": statements,
-            "ok": complete and all(entry["error"] is None for entry in statements),
+            "ok": ok,
+            "complete": ok and _answered(statements),
             "seconds": round(time.monotonic() - started, 3),
             "notes": notes,
             "truncated": False,
@@ -661,6 +667,11 @@ def _entry(step: Step, before: Snapshot, after: Snapshot) -> dict[str, Any]:
     except Exception as error:  # a failure of our own, while describing it: reported
         failure = internal_error(error, span=step.span, during="describing this result")
         return as_data(replace(step, values=None, error=failure), defined)
+
+
+def _answered(statements: Sequence[dict[str, Any]]) -> bool:
+    """Whether every value of the statements is a complete answer."""
+    return all(value.get("complete", True) for entry in statements for value in entry["values"])
 
 
 def _failed(error: RelativisticPyError) -> dict[str, Any]:

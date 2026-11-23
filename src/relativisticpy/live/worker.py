@@ -334,7 +334,14 @@ def _failure(job: Job, error: dict[str, Any]) -> dict[str, Any]:
             "definition": None,
             "error": error,
         }
-        return {"source": text, "statements": [entry], "notes": [], "ok": False, "seconds": 0.0}
+        return {
+            "source": text,
+            "statements": [entry],
+            "notes": [],
+            "ok": False,
+            "complete": False,
+            "seconds": 0.0,
+        }
     return {
         "action": job.arguments.get("action", "compute"),
         "start": job.arguments.get("start", 0),

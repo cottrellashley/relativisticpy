@@ -104,6 +104,7 @@ def test_compute_gives_each_statement_as_the_command_line_does(capsys):
 
     result = serve(test)
     assert result["ok"]
+    assert result["complete"]
     assert result["session"] is None
     assert not result["truncated"]
     assert values(result) == [[], ["M*(r - 2*M)/r^3"], ["48*M^2/r^6"], [], ["True"]]
@@ -130,6 +131,29 @@ def test_compute_says_what_a_value_is_given_under():
     assert stated["notes"] == ["a > 0 is an assumption: from here on, a is positive"]
     assert (stated["assuming"], integral["assuming"]) == ([], ["s > 0"])
     assert values(result) == [[], ["1/s"]]
+
+
+def test_compute_says_whether_each_value_is_an_answer():
+    program = "x := 0.5; x^2\n" r"\int_0^1 \sin(\sin x) \, dx" "\nfoo(2)"
+
+    async def test(client, pool):
+        return await call(client, "compute", source=program)
+
+    result = serve(test)
+    assert result["ok"]
+    assert not result["complete"]  # every statement ran, and not every value is an answer
+    _, square, integral, unknown = result["statements"]
+    flags = [
+        (value["complete"], value["reasons"], value["approximate"])
+        for entry in (square, integral, unknown)
+        for value in entry["values"]
+    ]
+    assert flags == [
+        (True, [], True),
+        (False, ["integral"], False),
+        (False, ["unknown function"], False),
+    ]
+    assert integral["notes"] == ["an integral is left as written: SymPy could not compute it"]
 
 
 def test_an_error_comes_whole_and_the_statements_after_it_still_run():

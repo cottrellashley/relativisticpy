@@ -21,6 +21,7 @@ def texts(result):
 def test_a_run_gives_each_statement_as_the_command_line_does():
     result = Engine().run(SCHWARZSCHILD)
     assert result["ok"]
+    assert result["complete"]
     assert result["source"] == SCHWARZSCHILD
     first, second, third, fourth = result["statements"]
     assert first["statement"] == r"g_{\mu\nu} := Schwarzschild(M)"
@@ -30,6 +31,17 @@ def test_a_run_gives_each_statement_as_the_command_line_does():
     assert third["values"][0]["latex"] == r"\frac{48 M^{2}}{r^{6}}"
     assert fourth["values"][0]["text"] == "2*M - r"
     assert fourth["typeset"] == r"\Gamma^{r}_{\theta\theta}"
+
+
+def test_a_value_kept_as_written_is_no_complete_answer():
+    result = Engine().run("x := 0.5\nx^2\n" r"\int_0^1 \sin(\sin x) \, dx")
+    assert result["ok"]
+    assert not result["complete"]
+    _, square, integral = result["statements"]
+    [value] = integral["values"]
+    assert (value["complete"], value["reasons"]) == (False, ["integral"])
+    assert integral["notes"] == ["an integral is left as written: SymPy could not compute it"]
+    assert (square["values"][0]["complete"], square["values"][0]["approximate"]) == (True, True)
 
 
 def test_an_error_says_where_it_is_and_the_rest_still_runs():

@@ -156,7 +156,7 @@ where it is, the statement, its `values`, each as `relativisticpy.display.data`
 describes it, with its `text`, `unicode` and `latex` forms, what it `defines`, `notes` on
 how it was read, what its values are given `assuming`, as `a > 0`, where books assume it
 and the program did not say, and its `error`. `ok` says whether every statement ran and
-none failed.
+none failed, and `complete` whether besides every value is a complete answer.
 
 ```python
 >>> result = call("compute", source=r"g_{\mu\nu} := Schwarzschild(M); R_{abcd} R^{abcd}")
@@ -167,8 +167,8 @@ none failed.
 >>> kretschmann = result["statements"][1]["values"][0]
 >>> kretschmann["text"], kretschmann["unicode"], kretschmann["latex"]
 ('48*M^2/r^6', '48M²/r⁶', '\\frac{48 M^{2}}{r^{6}}')
->>> result["ok"]
-True
+>>> result["ok"], result["complete"]
+(True, True)
 
 ```
 

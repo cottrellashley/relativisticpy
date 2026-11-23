@@ -181,11 +181,16 @@ class Engine:
     def _result(
         text: str, entries: list[dict[str, Any]], notes: list[str], started: float
     ) -> dict[str, Any]:
+        """What a run gave: whether no statement failed (``ok``), and whether besides every
+        value is a complete answer, with nothing kept as written (``complete``)."""
+        ok = all(entry["error"] is None for entry in entries)
+        values = [value for entry in entries for value in entry["values"]]
         return {
             "source": text,
             "statements": entries,
             "notes": notes,
-            "ok": all(entry["error"] is None for entry in entries),
+            "ok": ok,
+            "complete": ok and all(value.get("complete", True) for value in values),
             "seconds": round(time.monotonic() - started, 3),
         }
 
