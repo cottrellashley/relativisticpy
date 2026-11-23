@@ -133,7 +133,7 @@ x := («v»)
 
 ### The physics package's norm
 
-**Form** · `physics-norm` · the physics package, Vector notation: `\norm{a}`
+**Form** · `physics-norm` · the physics package, Automatic bracing: `\norm{a}`
 
 ```latex
 \mathbf{v} := («v»)

@@ -124,7 +124,7 @@ A := \begin{pmatrix} «A» \end{pmatrix}
 
 ### The physics package's trace
 
-**Form** · `physics-tr` · the physics package, Matrix operations: `\tr`
+**Form** · `physics-tr` · the physics package, Operators, trace and rank: `\tr`
 
 ```latex
 A := \begin{pmatrix} «A» \end{pmatrix}
@@ -135,7 +135,7 @@ A := \begin{pmatrix} «A» \end{pmatrix}
 
 ### The physics package's trace, with a capital
 
-**Form** · `physics-Tr` · the physics package, Matrix operations: `\Tr`
+**Form** · `physics-Tr` · the physics package, Operators, trace and rank: `\Tr`
 
 ```latex
 A := \begin{pmatrix} «A» \end{pmatrix}
