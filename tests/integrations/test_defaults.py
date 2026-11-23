@@ -218,6 +218,16 @@ class TestSums:
         assert step.values == [sympy.oo]
         assert step.notes == ["the sum diverges: its terms tend to ∞, not to 0"]
 
+    @pytest.mark.parametrize("terms", ["(-1)^n", r"\cos n"])
+    def test_a_series_whose_terms_tend_to_no_limit_diverges(self, wb, terms):
+        # Grandi's series: said to diverge only where SymPy's own test did in its second
+        step = last(wb, rf"\sum_{{n=0}}^{{\infty}} {terms}")
+        assert isinstance(step.values[0], sympy.Sum)
+        assert step.notes == [
+            "the sum diverges: its terms do not tend to 0",
+            "a sum is left as written: SymPy found no closed form for it",
+        ]
+
     @pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
     def test_one_past_its_budget_says_that_its_time_ran_out(self, wb, monkeypatch):
         from relativisticpy.runtime import core

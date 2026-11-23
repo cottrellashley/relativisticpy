@@ -99,9 +99,9 @@ def summation(
 def _kept(written: Any) -> Any:
     """A series SymPy finds no closed form of, kept as written; or ∞, or -∞, where its terms
     do not tend to 0 and keep one sign, so that it diverges, as that of e^{-an} does where
-    a < 0, which a remark says. Where SymPy's tests of convergence show it to diverge
-    otherwise, as Σ 1/(n ln n) does, a remark says so: no closed form was missed for want
-    of time."""
+    a < 0, which a remark says. Where its terms tend to no limit, as (-1)^n do, or where
+    SymPy's tests of convergence show it to diverge otherwise, as Σ 1/(n ln n) does, a
+    remark says it diverges: no closed form was missed for want of time."""
     body, (index, lower, upper) = written.function, written.limits[0]
     if upper != sympy.oo or not sympy.sympify(lower).is_finite:
         return written
@@ -119,9 +119,33 @@ def _kept(written: Any) -> Any:
             shown = display.unicode(tends)
             assumptions.remark(f"the sum diverges: its terms tend to {shown}, not to 0")
             return infinite
-    if converges in (False, sympy.false):
+    if _no_limit(tends) and _not_small(body, index):
+        assumptions.remark("the sum diverges: its terms do not tend to 0")
+    elif converges in (False, sympy.false):
         assumptions.remark("the sum diverges, as SymPy's tests of convergence show")
     return written
+
+
+def _no_limit(tends: Any) -> bool:
+    """Whether SymPy finds that a sequence has no limit: nan, or bounds it keeps between, as
+    AccumBounds(-1, 1) of cos n."""
+    if isinstance(tends, sympy.AccumBounds):
+        return not (tends.min == 0 and tends.max == 0)
+    return tends is sympy.nan
+
+
+#: Where the terms of a series are looked at, far out, to see that they do not tend to 0.
+_FAR = (10**6, 10**6 + 1, 10**7 + 2, 10**7 + 3)
+
+
+def _not_small(body: Any, index: Any) -> bool:
+    """Whether the terms of a series are far from 0 far out, at two neighbouring indices
+    or more of :data:`_FAR`, as ±1 of (-1)^n are: with no limit, they do not tend to 0."""
+    try:
+        sizes = [abs(complex(sympy.N(body.subs(index, n), 15))) for n in _FAR]
+    except (TypeError, ValueError):  # not a number there: nothing is said
+        return False
+    return sum(size > 1e-3 for size in sizes) >= 2
 
 
 def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
