@@ -82,6 +82,7 @@ from relativisticpy.reading.names import (
     _often,
     _operators_written,
     _other_names,
+    _parameters_run,
     _recurrence,
     _shown,
     _side_by_side,
@@ -619,6 +620,8 @@ class Reader(Typer):
         if _names_builtin(node, latex=ctx.latex) and written_so and not greek:
             self._resolve(node.span, f"the builtin function {name}")
             return FunctionReference(node.span, name)
+        if not ctx.latex and (letters := _parameters_run(node, ctx)) is not None:
+            return self._parameters_product(node, letters, scope, ctx)  # xy in g(x, y) := xy
         if not ctx.latex:  # 2ab, with a and b written alone, and sinx: one name, said so
             self._note_one_name(node, scope)
         # A name made of what is written, as y_s of y_{s} or r^* of r^*, is shown so.
@@ -668,6 +671,25 @@ class Reader(Typer):
         if name == "Kretschmann":
             return "kretschmann"
         return None
+
+    def _parameters_product(
+        self, node: ast.Name, letters: list[str], scope: Scope, ctx: Context
+    ) -> Node:
+        """In plain text, a name that nothing defines, made of the parameters of the
+        function whose body it is in, is their product, as ``xy`` is x y in ``g(x, y) :=
+        x e^(xy)`` (design/notation.md, decision 41.3): one name there would be a constant
+        that the function does not depend on."""
+        assert ctx.body is not None
+        product = " ".join(letters)
+        function = f"{ctx.body.name}({', '.join(ctx.body.params)})"
+        why = f"each of its letters is a parameter of {function}, and nothing defines it"
+        self._decide("letters", node.span, product, why)
+        self._note(
+            f"{node.id} is {'*'.join(letters)}, a product of the parameters of {function}, "
+            f"since nothing defines {node.id}"
+        )
+        factors = [self.value(ast.Name(letter, span=node.span), scope, ctx) for letter in letters]
+        return self._multiply(factors, node.span)
 
     def _note_one_name(self, node: ast.Name, scope: Scope) -> None:
         """Say how a name of several letters that nothing defines is read in plain text,

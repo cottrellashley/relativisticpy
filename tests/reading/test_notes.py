@@ -2,6 +2,7 @@ r"""What is read silently is said: the notes the reader gives where it takes the
 reading."""
 
 import pytest
+import sympy
 
 from relativisticpy.errors import CompileError, IndexNotationError
 
@@ -61,6 +62,24 @@ class TestSilentReadingsAreSaid:
         assert notes(wb, "xy + 1") == [
             "xy is one name, as plain text writes names; for the product, write x y or x*y"
         ]
+
+    def test_a_run_of_a_functions_parameters_in_its_body_is_their_product(self, wb):
+        # g(x, y) := x e^(xy) was x times e to a name xy, so that ∂g/∂x was e^(xy) and
+        # ∂²g/∂y∂x was 0 (decision 41)
+        x, y = sympy.symbols("x y")
+        wb.exe("g(x, y) := x e^(xy)\nu(x, y) := sin(xy)")
+        assert notes(wb, "∂g/∂x") == [
+            "xy is x*y, a product of the parameters of g(x, y), since nothing defines xy"
+        ]
+        assert wb.expr("∂g/∂x") == sympy.diff(x * sympy.exp(x * y), x)
+        assert wb.expr("∂²g/∂y∂x") == sympy.diff(x * sympy.exp(x * y), x, y)
+        assert wb.expr("∂u/∂y") == x * sympy.cos(x * y)
+        assert wb.expr("g(2, 3)") == 2 * sympy.exp(6)
+        wb.exe("h(a, b) := (a + b)^2 - (a^2 + 2ab + b^2)")
+        assert wb.expr("h(1, 2)") == 0
+        wb.exe("xy := 5\nk(x, y) := xy")  # a name the program defines is that name
+        assert notes(wb, "k(1, 2)") == []
+        assert wb.expr("k(1, 2)") == 5
 
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant

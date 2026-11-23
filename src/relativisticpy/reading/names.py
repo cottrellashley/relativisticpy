@@ -18,7 +18,7 @@ from sympy.core.function import AppliedUndef
 
 from relativisticpy import display, spacetimes
 from relativisticpy.compiler.builtins import _SPACETIMES, BUILTINS, CONSTANTS, SPACETIMES
-from relativisticpy.compiler.scope import Scope, VariableBinding
+from relativisticpy.compiler.scope import Context, Scope, VariableBinding
 from relativisticpy.compiler.session import ASSUMPTION_STATEMENTS, RENAMING_STATEMENTS, MetricState
 from relativisticpy.errors import CompileError
 from relativisticpy.integrations import MapFunction
@@ -275,6 +275,20 @@ def glued_function(name: str) -> tuple[str, str] | None:
         if name.startswith(word) and _ARGUMENT.fullmatch(name, len(word)):
             return word, name[len(word) :]
     return None
+
+
+def _parameters_run(node: ast.Name, ctx: Context) -> list[str] | None:
+    """The parameters that a name runs together, in the body of the function whose
+    parameters they are, as ``xy`` runs x and y in ``g(x, y) := x e^(xy)``: two or more
+    letters, or Greek letters' names, each a parameter of that function. ``None`` for any
+    other name, and outside a function's body."""
+    body = ctx.body
+    if body is None or node.verbatim or node.id in body.params:
+        return None
+    letters = split_index_labels(node.id)
+    if len(letters) < 2 or not all(letter in body.params for letter in letters):
+        return None
+    return letters
 
 
 def _letter(label: str, span: Span, *, first: bool) -> ast.Name:
