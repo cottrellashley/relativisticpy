@@ -505,6 +505,7 @@ algebra.fraction/unicode-fraction-slash/product-below
 algebra.fraction/unicode-fraction-slash/subscript
 algebra.fraction/unicode-fraction-slash/sums
 algebra.fraction/unicode-fraction-slash/symbols
+algebra.fraction/unicode-fraction-slash/zero-below
 algebra.fraction/unicode-solidus/half
 algebra.fraction/unicode-solidus/negative
 algebra.fraction/unicode-solidus/nested

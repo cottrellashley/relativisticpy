@@ -43,19 +43,25 @@ x, a, b, c, r, r_s = symbols("x a b c r r_s")
 | | python | `r_s` | `2*r` | | | |
 | `half` | latex, text, unicode | `1` | `2` | `1` | `2` | a fraction of two digits, which TeX takes without braces |
 | | python | `1` | `2` | | | |
+| `zero-below` | latex, text, unicode | `1` | `0` | `1` | `0` | a denominator of 0, which leaves no quotient: it must be refused |
+| | python | `1` | `0` | | | |
 
 ## Oracle
 
 ```python
-expected = S(top) / S(bottom)
+if S(bottom) == 0:
+    error = "RelativisticPyError"
+else:
+    expected = S(top) / S(bottom)
 ```
 
 ## Second route
 
-The fraction times its denominator is its numerator.
+The fraction times its denominator is its numerator; and no number times 0 is 1.
 
 ```python
-assert simplify(expected * S(bottom) - S(top)) == 0
+assert S(bottom) == 0 or simplify(expected * S(bottom) - S(top)) == 0
+assert S(bottom) != 0 or solve(Eq(symbols("q") * S(bottom), S(top))) == []
 ```
 
 ## Forms
