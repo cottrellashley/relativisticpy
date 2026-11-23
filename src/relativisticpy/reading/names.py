@@ -27,7 +27,7 @@ from relativisticpy.ir import SCALAR, Node, NotationType, TensorType, dependenci
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.language.vocabulary import FUNCTION_WORDS, GREEK, SYMBOL_COMMANDS
+from relativisticpy.language.vocabulary import FUNCTION_WORDS, GREEK, SYMBOL_COMMANDS, unscripted
 from relativisticpy.tensors import Indices
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.typing.syntax import _plain_label, _tensor_pattern, _used, _walk
@@ -329,7 +329,7 @@ def _mark(script: ast.Script) -> str:
     body = script.body
     if isinstance(body, ast.Name) and not _bracketed_order(body):
         return body.id
-    return body.span.text if body is not None else ""
+    return unscripted(body.span.text) if body is not None else ""
 
 
 def _a_component(script: ast.Script) -> bool:
@@ -370,12 +370,12 @@ def _decoration(script: ast.Script) -> bool:
 
 
 def _bracketed_order(body: ast.Expr | None) -> bool:
-    """``(2)`` or ``(n)``: a whole number or one letter in brackets."""
+    """``(2)`` or ``(n)``: a whole number or one letter in brackets, as ``⁽²⁾`` is too."""
     if isinstance(body, ast.Number):
         whole = body.text.isdigit()
     else:
         whole = isinstance(body, ast.Name) and (len(body.id) == 1 or body.id in GREEK)
-    text = body.span.text if body is not None else ""
+    text = unscripted(body.span.text) if body is not None else ""
     return whole and text.startswith("(") and text.endswith(")")
 
 

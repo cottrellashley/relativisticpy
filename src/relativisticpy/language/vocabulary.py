@@ -433,6 +433,16 @@ UNICODE_SUBSCRIPTS: Mapping[str, str] = MappingProxyType(
     )
 )
 
+_UNSCRIPTED = str.maketrans({**UNICODE_SUPERSCRIPTS, **UNICODE_SUBSCRIPTS})
+
+
+def unscripted(text: str) -> str:
+    """``text`` with Unicode's super- and subscript characters as the plain characters they
+    set, as the lexer spells them: ``⁽²⁾`` is ``(2)``, as ``^{(2)}`` writes it, and ``ₙ``
+    is ``n``. What is written as a script is read by how it is written, whichever."""
+    return text.translate(_UNSCRIPTED)
+
+
 #: Combining accents, which Unicode puts after a letter, mapped to the accent command
 #: that writes them: ``ψ`` and a combining macron is ``\bar{\psi}``.
 COMBINING_ACCENTS: Mapping[str, str] = MappingProxyType(

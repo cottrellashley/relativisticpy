@@ -764,21 +764,25 @@ class Lexer:
         self._emit(TokenKind.IDENT, name, start, start + 1, verbatim=True)
 
     def _script_run(self, table: Mapping[str, str], kind: TokenKind) -> None:
-        """Spell out a run of Unicode super/subscripts: ``x⁻¹`` lexes as ``x^{-1}``."""
+        """Spell out a run of Unicode super/subscripts: ``x⁻¹`` lexes as ``x^{-1}``. Each
+        piece of the run spans the characters it is spelled from, so that in ``f⁽²⁾`` the 2
+        is in brackets, as in ``f^{(2)}``, by what each spans."""
         start = end = self.pos
         plain = ""
         while end < len(self.text) and self.text[end] in table:
-            plain += table[self.text[end]]
+            plain += table[self.text[end]]  # one character for one
             end += 1
         self._emit(kind, kind.value, start, end)
         self._emit(TokenKind.LBRACE, "{", start, end)
+        at = start
         for piece in re.findall(r"\d+|\D", plain):
             piece_kind = (
                 TokenKind.NUMBER
                 if piece.isdigit()
                 else _SINGLE_CHARACTER.get(piece, TokenKind.IDENT)
             )
-            self._emit(piece_kind, piece, start, end)
+            self._emit(piece_kind, piece, at, at + len(piece))
+            at += len(piece)
         self._emit(TokenKind.RBRACE, "}", start, end)
 
     # -- backslash sequences ----------------------------------------------------
