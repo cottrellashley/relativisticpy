@@ -90,7 +90,10 @@ def test_llms_txt_indexes_every_page_in_a_few_lines(config, site):
         assert f"- [{title}]({config['site_url']}{navigation.url(page)}index.html.md): " in text
     for fact in ("relativisticpy help reference", ":=", 'r"\\frac{1}{2}"', "--format json"):
         assert fact in text
-    assert len(text) < 6_000  # about 1,500 tokens
+    for fact in ("relativisticpy mcp", '"complete": false'):  # what an agent acts on
+        assert fact in text
+    # about 1,750 tokens: the facts an agent needs to act on a result took it past 6,000
+    assert len(text) < 7_000
 
 
 def test_llms_full_txt_holds_every_page_in_order(config, site):

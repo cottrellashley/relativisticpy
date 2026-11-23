@@ -2,7 +2,8 @@
 
 > **For:** anyone who gives an AI agent mathematics to do, and agents themselves. **You
 > will learn:** how to serve RelativisticPy to any MCP client, what each tool takes and
-> gives, and the bounds the server keeps.
+> gives, how to tell an answer from a refusal or a value kept as written, and the bounds
+> the server keeps.
 > **Before this:** [Getting started](getting-started.md).
 
 Language models write physics and mathematics fluently, and get long algebra wrong.
@@ -139,6 +140,17 @@ Each tool says, in its description, what it takes and gives, and the limits the 
 was started with; the server's instructions, which a client may give the model, sum up
 the language.
 
+Every answer is right, or says that it is not one. What an agent reads, to know which:
+
+| Field | Where | What it says |
+|---|---|---|
+| `ok` | `compute` | every statement ran, and none failed |
+| `complete` | `compute`, and each value | `ok`, and every value an answer; a value with `complete` false is kept in part as written, and is no answer |
+| `reasons` | each value | why a value is not complete: `integral`, `sum`, `product`, `limit`, `derivative`, `unknown function` or `time budget` |
+| `approximate` | each value | the value holds floating-point numbers: an approximation, not exact |
+| `error` | each statement of `compute`, each link of `verify`, each finding of `check` | a refusal: its `type`, `message`, place, `notes`, and a `hint` of what to write instead |
+| `verdict` | `verify` | `holds`, `differs`, `relates`, `not decided` or `error` |
+
 ### compute
 
 Runs a program: mathematics as written, in LaTeX, plain text or Unicode, with statements
@@ -182,6 +194,23 @@ is about, its notes and its hint:
 {'type': 'ParseError', 'kind': 'ParseError', 'message': "unclosed '{' in the argument of \\frac", 'file': '<input>', 'line': 2, 'column': 9, 'end_line': 2, 'end_column': 10, 'text': '{', 'notes': [], 'hint': "add '}' where the argument ends"}
 >>> result["statements"][2]["values"][0]["text"], result["ok"]
 ('3', False)
+
+```
+
+A value says whether it is an answer. Where the program could not carry part of it out,
+it keeps that part as written, with a note, and `complete` is false: `reasons` says why,
+as [the command line](cli.md#forms-of-output) lists them. Such a value is not the answer:
+write it another way, or ask for a number, with `evalf`, which is `approximate`:
+
+```python
+>>> result = call("compute", source=r"\int_0^1 \sin(\sin x) \, dx")
+>>> value = result["statements"][0]["values"][0]
+>>> value["complete"], value["reasons"], result["ok"], result["complete"]
+(False, ['integral'], True, False)
+>>> result = call("compute", source=r"evalf(\int_0^1 \sin(\sin x) \, dx)")
+>>> value = result["statements"][0]["values"][0]
+>>> value["complete"], value["approximate"], round(value["value"], 6)
+(True, True, 0.430606)
 
 ```
 
@@ -299,11 +328,19 @@ A client can put one in front of the model before it writes.
 
 ## Errors
 
-What fails in a statement is that statement's `error`, and the call goes on. A call that
-cannot be done at all is a tool error, `isError` in MCP, whose text says what, and how to
-go on, in a line `hint:`: a session that cannot be named so, a file the server may not
-read, a topic there is no help on, or a computation that would not stop at its time
-limit.
+A statement the program cannot read or compute is refused, never guessed at. Its `error`
+is the same in every tool: `compute` gives it for each statement that failed, and the
+call goes on; `verify` for each link that is an error, or not decided for one, as over
+the time limit; `check` for each finding. It says what is wrong, its `type` and
+`message`; where, its `file`, `line`, `column`, `end_line`, `end_column` and the `text`
+there; why, in `notes`; and, in a `hint`, what to write instead, where there is something
+to write. Fix the statement as the hint says, and run it again; the
+[language reference](reference.md), or `help`, says how to write the rest.
+
+A call that cannot be done at all is a tool error, `isError` in MCP, whose text says what,
+and how to go on, in a line `hint:`: a session that cannot be named so, a file the server
+may not read, a topic there is no help on, or a computation that would not stop at its
+time limit.
 
 ## Safety
 

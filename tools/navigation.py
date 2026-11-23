@@ -48,6 +48,10 @@ It is a Python package and a language. Key facts:
   `report.to_dict()` and `error.to_dict()` in Python. The exit status is 0 when
   everything succeeded, 1 when a statement or a check failed, and 2 for a command line
   that is wrong.
+- For agents: `relativisticpy mcp` serves the tools `compute`, `verify` and `check` over
+  MCP. Every answer is right, or says it is not one: a refusal is an `error` whose `hint`
+  says what to write instead, and a value kept as written, as an integral with no closed
+  form, has `"complete": false` and its `reasons`.
 """.strip()
 
 _LEARN = re.compile(r"\*\*You will learn:\*\*\s*(?P<text>.+?)(?:\s*\*\*|\n\n|$)", re.DOTALL)

@@ -165,9 +165,10 @@ In Jupyter and VS Code, `Editor()` as the last line of a cell shows it. What it 
 
 What the editor shows is data: `source`, and `statements`, one for each statement, each
 as a line of `relativisticpy --format json` gives it, with its values as
-`display.data` describes them. In marimo, another cell that reads
-`editor.value["statements"]` runs again whenever they change. From Python, `run` computes
-the source at once, and waits for it:
+`display.data` describes them, each saying whether it is `complete` and whether it is
+`approximate` (see [the command line](cli.md#forms-of-output)). In marimo, another cell
+that reads `editor.value["statements"]` runs again whenever they change. From Python,
+`run` computes the source at once, and waits for it:
 
 ```python
 >>> from relativisticpy.live import Editor

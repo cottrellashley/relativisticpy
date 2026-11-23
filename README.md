@@ -433,8 +433,11 @@ Everything needed to use RelativisticPy is in the installed package, offline.
   ```
 
 - **Read results as data.** `--format json` gives the command's results, and the
-  report of a check, as JSON. In Python, `display.data(value)` describes any result,
-  and `report.to_dict()` and `error.to_dict()` give a check and an error:
+  report of a check, as JSON. Each value says whether it is an answer: one kept in part
+  as written, as an integral with no closed form, has `"complete": false` and its
+  `reasons`, and one with floating-point numbers in it is `approximate`. In Python,
+  `display.data(value)` describes any result, and `report.to_dict()` and
+  `error.to_dict()` give a check and an error:
 
   ```python
   >>> from relativisticpy import RelativisticPyError, display
