@@ -49,7 +49,7 @@ from typing import Any
 
 import sympy
 
-from relativisticpy.errors import InternalError, RelativisticPyError
+from relativisticpy.errors import InternalError, RelativisticPyError, translate
 from relativisticpy.integrations import _distributions, _objects, _optimizers, _transforms
 from relativisticpy.integrations._declarations import Capability, Example, Function, MapFunction
 from relativisticpy.integrations._discovery import (
@@ -66,6 +66,10 @@ DEFAULT_POINTS = (0.3, 0.7, 1.6)
 
 #: How far the exact and the numeric value may differ, relative to their size.
 AGREEMENT = 1e-9
+
+#: How far beyond its points a function is checked on data: where a degree or an order is
+#: large enough for a series summed in double precision to have lost its digits.
+FAR = 40
 
 
 @dataclass(frozen=True)
@@ -430,12 +434,18 @@ def _jax(capability: Capability, columns: list[Any], expected: Any) -> list[str]
 def lifting(capability: Capability) -> list[str]:
     """Applied to a tensor, and to data, in the place of any of its arguments that is a
     number or an expression at its points, it gives its results component by component,
-    over the space of the tensor; a function of a matrix, applied to a map, acts on it."""
+    over the space of the tensor, and so it does applied to data past its points, where it
+    may be complex or not defined (:func:`_past`); a function of a matrix, applied to a
+    map, acts on it."""
     if isinstance(capability, MapFunction):
         return _map_lifting(capability)
     points = _points(capability)
     places = [k for k in range(len(points[0])) if all(_scalar(point[k]) for point in points)]
-    return [failure for place in places for failure in _lifted(capability, points, place)]
+    return [
+        failure
+        for place in places
+        for failure in _lifted(capability, points, place) or _past(capability, points, place)
+    ]
 
 
 def _lifted(capability: Capability, points: list[tuple[Any, ...]], place: int) -> list[str]:
@@ -478,6 +488,101 @@ def _lifted(capability: Capability, points: list[tuple[Any, ...]], place: int) -
             return [*failures, f"{name} applied to {data} gives no tensor: {_value(result)}"]
         failures += _components(capability, result, expected, data, over)
     return failures
+
+
+def _past(capability: Capability, points: list[tuple[Any, ...]], place: int) -> list[str]:
+    """The failures of a function applied to data past its points, as its argument at
+    ``place``, the others those of each point: below 0, beyond the points, and far beyond
+    them, where an order or a degree is large, between whole numbers and off the real line,
+    where it may be complex, or not defined. It gives exact's value at each, complex where
+    that is, or refuses where exact refuses; never nan, a real part alone, or a value where
+    exact has none. The first that fails says what to fix."""
+    for point in points:
+        if not all(_numbers(value) for value in point):
+            continue
+        value = complex(point[place]).real
+        if not math.isfinite(value):
+            continue
+        below = -value if value else -1.5
+        real = [below, value + 2, -(value + 2), value + 0.5, -(value + 0.5), value + FAR]
+        off = [complex(value, 0.75), complex(below, -0.75)]
+        for values in (real, off):
+            failures = _past_at(capability, point, place, list(dict.fromkeys(values)))
+            if failures:
+                return failures
+        far = tuple(each + FAR if _scalar(each) else each for each in point)
+        failures = _past_at(capability, far, place, [value + FAR])  # far in every argument
+        if failures:
+            return failures
+    return []
+
+
+def _past_at(
+    capability: Capability, point: tuple[Any, ...], place: int, values: list[Any]
+) -> list[str]:
+    """The failures of a function applied to data of ``values``, as its argument at
+    ``place``, the others those of ``point``, against exact's value at each."""
+    import numpy as np
+
+    name = capability.name
+    computed, refused = [], []
+    for value in values:
+        at = (*point[:place], sympy.sympify(value), *point[place + 1 :])
+        try:
+            exact = complex(sympy.N(_exactly(capability, at), 30))
+        except Exception as error:  # refused, as the language refuses it, or no number
+            if not isinstance(translate(error), InternalError):
+                refused.append(value)
+            continue
+        if math.isfinite(exact.real) and math.isfinite(exact.imag):
+            computed.append((value, exact))
+    if computed:
+        found = _of_data(capability, point, place, [value for value, _ in computed])
+        if isinstance(found, str):
+            return [f"{name} applied to data past its points {found}"]
+        for (value, exact), number in zip(computed, found, strict=True):
+            if not _close(complex(number), exact):
+                return [
+                    f"{name} applied to data past its points gives {_number(complex(number))} "
+                    f"at {_at(capability, (*point[:place], value, *point[place + 1 :]))}, where "
+                    f"exact gives {_number(exact)}: {_FROM_DATA}, and give a complex value where "
+                    "exact has one, or compute there with exact"
+                ]
+    for value in refused:
+        found = _of_data(capability, point, place, [value])
+        if not isinstance(found, str) or "is refused" not in found:
+            given = np.asarray(found).ravel().tolist() if not isinstance(found, str) else found
+            return [
+                f"{name} applied to data past its points is not refused at "
+                f"{_at(capability, (*point[:place], value, *point[place + 1 :]))}, where exact "
+                f"refuses: it gives {given}; refuse there in numeric as exact does"
+            ]
+    return []
+
+
+def _of_data(capability: Capability, point: tuple[Any, ...], place: int, values: list[Any]) -> Any:
+    """The values of a function applied to data of ``values`` as its argument at ``place``,
+    the others those of ``point``; what is wrong, as text, where it gives none."""
+    import numpy as np
+
+    from relativisticpy import Workbook
+    from relativisticpy import display as show
+
+    written = [show.text(value) for value in point]
+    written[place] = "v^{l}"
+    call = f"{capability.name}({', '.join(written)})"
+    with usable(capability):
+        try:
+            with Workbook() as wb:
+                wb["v^l"] = np.asarray(values)
+                result = wb.expr(call)
+        except InternalError as error:
+            return f"fails inside, at {values} ({'; '.join(error.notes)})"
+        except RelativisticPyError as error:
+            return f"is refused at {values}: {error.message}"
+    if not _data(result):
+        return f"gives no data at {values}: {_value(result)}"
+    return np.asarray(result.to_numpy(), dtype=complex).ravel()
 
 
 def _scalar(value: Any) -> bool:

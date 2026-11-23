@@ -148,3 +148,76 @@ def test_a_class_without_exact_is_refused_where_it_is_declared():
 def test_the_broken_capabilities_are_not_part_of_the_language(broken):
     names = {capability.name for capability in integrations.capabilities()}
     assert not names & {"brokenj", "brokenk"}
+
+
+EXAMPLES = [
+    integrations.Example("brokenroot(4)", 2, "math.sqrt(4)"),
+    integrations.Example("brokenroot(9)", 3, "math.sqrt(9)"),
+]
+
+
+def test_a_function_of_data_past_its_points_is_held_to_exact():
+    # W_0 of data gave real parts only, where exact is complex (the review of the engines, 6)
+    import sympy
+
+    class Root:
+        def exact(self, x):
+            return sympy.sqrt(x)
+
+        def numeric(self, xp, x):
+            return xp.sqrt(xp.abs(x))
+
+    root = integrations.function(
+        "brokenroot", summary="the square root", examples=EXAMPLES, points=[(0.3,), (0.7,)]
+    )(Root)
+    (failure,) = integrations.check(root, ["lifting"])["lifting"]
+    assert failure.startswith(
+        "brokenroot applied to data past its points gives 0.547722557505 at (x=-0.3), where "
+        "exact gives 0+0.547722557505j: "
+    )
+    assert failure.endswith("give a complex value where exact has one, or compute there with exact")
+
+
+def test_a_function_of_data_far_past_its_points_is_held_to_exact():
+    # L_40 of data had lost its digits where L_2 kept them (the review of the engines, 5)
+    import sympy
+
+    class Near:
+        def exact(self, x):
+            return sympy.sin(x)
+
+        def numeric(self, xp, x):
+            return xp.where(xp.abs(x) < 10, xp.sin(x), 0.0)
+
+    near = integrations.function(
+        "brokennear", summary="the sine, near 0", examples=EXAMPLES, points=[(0.3,), (0.7,)]
+    )(Near)
+    (failure,) = integrations.check(near, ["lifting"])["lifting"]
+    assert failure.startswith(
+        "brokennear applied to data past its points gives 0 at (x=40.3), where exact gives "
+        "0.514740116924: "
+    )
+
+
+def test_a_function_of_data_that_computes_where_exact_refuses_is_told():
+    import sympy
+
+    from relativisticpy.errors import EvaluationError
+
+    class Count:
+        def exact(self, n):
+            if sympy.sympify(n).is_number and float(n) % 1:
+                raise EvaluationError(f"brokencount takes whole numbers, not {n}")
+            return n
+
+        def numeric(self, xp, n):
+            return xp.floor(n)
+
+    count = integrations.function(
+        "brokencount", summary="a count", examples=EXAMPLES, points=[(1,), (2,)]
+    )(Count)
+    (failure,) = integrations.check(count, ["lifting"])["lifting"]
+    assert failure.startswith(
+        "brokencount applied to data past its points is not refused at (n=1.5), where exact "
+        "refuses: it gives [(1+0j)]"
+    )

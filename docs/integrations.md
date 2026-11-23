@@ -264,8 +264,11 @@ it applies to its kind. A failure names the capability and says what to do:
    and none a better one than an optimum proven global; of a distribution, its density and
    distribution function, as the language computes them exactly, agree with SciPy's.
 4. **Lifting.** A function applied to a tensor, or to data, gives its value at each
-   component, over the same space; a function of a matrix, applied to a map, gives its
-   value at the map's matrix, a number or a map over the same space.
+   component, over the same space, and applied to data past its points too: below 0, far
+   beyond them, between whole numbers and off the real line, where it gives the value
+   `exact` gives, complex where that is, or refuses where `exact` refuses, never nan or a
+   real part alone. A function of a matrix, applied to a map, gives its value at the map's
+   matrix, a number or a map over the same space.
 5. **Errors.** The wrong number of arguments and a missing library are refused, saying
    what to do; the wrong kind of argument, a list to a function or text in quotes to
    anything else, never fails inside RelativisticPy.

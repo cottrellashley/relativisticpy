@@ -13,7 +13,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.integrations import Example, function
-from relativisticpy.tensors.numerical import continued
+from relativisticpy.tensors.numerical import continued, whole_number
 
 _UNIT = [(0.3,), (0.7,)]  # inside (-1, 1), where the inverse sine, cosine and others are real
 _BEYOND = [(1.6,), (2.5,)]  # beyond 1, where the inverse hyperbolic cosine and others are real
@@ -482,6 +482,7 @@ class Ceiling:
 @function(
     "factorial",
     summary="the factorial; `n!` too",
+    requires="scipy",
     examples=[
         Example("factorial(5)", 120, "standard"),
         Example("factorial(0)", 1, "standard"),
@@ -489,7 +490,12 @@ class Ceiling:
 )
 class Factorial:
     def exact(self, x: Any) -> Any:
-        return sympy.factorial(x)
+        return sympy.factorial(whole_number(x))
+
+    def numeric(self, xp: Any, x: Any) -> Any:
+        from scipy.special import gamma
+
+        return gamma(x + 1)  # x! = Γ(x + 1), as SymPy has it of any x (DLMF 5.4.1)
 
 
 @function(
@@ -503,7 +509,7 @@ class Factorial:
 )
 class DoubleFactorial:
     def exact(self, x: Any) -> Any:
-        return sympy.factorial2(x)
+        return sympy.factorial2(whole_number(x))
 
 
 @function(

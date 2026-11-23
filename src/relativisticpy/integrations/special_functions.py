@@ -60,7 +60,7 @@ class Beta:
 )
 class Zeta:
     def exact(self, s: Any) -> Any:
-        return sympy.zeta(s)
+        return sympy.zeta(whole_number(s))
 
     def numeric(self, xp: Any, s: Any) -> Any:
         from scipy.special import zeta
