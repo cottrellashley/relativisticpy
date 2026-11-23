@@ -9,6 +9,7 @@ from sympy import (
     Function,
     Rational,
     Symbol,
+    cos,
     diff,
     dsolve,
     expand,
@@ -46,6 +47,20 @@ def test_constants(wb):
     assert wb.expr("2 - 1 - pi") == 1 - pi
     assert wb.expr("-2 - 1 + e") == -3 + E
     assert wb.expr("-2 - 1 + oo") == oo
+
+
+def test_functions_and_operators_written_in_letters_are_latexs(wb):
+    # sin 2x was sin(2) x, log_2 8 the name log_2 times 8, and int_0^1 x^2 dx and
+    # min_x x^2 - 4x + 7 names times x^2
+    assert wb.expr("sin 2x") == sin(2 * x)
+    assert wb.expr("sin^2 x + cos^2 x") == sin(x) ** 2 + cos(x) ** 2
+    assert wb.expr("sin x / cos x") == sin(x) / cos(x)
+    assert wb.expr("log_2 8") == 3
+    assert wb.expr("min_x x^2 - 4x + 7") == 3
+    assert wb.expr("int_0^1 x^2 dx") == Rational(1, 3)
+    assert wb.expr("int_0^oo exp(-x) dx") == 1
+    assert wb.expr("lim_(x->0) sin(x)/x") == 1
+    assert wb.expr("sum_{n=1}^oo 1/n^2") == pi**2 / 6
 
 
 def test_oo_is_infinity_in_every_notation(wb):

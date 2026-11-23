@@ -27,7 +27,7 @@ from relativisticpy.ir import SCALAR, Node, NotationType, TensorType, dependenci
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.language.vocabulary import GREEK, SYMBOL_COMMANDS
+from relativisticpy.language.vocabulary import FUNCTION_WORDS, GREEK, SYMBOL_COMMANDS
 from relativisticpy.tensors import Indices
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.typing.syntax import _plain_label, _tensor_pattern, _used, _walk
@@ -210,8 +210,17 @@ def _close(name: str, candidates: Iterable[str], shortest: int = 4) -> str | Non
 
 
 def _splittable(node: ast.Name) -> bool:
+    """Whether a name, in LaTeX, may be a run of letters, each a factor, as GM is: not a
+    name set as one, a Greek letter's name, or the name of one of LaTeX's functions written
+    in letters, as sin is, whose i is never the imaginary unit."""
     name = node.id
-    return not node.verbatim and len(name) > 1 and name.isalpha() and name not in GREEK
+    return (
+        not node.verbatim
+        and len(name) > 1
+        and name.isalpha()
+        and name not in GREEK
+        and name not in FUNCTION_WORDS
+    )
 
 
 def _side_by_side(left: ast.Expr, right: ast.Expr) -> bool:

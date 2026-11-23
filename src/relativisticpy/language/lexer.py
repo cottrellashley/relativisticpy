@@ -173,6 +173,31 @@ _ANGLES = {r"\langle": TokenKind.LANGLE, r"\rangle": TokenKind.RANGLE}
 _LETTERS = re.compile(r"[A-Za-z]+")
 _LONGEST_GREEK = max(map(len, vocab.GREEK))
 
+# The words for where an optimum is, which the parser reads as names before a subscript.
+_PLACE_OF_OPTIMUM = frozenset({"argmin", "argmax"})
+# Words after a function's name that it does not apply to: the keywords, and the words of
+# prose that join equations, as in "x = max if ...".
+_NOT_OPERANDS = frozenset(
+    {"and", "or", "not", "if", "for", "where", "when", "with", "since", "so", "else", "otherwise"}
+)
+# LaTeX's thin and other spaces, which a function's name may be set apart with: \sin\,x.
+_SPACING_COMMANDS = frozenset({"\\,", "\\;", "\\:", "\\!", "\\ "})
+# The commands that write an operand: a letter, a function, a fraction or a root, an
+# accent, a typeface, and the brackets that open; not those that close or join two.
+_OPERAND_COMMANDS = frozenset().union(
+    vocab.SYMBOL_COMMANDS,
+    vocab.FUNCTION_COMMANDS,
+    vocab.PARSER_COMMANDS,
+    vocab.ACCENT_COMMANDS,
+    vocab.STYLE_COMMANDS,
+    {"left", "mathbb", "operatorname", "bigl", "Bigl", "biggl", "Biggl"},
+) - {
+    "rfloor", "rceil", "bmod", "mod", "pmod", "over", "choose", "brace", "brack",
+    "circledast", "top", "intercal", "dagger", "oplus", "odot",
+}  # fmt: skip
+# Unicode's signs that write an operand: a root, a derivative, a big operator, an angle.
+_UNICODE_OPERANDS = frozenset("√∂∇∑∏∫∬∭∮⟨〈")
+
 
 def _script_letters(text: str, start: int) -> int:
     """How many letters at ``start`` a script without braces takes: one, or a Greek
@@ -474,7 +499,74 @@ class Lexer:
                 break
             end = tail.end()
         name = self.text[start:end].replace("\\_", "_")
+        if (word := self._word(name, start, end)) is not None:
+            kind = TokenKind.IDENT if word in _PLACE_OF_OPTIMUM else TokenKind.COMMAND
+            self._emit(kind, word, start, start + len(word))
+            return
         self._emit(TokenKind.IDENT, name, start, end, verbatim=name == vocab.INFINITY)
+
+    def _word(self, name: str, start: int, end: int) -> str | None:
+        """The name of one of LaTeX's functions or operators that the name from ``start``
+        to ``end`` is or begins, written in letters, where it applies to what follows it as
+        the command would: ``sin`` in ``sin x``, ``sin²x`` and ``sin(x)``; ``log`` in
+        ``log_2 8``; ``int`` in ``int_0^1 x dx``; ``lim`` in ``lim_{x->0}``. ``None`` where
+        it is a name: ``sin`` in ``sin + 1``, ``max`` in ``max := 10``, ``max_iter`` in
+        ``max_iter := 100``, ``sum`` in ``sum(f, (n, 1, oo))``, and every name in a style
+        command's braces, as ``\\mathrm{sin}``."""
+        if self._transparent_braces or self._font_ends:
+            return None
+        word, underscore, script = name.partition("_")
+        if underscore:  # log_2 8, int_0^1, min_x x^2: the word, then its subscript
+            one_token = script.isdigit() or len(script) == 1 or script in vocab.GREEK
+            if word not in vocab.SCRIPTED_WORDS or not one_token or "\\" in self.text[start:end]:
+                return None  # max_iter, log_file: a name, as a program writes one
+            return word if self._applies(end, power=True, operand=True) else None
+        if name in vocab.FUNCTION_WORDS:
+            applies = self._applies(
+                end, power=True, subscript=name in vocab.SCRIPTED_WORDS, operand=True
+            )
+        elif name in vocab.LIMITS_WORDS:
+            operand = name in vocab.UNSCRIPTED_WORDS
+            applies = self._applies(end, power=name != "lim", subscript=True, operand=operand)
+        elif name in vocab.SCRIPTED_WORDS:  # sup_x, argmax_x
+            applies = self._applies(end, subscript=True)
+        else:
+            return None
+        return name if applies else None
+
+    def _applies(
+        self, at: int, *, power: bool = False, subscript: bool = False, operand: bool = False
+    ) -> bool:
+        """Whether what follows ``at``, after spacing, is what a word before it applies to:
+        a ``power``, a ``subscript``, or an ``operand``, as a name, a number, a bracket,
+        a command that writes one, or a Greek letter or a sign of Unicode's."""
+        while True:
+            while at < len(self.text) and self.text[at] in _SPACE:
+                at += 1
+            if self.text[at : at + 2] in _SPACING_COMMANDS:  # sin\,x
+                at += 2
+                continue
+            break
+        char = self.text[at : at + 1]
+        if char == "^" or (char and char in vocab.UNICODE_SUPERSCRIPTS):
+            return power
+        if char == "_" or (char and char in vocab.UNICODE_SUBSCRIPTS):
+            return subscript
+        if not operand or not char:
+            return False
+        if char.isascii() and char.isalpha():
+            letters = _LETTERS.match(self.text, at)
+            return letters is not None and letters.group() not in _NOT_OPERANDS
+        if char in _DIGITS or char in "({|":
+            return True
+        if char == "\\":
+            command = _COMMAND_NAME.match(self.text, at + 1)
+            return command is not None and command.group() in _OPERAND_COMMANDS
+        return (
+            char in vocab.UNICODE_LETTERS
+            or char in vocab.DOUBLE_STRUCK
+            or char in _UNICODE_OPERANDS
+        )
 
     def _at_script(self) -> bool:
         """Whether what comes next is a script without braces: after ``^`` or ``_``, and

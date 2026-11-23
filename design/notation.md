@@ -419,3 +419,19 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 **Why it is open.** Chemists write pX for −log₁₀ X, as in pH, pOH and pK_a, with the p set upright: `\mathrm{p}K_\mathrm{a}`. Read as written, it was p times K_a, so that the pH of a buffer by the Henderson–Hasselbalch equation was 1.8×10⁻⁵ p + log₁₀ 2.
 
 **Recommendation.** An upright p written against what follows it, `\mathrm{p}K_\mathrm{a}`, and `\mathrm{p}(X)`, is the cologarithm of it, −log₁₀ X, the capability `colog` of `integrations/chemistry.py`, with a note. Written apart, `\mathrm{p} \cdot K_\mathrm{a}`, it multiplies; an italic p is a letter, a pressure, a momentum or a probability; a name set upright whole, `\mathrm{pH}`, is a name of its own (decision 9); and a program that gives p a value has its own p.
+
+## 40. Plain text and Unicode spell the constructs of LaTeX
+
+**Added** on 23 November 2026, for agents, which type mathematics in plain text and Unicode.
+
+**Waiting on it:** the notation matrix's plain text and Unicode forms (`asciimath`, `slash-operator`, `slash-numerator`, `text-leibniz`, `unicode-operator`, `unicode-prime`, `unicode-sign`).
+
+**Why it is open.** Plain text and Unicode read as something else, silently, constructs that LaTeX reads: `int_0^1 x^2 dx` was the product of the names int_0, x² and dx; `log_2 8` the name log_2 times 8; `min_x x^2` a name times x²; `sin 2x` was sin(2) times x; `oo` in a script, as in `int_0^oo`, o and a factor o; and in Unicode, which is read as LaTeX is, `sin²x + cos²x` was c·o·s²·x + i·n²·s·x, the i of sin taken for the imaginary unit.
+
+**Recommendation.** Plain text and Unicode are spellings of the constructs LaTeX writes with commands, and each reaches the syntax tree of the LaTeX it spells, or is refused:
+
+1. The name of one of LaTeX's functions written in letters, `sin` to `csch`, `exp`, `ln`, `log`, `det`, `gcd`, `arg`, `dim`, `ker`, `sgn`, `min` and `max`, is the command wherever it applies to what follows it, as a name, a number, a bracket, a Greek letter, a command or a power does: `sin 2x` is `\sin 2x`, `sin²x` is `\sin^2 x`, `log_2 8` is `\log_2 8`, and `min_x x^2` is `\min_x x^2`. Applied to nothing, as `max` is in `max := 10`, it is a name. Either way its letters are never a product, and its i never the imaginary unit. `Re`, `Im` and `Pr` are not among them: LaTeX sets `\Re` and `\Im` as symbols, and books write the Reynolds and Prandtl numbers, and R e^{iθ}, with the same letters.
+2. `int`, `iint`, `iiint` and `oint` are LaTeX's integrals before their limits or an integrand, as AsciiMath writes them: `int_0^1 x^2 dx` is `\int_0^1 x^2\,dx`. `sum`, `prod`, `lim`, `sup`, `inf`, `argmin` and `argmax` are the operators only with their scripts, `sum_{n=1}^oo` and `lim_{x->0}`: without them they are names, and `sum(...)` and `lim(...)` calls. A script may be in round brackets, as AsciiMath groups one, `lim_(x->0)`. A subscript written without braces is one token, as TeX takes one, a number, a letter or a Greek letter's name, so that `max_iter` and `log_file` are names.
+3. `oo` is infinity, one symbol in every notation, as `\infty` and ∞ are, and a whole script.
+
+The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11), where it was sin(x) y.

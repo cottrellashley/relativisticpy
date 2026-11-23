@@ -77,6 +77,28 @@ FUNCTION_COMMANDS: Mapping[str, str] = MappingProxyType(
     }
 )  # fmt: skip
 
+#: The names of LaTeX's functions, as plain text and Unicode write them, in letters: where
+#: one applies to what follows it, it is the command, so that ``sin²x`` is ``\sin^2 x`` and
+#: ``log_2 8`` is ``\log_2 8``, and it is never a product of letters. Not ``Re``, ``Im`` and
+#: ``Pr``, which LaTeX sets as symbols, and which are also names, as the Reynolds and
+#: Prandtl numbers are in ``Re^{1/2} Pr^{1/3}``, or letters, as in ``Re^{i\theta}``.
+FUNCTION_WORDS: frozenset[str] = frozenset(FUNCTION_COMMANDS) - {"Re", "Im", "Pr"}
+
+#: The names of LaTeX's operators with limits, as plain text writes them: with their
+#: scripts, ``int_0^1 x dx``, ``sum_{n=1}^oo`` and ``lim_{x->0}`` are the commands.
+LIMITS_WORDS: frozenset[str] = frozenset({"int", "iint", "iiint", "oint", "sum", "prod", "lim"})
+
+#: Of those, the ones that apply to what follows without scripts too, as ``int x dx`` does:
+#: ``sum``, ``prod`` and ``lim`` without them are names, and ``lim(f, x, 0)`` a call.
+UNSCRIPTED_WORDS: frozenset[str] = frozenset({"int", "iint", "iiint", "oint"})
+
+#: The words a subscript belongs to, as its base, its variable or its limits: ``log_2``,
+#: ``min_x``, ``argmax_x``, ``sup_x``, ``int_0``. The bounds and the places of optima are
+#: words only with a script.
+SCRIPTED_WORDS: frozenset[str] = LIMITS_WORDS | {
+    "log", "min", "max", "sup", "inf", "argmin", "argmax",
+}  # fmt: skip
+
 #: The inverse of each function, used for the ``\sin^{-1} x`` notation.
 INVERSE_FUNCTIONS: Mapping[str, str] = MappingProxyType(
     {

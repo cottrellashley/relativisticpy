@@ -2096,10 +2096,15 @@ class Parser:
         return lower, upper
 
     def _script_tokens(self, command: Token) -> list[Token]:
+        """The tokens of a script of a big operator, a limit or an optimum: in braces, or
+        in round brackets, as AsciiMath groups them, ``lim_(x->0)`` and ``sum_(n=1)^oo``;
+        a signed token; or one token."""
         token = self.tokens[self.pos]
         self._group = token.span
         if token.kind is K.LBRACE:
             return self._raw_group(K.LBRACE, K.RBRACE, command)[1:-1]
+        if token.kind is K.LPAREN:
+            return self._raw_group(K.LPAREN, K.RPAREN, command)[1:-1]
         if token.kind is K.MINUS:
             self.pos += 1
             return [token, self.advance()]

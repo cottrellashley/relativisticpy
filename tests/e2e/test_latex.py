@@ -277,3 +277,16 @@ def test_accents(wb):
 def test_unicode(wb):
     assert wb.expr("θ² + π") == theta**2 + pi
     assert wb.expr("√(x + 1) · 2") == 2 * sqrt(x + 1)
+
+
+def test_unicode_spells_latexs_functions_in_letters(wb):
+    # sin²x + cos²x was c o s² x + i n² s x, the i of sin taken for the imaginary unit
+    assert wb.expr("sin²x + cos²x") == sin(x) ** 2 + cos(x) ** 2
+    assert wb.expr("cos²θ") == cos(theta) ** 2
+    assert wb.expr("∫_0^π sin x dx") == 2
+    assert wb.expr("lim_{x→0} sin(x)/x") == 1
+    wb.exe("y(x) := x² sin x")
+    assert wb.expr("y'(x)") == diff(x**2 * sin(x), x)
+    # applied to nothing, it is a name, with a note; in LaTeX too, never s i n
+    assert wb.expr("θ + sin") == theta + Symbol("sin")
+    assert wb.expr(r"\theta sin x") == theta * sin(x)

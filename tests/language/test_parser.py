@@ -1832,3 +1832,51 @@ class TestDiracNotation:
     )
     def test_brackets_left_open(self, text, message):
         assert message in str(error(text))
+
+
+class TestPlainTextAndUnicodeSpellLatex:
+    """Plain text and Unicode are spellings of the constructs LaTeX writes with commands:
+    each reaches the syntax tree of the LaTeX it spells (design/notation.md, decision 39)."""
+
+    @pytest.mark.parametrize(
+        ("spelled", "latex"),
+        [
+            # sin²x was s i n² x, with i the imaginary unit, and sin 2x was sin(2) x
+            ("sin x", r"\sin x"),
+            ("sin 2x", r"\sin 2x"),
+            ("sin(x) cos(x)", r"\sin(x) \cos(x)"),
+            ("sin x cos x", r"\sin x \cos x"),
+            ("sin²x + cos²x", r"\sin^2 x + \cos^2 x"),
+            ("sin^2 x", r"\sin^2 x"),
+            ("sin^(-1) x", r"\sin^{-1} x"),
+            ("cos θ", r"\cos\theta"),
+            ("x² sin x", r"x^2 \sin x"),
+            ("sin x / cos x", r"\sin x / \cos x"),
+            ("ln|x|", r"\ln|x|"),
+            ("exp(-x^2)", r"\exp(-x^2)"),
+            ("log_2 8", r"\log_2 8"),
+            ("log_10(x)", r"\log_{10}(x)"),
+            ("min_x x^2 - 4x", r"\min_x x^2 - 4x"),
+            ("int_0^1 x^2 dx", r"\int_0^1 x^2 \, dx"),
+            ("int x^2 dx", r"\int x^2 \, dx"),
+            ("∫_0^π sin x dx", r"\int_0^\pi \sin x \, dx"),
+            ("lim_{x→0} sin(x)/x", r"\lim_{x \to 0} \sin(x)/x"),
+            ("lim_(x->0) sin(x)/x", r"\lim_{x \to 0} \sin(x)/x"),
+            ("sum_(n=1)^oo 1/n^2", r"\sum_{n=1}^{oo} 1/n^2"),
+            ("sum_{n=1}^oo 1/n^2", r"\sum_{n=1}^{oo} 1/n^2"),
+        ],
+    )
+    def test_the_tree_is_that_of_the_latex(self, spelled, latex):
+        assert sexpr(spelled) == sexpr(latex)
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("max_iter := 100", ["(:= max_iter 100)"]),
+            ("sum := a + b", ["(:= sum (+ a b))"]),
+            ("sum(a, b)", ["(call sum a b)"]),
+            ("sin + 1", ["(+ sin 1)"]),
+        ],
+    )
+    def test_a_word_that_applies_to_nothing_is_a_name(self, text, expected):
+        assert program(text) == expected

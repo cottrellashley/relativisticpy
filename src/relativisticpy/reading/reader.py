@@ -39,7 +39,7 @@ from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, depend
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.language.vocabulary import GREEK
+from relativisticpy.language.vocabulary import FUNCTION_WORDS, GREEK
 from relativisticpy.reading import arithmetic
 from relativisticpy.reading.assumptions import numbers
 from relativisticpy.reading.names import (
@@ -577,11 +577,13 @@ class Reader(Typer):
         if ctx.latex and _splittable(node):
             return self._latex_letters(node, scope, ctx)
         # A builtin applies to what follows it, as sin does in sin x; in LaTeX only if it
-        # is written as a command, \operatorname{sign} x, so that N dt^2 is a product; and
-        # one named by a Greek letter, as zeta, only with brackets, as zeta(2), so that
+        # is written as a command, \operatorname{sign} x, or is the name of one of LaTeX's
+        # functions written in letters, as sin is in Unicode, so that N dt^2 is a product;
+        # and one named by a Greek letter, as zeta, only with brackets, as zeta(2), so that
         # gamma m c^2 is the letter times m c^2.
         greek = name in GREEK and not node.verbatim
-        if _names_builtin(node, latex=ctx.latex) and (node.verbatim or not ctx.latex) and not greek:
+        written_so = node.verbatim or not ctx.latex or name in FUNCTION_WORDS
+        if _names_builtin(node, latex=ctx.latex) and written_so and not greek:
             self._resolve(node.span, f"the builtin function {name}")
             return FunctionReference(node.span, name)
         # A name made of what is written, as y_s of y_{s} or r^* of r^*, is shown so.

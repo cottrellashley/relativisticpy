@@ -189,6 +189,58 @@ class TestPlainText:
         assert kinds("x")[-1] is TokenKind.EOF
 
 
+class TestWords:
+    """LaTeX's functions and operators, written in letters as plain text and Unicode write
+    them, are LaTeX's commands where they apply to what follows them."""
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # sin²x was s i n² x, with i the imaginary unit, and log_2 8 a name times 8
+            ("sin x", r"\sin x"),
+            ("sin(x)", r"\sin ( x )"),
+            ("sin^2 x", r"\sin ^ 2 x"),
+            ("sin²x", r"\sin ^ { 2 } x"),
+            ("cos θ", r"\cos theta"),
+            (r"sin \theta + sin\,x", r"\sin theta + \sin x"),
+            ("ln|x|", r"\ln | x |"),
+            ("log_2 8", r"\log _ 2 8"),
+            ("int_0^1 x dx", r"\int _ 0 ^ 1 x dx"),
+            ("int x dx", r"\int x dx"),
+            ("lim_{x->0} f", r"\lim _ { x -> 0 } f"),
+            ("lim_(x->0) f", r"\lim _ ( x -> 0 ) f"),
+            ("sum_{n=1}^oo a_n", r"\sum _ { n = 1 } ^ oo a_n"),
+            ("min_x x^2", r"\min _ x x ^ 2"),
+            ("sup_x f", r"\sup _ x f"),
+            ("argmax_x f", "argmax _ x f"),
+        ],
+    )
+    def test_a_word_that_applies_is_the_command(self, text, expected):
+        assert lex(text) == expected
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("sin + 1", "sin + 1"),
+            ("max := 10", "max := 10"),
+            ("max_iter := 100", "max_iter := 100"),
+            ("max_output is 1000", "max_output is 1000"),
+            ("sum_n + 1", "sum_n + 1"),
+            ("sum(a, b)", "sum ( a , b )"),
+            ("sinx + sin_theta x", "sinx + sin_theta x"),
+            ("sin'(x)", "sin ' ( x )"),
+            ("x = 5 min", "x = 5 min"),
+            ("max if x > 0", "max if x > 0"),
+            # the Reynolds and Prandtl numbers, and i n t in an exponent
+            ("Re^(1/2) Pr^(1/3)", "Re ^ ( 1 / 2 ) Pr ^ ( 1 / 3 )"),
+            ("e^{int}", "e ^ { int }"),
+            (r"\mathrm{sin} x", "sin x"),
+        ],
+    )
+    def test_a_word_that_applies_to_nothing_is_a_name(self, text, expected):
+        assert lex(text) == expected
+
+
 class TestLatexSymbols:
     def test_greek_letters_are_names(self):
         assert lex(r"\alpha \mu\nu \Gamma \Omega") == "alpha mu nu Gamma Omega"
