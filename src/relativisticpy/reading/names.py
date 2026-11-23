@@ -214,6 +214,16 @@ def _splittable(node: ast.Name) -> bool:
     return not node.verbatim and len(name) > 1 and name.isalpha() and name not in GREEK
 
 
+#: How a bracket that groups begins: (, [, \{, \left( or \left[, and \big( or \Bigl(.
+_GROUP_OPENERS = ("(", "[", "\\{", "\\lbrace", "\\lbrack", "\\left", "\\big", "\\Big")
+
+
+def _in_brackets(node: ast.Name) -> bool:
+    """Whether a name is written in brackets of its own, as xy is in ``(xy)^2``: the
+    parser gives it the span of its brackets, which then begins with one."""
+    return node.span.text != node.id and node.span.text.startswith(_GROUP_OPENERS)
+
+
 def _letter(label: str, span: Span, *, first: bool) -> ast.Name:
     """One letter, or Greek name, of a run of letters read as a product, as G is of GM.
     No letter is split again. A d is the letter d, as in ad - bc, except first in its run,

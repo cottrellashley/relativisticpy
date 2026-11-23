@@ -66,6 +66,7 @@ from relativisticpy.reading.names import (
     _family_label,
     _greek_labels,
     _has_a_value,
+    _in_brackets,
     _is_line_element,
     _items_written,
     _letter,
@@ -1566,7 +1567,13 @@ class Reader(Typer):
         """Scripts on something that is not a tensor: subscripts name a symbol
         (``r_{s}`` is ``r_s``) and superscripts are powers."""
         base, scripts = node.base, list(node.scripts)
-        if ctx.latex and isinstance(base, ast.Name) and _splittable(base):
+        # a power of a run of letters in brackets is a power of them all: (xy)^2 is x^2 y^2
+        bracketed = (
+            isinstance(base, ast.Name)
+            and _in_brackets(base)
+            and all(script.kind == "^" for script in scripts)
+        )
+        if ctx.latex and isinstance(base, ast.Name) and _splittable(base) and not bracketed:
             whole = self.term(base, scope, ctx)
             labels = split_index_labels(base.id)
             if (

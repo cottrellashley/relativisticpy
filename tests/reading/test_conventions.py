@@ -70,6 +70,15 @@ class TestLatexReading:
             with pytest.raises(CompileError, match="a relation between differentials"):
                 wb.expr(source)
 
+    def test_a_power_on_letters_in_brackets_is_of_them_all(self, wb):
+        # (xy)^2 was x y^2, and a (bc)^{-1} a b/c: the power bound the last letter alone
+        x, y, a, b, c = (Symbol(name) for name in "xyabc")
+        assert wb.expr(r"\left(xy\right)^2") == x**2 * y**2
+        assert wb.expr(r"a (bc)^{-1} + \alpha") == a / (b * c) + Symbol("alpha")
+        assert wb.expr(r"\frac{1}{(xy)^2}") == 1 / (x**2 * y**2)
+        assert wb.expr(r"\Bigl(ab\Bigr)^{n} + \alpha") == (a * b) ** Symbol("n") + Symbol("alpha")
+        assert wb.expr(r"xy^2 + \alpha") == x * y**2 + Symbol("alpha")  # without brackets
+
     def test_only_the_last_letter_is_called(self, wb):
         assert wb.expr(r"2Gm(r) + \alpha") == 2 * Symbol("G") * Function("m")(r) + Symbol("alpha")
 
