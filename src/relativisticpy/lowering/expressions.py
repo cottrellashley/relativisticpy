@@ -218,6 +218,7 @@ class Expressions(LinearAlgebra):
             args = [self.value(node.left, scope, ctx), self.value(node.right, scope, ctx)]
             return self._call(f"core.{node.op}", args, SCALAR, node.span)
         self._check_derivative_by_an_expression(node, scope)  # \frac{d \ln p}{d(1/T)}
+        self._check_misread_derivative(node, scope)  # d*y/dx, drate/dx
         left = self.value(_operand(node.left), scope, ctx)
         right = self.value(_operand(node.right), scope, ctx)
         if node.op == "/":
@@ -325,6 +326,7 @@ class Expressions(LinearAlgebra):
         if ctx.latex:
             factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]
+        self._check_misread_integral(factors, scope)  # integral x^2 dx
         factors = self._compound_names(factors, scope, ctx)  # \Delta x, one name
         factors = self._calls_of_names(factors, scope)  # \psi_n(x), of the program's own
         factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call

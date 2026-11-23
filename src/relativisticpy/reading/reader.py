@@ -118,6 +118,35 @@ from relativisticpy.typing.typer import _EXAMPLE_LABELS, TensorSource, Typer, _l
 #: The decision of what a name books write for a function means.
 BOOK = "book name"
 
+#: The names that write an integral in plain text, beside its differential.
+_INTEGRAL_WORDS = frozenset({"int", "integral"})
+
+
+def _written_differential(node: ast.Expr) -> str | None:
+    """The name of the differential a node writes, as dx of ``dx`` and ``dx^2``, and
+    dθ of ``d θ``; ``None`` for anything else."""
+    if isinstance(node, ast.Scripted):
+        node = node.base
+    if isinstance(node, ast.Name) and not node.verbatim and _a_differential(node.id):
+        return node.id
+    if (
+        isinstance(node, ast.Binary)
+        and node.op == "*"
+        and node.implicit
+        and isinstance(node.left, ast.Name)
+        and node.left.id == "d"
+        and isinstance(node.right, ast.Name)
+    ):
+        return "d" + node.right.id
+    return None
+
+
+def _unsigned_operand(node: ast.Expr) -> ast.Expr:
+    """A factor without its sign, as d of -d."""
+    while isinstance(node, ast.Unary) and node.op in ("-", "+"):
+        node = node.operand
+    return node
+
 
 @dataclass(frozen=True)
 class BookCall:
@@ -1123,6 +1152,66 @@ class Reader(Typer):
             f"\\, d{variables[0] if variables else 'q'}, with the integrand in terms of "
             f"{variables[0] if variables else 'q'}",
         )
+
+    def _check_misread_derivative(self, node: ast.Binary, scope: Scope) -> None:
+        """Refuse a quotient written as a derivative is, which Leibniz's fraction could not
+        read (design/notation.md, decision 39): below, a differential that nothing defines,
+        as dx; above, a d that nothing defines, set apart by *, as in d*y/dx, or a name that
+        runs d into a function or a value the program defines, as drate/dx does after
+        rate(x) := .... Read as written, it would divide by a symbol dx."""
+        if node.op != "/" or (below := _written_differential(node.right)) is None:
+            return
+        if scope.lookup(below) is not None:
+            return
+        hints: list[str] = []
+        factors = [_unsigned_operand(factor) for factor in _product_factors(node.left)]
+        for position, factor in enumerate(factors):
+            if not isinstance(factor, ast.Name) or factor.verbatim:
+                continue
+            name = factor.id
+            if name == "d" and scope.lookup("d") is None:
+                rest = " ".join(f.span.text for f in factors[position + 1 :]) or "..."
+                hints.append(f"d/{node.right.span.text} ({rest})")
+            elif (
+                name.startswith("d")
+                and len(name) > 1
+                and scope.lookup(name) is None
+                and scope.lookup(name[1:]) is not None  # drate, of rate(x) := ...
+            ):
+                hints.append(f"d({name[1:]})/{node.right.span.text}")
+        if not hints:
+            return
+        self._decide("derivative or quotient", node.span, "a quotient", "no differential above")
+        raise CompileError(
+            f"{node.span.text} is read as a quotient of names, not as a derivative",
+            span=node.span,
+            notes=[f"{below} is not defined, and what is above it is no differential"],
+            hint=f"for the derivative, write {hints[0]}; for a quotient, define {below} first",
+        )
+
+    def _check_misread_integral(self, factors: Sequence[ast.Expr], scope: Scope) -> None:
+        """Refuse a product of a name that writes an integral, as integral or int, that
+        nothing defines, and a differential at its end that nothing defines either, as
+        ``integral x^2 dx``: read as written, it would multiply the symbols int and dx
+        (design/notation.md, decision 39)."""
+        if len(factors) < 2:
+            return
+        last = _written_differential(factors[-1])
+        if last is None or scope.lookup(last) is not None:
+            return
+        for factor in factors[:-1]:
+            if (
+                isinstance(factor, ast.Name)
+                and factor.id in _INTEGRAL_WORDS
+                and scope.lookup(factor.id) is None
+            ):
+                raise CompileError(
+                    f"{factor.span.text} ... {factors[-1].span.text} is read as a product of "
+                    "names, not as an integral",
+                    span=factor.span.to(factors[-1].span),
+                    hint=f"for the integral, write int_a^b f {last}, int f {last}, or "
+                    f"integrate(f, {last[1:]})",
+                )
 
     def _check_derivative_by_an_expression(self, node: ast.Binary, scope: Scope) -> None:
         """Refuse ``\\frac{d \\ln p}{d(1/T)}``: read as a fraction, d \\ln p over d times 1/T,

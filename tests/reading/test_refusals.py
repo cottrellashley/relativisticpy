@@ -633,3 +633,38 @@ class TestRunsOfLettersThatHoldAFunction:
 
     def test_the_hint_works(self, wb):
         assert wb.expr("θ + sin x") == theta + sympy.sin(x)
+
+
+class TestQuotientsWrittenAsDerivativesAre:
+    """A quotient written as a derivative is, which Leibniz's fraction cannot read, is
+    refused rather than divided by a symbol dx; a product of the names int and dx is too
+    (decision 39)."""
+
+    @pytest.mark.parametrize(
+        ("source", "hint"),
+        [
+            ("d*y/dx", "d/dx (y)"),
+            ("d*sin(x)/dx", "d/dx (sin(x))"),
+            ("2 d * x^2/dx", "d/dx (x^2)"),
+            ("rate(x) := x^2\ndrate/dx", "d(rate)/dx"),
+        ],
+    )
+    def test_refused_where_d_is_above_and_dx_below(self, wb, source, hint):
+        found = error(wb, source)
+        assert found.message.endswith("is read as a quotient of names, not as a derivative")
+        assert hint in found.hint
+
+    def test_the_hint_works(self, wb):
+        assert wb.expr("d/dx (sin(x))") == sympy.cos(x)
+        wb.exe("rate(x) := x^2")
+        assert wb.expr("d(rate)/dx") == 2 * x
+
+    def test_a_quotient_of_what_the_program_defines_divides(self, wb):
+        wb.exe("dx := 1/10")
+        assert wb.expr("d*y/dx") == 10 * sympy.Symbol("d") * sympy.Symbol("y")
+        assert str(wb.expr("distance/dt")) == "distance/dt"  # no d above: a quotient
+
+    def test_an_integral_written_as_a_product_of_names_is_refused(self, wb):
+        found = error(wb, "integral x^2 dx")
+        assert "is read as a product of names, not as an integral" in found.message
+        assert wb.expr("int x^2 dx") == x**3 / 3  # the hint works
