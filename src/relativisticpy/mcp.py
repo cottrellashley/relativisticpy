@@ -842,37 +842,43 @@ _MAIN_LISTS = ("statements", "findings", "links")
 
 
 def _capped(result: dict[str, Any], limit: int) -> dict[str, Any]:
-    """A result cut to ``limit`` characters if it is longer: strings first, then lists,
-    with a note that says what was cut."""
+    """A result cut to ``limit`` characters if it is longer, the note that says what was
+    cut included: strings first, then lists."""
     if _size(result) <= limit:
         return result
     for width in (4000, 1000, 300, 100):
-        shortened = _shortened(result, width, None)
-        if _size(shortened) <= limit:
-            return _cut(
-                shortened,
-                f"the result was cut to fit {limit:,} characters: text longer than {width:,} "
-                "characters is cut short, marked …",
-            )
+        cut = _cut(
+            _shortened(result, width, None),
+            f"the result was cut to fit {limit:,} characters: text longer than {width:,} "
+            "characters is cut short, marked …",
+        )
+        if _size(cut) <= limit:
+            return cut
     longest = max((len(v) for v in _lists(result)), default=0)
     low, high = 0, longest
     while low < high:  # the most items each list may keep
         middle = (low + high + 1) // 2
-        if _size(_shortened(result, 100, middle)) <= limit:
+        if _size(_kept(result, limit, middle)) <= limit:
             low = middle
         else:
             high = middle - 1
-    shortened = _shortened(result, 100, low)
+    return _kept(result, limit, low)
+
+
+def _kept(result: dict[str, Any], limit: int, items: int) -> dict[str, Any]:
+    """A result with its text cut to 100 characters and its lists to ``items`` items, with
+    the note that says so."""
+    shortened = _shortened(result, 100, items)
     lost = [
         f"{key}: {len(shortened.get(key, []))} of {len(result[key])} kept"
         for key in _MAIN_LISTS
-        if isinstance(result.get(key), list) and len(result[key]) > low
+        if isinstance(result.get(key), list) and len(result[key]) > items
     ]
     detail = f" ({'; '.join(lost)})" if lost else ""
     return _cut(
         shortened,
         f"the result was cut to fit {limit:,} characters: text longer than 100 characters "
-        f"is cut short, marked …, and lists keep their first {low} items{detail}; ask for "
+        f"is cut short, marked …, and lists keep their first {items} items{detail}; ask for "
         "less at a time",
     )
 

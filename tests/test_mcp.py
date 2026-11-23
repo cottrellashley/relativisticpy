@@ -501,6 +501,16 @@ def test_a_result_too_long_is_cut_with_a_note():
     assert "characters]" in result["statements"][0]["values"][0]["text"]
 
 
+@pytest.mark.parametrize("limit", [1000, 1100, 1500, 2000, 2500, 4000])
+def test_a_result_cut_to_size_fits_it_with_its_note(limit):
+    entry = {"statement": "x" * 900, "values": [{"text": "y" * 3000}] * 3, "notes": ["n"] * 40}
+    result = {"statements": [entry] * 30, "ok": True, "notes": [], "truncated": False}
+    cut = server._capped(result, limit)
+    assert cut["truncated"]
+    assert server._size(cut) <= limit
+    assert cut["notes"][-1].startswith(f"the result was cut to fit {limit:,} characters")
+
+
 def test_input_too_long_is_refused(monkeypatch):
     monkeypatch.setattr(server, "MAX_INPUT", 10)
 
