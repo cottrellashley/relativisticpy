@@ -155,6 +155,22 @@ def test_a_table_is_bound_as_wb_binds_it(prices):
     assert read.expr(r"P_{t=2\, a:NVDA}") == 143.0
 
 
+def test_a_letter_a_tensor_is_written_with_is_its_index_though_a_column_has_its_name():
+    # over a frame with a column named a, E_t[X_{ta}] was the mean of that column, 2.0,
+    # silently, where a is the index X is written with (engines 16)
+    frame = pd.DataFrame({"a": [1.0, 3.0], "b": [3.0, 3.0]})
+    wb = Workbook(scope={"f": frame})
+    wb.exe(r"X_{ta} := \texttt{f}")
+    (step,) = list(wb.each(r"\mathbb{E}_t[X_{ta}]"))
+    assert step.values[0].to_numpy().tolist() == [2.0, 3.0]
+    assert step.notes == [
+        "a is an index here, as it is written, though a component of that axis is named a "
+        "too; for that component, write a:a"
+    ]
+    assert wb.expr(r"\mathbb{E}_t[X_{t a:a}]") == 2.0  # the hint works
+    assert wb.expr(r"\mathbb{E}_t[X_{tb}]") == 3.0  # b is no letter X is written with
+
+
 def test_data_from_two_objects_meets_by_label_never_by_position(prices):
     weights = pd.Series([0.2, 0.5, 0.3], index=pd.Index(["NVDA", "AAPL", "MSFT"], name="asset"))
     wb = Workbook(scope={"prices": prices, "weights": weights})

@@ -94,7 +94,8 @@ class Tensors(Notation):
             result = self._permute(result, moved, current)
             if upper:
                 result, current = self._move_index(result, current, len(current) - 1, node.span)
-        return self._label(result, [*main, *derivatives], node.span)
+        own = [index.name for index in source.indices]
+        return self._label(result, [*main, *derivatives], node.span, own=own)
 
     def _label(
         self,
@@ -102,9 +103,11 @@ class Tensors(Notation):
         entries: Sequence[tuple[ast.IndexItem, bool]],
         span: Span,
         fixed: Mapping[int, int] | None = None,
+        own: Sequence[str] = (),
     ) -> Node:
         """Name the axes after the items written, take traces and (anti)symmetrisations,
-        then fix components: those the items name, and any already ``fixed`` by position.
+        then fix components: those the items name, and any already ``fixed`` by position;
+        ``own`` are the letters the tensor is written with, which are indices on its data.
         Components are fixed last so that a covariant derivative of the result can still
         reach the whole tensor (see :meth:`_index_derivative`)."""
         assert isinstance(result.type, TensorType)
@@ -112,8 +115,11 @@ class Tensors(Notation):
         labels: list[Index] = []
         values: dict[str, int] = {}
         for position, (item, upper) in enumerate(entries):
+            letter = own[position] if position < len(own) else None
             if fixed and position in fixed:
                 value: int | None = fixed[position]
+            elif self._an_index_on_data(item, spaces[position], letter):
+                value = None  # X_{ta}, though a column of X is named a
             else:
                 value = self._index_value(item, spaces[position])
             if value is not None:
@@ -125,6 +131,27 @@ class Tensors(Notation):
         result = self._trace(result, span)
         result = self._brackets(result, entries, span)
         return self._select(result, values, span)
+
+    def _an_index_on_data(self, item: ast.IndexItem, space: Space, own: str | None) -> bool:
+        """Whether a letter written as an index of data is one, though an element of its
+        space has its name too: the letter the tensor is written with on that axis, one
+        declared to range over a space, or one a sum or an expectation binds, as a of
+        ``\\mathbb{E}_t[X_{ta}]`` is where a column of X is named a (decision 5.1 of
+        design/notation.md), with a note; never in spacetime, whose coordinates name
+        components."""
+        if item.value is not None or item.label is None or space.spacetime:
+            return False
+        label = str(item.label)
+        if label not in [str(name) for name in space.basis or ()]:
+            return False
+        if not (label == own or label in self.session.labels or label in self._bound):
+            return False
+        shown = self._written_label(label)
+        self._note(
+            f"{shown} is an index here, as it is written, though a component of that axis is "
+            f"named {shown} too; for that component, write {shown}:{shown}"
+        )
+        return True
 
     def _select(self, node: Node, values: dict[str, int], span: Span) -> Node:
         """Fix the axes named in ``values`` to those components."""

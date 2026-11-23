@@ -49,7 +49,7 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 
 **Recommendation.** Read it in this order, and say which reading was taken where another was possible:
 
-1. a declared index label, or an index of a tensor in force, is an index, braced or not;
+1. a declared index label, or an index of a tensor in force, is an index, braced or not; over data, so is the letter the tensor is written with on that axis, as a of `X_{ta} := \texttt{f}`, and one a sum or an expectation binds, though an element of the data is named so too, with a note that says how to write that component, `a:a` (23 November 2026: over a frame with a column named a, `\mathbb{E}_t[X_{ta}]` was the mean of that column);
 2. on the left of `:=`, a one-letter subscript that occurs on the right makes a family, so `c_1`, `a_{n+1}` and `\psi_3(x)` evaluate it;
 3. on a list, it is an element, counted from the lower limit of the sum that ranges over the whole list (decision 17);
 4. after a parenthesised expression it is a Pochhammer length; but after a partial derivative in brackets, by a variable of its function, it is another derivative, as Stewart writes `(f_x)_y` for f_{xy} (23 November 2026: it was the Pochhammer symbol of f_x);
