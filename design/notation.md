@@ -328,6 +328,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** `x[n] := \ldots` defines a sequence: a function of an integer. `x[n - 1]` evaluates it, and `y[n] = \sum_k x[k] h[n - k]` is an equation of sequences. An undefined `\delta[n]` is the unit impulse and `u[n]` the unit step, with a note. Brackets after a list or a tensor still index it.
 
+**What the review of the reading stack settled** (23 November 2026). Brackets right after a list are its element in a sum or a product over all of it, counted from the lower limit (decision 17), so that `\sum_{n=0}^{3} x[n]` of a list of four is their sum; anywhere else they are refused, as its positions have no start there, and a bracket that holds no point, as `x[1 + \epsilon]`, multiplies as before. Right after the letter of a family they are its member, as `x[n]` after `x_n := \ldots`; and a sequence written with its point as a subscript, `x_n` after `x[n] := \ldots`, is the sequence at the point, with a note. So a sequence and a family of one letter are read alike, however a member is written. `E[X]` and `P[A]` of random variables are an expectation and a probability (decision 14), whatever the dialect.
+
 ## 32. The letters of arithmetic functions: φ, μ, Λ, σ_k, ω, Ω, d and p
 
 **Added** on 22 November 2026, from number theory.

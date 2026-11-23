@@ -16,7 +16,7 @@ what the program defines come before those of what is built in:
 5. an element of a list, counted from the lower limit of the sum that ranges over the
    whole list (decision 17), and refused anywhere else, where its positions have no start;
 6. a member of a sample, as ``X_i`` after ``X_1, \ldots, X_n \sim \ldots``;
-7. a sequence at a point;
+7. a sequence at a point, as ``x_n`` after ``x[n] := \ldots``;
 8. a partial derivative, as ``f_x`` of a function f of x the program defines;
 9. an index of a built-in tensor in force, as those of ``R_{01}`` with a metric;
 10. a book name of an integer, as the harmonic number ``H_n`` of an n assumed an integer;
@@ -29,9 +29,14 @@ the name at that value, read again: so ``\sigma_a`` is ``\sigma_1`` in ``T_1`` o
 ``T_a := \sigma_a/2``.
 
 ``base[point]`` is read in this order: a sequence the program defines, or a function of
-one variable, at the point; an unknown sequence of the equation being read; the unit
-impulse ``\delta[n]`` or the unit step ``u[n]``, at an integer; and otherwise as it was
-read before, a product in LaTeX and Python's indexing, which is refused, in plain text.
+one variable, at the point; an element of a list, as its subscript is, in a sum over all
+of the list, and refused anywhere else; an unknown sequence of the equation being read;
+a member of a family of the letter, as ``x[n]`` after ``x_n := \ldots``; an operator of
+random variables, as the expectation ``E[X]``; the unit impulse ``\delta[n]`` or the unit
+step ``u[n]``, at an integer; and otherwise as it was read before, a product in LaTeX and
+Python's indexing, which is refused, in plain text. A sequence written with its point as
+a subscript, ``x_n`` after ``x[n] := \ldots``, is the sequence at the point, so that a
+sequence and a family of one letter are read alike however they are written.
 
 Each reading is found by a test here, in :class:`Subscripts`, and lowered by the layer it
 belongs to: the layers hold no test of their own.
@@ -58,14 +63,14 @@ from relativisticpy.compiler.scope import (
     VariableBinding,
 )
 from relativisticpy.compiler.session import Session
-from relativisticpy.errors import CompileError
+from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
-from relativisticpy.language.parser import split_index_labels
+from relativisticpy.language.parser import python_indexing, split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
-from relativisticpy.reading import sequences
+from relativisticpy.reading import probability, sequences
 from relativisticpy.reading.matrices import Matrices
 from relativisticpy.reading.names import (
     _a_matrix,
@@ -97,6 +102,7 @@ class Kind(enum.Enum):
     BUILTIN = "a built-in tensor, with its index"
     BOOK = "a book name of an integer"
     LABEL = "a name of its own"
+    OPERATOR = "an operator of random variables"
     PRODUCT = "a product"
 
 
@@ -117,7 +123,14 @@ PRECEDENCE = (
 )
 
 #: The readings of a name with brackets right after it, in the order they are tried.
-BRACKETS = (Kind.SEQUENCE, Kind.BOOK, Kind.PRODUCT)
+BRACKETS = (
+    Kind.SEQUENCE,
+    Kind.ELEMENT,
+    Kind.MEMBER,
+    Kind.OPERATOR,
+    Kind.BOOK,
+    Kind.PRODUCT,
+)
 
 #: The capabilities signal processing writes with a letter and a point in brackets.
 BRACKET_BOOKS = {"delta": "impulse", "u": "step"}
@@ -196,6 +209,13 @@ class Subscripted:
     def plain(self) -> bool:
         """Whether its base is a name written plainly, with no accent or prime."""
         return isinstance(self.head, ast.Name)
+
+    @property
+    def bracketed(self) -> bool:
+        """Whether it is written with its subscript in square brackets after the name, as
+        ``x[n]`` is (see :func:`~relativisticpy.reading.sequences.subscript_form`)."""
+        end = self.head.span.end
+        return not self.joined and self.head.span.source.text[end : end + 1] == "["
 
 
 def subscripted(node: ast.Expr) -> Subscripted | None:
@@ -425,7 +445,7 @@ class Reading:
     indexed: ast.Scripted | None = None
     labels: tuple[str, ...] = ()
     book: BookReading | None = None
-    refusal: CompileError | None = None
+    refusal: RelativisticPyError | None = None
     why: str = ""
     note: str | None = None
     at_a_value: bool = False
@@ -502,6 +522,16 @@ class Subscripts(Matrices):
         :class:`~relativisticpy.lowering.vectors.VectorCalculus`)."""
         raise NotImplementedError
 
+    def _sequence_value(self, reading: Reading, scope: Scope, ctx: Context) -> Node:
+        """A sequence at the point its subscript writes, lowered (see
+        :class:`~relativisticpy.lowering.sequences.Sequences`)."""
+        raise NotImplementedError
+
+    def _random_names(self, exprs: Sequence[ast.Expr | None], scope: Scope) -> list[str]:
+        """The random variables the program declares that expressions name, which the
+        lowerer says (see :class:`~relativisticpy.lowering.probability.Probability`)."""
+        raise NotImplementedError
+
     def _capability(self, book: BookCall, span: Span, scope: Scope, ctx: Context) -> Node:
         """A call of a capability, lowered (see
         :class:`~relativisticpy.lowering.expressions.Expressions`)."""
@@ -547,6 +577,7 @@ class Subscripts(Matrices):
             Kind.MEMBER: lambda: self._reads_as_member(written, scope, latex, called, summed),
             Kind.ELEMENT: lambda: self._reads_as_element(written, scope, latex, summed),
             Kind.SAMPLE: lambda: self._reads_as_sample(written, scope),
+            Kind.SEQUENCE: lambda: self._reads_as_sequence(written, scope),
             Kind.PARTIAL: lambda: self._reads_as_partial(written, scope),
             Kind.BUILTIN: lambda: self._reads_as_builtin(written, scope),
             Kind.BOOK: lambda: self._reads_as_book(written, scope),
@@ -607,6 +638,8 @@ class Subscripts(Matrices):
             return self.term(reading.indexed, scope, ctx)
         if kind is Kind.SAMPLE:
             return self._sample_member(reading, scope, ctx)
+        if kind is Kind.SEQUENCE:
+            return self._sequence_value(reading, scope, ctx)
         if kind is Kind.PARTIAL:
             return self._partial_derivative(reading, scope, ctx)
         if kind is Kind.BOOK and reading.book is not None:
@@ -745,7 +778,10 @@ class Subscripts(Matrices):
         if not (written.plain and isinstance(within, VariableBinding)):
             return None
         size = _elements(within.node)
-        if size is None or not picks_a_member(written.subscript, _has_a_value(scope, summed)):
+        if size is None:
+            return None
+        picked = picks_a_member(written.subscript, _has_a_value(scope, summed))
+        if not (picked or written.bracketed):  # x[n] is of the list, whatever n is
             return None
         if _mentions_symbol(within.node, written.name):
             return None
@@ -760,6 +796,27 @@ class Subscripts(Matrices):
                 f"{shown} has {size} elements, but the sum runs over {last - first + 1}: a sum "
                 "over a part of a list is not supported yet",
                 span=written.node.span,
+            )
+            return Reading(Kind.ELEMENT, written, binding=within, refusal=refusal, why=why)
+        if written.bracketed:  # x[2], outside a sum over all of x
+            why = f"{shown} is a list, and {text} is in no sum over all of it"
+            if not latex:
+                return Reading(
+                    Kind.ELEMENT,
+                    written,
+                    binding=within,
+                    refusal=python_indexing(text, written.node.span),
+                    why=why,
+                )
+            refusal = CompileError(
+                "a list is not indexed with [ ]",
+                span=written.node.span,
+                notes=[
+                    "the elements of a list are read in a sum over all of it, counted from "
+                    f"its lower limit, as in \\sum_{{n=0}}^{{{size - 1}}} {shown}[n]"
+                ],
+                hint="to name the elements of a list, write them on the left of :=, as in "
+                "a, b := [1, 2]; for a product, put a space before the bracket",
             )
             return Reading(Kind.ELEMENT, written, binding=within, refusal=refusal, why=why)
         label = written.shown if len(written.shown) == 1 and written.shown.isalpha() else "i"
@@ -832,15 +889,29 @@ class Subscripts(Matrices):
             return None
         return Reading(Kind.SAMPLE, written, binding=binding)
 
+    def _reads_as_sequence(self, written: Subscripted, scope: Scope) -> Reading | None:
+        """A sequence the program defines with brackets, ``x[n] := ...``, written with its
+        point as a subscript, as ``x_n`` and ``x_{n-1}`` are: the sequence at the point."""
+        binding = scope.lookup(written.base)
+        if not (written.plain and written.subscript is not None):
+            return None
+        if not isinstance(binding, FunctionBinding):
+            return None
+        if not isinstance(binding.definition, SequenceDefinition):
+            return None
+        return Reading(Kind.SEQUENCE, written, binding=binding)
+
     def _reads_as_partial(self, written: Subscripted, scope: Scope) -> Reading | None:
         """A partial derivative of a function the program defines, by the parameters the
         subscript names in turn, a run of letters each naming one, as ``f_x`` and
         ``f_{xy}`` of f(x, y) (decision 5.6); not of a family, whose subscripts pick its
-        members."""
+        members, nor of a sequence or a frequency response, which are written at points."""
         if written.labels is None or isinstance(written.head, ast.Prime):
             return None
         binding = scope.lookup(written.base)
-        if not isinstance(binding, FunctionBinding) or isinstance(binding.definition, Family):
+        if not isinstance(binding, FunctionBinding):
+            return None
+        if isinstance(binding.definition, Family | SequenceDefinition | Response):
             return None
         params = binding.definition.params
         labels = [written.shown] if written.joined else list(written.labels)
@@ -922,15 +993,36 @@ class Subscripts(Matrices):
                 len(definition.params) == 1 and not isinstance(definition, Family | Response)
             )
             return Reading(Kind.SEQUENCE if sequence else Kind.PRODUCT, binding=binding)
+        integral = sequences.integral(point, lambda label: self._integral_name(label, scope))
+        if isinstance(binding, VariableBinding) and integral and self._a_plain_list(binding.node):
+            return Reading(Kind.ELEMENT, binding=binding)
         if binding is not None:
             return Reading(Kind.PRODUCT)
         if name.id in self._unknown_sequences:
             return Reading(Kind.SEQUENCE)
+        family = family_of(name.id, scope)
+        if family is not None and len(family.definition.params) == 1:  # x[n] of x_n := n^2
+            return Reading(Kind.MEMBER, binding=family)
+        operator = probability.operator(name)
+        if operator is not None and (
+            not probability.lettered(name, square=True) or self._random_names([point], scope)
+        ):
+            return Reading(Kind.OPERATOR, name=operator)  # E[X], of a random variable X
         if self._has_a_meaning(name.id) or name.id not in BRACKET_BOOKS:
             return Reading(Kind.PRODUCT)
-        if sequences.integral(point, lambda label: self._integral_name(label, scope)):
+        if integral:
             return Reading(Kind.BOOK, name=BRACKET_BOOKS[name.id])
         return Reading(Kind.PRODUCT)
+
+    @staticmethod
+    def _a_plain_list(node: Node) -> bool:
+        """Whether a value is a list of items that are no lists, whose elements a subscript
+        or brackets pick: not a matrix, which brackets after it multiply."""
+        if _elements(node) is None:
+            return False
+        if isinstance(node.op, ops.Call):
+            return all(_elements(item) is None for item in node.args)
+        return all(not isinstance(item, list | tuple) for item in node.op.value)  # type: ignore[attr-defined]
 
     def _integral_name(self, label: str, scope: Scope) -> bool | None:
         """Whether a name in a point is an integer: one bound to a whole number, or assumed

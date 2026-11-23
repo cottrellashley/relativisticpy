@@ -36,7 +36,7 @@ from relativisticpy.lowering.arithmetic import INDEX_SET, Arithmetic
 from relativisticpy.reading import sequences
 from relativisticpy.reading.names import _shown
 from relativisticpy.reading.sequences import SAMPLE, Response, Sample, Sequence
-from relativisticpy.reading.subscripts import BRACKET_BOOKS, Kind
+from relativisticpy.reading.subscripts import BRACKET_BOOKS, Kind, Reading
 from relativisticpy.runtime.sequences import capital
 from relativisticpy.typing.notation import _passed
 from relativisticpy.typing.syntax import _walk
@@ -103,9 +103,12 @@ class Sequences(Arithmetic):
         an integer. Otherwise it is read as before, which, given the statement's ``ctx`` and
         the ``span`` it is written over, is said: in plain text, refused as Python's
         indexing; in LaTeX a product, with a note where it could have been a sequence."""
-        sequence = self._a_sequence(name, point, scope)
+        reading = self._bracket_reading(name, point, scope)
+        sequence = reading.kind in (Kind.SEQUENCE, Kind.BOOK)
         if sequence or ctx is None or span is None:
             return sequence
+        if reading.kind is Kind.OPERATOR:  # E[X]: an expectation, which probability reads
+            return False
         if not ctx.latex:
             raise python_indexing(span.text, span)
         binding = scope.lookup(name.id)
@@ -141,7 +144,32 @@ class Sequences(Arithmetic):
         why = f"{name.span.text} is {what}, not a sequence"
         self._decide(SAMPLE, name.span, "as before", why, written=shown)
 
+    def _subscripted_brackets(self, name: ast.Name, point: ast.Expr, scope: Scope) -> bool:
+        """Whether ``name[point]`` is read as ``name_{point}`` is: an element of a list, or
+        a member of a family."""
+        return self._bracket_reading(name, point, scope).kind in (Kind.ELEMENT, Kind.MEMBER)
+
+    def _sequence_value(self, reading: Reading, scope: Scope, ctx: Context) -> Node:
+        """``x_n`` or ``x_{n-1}`` of a sequence the program defines with brackets, read by
+        the resolver as the sequence at the point: lowered as ``x[n]`` is, and said so."""
+        written = reading.written
+        assert written is not None
+        assert written.subscript is not None
+        node, shown = written.node, _shown(written.base, ctx.latex)
+        if not self._used_sequences:  # where a sequence is used, its definition said it
+            self._note(
+                f"{node.span.text} is read as {shown}[{written.shown}], the sequence {shown} "
+                f"at {written.shown}"
+            )
+        name = ast.Name(written.base, span=node.span)
+        return self._Sample(Sample(name, (written.subscript,), span=node.span), scope, ctx)
+
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
+        written = sequences.with_subscripts(
+            node, lambda name, point: self._subscripted_brackets(name, point, scope)
+        )
+        if written is not node:  # x[n] of a list or of a family: as x_{n}
+            return self.term(written, scope, ctx)
         rebuilt = sequences.merged(
             node, lambda name, point, span: self._sampled(name, point, scope, ctx, span)
         )
@@ -566,6 +594,11 @@ class Sequences(Arithmetic):
     # -- sums over a sequence's index -------------------------------------------------------
 
     def _BigOperator(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node:
+        body = sequences.with_subscripts(
+            node.body, lambda name, point: self._subscripted_brackets(name, point, scope)
+        )
+        if body is not node.body:  # \sum_n x[n], of a list x: as \sum_n x_{n}
+            node = replace(node, body=body)
         if (
             node.op == "sum"
             and node.lower is None

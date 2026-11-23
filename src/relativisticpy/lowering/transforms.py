@@ -676,7 +676,11 @@ class Transforms(Definitions):
         carriers = self._carriers(label, node.body, scope)
         if not carriers:
             return None
-        runs = self._runs_through(node.body, label, scope, ctx)
+        runs = [
+            run
+            for run in self._runs_through(node.body, label, scope, ctx)
+            if run.kind is not Kind.ELEMENT
+        ]
         if runs and all(space is None for _, space, _, _ in carriers):
             return None  # x_i y_i, of a list x and a family y: taken term by term
         for run in runs:

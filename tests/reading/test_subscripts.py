@@ -11,7 +11,7 @@ import sympy
 
 from relativisticpy import Workbook
 from relativisticpy.errors import CompileError
-from relativisticpy.language import parse
+from relativisticpy.language import Source, parse
 from relativisticpy.reading.subscripts import PRECEDENCE, Kind, picks_a_member, subscripted
 
 n, x, y = sympy.symbols("n x y")
@@ -250,3 +250,101 @@ class TestASubscriptTheIndexOfASumRunsThrough:
         wb.exe("x := [1, 2, 3]")
         y = sympy.symbols("y_1 y_2 y_3")
         assert wb.expr(r"\sum_{i=1}^{3} x_i y_i") == y[0] + 2 * y[1] + 3 * y[2]  # was 6 y_i
+
+
+def latex(wb: Workbook, source: str) -> list[object]:
+    """What a program written as LaTeX shows, every statement LaTeX."""
+    return wb.exe(Source(source, latex=True))
+
+
+class TestBracketsAfterAList:
+    """Finding 14: brackets after a list, in a sum, multiplied it: with
+    ``x := [1, 2, 3, 4]``, ``\\sum_{n=0}^{3} x[n]`` was ``[6, 12, 18, 24]``. They read the
+    element, counted from the lower limit of the sum that ranges over the whole list
+    (decision 17), and are refused anywhere else."""
+
+    def test_in_a_sum_over_the_whole_list_they_are_its_elements(self, wb):
+        wb.exe("x := [1, 2, 3, 4]")
+        assert latex(wb, r"\sum_{n=0}^{3} x[n]") == [10]
+        assert latex(wb, r"\sum_{n=1}^{4} x[n]") == [10]  # counted from the lower limit
+        assert latex(wb, r"\sum_{n=1}^{4} x[n]^2") == [30]
+        assert latex(wb, r"\prod_{n=0}^{3} x[n]") == [24]
+
+    def test_a_discrete_fourier_transform_written_with_brackets(self, wb):
+        wb.exe("x := [1, 2, 3, 4]")
+        (value,) = latex(wb, r"\sum_{n=0}^{3} x[n] e^{-2\pi i n/4}")
+        assert sympy.simplify(value - (-2 + 2 * sympy.I)) == 0
+
+    def test_a_sum_over_a_part_of_the_list_is_refused(self, wb):
+        wb.exe("x := [1, 2, 3, 4]")
+        with pytest.raises(CompileError, match="a sum over a part of a list"):
+            latex(wb, r"\sum_{n=0}^{2} x[n]")
+
+    @pytest.mark.parametrize("written", ["x[2]", "x[n]", r"x[n] + \alpha"])
+    def test_outside_a_sum_they_are_refused(self, wb, written):
+        wb.exe("x := [1, 2, 3, 4]")
+        with pytest.raises(CompileError) as raised:
+            latex(wb, written)
+        assert raised.value.message == "a list is not indexed with [ ]"
+        assert raised.value.notes == [
+            "the elements of a list are read in a sum over all of it, counted from its lower "
+            r"limit, as in \sum_{n=0}^{3} x[n]"
+        ]
+
+    def test_a_bracket_that_holds_no_point_multiplies_as_before(self, wb):
+        wb.exe("x := [1, 2]")
+        epsilon = sympy.Symbol("epsilon")
+        (value,) = latex(wb, r"x[1 + \epsilon]")
+        assert list(value) == [1 + epsilon, 2 + 2 * epsilon]
+
+
+class TestASequenceAndAFamilyOfOneLetter:
+    """Finding 16: a sequence and a family of the same letter did not see each other:
+    after ``x[n] := n^2``, ``\\sum_{n=0}^{3} x_n`` was 12, x_n read as the derivative of
+    x(n); and after ``x_n := n^2``, ``\\sum_{n=0}^{3} x[n]`` was 6x. One lookup reads
+    both, however the member is written."""
+
+    def test_a_sequence_written_with_a_subscript(self, wb):
+        latex(wb, "x[n] := n^2")
+        assert latex(wb, r"\sum_{n=0}^{3} x_n") == [14]
+        assert latex(wb, "x_3") == [9]
+        assert latex(wb, "x_{n-1}") == [(n - 1) ** 2]
+        assert notes(wb, "x_3") == ["x_3 is read as x[3], the sequence x at 3"]
+
+    def test_a_sequence_defined_with_the_subscript_of_another(self, wb):
+        latex(wb, "x[n] := n^2\ny[n] := x_n + 1")
+        assert latex(wb, "y[3]") == [10]  # was 2n + 1, of the derivative of x(n)
+
+    def test_a_family_written_with_brackets(self, wb):
+        wb.exe("x_n := n^2")
+        assert latex(wb, r"\sum_{n=0}^{3} x[n]") == [14]
+        assert latex(wb, "x[3]") == [9]
+        assert wb.expr("x[3]") == 9  # in plain text too
+        assert latex(wb, "x[n-1]") == [(n - 1) ** 2]
+
+    def test_a_member_the_program_gives_is_the_same_however_it_is_written(self, wb):
+        wb.exe("x_n := n^2\nx_3 := 100")
+        assert latex(wb, "x[3]") == [100]
+        assert latex(wb, r"\sum_{n=0}^{3} x[n]") == latex(wb, "x_0 + x_1 + x_2 + x_3") == [105]
+
+
+class TestBracketsAfterAnExpectation:
+    """Finding 25: ``E[X]`` of a random variable was claimed as a sequence before
+    probability read it: in plain text it was refused as Python's indexing, and in LaTeX
+    it carried two notes that contradicted each other."""
+
+    def test_e_of_a_random_variable_in_square_brackets_is_its_expectation(self, wb):
+        wb.exe(r"X \sim \mathcal{N}(2, 9)")
+        assert wb.expr("E(X)") == 2
+        assert wb.expr("E[X]") == 2  # was refused: "indexes as Python does"
+        alpha = sympy.Symbol("alpha")
+        assert wb.expr(r"E[X] + \alpha") == alpha + 2
+        assert notes(wb, r"E[X] + \alpha") == [
+            "E[X] is read as an expectation, as E acts on random variables"
+        ]
+        assert wb.expr(r"P[X > 2]") == sympy.Rational(1, 2)
+
+    def test_e_of_anything_else_multiplies_as_before(self, wb):
+        wb.exe(r"X \sim \mathcal{N}(2, 9)")
+        energy, k, alpha = sympy.symbols("E k alpha")
+        assert latex(wb, r"E[k] + \alpha") == [energy * k + alpha]

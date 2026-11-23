@@ -819,7 +819,7 @@ class Families(Labels):
     ) -> list[Reading]:
         """The names a sum's body writes with a subscript its index runs through, as
         ``a_n``, ``\\lambda_a`` and ``c_{2k}`` are, each as the resolver reads it there: a
-        member of a family, or a name of its own. A tensor's index, an element of a list, a
+        member of a family, an element of a list, or a name of its own. A tensor's index, a
         member of a sample and a book name are no such names: each is summed as it is."""
         found = []
         inner = scope.child()  # as the sum binds its index, an integer with no value yet
@@ -840,6 +840,8 @@ class Families(Labels):
                 reading = self._subscript_reading(written, inner, latex=ctx.latex)
             finally:
                 self._sum_indices.pop()
+            if reading.kind is Kind.ELEMENT:  # of a list: read where the index has a value
+                found.append(reading)
             if reading.refusal is not None:
                 continue
             if reading.kind is Kind.DEFINED and reading.name is not None:
@@ -876,6 +878,14 @@ class Families(Labels):
             written = reading.written
             assert written is not None
             text, base = written.node.span.text, _shown(written.base, ctx.latex)
+            if reading.kind is Kind.ELEMENT:
+                raise CompileError(
+                    f"the {what} runs over the elements of {base}, which are counted from "
+                    f"its lower limit, and it {cannot}",
+                    span=node.span,
+                    hint=f"give the {what} limits that are whole numbers, as from 1 to the "
+                    "number of elements",
+                )
             if reading.kind is Kind.LABEL:
                 raise CompileError(
                     f"{text} names nothing, and the {what} runs over its subscript: read as "

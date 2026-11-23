@@ -16,7 +16,12 @@ what the name is:
   ``\delta[(-g)^{-1/2}]``, a variation in physics, is read as before;
 - in an equation, names nothing defines, written at such points, are unknown sequences,
   as y and x are in the difference equation ``y[n] = x[n] + \frac{1}{2} y[n-1]``;
-- a list, a tensor or data is read as before.
+- brackets right after a list are its element, in a sum over all of it, counted from the
+  sum's lower limit (decision 17), and are refused anywhere else; right after the letter
+  of a family, ``x_n := \ldots``, they are its member, as its subscript is;
+- ``E[X]`` and ``P[A]`` of random variables are an expectation and a probability
+  (decision 14);
+- a tensor or data is read as before.
 
 ``H(e^{j\omega}) := \ldots`` defines the frequency response H as a function of ω, though
 it is written at e^{jω}, as books write the discrete-time Fourier transform; called at
@@ -27,7 +32,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields, replace
+from typing import Any
 
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
@@ -177,13 +183,62 @@ def _factors(node: ast.Binary) -> list[ast.Expr]:
     return found
 
 
+def subscript_form(name: ast.Name, point: ast.Expr, span: Span) -> ast.Expr:
+    """``name[point]`` written with the point as its subscript, ``name_{point}``, as the
+    parser reads one: a name or a whole number below is an index too."""
+    indices = None
+    if isinstance(point, ast.Name):
+        item = ast.IndexItem(point.id, span=point.span)
+        indices = ast.IndexList((item,), span=point.span)
+    elif isinstance(point, ast.Number) and point.text.isdigit():
+        item = ast.IndexItem(None, point, span=point.span)
+        indices = ast.IndexList((item,), span=point.span)
+    script = ast.Script("_", point, indices, span=point.span)
+    return ast.Scripted(name, (script,), span=span)
+
+
+def with_subscripts(node: ast.Expr, element: Callable[[ast.Name, ast.Expr], bool]) -> ast.Expr:
+    """An expression with each name written at a point in square brackets that ``element``
+    says is an element of a list, or a member of a family, written with the point as its
+    subscript instead, as ``x[n]`` is ``x_{n}``, which a sum over n then reads as it reads
+    ``x_n``. The expression itself where it writes none."""
+    marked = {id(name) for name, point in samples(node) if element(name, point)}
+    if not marked:
+        return node
+    result: ast.Expr = _with_subscripts(node, marked)
+    return result
+
+
+def _with_subscripts(node: Any, marked: set[int]) -> Any:
+    """A syntax tree with the brackets after each name in ``marked`` made its subscript;
+    what it does not change is kept as it is, the same nodes."""
+    if isinstance(node, tuple):
+        items = tuple(_with_subscripts(item, marked) for item in node)
+        return items if any(new is not old for new, old in zip(items, node, strict=True)) else node
+    if not isinstance(node, ast.Node):
+        return node
+    changes = {}
+    for item in fields(node):
+        old = getattr(node, item.name)
+        new = old if item.name == "span" else _with_subscripts(old, marked)
+        if new is not old:
+            changes[item.name] = new
+    rebuilt = replace(node, **changes) if changes else node
+    if isinstance(rebuilt, ast.Binary) and rebuilt.op == "*":
+        made = merged(rebuilt, lambda name, point, span: id(name) in marked, subscript_form)
+        return made if made is not None else rebuilt
+    return rebuilt
+
+
 def merged(
-    node: ast.Binary, sampled: Callable[[ast.Name, ast.Expr, Span], bool]
+    node: ast.Binary,
+    sampled: Callable[[ast.Name, ast.Expr, Span], bool],
+    make: Callable[[ast.Name, ast.Expr, Span], ast.Expr] | None = None,
 ) -> ast.Expr | None:
     """A product with each name and the point after it in square brackets made one
-    :class:`Sample`, where ``sampled`` says the name, written with the point over the span
-    given, is a sequence there, and what is raised on the brackets raised on it; ``None``
-    where none is."""
+    :class:`Sample`, or what ``make`` makes of them, where ``sampled`` says the name,
+    written with the point over the span given, is a sequence there, and what is raised on
+    the brackets raised on it; ``None`` where none is."""
     factors = _factors(node)
     found: list[ast.Expr] = []
     changed = False
@@ -197,7 +252,8 @@ def merged(
             point, scripts = written
             bracket = following.base if isinstance(following, ast.Scripted) else following
             if sampled(factor, point, factor.span.to(bracket.span)):
-                sample = Sample(factor, (point,), span=factor.span.to(bracket.span))
+                over = factor.span.to(bracket.span)
+                sample = make(factor, point, over) if make else Sample(factor, (point,), span=over)
                 if scripts:
                     found.append(ast.Scripted(sample, scripts, span=factor.span.to(following.span)))
                 else:
