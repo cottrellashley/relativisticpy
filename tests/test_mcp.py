@@ -91,6 +91,30 @@ def test_the_tools_say_what_they_take_and_what_they_give():
     assert "60 s at most" in tools["compute"].description
 
 
+def test_the_descriptions_say_what_an_agent_needs_to_act_on_a_result():
+    async def test(client, pool):
+        tools = {tool.name: tool.description for tool in (await client.list_tools()).tools}
+        return client.instructions, tools
+
+    instructions, tools = serve(test)
+    compute, verify = tools["compute"], tools["verify"]
+    told = {
+        "the notation read": ["LaTeX", "plain text", "Unicode", ":=", r"\mathrm{mass}"],
+        "where the rest of it is": ["topic reference"],
+        "what is no answer": ["complete", "reasons", "integral", "time budget", "approximate"],
+        "how to rephrase": ["evalf(", "hint", "fix the statement"],
+        "how sessions work": ["session", "list_sessions", "reset_session"],
+        "the time limits": ["60 s at most", "time_limit", "over the time limit"],
+    }
+    for what, words in told.items():
+        assert all(word in compute for word in words), what
+    for verdict in ("holds", "differs", "relates", "not decided", "error"):
+        assert f"- {verdict}:" in verify
+    assert "keeps no session" in verify
+    assert "never guesses" in instructions
+    assert "60 s at most" in instructions
+
+
 def test_the_fail_on_verdicts_are_the_checks():
     names = {verdict.value for verdict in Verdict} | {"time limit", "empty"}
     assert set(server.FailOn.__args__) == names

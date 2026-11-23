@@ -1215,9 +1215,15 @@ class _Pool:
 
 _INSTRUCTIONS = """\
 RelativisticPy reads mathematics as it is written, in LaTeX, plain text or Unicode, and \
-computes it exactly, with SymPy: General Relativity (metrics, connections, curvature), \
-index notation, calculus and algebra, and the equations of LaTeX papers, which it checks. \
-Use it rather than doing long algebra by hand, and to check the algebra you did.
+computes it exactly, with SymPy: algebra, calculus, linear algebra, differential \
+equations, index notation and General Relativity (metrics, connections, curvature); and \
+it checks the equations of LaTeX papers. Use it rather than doing long algebra by hand, \
+and to check the algebra you did.
+
+Every answer is right, or it says that it is not one. A statement it cannot read or \
+compute fails with an error that says why and, in a hint, what to write instead: it \
+never guesses. A value it could only keep in part as written, as an integral it found no \
+closed form of, has complete false and its reasons: it is not the answer.
 
 - compute runs statements and gives each one's values, in text, Unicode and LaTeX. Give \
 it a session name to keep definitions from one call to the next.
@@ -1241,28 +1247,41 @@ FLRW, DeSitter and others), and so does a line element, ds^2 = ...; then \
 \\Gamma^{{a}}_{{bc}}, R^{{a}}_{{bcd}}, R_{{ab}}, R, G_{{ab}} and R_{{abcd}} R^{{abcd}} \
 are computed.
 
-Each call may run for {time_limit:g} s at most. {files}"""
+Each call may run for {time_limit:g} s at most. A call that cannot be done at all, as \
+one naming a session with a name that cannot be one, is a tool error, whose text ends \
+with a hint. {files}"""
 
 _COMPUTE = """\
-Run a RelativisticPy program and return what each statement gave.
+Run a RelativisticPy program and give what each statement gave.
 
-A program is mathematics as written: LaTeX (\\frac{{1}}{{2}}, \\Gamma^{{r}}_{{tt}}), \
-plain text (x**2, g_{{mu nu}}) or Unicode (θ, ∂), mixed freely, with statements on \
-lines of their own or separated by ;. := defines; = defines only what has no meaning \
-yet, and is otherwise a claim, which is checked, or an equation.
+Notation: LaTeX (\\frac{{1}}{{2}}, \\int_0^1 x^2 \\, dx, \\Gamma^{{r}}_{{tt}}), plain \
+text (x**2, diff(sin(x), x), g_{{mu nu}}) or Unicode (θ, ∂), mixed freely; a statement \
+on each line, or separated by ;. := defines; = defines only what has no meaning yet, and \
+is otherwise a claim, which is checked, or an equation. In LaTeX a run of letters is a \
+product, as typeset: write \\mathrm{{mass}} for a name of several letters. A script \
+without braces takes one character: \\Gamma^{{r}}_{{tt}}, not \\Gamma^r_tt. A name \
+right before a bracket calls it, as f(x); to multiply, leave a space. help with topic \
+reference gives the whole language.
 
-Returns one entry for each statement, in order, as relativisticpy --format json gives \
-it: where it is, the statement, its values (each with its kind and its text, unicode \
-and latex forms; a tensor with its components), what it defines, notes on how it was \
-read, and its error, if it failed, with the error's type, message, place, notes and \
-hint. A statement that fails does not stop the others.
+Each statement gives its values, each with text, unicode and latex forms; what it \
+defines; notes on how it was read; and its error, if it failed. A value with complete \
+false is kept in part as written, and its reasons say why: integral, sum, product, \
+limit or derivative (SymPy could not carry it out), unknown function (a name it does not \
+know), or time budget (SymPy stopped looking for a closed form). It is not the answer: \
+write it another way, or wrap it in evalf(...) for a number. approximate true means \
+floating-point numbers: an approximation, not exact. An error is a refusal, \
+never a guess: its type, message, place, notes and hint, which says what to write \
+instead; fix the statement as it says and run it again. A statement that fails does not \
+stop the others. ok says that none failed; complete, that besides every value is \
+complete.
 
-Without session, the program runs in a new, empty workbook. With session, it runs in \
-the workbook of that name, made on first use, so that definitions persist from one call \
-to the next; reset_session forgets them.
+Without session, each call starts from an empty workbook. With session, a name, the \
+definitions of one call are there in the next; list_sessions shows them and \
+reset_session forgets them.
 
-A call may run for {time_limit:g} s at most; time_limit asks for less. A statement \
-still running then fails, over the time limit, and the definitions before it are kept.
+A call may run for {time_limit:g} s at most; time_limit asks for less. A statement still \
+running then fails, over the time limit, and those after it do not run; a session keeps \
+what was defined before it.
 
 Examples: "g_{{\\mu\\nu}} := Schwarzschild(M)" then "R_{{abcd}} R^{{abcd}}" in one \
 session; "\\int_0^\\infty e^{{-x^2}} \\, dx"; "f(x) := x^2 e^{{-x}}; f'(x)"."""
@@ -1273,22 +1292,25 @@ Check one claimed equality, or one step of a derivation, and say whether it hold
 claim is an equation, lhs = rhs, or a chain, a = b = c, each link of which is judged; \
 context holds what the claim relies on, run first: definitions, a metric \
 (g_{{\\mu\\nu}} := Schwarzschild(M), or a line element), coordinates, or symbols \
-declared as variables (Reals := [x]).
+declared as variables (Reals := [x]). Both are written as compute reads them. Each call \
+starts afresh: verify keeps no session, so give the context every time.
 
 The verdict, on the claim and on each link:
 - holds: proven equal.
-- differs: every quantity is known and the sides are not equal: a mistake. The left \
-side minus the right is given, in LaTeX among its forms.
+- differs: every quantity is known and the sides are not equal: a mistake. difference \
+is the left side minus the right, in text, unicode and latex.
 - relates: the sides are not equal, but involve quantities the context does not define, \
 so the claim may be an equation to solve rather than an identity; the difference is \
-given. Declare the symbols in the context (Reals := [x]) to have it judged as differs.
+given. Declare the symbols in the context (Reals := [x]) to have it judged.
 - not decided: not proven equal, though numbers do not show the sides differ; or a \
-relation such as \\approx; or over the time limit.
-- error: the claim could not be read or computed, or is not a claim; the detail, place, \
-notes and hint say why.
+relation such as \\approx; or over the time limit. Neither a mistake nor a proof: write \
+it more simply, or verify it a step at a time.
+- error: the claim could not be read or computed, or is not a claim. error gives its \
+type, message, place, notes and hint, as compute does: fix the claim as the hint says.
 
-Statements of the context that fail are listed in context. A call may run for \
-{time_limit:g} s at most; time_limit asks for less."""
+The claim's verdict is the first of error, differs, relates, not decided and holds that \
+a link has. Statements of the context that fail are listed in context. A call may run \
+for {time_limit:g} s at most; time_limit asks for less."""
 
 _CHECK = """\
 Check the equations of a LaTeX document or Markdown notebook, as relativisticpy check \
@@ -1301,24 +1323,25 @@ notebook (format markdown, or a .md file) runs its $$...$$ blocks.
 
 Returns the report: the counts of each verdict, the reasons statements were not \
 understood, warnings, and the findings, each with its verdict, place, statement, \
-detail, hint and the difference of its sides. By default findings lists what fails \
---strict (differs, ill-formed, not parsed) and what ran over its time limit; all lists \
-every statement. strict, or fail_on, gives a policy: failed says whether the document \
-fails it. lines checks part of a document, as 120:340, after running what comes before \
-it for its definitions.
+detail, hint, the difference of its sides, and the error it raised, as compute gives \
+one. By default findings lists what fails --strict (differs, ill-formed, not parsed) \
+and what ran over its time limit; all lists every statement. strict, or fail_on, gives \
+a policy: failed says whether the document fails it. lines checks part of a document, \
+as 120:340, after running what comes before it for its definitions.
 
 Each statement may run for statement_time_limit seconds (default {statement:g}); the \
 whole check for {time_limit:g} s at most, or time_limit. A check that runs out of time \
 reports what it checked, and says where it stopped."""
 
 _HELP = """\
-The documentation of RelativisticPy, offline, as Markdown. Without a topic: what the \
-language looks like, and the topics. topic reference is the whole language on one \
-page: every statement, command, environment, constant, verdict and error, and every \
-function by name. Other topics include getting-started, language, latex, tensors, \
-notation, checking, python and troubleshooting. The name of a function, as besselj, \
-gives that function in full: its forms, its arguments, its examples with their answers, \
-and what computes it; latex() is the function where a topic has its name."""
+The documentation of RelativisticPy, offline, as Markdown: read it before writing \
+notation you are unsure of. Without a topic: what the language looks like, and the \
+topics. topic reference is the whole language on one page: every statement, command, \
+environment, constant, verdict and error, and every function by name. Other topics \
+include getting-started, language, latex, tensors, notation, checking, python and \
+troubleshooting. The name of a function, as besselj, gives that function in full: its \
+forms, its arguments, its examples with their answers, and what computes it; latex() is \
+the function where a topic has its name."""
 
 _LIST_SESSIONS = """\
 List the named sessions: for each, how many statements it has run, what it defines, \
