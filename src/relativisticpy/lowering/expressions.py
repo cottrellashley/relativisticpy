@@ -10,7 +10,7 @@ import itertools
 import re
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import replace
-from typing import Any
+from typing import Any, Literal
 
 import sympy
 from sympy import Symbol
@@ -60,6 +60,7 @@ from relativisticpy.reading.names import (
     _an_index,
     _bold_one,
     _bracketed_order,
+    _in_brackets,
     _letter,
     _mentions_symbol,
     _named,
@@ -539,22 +540,15 @@ class Expressions(LinearAlgebra):
             done = self._linear_algebra(linear, node, scope, ctx)
             if done is not None:
                 return done
-        names = {c.name for c in self.session.coordinates or ()}
-        if isinstance(binding, VariableBinding) and all(
-            isinstance(a, ast.Name) and (a.id in names or _mentions_symbol(binding.node, a.id))
-            for a in node.args
-        ):  # \alpha(r), once \alpha is defined, or a(t) of a value in t: what it depends on
+        if self._depends(node, binding):  # \alpha(r), once \alpha is defined, or a(t)
+            assert isinstance(binding, VariableBinding)
             arguments = ", ".join(arg.span.text for arg in node.args)
             why = f"{name} has a value, which depends on {arguments}"
             self._decide(CALL, node.span, f"the value of {name}", why)
             return binding.node
-        one_name = len(node.args) == 1 and isinstance(node.args[0], ast.Name)
-        product = (name in names and not one_name) or self._a_product(func, node.args, binding, ctx)
-        if product:  # r(\partial_1 \beta - 1), with r a coordinate: as typeset, a product
-            why = product if isinstance(product, str) else f"{name} is a coordinate"
-            self._decide(CALL, node.span, "a product", why)
-            group = node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
-            times = ast.Binary("*", func, group, implicit=True, span=node.span)
+        multiplies = self._multiplies(node, binding, scope, ctx)
+        if multiplies == "product":  # r(\partial_1 \beta - 1), with r a coordinate
+            times = ast.Binary("*", func, _group(node), implicit=True, span=node.span)
             return self.value(times, scope, ctx)
         if binding is not None:
             raise CompileError(f"{name} is not a function", span=func.span)
@@ -578,18 +572,10 @@ class Expressions(LinearAlgebra):
             return self._capability(book, node.span, scope, ctx)  # \Gamma(x), J_0(x)
         if builtin:
             self._check_keywords(BUILTINS[name], node)
-        if ctx.latex and binding is None and not builtin and _splittable(func):
-            # 2Gm(r) in LaTeX is 2 G m(r): only the last letter is the function
-            labels = split_index_labels(name)
-            read = f"{' '.join(labels[:-1])} times {labels[-1]} called"
-            why = "in LaTeX only the last letter of a run that names nothing is called"
-            self._decide("letters", node.span, read, why)
-            last = _letter(labels[-1], func.span, first=False)
-            leading = [
-                _letter(label, func.span, first=n == 0) for n, label in enumerate(labels[:-1])
-            ]
+        if multiplies == "letters":  # 2Gm(r) in LaTeX is 2 G m(r)
+            *leading, last = _letters_called(node)
             factors = [self.value(n, scope, ctx) for n in leading]
-            factors.append(self.value(replace(node, func=last), scope, ctx))
+            factors.append(self.value(last, scope, ctx))
             return self._multiply(factors, node.span)
         if builtin:
             why = f"{name} is a builtin function"
@@ -613,10 +599,54 @@ class Expressions(LinearAlgebra):
                 )
         values = [arg.op.value if isinstance(arg.op, ops.Const) else None for arg in args]
         coordinates = self.session.coordinates or ()
+        names = {c.name for c in coordinates}
         # Later, a bare name means this; but a coordinate, as r in r(t), stays a coordinate.
         if values and all(value in coordinates for value in values) and name not in names:
             self.session.functions[name] = tuple(values)
         return self._call("core.function", args, SCALAR, node.span, (("name", name),))
+
+    def _depends(self, node: ast.Call, binding: object) -> bool:
+        """Whether ``a(t)`` names a value the program gave ``a`` that depends on what is in
+        its brackets, or on coordinates, as ``\\alpha(r)`` does once ``\\alpha`` is
+        defined: then it is that value."""
+        names = {c.name for c in self.session.coordinates or ()}
+        return isinstance(binding, VariableBinding) and all(
+            isinstance(a, ast.Name) and (a.id in names or _mentions_symbol(binding.node, a.id))
+            for a in node.args
+        )
+
+    def _multiplies(
+        self, node: ast.Call, binding: object, scope: Scope, ctx: Context
+    ) -> Literal["product", "letters"] | None:
+        """Whether a name with brackets after it, which names no function the program
+        defines, multiplies them: ``"product"`` where the name multiplies the brackets, as
+        \\pi does in ``\\pi(x + 1)`` and x in ``x(x + 1)`` (decision 28); ``"letters"``
+        where, in LaTeX, it is a run of letters that names nothing, of which only the last
+        is called, as ``Gm(r)`` is G m(r); ``None`` where it is a call. Each reading is
+        recorded with why."""
+        func = node.func
+        assert isinstance(func, ast.Name)
+        name = func.id
+        names = {c.name for c in self.session.coordinates or ()}
+        one_name = len(node.args) == 1 and isinstance(node.args[0], ast.Name)
+        product = (name in names and not one_name) or self._a_product(func, node.args, binding, ctx)
+        if product:
+            why = product if isinstance(product, str) else f"{name} is a coordinate"
+            self._decide(CALL, node.span, "a product", why)
+            return "product"
+        if binding is not None or not (ctx.latex and _splittable(func)):
+            return None
+        if _names_builtin(func, latex=ctx.latex) or self._book_call(node, scope) is not None:
+            return None
+        if _in_brackets(func):  # (xy)(x + 1): the letters in brackets are one factor
+            why = "in LaTeX a run of letters that names nothing is a product, here in brackets"
+            self._decide(CALL, node.span, "a product", why)
+            return "product"
+        labels = split_index_labels(name)
+        read = f"{' '.join(labels[:-1])} times {labels[-1]} called"
+        why = "in LaTeX only the last letter of a run that names nothing is called"
+        self._decide("letters", node.span, read, why)
+        return "letters"
 
     def _metric_trace(self, argument: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """``trace(R_{\\mu\\nu})``: the two indices of a tensor on spacetime contracted with
@@ -1615,3 +1645,20 @@ def _with_variable(node: ast.Evaluation, variable: str) -> str:
     """The scripts of an evaluation, written with a variable, as ``_{x=0}^{x=1}``."""
     lower = f"_{{{variable}={node.lower.span.text}}}"
     return lower if node.upper is None else f"{lower}^{{{variable}={node.upper.span.text}}}"
+
+
+def _group(node: ast.Call) -> ast.Expr:
+    """What the brackets of a call hold, as one operand: its argument, or the pair of its
+    arguments."""
+    return node.args[0] if len(node.args) == 1 else ast.Tuple(node.args, span=node.span)
+
+
+def _letters_called(node: ast.Call) -> list[ast.Expr]:
+    """The factors of a call of a run of letters that names nothing, in LaTeX: each letter
+    but the last, then the last called, as G and m(r) are of ``Gm(r)``."""
+    func = node.func
+    assert isinstance(func, ast.Name)
+    labels = split_index_labels(func.id)
+    leading = [_letter(label, func.span, first=n == 0) for n, label in enumerate(labels[:-1])]
+    last = _letter(labels[-1], func.span, first=False)
+    return [*leading, replace(node, func=last)]

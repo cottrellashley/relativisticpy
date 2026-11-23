@@ -79,6 +79,13 @@ class TestLatexReading:
         assert wb.expr(r"\Bigl(ab\Bigr)^{n} + \alpha") == (a * b) ** Symbol("n") + Symbol("alpha")
         assert wb.expr(r"xy^2 + \alpha") == x * y**2 + Symbol("alpha")  # without brackets
 
+    def test_letters_in_brackets_multiply_the_brackets_after_them(self, wb):
+        # (xy)(x + 1) was x y(x + 1), the last letter called
+        x, y = Symbol("x"), Symbol("y")
+        assert wb.expr(r"(xy)(x + 1) + \alpha") == x * y * (x + 1) + Symbol("alpha")
+        wb.exe("f(x) := x^2")
+        assert wb.expr(r"(f)(3) + \alpha") == 9 + Symbol("alpha")  # a function stays one
+
     def test_only_the_last_letter_is_called(self, wb):
         assert wb.expr(r"2Gm(r) + \alpha") == 2 * Symbol("G") * Function("m")(r) + Symbol("alpha")
 
