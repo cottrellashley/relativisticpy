@@ -11,6 +11,7 @@ import sympy
 
 from relativisticpy import Workbook
 from relativisticpy.errors import CompileError, EvaluationError
+from relativisticpy.language import Source
 
 a, d, n, x, alpha, beta = sympy.symbols("a d n x alpha beta")
 
@@ -197,3 +198,38 @@ class TestSumsOfNames:
     def test_a_sum_over_names_not_all_defined_is_kept(self, wb):
         wb.exe(r"\lambda_1 := 2")
         assert wb.expr(r"\sum_{a=1}^{2} \lambda_a") == 2 + sympy.Symbol("lambda_2")
+
+
+class TestALabelInTheNameOfAFunction:
+    """Finding 11 of the review of the reading stack: ``y_n(x) := P_n(x)`` defined no
+    family, as its label is written only in the name of the function it calls, and
+    ``y_2(x)`` was then the spherical Bessel function of the second kind. The label of a
+    family may be the subscript of a function its value calls; and a name the program
+    defines with a label owns its letter with any subscript."""
+
+    def test_the_subscript_of_a_function_called_makes_a_family(self, wb):
+        steps = list(wb.each(r"y_n(x) := P_n(x)"))
+        assert steps[0].notes == ["y_n(x) is a family in n: y_1(x) is y_n(x) at n = 1"]
+        assert wb.expr("y_2(x)") == sympy.Rational(3, 2) * x**2 - sympy.Rational(1, 2)
+        assert wb.expr("y_0(x)") == 1
+        assert wb.expr("y_m(x)") == sympy.legendre(sympy.Symbol("m"), x)
+
+    def test_a_family_of_wavefunctions_written_with_hermites_polynomials(self, wb):
+        wb.exe(r"\psi_n(x) := H_n(x) e^{-x^2/2}")
+        expected = (4 * x**2 - 2) * sympy.exp(-(x**2) / 2)
+        assert sympy.simplify(wb.expr(r"\psi_2(x)") - expected) == 0
+
+    def test_a_letter_before_the_function_is_a_factor_and_may_be_the_label(self, wb):
+        wb.exe(Source(r"c_n := nf(x)", latex=True))  # in LaTeX, n times f(x)
+        assert wb.expr("c_3") == 3 * sympy.Function("f")(x)
+
+    def test_the_letter_of_the_function_itself_is_no_label(self, wb):
+        wb.exe(Source(r"c_f := 2f(x)", latex=True))  # f is the function, not a label
+        assert wb.expr("c_f") == 2 * sympy.Function("f")(x)
+        assert wb.expr("c_1") == sympy.Symbol("c_1")
+
+    def test_a_name_defined_with_a_label_owns_its_letter(self, wb):
+        wb.exe("y_n(x) := x^2")  # no family: n is not in its value
+        value = wb.expr("y_2(x)")  # an unknown function, not the spherical Bessel function
+        assert value == sympy.Function("y_2")(x)
+        assert wb.expr("y_n(3)") == 9

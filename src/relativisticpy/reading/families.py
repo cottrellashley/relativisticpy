@@ -149,6 +149,17 @@ def _subscript_written(subscript: str, span: Span) -> ast.Expr | None:
     return None
 
 
+def _called_with_label(func: ast.Name, label: str, latex: bool) -> bool:
+    """Whether the name a call calls is written with a family's label: as its subscript,
+    as n is in ``P_n(x)``, or, in LaTeX, as a letter before the function's own, as n is in
+    ``nf(x)``, n times f(x). The function's own letter is no label."""
+    if func.id.partition("_")[2] == label:
+        return True
+    known = func.id in BUILTINS or func.id in CONSTANTS
+    letters = split_index_labels(func.id) if latex and _splittable(func) and not known else []
+    return label in letters[:-1]
+
+
 def _is_name(node: ast.Node, name: str) -> bool:
     return isinstance(node, ast.Name) and node.id == name
 
@@ -190,8 +201,9 @@ class Families(Labels):
 
     def _written_with_label(self, value: ast.Expr, label: str, scope: Scope, latex: bool) -> bool:
         """Whether a value is written with a family's label: as a name, as n is in 1/n^2, or
-        as the subscript of a name, as a is in \\sigma_a and i in t_i; never as an index of
-        a tensor, as a is in A_{ab} w^b."""
+        as the subscript of a name, as a is in \\sigma_a and i in t_i, and of the name of a
+        function it calls, as n is in ``P_n(x)``; never as an index of a tensor, as a is in
+        A_{ab} w^b."""
         pending: list[object] = [value]
         while pending:
             node = pending.pop()
@@ -208,6 +220,11 @@ class Families(Labels):
                 pending.append(node.base)
             elif isinstance(node, ast.Call):
                 pending.extend(node.args)
+                func = node.func
+                if not isinstance(func, ast.Name):
+                    pending.append(func)  # P_{n}(x)
+                elif _called_with_label(func, label, latex):
+                    return True
             elif isinstance(node, ast.Node):
                 pending.extend(vars(node).values())
         return False

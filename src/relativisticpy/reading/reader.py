@@ -1988,7 +1988,8 @@ class Reader(Typer):
     def _own_book_name(self, shape: forms.Shape, node: ast.Expr, scope: Scope) -> bool:
         """Whether the program gives a book name a meaning of its own: a value or a
         function, a function of the coordinates it wrote before, or a declared symbol,
-        under the name or the name with its subscript, as ``J_0``."""
+        under the name or the name with its subscript, as ``J_0``; or under the name with a
+        label as its subscript, as ``y_n``, which owns the name with any subscript."""
         names = {shape.head}
         func = node.func if isinstance(node, ast.Call) else None
         if isinstance(func, ast.Name):
@@ -1996,12 +1997,27 @@ class Reader(Typer):
         elif isinstance(func, ast.Scripted) and _subscripted_symbol(func):  # \lambda_{\max}
             names.add(_subscripted_name(func))
         session = self.session
-        return any(
+        if any(
             scope.lookup(name) is not None
             or name in session.functions
             or name in session.assumptions
             for name in names
-        )
+        ):
+            return True
+        return bool(shape.below) and self._defined_with_a_label(shape.head, scope)
+
+    def _defined_with_a_label(self, head: str, scope: Scope) -> bool:
+        """Whether the program defines a name of ``head`` with a label as its subscript, as
+        ``y_n(x) := ...`` does: the head with any subscript is then the program's, and
+        ``y_2(x)`` no spherical Bessel function."""
+        level: Scope | None = scope
+        while level is not None:
+            for name, _ in level.bindings():
+                base, _, label = name.partition("_")
+                if base == head and ((len(label) == 1 and label.isalpha()) or label in GREEK):
+                    return True
+            level = level.parent
+        return False
 
     def _a_sum_index(self, name: str, scope: Scope) -> bool:
         """Whether a name is bound as the index of a sum or a product being read, which the
