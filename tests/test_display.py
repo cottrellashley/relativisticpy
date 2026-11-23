@@ -142,6 +142,14 @@ def test_floats_are_shown_as_written():  # CLI-29
     assert display.text(fresh("1e-05")) == "1.0e-5"  # a float, not 1/100000
 
 
+def test_a_float_of_few_digits_shows_only_those():
+    # π to three digits is 3.14: as a double, its binary digits show as 3.1416015625
+    pi, root = sympy.N(sympy.pi, 3), sympy.N(sympy.sqrt(2), 3)
+    assert [display.text(pi), display.unicode(root), display.latex(pi)] == ["3.14", "1.41", "3.14"]
+    assert display.text(sympy.N(sympy.pi, 2) * 10**30) == "3.1e+30"
+    assert display.data(pi)["value"] == 3.14
+
+
 @pytest.mark.parametrize("source", ["10000!", "2^{20000}"])
 def test_an_integer_too_long_to_read_is_shortened(source):  # ERR-01
     value = fresh(source)

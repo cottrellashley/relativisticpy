@@ -263,12 +263,14 @@ def _long_integer(n: int) -> tuple[str, str, int] | None:
 
 def _float_text(value: Any) -> str:
     """A floating-point number as the shortest text that reads back as it: ``0.3``,
-    ``6.02214076e+23``. A SymPy float of more than double precision keeps its digits."""
+    ``6.02214076e+23``. A SymPy float of more than double precision keeps its digits, and
+    one of fewer has only its own: π to three digits is 3.14, not the 3.1416015625 its
+    binary digits would show as a double."""
     number = sympy.Float(value)
-    if number._prec <= 53:  # a double: Python finds the shortest form that reads back
-        written = repr(float(number))
-    else:
-        written = sympy.StrPrinter({"full_prec": True}).doprint(number)
+    if number._prec == 53:  # a double: Python finds the shortest form that reads back
+        return repr(float(number))
+    # fewer digits than a double, as many as it has; more, every one
+    written: str = sympy.StrPrinter({"full_prec": number._prec > 53}).doprint(number)
     return written
 
 
@@ -2280,7 +2282,7 @@ def _number_data(value: Any) -> dict[str, Any]:
         if count <= LONG_INTEGER:
             described["value"] = int(value)
     elif value.is_Float and math.isfinite(float(value)):
-        described["value"] = float(value)
+        described["value"] = float(_float_text(value))  # π to three digits is 3.14
     elif value.is_Rational:
         described["value"] = float(value)
         described["exact"] = text(value)
