@@ -536,7 +536,11 @@ class Lexer:
             if word not in vocab.SCRIPTED_WORDS or not one_token or "\\" in self.text[start:end]:
                 return None  # max_iter, log_file: a name, as a program writes one
             return word if self._applies(end, power=True, operand=True) else None
-        if name in vocab.FUNCTION_WORDS or name in vocab.SIGN_WORDS:
+        if name == "mod":  # 12 mod 5 is 12 \bmod 5; mod(12, 5) is a call, and mod a name
+            previous = self.tokens[-1] if self.tokens else None
+            after_operand = previous is not None and previous.kind in _OPERAND_ENDS
+            applies = after_operand and self._applies(end, operand=True, bracket=False)
+        elif name in vocab.FUNCTION_WORDS or name in vocab.SIGN_WORDS:
             applies = self._applies(
                 end, power=True, subscript=name in vocab.SCRIPTED_WORDS, operand=True
             )

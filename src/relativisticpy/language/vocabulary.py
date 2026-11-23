@@ -93,8 +93,9 @@ LIMITS_WORDS: frozenset[str] = frozenset({"int", "iint", "iiint", "oint", "sum",
 UNSCRIPTED_WORDS: frozenset[str] = frozenset({"int", "iint", "iiint", "oint"})
 
 #: Words that write a sign of LaTeX's, mapped to its command: AsciiMath's ``del``, which is
-#: ∂, so that ``(del f)/(del x)`` is ``\frac{\partial f}{\partial x}``.
-SIGN_WORDS: Mapping[str, str] = MappingProxyType({"del": "partial"})
+#: ∂, so that ``(del f)/(del x)`` is ``\frac{\partial f}{\partial x}``, and ``mod`` between
+#: two operands, the remainder, as ``12 mod 5`` is ``12 \bmod 5``.
+SIGN_WORDS: Mapping[str, str] = MappingProxyType({"del": "partial", "mod": "bmod"})
 
 #: The words a subscript belongs to, as its base, its variable or its limits: ``log_2``,
 #: ``min_x``, ``argmax_x``, ``sup_x``, ``int_0``, ``del_x``. The bounds and the places of

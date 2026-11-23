@@ -213,6 +213,8 @@ class TestWords:
             ("min_x x^2", r"\min _ x x ^ 2"),
             ("sup_x f", r"\sup _ x f"),
             ("argmax_x f", "argmax _ x f"),
+            ("(del f)/(del x)", r"( \partial f ) / ( \partial x )"),  # AsciiMath's ∂
+            ("12 mod 5", r"12 \bmod 5"),  # was refused: mod() takes 2 arguments, not 1
         ],
     )
     def test_a_word_that_applies_is_the_command(self, text, expected):
@@ -240,6 +242,7 @@ class TestWords:
             ("max_output is 1000", "max_output is 1000"),
             ("sum_n + 1", "sum_n + 1"),
             ("sum(a, b)", "sum ( a , b )"),
+            ("mod(12, 5) + mod", "mod ( 12 , 5 ) + mod"),
             ("sinx + sin_theta x", "sinx + sin_theta x"),
             ("sin'(x)", "sin ' ( x )"),
             ("x = 5 min", "x = 5 min"),

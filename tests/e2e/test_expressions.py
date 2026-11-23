@@ -59,6 +59,7 @@ def test_functions_and_operators_written_in_letters_are_latexs(wb):
     assert wb.expr("log_2 8") == 3
     assert wb.expr("e^ln(2)") == 2  # was e^l n(2)
     assert wb.expr("2^log_2(8)") == 8
+    assert wb.expr("12 mod 5") == wb.expr("mod(12, 5)") == 2
     assert wb.expr("min_x x^2 - 4x + 7") == 3
     assert wb.expr("int_0^1 x^2 dx") == Rational(1, 3)
     assert wb.expr("int_0^oo exp(-x) dx") == 1
