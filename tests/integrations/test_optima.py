@@ -471,6 +471,39 @@ class TestTheKind:
         (failure,) = integrations.check(Hasty, ["optimality"])["optimality"]
         assert "is not stationary" in failure
 
+    def test_one_that_reports_a_stationary_point_of_the_wrong_kind_is_told(self):
+        # the centre of the disk keeps the first-order conditions of the greatest x² + y²,
+        # and is where it is least; SciPy finds 1, on the circle
+        disk = Problem("max", x**2 + y**2, (x, y), inequalities=(1 - x**2 - y**2,))
+
+        @optimizer(
+            "first_order",
+            summary="an optimizer that stops at the first-order conditions",
+            problems=[disk],
+            examples=[
+                Example(r"\min_{x} x^2", 0, "standard"),
+                Example(r"\min_{x} x^4", 0, "standard"),
+            ],
+        )
+        class FirstOrder:
+            def takes(self, problem):
+                return True
+
+            def optimum(self, problem):
+                centre = (sympy.Integer(0), sympy.Integer(0))
+                return Found(sympy.Integer(0), centre, "from the gradient alone", False)
+
+        failures = integrations.check(FirstOrder, ["feasibility", "optimality", "agreement"])
+        assert failures["feasibility"] == []
+        (curved,) = failures["optimality"]
+        assert "keeps the first-order conditions but is no maximum" in curved
+        (better,) = failures["agreement"]
+        assert better.startswith(
+            "first_order gives 0 at the greatest x² + y² over x, y with 1 − x² − y² ≥ 0, and "
+            "minimize finds better, 1.0"
+        )
+        assert better.endswith("which keeps the constraints: fix first_order")
+
     def test_a_class_without_its_methods_is_told_what_to_declare(self):
         with pytest.raises(TypeError, match="has no takes method"):
 

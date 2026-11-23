@@ -1085,8 +1085,9 @@ def optimality(capability: Capability) -> list[str]:
     """At each problem an optimizer is checked at, the conditions of optimality hold at
     the point it reports: of a smooth problem, the KKT conditions, the gradient of the
     objective a combination of the gradients of the constraints that hold with equality
-    there, with multipliers of the right signs; of one over finitely many points, no
-    feasible point is better."""
+    there, with multipliers of the right signs, and the second-order condition, that the
+    objective curves the right way along the directions that keep them; of one over
+    finitely many points, no feasible point is better."""
     assert isinstance(capability, Optimizer)
     failures: list[str] = []
     for problem in capability.problems:
@@ -1125,7 +1126,9 @@ def _no_better(name: str, problem: Problem, point: list[Any], found: Found) -> l
 def _kkt(name: str, problem: Problem, point: list[Any], found: Found) -> list[str]:
     """The KKT conditions of a smooth problem at a point: ∇f = Σ λ ∇h + Σ μ ∇g, with
     μ ≥ 0 for each g ≥ 0 that holds with equality, to make f least; of the greatest, the
-    same of -f."""
+    same of -f. And the second-order condition, which tells a minimum from a saddle or a
+    maximum that keeps them too: along no direction that keeps those constraints does the
+    Lagrangian curve downward."""
     import numpy as np
 
     sign = 1 if problem.sense == "min" else -1
@@ -1165,13 +1168,62 @@ def _kkt(name: str, problem: Problem, point: list[Any], found: Found) -> list[st
             "first-order conditions with a multiplier of the wrong sign, so that moving into "
             "the feasible region improves the objective: fix optimum"
         ]
+    constraints = [*problem.equalities, *active]
+    lagrangian = sign * sympy.sympify(problem.objective) - sum(
+        (float(m) * sympy.sympify(c) for m, c in zip(multipliers, constraints, strict=True)),
+        sympy.Integer(0),
+    )
+    curvature = _curvature(lagrangian, problem.variables, at, columns)
+    if curvature is not None and curvature[0] < -max(tolerance, 1e-7) * curvature[1]:
+        kind = "minimum" if problem.sense == "min" else "maximum"
+        return [
+            f"{name}: at {problem}, the point it reports, {_shown(found.point)}, keeps the "
+            f"first-order conditions but is no {kind}: along a direction that keeps the "
+            "constraints that hold there with equality, the objective curves the other way: "
+            "fix optimum"
+        ]
     return []
+
+
+def _curvature(
+    lagrangian: Any, variables: Sequence[Symbol], at: dict[Symbol, Any], gradients: Sequence[Any]
+) -> tuple[float, float] | None:
+    """The least curvature of a Lagrangian at a point along the directions in which every
+    constraint that holds there with equality, of the ``gradients`` given, stays so, with
+    the size of its Hessian: the least eigenvalue of the Hessian on those directions, which
+    is not negative at a minimum. ``None`` where no direction is left, as at a vertex, or
+    the Hessian is no matrix of numbers."""
+    import numpy as np
+
+    try:
+        hessian = np.array(
+            [
+                [complex(sympy.N(sympy.diff(lagrangian, u, v).xreplace(at), 30)).real
+                 for v in variables]
+                for u in variables
+            ]
+        )  # fmt: skip
+    except (TypeError, ValueError):
+        return None
+    if not np.all(np.isfinite(hessian)):
+        return None
+    if gradients:
+        held = np.vstack(gradients)
+        _, sizes, rows = np.linalg.svd(held)
+        rank = int(np.sum(sizes > 1e-9 * max(1.0, float(sizes.max(initial=0.0)))))
+        along = rows[rank:].T  # the directions every gradient is at right angles to
+        if along.shape[1] == 0:
+            return None
+        hessian = along.T @ hessian @ along
+    least = float(np.linalg.eigvalsh((hessian + hessian.T) / 2).min())
+    return least, max(1.0, float(np.max(np.abs(hessian))))
 
 
 def agreement(capability: Capability) -> list[str]:
     """At each problem an optimizer is checked at, the optimizers of the other kind, exact
     or numeric, that take it find the same optimum: the same value, where both prove it
-    global, and never a better one than an optimum proven global."""
+    global; never a better one than an optimum proven global; and never one strictly better
+    than its own, at a point that keeps the constraints, proven or not."""
     assert isinstance(capability, Optimizer)
     failures: list[str] = []
     others = [c for c in optimizers() if c.numerical is not capability.numerical]
@@ -1195,25 +1247,41 @@ def agreement(capability: Capability) -> list[str]:
 def _compared(
     one: Optimizer, found: Found, other: Optimizer, theirs: Found, problem: Problem
 ) -> list[str]:
+    """What is wrong where two optimizers find different optima of a problem: the other's is
+    strictly better than this one's and is the objective at a point that keeps the
+    constraints, so that this one's is no optimum, whatever it claims; or one is proven
+    global, and the other is better, or proven too."""
     a, b = sympy.sympify(found.value), sympy.sympify(theirs.value)
-    if a.is_infinite or b.is_infinite:
-        same = a == b
-        better = 0.0
-    else:
-        x, y = float(sympy.N(a)), float(sympy.N(b))
-        same = abs(x - y) <= AGREEMENT * max(1.0, abs(x), abs(y))
-        better = (y - x) if problem.sense == "max" else (x - y)  # > 0 where theirs is better
-    if same:
+    x, y = float(sympy.N(a)), float(sympy.N(b))  # an infinite one as inf
+    if x == y or abs(x - y) <= AGREEMENT * max(1.0, abs(x), abs(y)):
         return []
-    if (found.proven and theirs.proven) or (found.proven and better > 0):
+    theirs_better = (y > x) if problem.sense == "max" else (y < x)
+    if theirs_better and _at_a_point_that_keeps(theirs, problem):
+        return [
+            f"{one.name} gives {_shown(found.value)} at {problem}, and {other.name} finds "
+            f"better, {_shown(theirs.value)}, at {_shown(theirs.point)}, which keeps the "
+            f"constraints: fix {one.name}"
+        ]
+    if (found.proven and theirs.proven) or (found.proven and theirs_better):
         return [
             f"{one.name} and {other.name} disagree at {problem}: {one.name} gives "
             f"{_shown(found.value)}, {other.name} {_shown(theirs.value)}: fix the one that is "
             "wrong"
         ]
-    if theirs.proven and better < 0:
+    if theirs.proven and not theirs_better:
         return [
             f"{one.name} finds {_shown(found.value)} at {problem}, better than the optimum "
             f"{other.name} proves global, {_shown(theirs.value)}: fix the one that is wrong"
         ]
     return []
+
+
+def _at_a_point_that_keeps(found: Found, problem: Problem) -> bool:
+    """Whether what an optimizer found is the objective at a point it gives, which keeps
+    the constraints of the problem."""
+    if found.point is None or not found.attained:
+        return False
+    tolerance = TOLERANCE if found.numeric else 1e-10
+    if problem.violations(found.point, tolerance):
+        return False
+    return _near(problem.at(found.point), found.value, AGREEMENT if found.numeric else 1e-10)
