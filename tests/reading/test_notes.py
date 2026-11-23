@@ -160,6 +160,15 @@ class TestSilentReadingsAreSaid:
         wb.exe("I := 2")
         assert notes(wb, "3 + 4*I") == []  # I has a value
 
+    def test_a_defined_letter_run_into_digits_is_one_name_and_says_so(self, wb):
+        # (3 + j4)^2 after j := \sqrt{-1} was (j4 + 3)^2, silently, where engineers mean 4j
+        wb.exe(r"j := \sqrt{-1}")
+        assert notes(wb, r"(3 + j4)^2 + \alpha") == [
+            "j4 is one name, as nothing defines it, though j has a value; for j times 4, write 4j"
+        ]
+        assert sympy.expand(wb.expr(r"(3 + 4j)^2 + 0 \alpha")) == -7 + 24 * sympy.I
+        assert notes(wb, "x2 + 1") == []  # x has no value
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

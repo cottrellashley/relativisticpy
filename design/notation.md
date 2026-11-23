@@ -271,6 +271,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** j is a name. A program that uses j for √−1 says so once, as engineering books do in their conventions: `j := \sqrt{-1}`. Where a result holds an undefined j in an exponent beside i-free mathematics, a note suggests the declaration.
 
+*(23 November 2026)* Engineers write the imaginary part after j, as `3 + j4`, where `j4` is one name, as names with digits are: after `j := \sqrt{-1}`, `(3 + j4)^2` was (j4 + 3)², silently. A name nothing defines, made of a name the program defines and digits after it, stays one name, and a note says how to write the product, `4j`.
+
 ## 25. ∇² and ∇ of a function of a vector
 
 **Added** on 22 November 2026, from optimization and machine learning.

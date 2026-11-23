@@ -625,6 +625,7 @@ class Reader(Typer):
             return self._parameters_product(node, letters, scope, ctx)  # xy in g(x, y) := xy
         if not ctx.latex:  # 2ab, with a and b written alone, and sinx: one name, said so
             self._note_one_name(node, scope)
+        self._note_number_run_on(node, scope)  # j4, after j := \sqrt{-1}
         # A name made of what is written, as y_s of y_{s} or r^* of r^*, is shown so.
         made = node.verbatim and node.span.text != name and not node.span.text.startswith("\\")
         written_as = name if made else None
@@ -672,6 +673,19 @@ class Reader(Typer):
         if name == "Kretschmann":
             return "kretschmann"
         return None
+
+    def _note_number_run_on(self, node: ast.Name, scope: Scope) -> None:
+        """Say that a name nothing defines, made of a name the program defines and digits
+        after it, as ``j4`` after ``j := \\sqrt{-1}``, is one name, where engineers write j4
+        for 4j."""
+        match = _LETTERS_THEN_DIGITS.fullmatch(node.id)
+        if match is None or node.verbatim or scope.lookup(match["name"]) is None:
+            return
+        name, digits = match["name"], match["digits"]
+        self._note(
+            f"{node.id} is one name, as nothing defines it, though {name} has a value; for "
+            f"{name} times {digits}, write {digits}{name}"
+        )
 
     def _note_capital_i(self, operands: Sequence[ast.Expr], scope: Scope, *, sum_: bool) -> None:
         """In plain text, say that an I that nothing defines is a name of its own where it is
@@ -2561,6 +2575,10 @@ def _bound(
         elif slot is not None:
             return None
     return tuple(arguments), tuple(keywords)
+
+
+#: A name of letters with digits after them, as j4.
+_LETTERS_THEN_DIGITS = re.compile(r"(?P<name>[A-Za-z]+)(?P<digits>[0-9]+)")
 
 
 def _capital_i(node: ast.Expr) -> bool:
