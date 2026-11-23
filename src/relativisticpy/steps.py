@@ -387,7 +387,7 @@ def left_undone(value: Any) -> list[str]:
 
 def approximate(value: Any) -> bool:
     """Whether a value holds floating-point numbers, as a decimal written in it or a
-    numerical method gives: a complete answer, to the digits shown, but not exact.
+    numerical method gives: an approximation, which may be complete, but is not exact.
 
     >>> approximate(sympy.Float(0.5) * sympy.Symbol("x")), approximate(sympy.Rational(1, 2))
     (True, False)

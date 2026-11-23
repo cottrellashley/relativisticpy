@@ -182,7 +182,7 @@ carry it out; `reasons` then says why, each in a word or two:
 
 The statement's `notes` say the same in words. `approximate` is `true` for a value with a
 floating-point number in it, from a decimal written, as `0.1`, or a numerical method: an
-answer to the digits shown, not exactly.
+approximation, not exact.
 
 ```python
 >>> main(["-c", r"\int_0^1 \sin(\sin x) \, dx", "--format", "json"])
