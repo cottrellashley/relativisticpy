@@ -108,6 +108,7 @@ Each is a function that gives a metric, as in `g_{\mu\nu} := Schwarzschild(M)`. 
 
 A function is called by its name, `simplify(x)`, or, if LaTeX has it, as a command, `\sin x`, or as books write it, `\Gamma(x)`: a definition of the name in the program comes first. Most apply to each component of a tensor: `simplify(R_{abcd})` simplifies every component. Each is a capability of an integration, a module of `relativisticpy.integrations` ([Integrations](integrations.md)), listed here by family, with every name and the forms books write it in; `relativisticpy help NAME` describes one in full.
 
+- **Activation functions of neural networks:** `ReLU` `\operatorname{ReLU}(x)`, `softplus` `\operatorname{softplus}(x)`
 - **Algebra and calculus:** `simplify` `tsimplify`, `expand`, `factor`, `collect`, `cancel`, `apart`, `together`, `trigsimp`, `powsimp`, `expand_trig`, `nsimplify`, `diff`, `integrate`, `limit` `lim`, `series`, `subs`, `N` `numerical` `evalf`, `doit`
 - **Bessel and Airy functions:** `besselj` `J_{\nu}(x)`, `bessely` `Y_{\nu}(x)`, `besseli` `I_{\nu}(x)`, `besselk` `K_{\nu}(x)`, `jn` `j_n(x)`, `yn` `y_n(x)`, `airyai` `\operatorname{Ai}(x)`, `airybi` `\operatorname{Bi}(x)`
 - **The notation of chemistry:** `colog` `\mathrm{p}X` `\mathrm{p}(X)`

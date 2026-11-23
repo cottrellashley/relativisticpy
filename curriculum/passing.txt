@@ -291,6 +291,7 @@ la.orthogonality.least-squares
 la.orthogonality.qr
 la.orthogonality.svd
 ml.classification.margin
+ml.functions.relu
 ml.functions.sigmoid
 ml.kernels.feature-map
 ml.kernels.inner-product
