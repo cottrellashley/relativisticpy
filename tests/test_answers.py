@@ -189,3 +189,58 @@ class TestFormsAreShownAsGiven:
     def test_what_asks_for_no_form_is_tidied(self, wb):
         assert wb.expr("(x^2 - 1)/(x - 1)") == x + 1
         assert wb.expr("2 factor(x^2 - 1)") == 2 * x**2 - 2  # a product, not factor's value
+
+
+class TestNoAnswerIsShown:
+    """The last check before a value is shown: one that would read as an answer and is none
+    is refused where it is written. SymPy's nan is no number, and a statistic that still
+    holds a random variable it is taken over has no value (the review of the reading, 2)."""
+
+    @pytest.mark.parametrize("source", [r"\infty - \infty", r"0 \cdot \infty"])
+    def test_nan(self, wb, source):
+        with pytest.raises(EvaluationError) as raised:
+            wb.exe(source)
+        assert raised.value.message == f"SymPy gives nan, which is no number, for {source}"
+        assert raised.value.notes == ["shown as it is, nan would read as an answer"]
+
+    def test_nan_among_the_items_of_a_list(self, wb):
+        with pytest.raises(EvaluationError, match="SymPy gives nan"):
+            wb.exe(r"[1, \infty - \infty]")
+
+    def test_a_number_missing_from_data_is_shown(self, wb):
+        import numpy as np
+
+        wb["x^t"] = np.array([1.0, np.nan])
+        assert np.isnan(wb.expr("2 x^t").to_numpy()[1])
+
+    def test_a_random_variable_an_expectation_is_taken_over(self, wb, monkeypatch):
+        # however it came to be left there: SymPy left X in E[X | X + Y = 3]
+        import dataclasses
+
+        from relativisticpy.runtime import registry
+
+        computed = registry.lookup("prob.expectation")
+        leaking = dataclasses.replace(computed, func=lambda value, *given: value.symbol + 1)
+        monkeypatch.setitem(registry._ENTRIES, "prob.expectation", leaking)
+        wb.exe(r"X \sim \operatorname{Poisson}(2)" "\n" r"Y \sim \operatorname{Poisson}(3)")
+        with pytest.raises(EvaluationError) as raised:
+            wb.exe(r"\mathbb{E}[X \mid X + Y = 3]")
+        assert raised.value.message == (
+            r"\mathbb{E}[X \mid X + Y = 3] still holds X, which it is taken over, so it is no "
+            "answer"
+        )
+
+    def test_an_expectation_given_a_sum_never_shows_its_variable(self, wb):
+        # E[X | X + Y = 3] of two Poisson variables kept a free X: it is 6/5, or refused
+        wb.exe(r"X \sim \operatorname{Poisson}(2)" "\n" r"Y \sim \operatorname{Poisson}(3)")
+        *_, step = wb.each(r"\mathbb{E}[X \mid X + Y = 3]")
+        if step.error is None:
+            assert step.values == [sympy.Rational(6, 5)]
+        else:
+            assert "still holds X, which it is taken over" in step.error.message
+
+    def test_a_random_variable_a_statistic_is_given_stays(self, wb):
+        wb.exe(r"X \sim \mathcal{N}(0, 1)" "\n" r"Y \sim \mathcal{N}(0, 1)")
+        assert str(wb.expr(r"\mathbb{E}[X + Y \mid Y]")) == "Y"  # a function of Y
+        assert str(wb.expr(r"\mathbb{E}[Z]")) == "Expectation(Z)"  # of a law not given
+        assert str(wb.expr("X + 1")) == "X + 1"  # a random variable is no statistic

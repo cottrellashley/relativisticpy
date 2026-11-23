@@ -882,6 +882,8 @@ class Workbook:
             raise EvaluationError("this is not defined for these values", span=output.span)
         if (undecided := _undecided(output, value)) is not None:
             raise undecided
+        if (none := _no_answer(output, value, self._executor.evaluate)) is not None:
+            raise none
         kind = output.node.type
         coordinates: Sequence[Symbol] = self._session.coordinates or ()
         as_computed = _gives_form(output.node.op)  # factor(x^2 - 1) is shown factorised
@@ -1248,6 +1250,57 @@ def _undecided(output: Output, value: Any) -> UndecidedError | None:
         span=output.span,
         notes=["shown as it is, an undecided claim would read as an answer"],
         hint="to see what is left, write the difference of its sides alone, as an expression",
+    )
+
+
+#: The statistics, by the operation that computes each, with how many of its arguments it
+#: is of, before what it is given.
+_STATISTICS = {"prob.probability": 1, "prob.expectation": 1, "prob.variance": 1}
+_STATISTICS["prob.covariance"] = 2
+
+
+def _no_answer(
+    output: Output, value: Any, evaluate: Callable[[Node], Any]
+) -> EvaluationError | None:
+    """The error for a value that would read as an answer, and is none: one that holds
+    SymPy's nan, which is no number, as ∞ - ∞ is none; or a probability, an expectation,
+    a variance or a covariance that still holds a random variable it is taken over, as one
+    given an event that does not decide it. A number missing from data, nan, is shown."""
+    from sympy.stats import Covariance, Expectation, Probability, Variance
+    from sympy.stats.rv import random_symbols
+
+    written = " ".join(output.span.text.split())
+    values = value if isinstance(value, list | tuple) else [value]
+    if any(isinstance(each, sympy.Basic) and each.has(sympy.nan) for each in values):
+        return EvaluationError(
+            f"SymPy gives nan, which is no number, for {written}",
+            span=output.span,
+            notes=["shown as it is, nan would read as an answer"],
+            hint="SymPy gives nan for what has no value, as ∞ - ∞ and 0/0, and where a method "
+            "of its own fails, as for some sums: write it another way, or in parts",
+        )
+    op = output.node.op
+    if not (isinstance(op, ops.Call) and op.name in _STATISTICS and isinstance(value, sympy.Expr)):
+        return None
+    over: set[Any] = set()  # the random variables of what it is of, and of the events given
+    given: set[Any] = set()  # those it is given, as E[X + Y | Y], a function of Y, is given Y
+    for position, node in enumerate(output.node.args):
+        if not isinstance(argument := evaluate(node), sympy.Basic):
+            continue
+        event = isinstance(argument, Relational | sympy.logic.boolalg.BooleanFunction)
+        of = position < _STATISTICS[op.name] or event
+        (over if of else given).update(random_symbols(argument))
+    taken = {name for variable in over - given for name in (variable, variable.symbol)}
+    kept = value.atoms(Expectation, Probability, Variance, Covariance)  # of a law not given
+    left = value.xreplace({each: sympy.Dummy() for each in kept})
+    free = sorted(str(name) for name in {*left.free_symbols, *random_symbols(left)} & taken)
+    if not free:
+        return None
+    return EvaluationError(
+        f"{written} still holds {', '.join(free)}, which it is taken over, so it is no answer",
+        span=output.span,
+        notes=["shown as it is, it would read as an answer"],
+        hint="write it in parts, each of events that decide the random variables they hold",
     )
 
 
