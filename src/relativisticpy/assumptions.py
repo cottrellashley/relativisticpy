@@ -402,7 +402,7 @@ def integrated(f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any
         )
         return sympy.Integral(f, *limits)
     if isinstance(found, sympy.Basic) and not found.has(sympy.Integral):
-        crosscheck.integral(found, f, limits)
+        crosscheck.integral(found, f, limits, bounds)
     return found
 
 

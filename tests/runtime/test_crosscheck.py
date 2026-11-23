@@ -64,3 +64,13 @@ def test_an_antiderivative_that_differentiates_to_another_integrand_is_refused()
     a = sympy.Symbol("a")
     crosscheck.antiderivative(sympy.log(x) / a, 1 / (a * x), x)  # with a parameter
     crosscheck.antiderivative(sympy.log(sympy.Abs(x)), 1 / x, x)  # as books write it
+
+
+def test_an_antiderivative_is_checked_only_where_the_program_says_its_variable_lies():
+    # x - x²/2 is the antiderivative of |x - 1| where x < 1, as the program assumes
+    crosscheck.integral(x - x**2 / 2, sympy.Abs(x - 1), (x,), (x < 1,))
+    # each symbol is checked at numbers it may be: of its sign, and whole where it is
+    for facts, sign in (({"negative": True}, -1), ({"positive": True}, 1)):
+        point = crosscheck._assumed(sympy.Symbol("y", **facts), sympy.Rational(1, 2))
+        assert sympy.sign(point) == sign
+    assert crosscheck._assumed(sympy.Symbol("k", integer=True), sympy.Rational(1, 2)).is_integer

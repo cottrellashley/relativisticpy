@@ -35,13 +35,16 @@ _DISAGREE = 1e-8
 _MOST_POINTS = 60
 
 
-def integral(value: Any, f: Any, limits: Sequence[Any]) -> None:
+def integral(value: Any, f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> None:
     """Refuse SymPy's closed form ``value`` of the integral of ``f`` over ``limits`` where
     numerical integration confidently gives another number: a definite integral of numbers
     over one variable, its interval cut where the integrand jumps or bends. An indefinite
-    integral is differentiated back instead (see :func:`antiderivative`)."""
+    integral is differentiated back instead (see :func:`antiderivative`), unless the program
+    assumes bounds, under which alone its antiderivative may hold."""
     if len(limits) == 1 and _variable_alone(limits[0]):
-        antiderivative(value, f, limits[0] if not isinstance(limits[0], tuple) else limits[0][0])
+        if not bounds:
+            variable = limits[0][0] if isinstance(limits[0], tuple) else limits[0]
+            antiderivative(value, f, variable)
         return
     if len(limits) != 1 or not (isinstance(limits[0], tuple) and len(limits[0]) == 3):
         return
@@ -89,7 +92,8 @@ def series(value: Any, body: Any, index: Any, lower: Any, upper: Any) -> None:
 def antiderivative(value: Any, f: Any, variable: Any) -> None:
     """Refuse SymPy's antiderivative ``value`` of ``f`` where, differentiated back, it is
     confidently not ``f``: at three points of the variable and of the parameters, each a
-    number, it differs from ``f`` by far more than rounding."""
+    number of the sign it is assumed to have, it differs from ``f`` by far more than
+    rounding."""
     if not isinstance(value, sympy.Expr) or value.has(sympy.Integral, sympy.Piecewise):
         return
     if not isinstance(variable, sympy.Symbol) or not isinstance(f, sympy.Expr):
@@ -102,7 +106,7 @@ def antiderivative(value: Any, f: Any, variable: Any) -> None:
     if difference.atoms(sympy.core.function.AppliedUndef):
         return
     for _ in range(3):
-        point = {s: sympy.Rational(rng.randrange(300, 1700), 1000) for s in symbols}
+        point = {s: _assumed(s, sympy.Rational(rng.randrange(300, 1700), 1000)) for s in symbols}
         try:
             off = complex(sympy.N(difference.xreplace(point), _DIGITS))
             scale = complex(sympy.N(f.xreplace(point), _DIGITS))
@@ -115,6 +119,13 @@ def antiderivative(value: Any, f: Any, variable: Any) -> None:
         f"{display.unicode(f)}",
         hint="this is a failure inside SymPy; write the integral another way",
     )
+
+
+def _assumed(symbol: Any, size: Any) -> Any:
+    """A number of ``size`` that a symbol may be, by the facts assumed of it: negative where
+    it is, and whole where it is an integer."""
+    number = sympy.ceiling(3 * size) if symbol.is_integer else size
+    return -number if symbol.is_negative or symbol.is_nonpositive else number
 
 
 def _variable_alone(limit: Any) -> bool:
