@@ -80,7 +80,7 @@ them, each with an answer computed without RelativisticPy
 ```bash
 uv run python benchmarks/curriculum.py --failures   # what fails, and why
 uv run python benchmarks/curriculum.py --update     # record what passes now
-uv run python benchmarks/notations.py               # one construct, written every way
+uv run python benchmarks/notations.py               # each construct, written every way
 ```
 
 A problem that passes is recorded in `curriculum/passing.txt`, and the tests keep it
