@@ -70,6 +70,7 @@ KINDS = (
     "assumption or claim",
     "notation or components",
     "product or call",
+    "derivative or quotient",
     "index or power",
     "label or index",
     "family or name",

@@ -63,6 +63,21 @@ def test_functions_and_operators_written_in_letters_are_latexs(wb):
     assert wb.expr("sum_{n=1}^oo 1/n^2") == pi**2 / 6
 
 
+def test_a_solidus_between_differentials_is_leibnizs_fraction(wb):
+    # d/dx sin(x) was d sin(x)/dx, d(x^3)/dx a function d at x^3, and df/dx a name over dx
+    assert wb.expr("d/dx sin(x)") == cos(x)
+    assert wb.expr("d/dx (x^3)") == 3 * x**2
+    assert wb.expr("d(x^3)/dx") == 3 * x**2
+    assert wb.expr("d^2/dx^2 (x^4)") == 12 * x**2
+    assert wb.expr("-d/dx (x^2)") == -2 * x
+    wb.exe("f(x) := x^3")
+    assert wb.expr("df/dx") == 3 * x**2
+    assert wb.expr("x df/dx") == 3 * x**3
+    wb.exe("g(x, y) := x^2 y")
+    assert wb.expr("∂g/∂x") == 2 * x * y
+    assert wb.expr("(del g)/(del x)") == 2 * x * y  # AsciiMath writes ∂ as del
+
+
 def test_oo_is_infinity_in_every_notation(wb):
     # \int_0^oo was the integral to o of o e^{-x}, and 2^oo was 2^o o
     assert wb.expr(r"\int_0^oo e^{-x} dx") == 1

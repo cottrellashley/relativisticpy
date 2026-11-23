@@ -405,17 +405,30 @@ class Root(Expr):
 
 
 @dataclass(frozen=True)
+class Written:
+    """What a node was written as, where that is a reading of its own: the quotient
+    ``dy/dx`` of a derivative written with a solidus, which is what it means where the
+    program defines one of ``names``, as dx. It is no node of the tree, so that no walk of
+    the tree meets the names written in it twice, and trees compare without it."""
+
+    expr: Expr
+    names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class Derivative(Expr):
     """A derivative in Leibniz notation: ``\\frac{d^2 f}{dx^2}``, ``\\pdv{f}{x}{y}``.
 
     ``variables`` pairs each variable with its order. When ``expr`` is ``None``
     the derivative is an operator, as in ``\\frac{d}{dx}``, which acts on the
-    factor that follows it.
+    factor that follows it. ``written`` is, for one written with a solidus, as ``dy/dx``
+    is in a line of text, the quotient as written.
     """
 
     expr: Expr | None
     variables: tuple[tuple[Expr, int], ...]
     partial: bool
+    written: Written | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass(frozen=True)

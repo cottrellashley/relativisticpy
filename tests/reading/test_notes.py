@@ -42,6 +42,14 @@ class TestSilentReadingsAreSaid:
         wb.exe("i := 2")
         assert notes(wb, "E^i") == []  # i has a value
 
+    def test_a_solidus_of_differentials_the_program_defines_is_their_quotient(self, wb):
+        # dy/dx is the derivative, unless the program gives dy and dx values of their own
+        wb.exe("dx := 1/10\ndy := 1/5")
+        assert notes(wb, "dy/dx") == [
+            "dy and dx are defined, so dy/dx is a quotient, not a derivative"
+        ]
+        assert wb.expr("dy/dx") == 2
+
     def test_a_letter_followed_by_brackets_is_a_function_and_says_so(self, wb):
         assert notes(wb, r"\gamma(t - v x)") == [
             r"\gamma is not defined, so \gamma(t - v x) is an unknown function applied to "

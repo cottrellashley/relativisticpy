@@ -1032,6 +1032,16 @@ class Expressions(LinearAlgebra):
         return result
 
     def _Derivative(self, node: ast.Derivative, scope: Scope, ctx: Context) -> Term:
+        if node.written is not None and (
+            defined := [name for name in node.written.names if scope.lookup(name) is not None]
+        ):  # dy/dx, after dx := 0.01: the quotient of what the program defines
+            shown = _listed([_shown(name, ctx.latex) for name in defined])
+            verb = "is" if len(defined) == 1 else "are"
+            note = f"{shown} {verb} defined, so {node.span.text} is a quotient, not a derivative"
+            why = f"the program defines {shown}"
+            self._decide("derivative or quotient", node.span, "a quotient", why, note)
+            self._note(note)
+            return self.term(node.written.expr, scope, ctx)
         if (coordinate := self._along_a_path(node, scope)) is not None:
             raise CompileError(
                 f"the derivative of the coordinate {coordinate} along a path is read "

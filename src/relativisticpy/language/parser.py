@@ -29,7 +29,7 @@ from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields, replace
 from enum import IntEnum
-from typing import Literal, TypeVar, cast
+from typing import Literal, NamedTuple, TypeVar, cast
 
 from relativisticpy.errors import ParseError
 from relativisticpy.language import dirac
@@ -834,6 +834,8 @@ class Parser:
         if kind is K.DOUBLE_STAR:
             right = self.expression(Power.POWER - 1)  # right-associative
             return ast.Binary("**", left, right, span=left.span.to(right.span))
+        if kind is K.SLASH and (derivative := self._solidus_derivative(left)) is not None:
+            return derivative  # d/dx, dy/dx, d(x^3)/dx: Leibniz's fraction in a line of text
         right = self.expression(power)
         op = cast(Literal["+", "-", "*", "/", "and", "or", "∧", "±", "∓", "∘"], token.value)
         if op == "/":
@@ -2731,6 +2733,89 @@ class Parser:
 
     # -- derivatives in Leibniz notation ----------------------------------------
 
+    def _solidus_derivative(self, left: ast.Expr) -> ast.Expr | None:
+        """Leibniz's fraction set with a solidus, as a line of text sets it, read after the
+        solidus as ``\\frac`` reads it (design/notation.md, decision 39): ``d/dx``, ``dy/dx``,
+        ``d(x^3)/dx``, ``d^2y/dx^2``, ``∂f/∂x``. In a product it is the fraction of the
+        factors from its numerator's differential on, as ``x dy/dx`` is ``x \\frac{dy}{dx}``.
+        It keeps the quotient as written, which is what it means where the program defines
+        a name it is written with, as dx. ``None``, having read nothing, where either side
+        of the solidus is no differential."""
+        tail = _leibniz_tail(left)
+        if tail is None or not self._at_solidus_denominator():
+            return None
+        before = self.pos, self.previous
+        denominator = self._solidus_denominator()
+        span = tail.numerator.span.to(denominator.span)
+        quotient = _quotient(tail.numerator, denominator, span, leibniz=True)
+        if not isinstance(quotient, ast.Derivative):
+            self.pos, self.previous = before
+            return None
+        ratio = ast.Binary("/", tail.numerator, denominator, span=span)
+        written = ast.Written(ratio, _differential_names(ratio))
+        result: ast.Expr = replace(quotient, written=written)
+        if tail.sign is not None:
+            sign = tail.sign.op
+            assert sign in ("-", "+")
+            result = ast.Unary(sign, result, span=tail.sign.span.to(span))
+        if tail.rest is None:
+            return result
+        span = tail.rest.span.to(span)
+        return ast.Binary("*", tail.rest, result, implicit=tail.beside, span=span)
+
+    def _at_solidus_denominator(self) -> bool:
+        """Whether a differential follows a solidus: ``dx``, ``d x``, ``dθ``, ``d{x}``, ``∂x``,
+        or differentials in brackets, as AsciiMath writes ``(dy)/(dx)``."""
+        token, follower = self.peek(), self.peek(1)
+        if token.kind is K.LPAREN:
+            return _starts_a_differential(follower)
+        if token.kind is K.LBRACE:  # {\rm d}x
+            return self._at_differential()
+        if token.kind is K.IDENT and token.value == "d":
+            return follower.kind is K.IDENT or self._at_plain_differential()
+        return _starts_a_differential(token) and (token.kind is K.IDENT or follower.kind is K.IDENT)
+
+    def _solidus_denominator(self) -> ast.Expr:
+        """The denominator of Leibniz's fraction after a solidus: a differential and its
+        power, ``dx^2``, ``d\\theta``, ``∂x``, ``{\\rm d}x``, or differentials in brackets,
+        ``(dx dy)``; never a call, so that ``d/dx(x^3)`` is the derivative of x^3."""
+        token = self.peek()
+        if token.kind is K.LPAREN:
+            return self._postfix(self._parenthesized(), grouped=True)
+        if token.kind is K.IDENT and token.value == "d" and self._at_plain_differential():
+            return self._postfix(self._plain_differential())  # d{x}^2
+        marker: ast.Expr
+        if token.kind is K.LBRACE:  # {\rm d}x
+            self.advance()
+            d = self.advance()
+            self.expect(K.RBRACE)
+            marker = ast.Name("d", d.verbatim, span=self._span(token))
+        elif token.kind is K.COMMAND:  # ∂x, \partial x
+            self.advance()
+            marker = ast.Operator("partial", span=token.span)
+        elif token.value != "d":  # dx, dx^2, dx_0, dt'
+            self.advance()
+            joined: ast.Expr = ast.Name(token.value, token.verbatim, span=token.span)
+            order = len(self._primes())
+            if order:
+                joined = ast.Prime(
+                    ast.Name(token.value, span=token.span), order, span=self._span(token)
+                )
+            return self._differential_scripts(joined)
+        else:  # d x, dθ, d\theta
+            self.advance()
+            marker = ast.Name("d", token.verbatim, span=token.span)
+        name = self.advance()
+        primed = ast.Name(name.value + self._primes(), name.verbatim, span=self._span(name))
+        variable = self._differential_scripts(primed)
+        return ast.Binary("*", marker, variable, implicit=True, span=self._span(token))
+
+    def _differential_scripts(self, node: ast.Expr) -> ast.Expr:
+        """A differential with the scripts written against it: ``dx^2``, ``dx_0``."""
+        while self.peek().kind in (K.CARET, K.UNDERSCORE) and not self.peek().space_before:
+            node = self._attach_script(node, extend=True)
+        return node
+
     def _at_plain_differential(self) -> bool:
         """``d{...}``, ``d^2{...}`` or ``d^{2}{...}`` directly after the ``d``."""
         follower = self.peek(1)
@@ -3406,8 +3491,9 @@ def _joined_differential(node: ast.Expr) -> ast.Expr | None:
 
 
 def _leibniz_numerator(node: ast.Expr) -> tuple[bool, int | None, ast.Expr | None] | None:
-    """``d``, ``d^2 y``, ``dy``, ``\\partial^2 f``, ``d^2{f}`` → ``(partial, order, f)``;
-    and ``d(\\sin^2\\theta)``, read as a call of d, → ``(False, None, \\sin^2\\theta)``."""
+    """``d``, ``d^2 y``, ``dy``, ``\\partial^2 f``, ``d^2{f}``, ``d(x^3)``, ``df(x)``
+    → ``(partial, order, f)``; and ``d(\\sin^2\\theta)``, read as a call of d, →
+    ``(False, None, \\sin^2\\theta)``."""
     head, *rest = _factors(node)
     if isinstance(head, ast.Differential):
         return False, head.order, _product([head.expr, *rest])
@@ -3417,7 +3503,95 @@ def _leibniz_numerator(node: ast.Expr) -> tuple[bool, int | None, ast.Expr | Non
         return False, None, _product([variable, *rest])
     if (marker := _differential_marker(head)) is not None:
         return marker[0], marker[1], _product(rest)
+    if (called := _called_differential(head)) is not None:
+        return False, None, _product([called, *rest])
     return None
+
+
+def _called_differential(node: ast.Expr) -> ast.Expr | None:
+    """What a differential written as a call is of: ``d(mv)`` of mv, as Feynman writes
+    ``F = d(mv)/dt``, and ``df(x)`` of f(x)."""
+    if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+        return None
+    if node.func.id == "d" and len(node.args) == 1:
+        return node.args[0]
+    if (function := _joined_differential(node.func)) is not None:
+        return ast.Call(function, node.args, span=function.span.to(node.span))
+    return None
+
+
+def _differential_head(node: ast.Expr) -> bool:
+    """Whether a factor starts the numerator of Leibniz's fraction: ``d``, ``d^2``, ``∂``,
+    ``dy``, ``d(x^3)``, ``df(x)`` or ``d{f}``."""
+    return (
+        isinstance(node, ast.Differential)
+        or _differential_marker(node) is not None
+        or _joined_differential(node) is not None
+        or _called_differential(node) is not None
+    )
+
+
+def _starts_a_differential(token: Token) -> bool:
+    """Whether a token starts a differential: d, a name that reads as one, as dx, or ∂."""
+    if token.kind is K.IDENT:
+        return token.value == "d" or (
+            not token.verbatim and _DIFFERENTIAL.fullmatch(token.value) is not None
+        )
+    return token.kind is K.COMMAND and token.value == "partial"
+
+
+class _LeibnizTail(NamedTuple):
+    """A product before a solidus, as Leibniz's fraction takes it: what comes before the
+    numerator, if anything; whether the two are side by side, rather than joined by ``*``;
+    the sign before the numerator, as in ``-d/dx``; and the numerator."""
+
+    rest: ast.Expr | None
+    beside: bool
+    sign: ast.Unary | None
+    numerator: ast.Expr
+
+
+def _leibniz_tail(node: ast.Expr) -> _LeibnizTail | None:
+    """A product before a solidus as Leibniz's fraction takes it: ``x dy`` is x, then the
+    numerator dy, and ``-d`` the numerator d, negated. The numerator runs from a
+    differential (:func:`_differential_head`) to the end, its factors side by side, as
+    ``d^2 y`` writes them. ``None`` where there is no such numerator."""
+    chain: list[tuple[ast.Expr, bool]] = []  # each factor, and whether it is beside the last
+    current = node
+    while isinstance(current, ast.Binary) and current.op == "*":
+        chain.append((current.right, current.implicit))
+        current = current.left
+    chain.append((current, True))
+    chain.reverse()
+    for start, (factor, beside) in enumerate(chain):
+        sign = None
+        if isinstance(factor, ast.Unary) and factor.op in ("-", "+"):
+            sign, factor = factor, factor.operand  # -d/dx, -d^2 y/dx^2
+        if not _differential_head(factor) or not all(b for _, b in chain[start + 1 :]):
+            continue
+        numerator = _product([factor, *(each for each, _ in chain[start + 1 :])])
+        assert numerator is not None
+        if start == 0:
+            return _LeibnizTail(None, True, sign, numerator)
+        rest = chain[0][0]
+        for each, joined in chain[1:start]:
+            rest = ast.Binary("*", rest, each, implicit=joined, span=rest.span.to(each.span))
+        return _LeibnizTail(rest, beside, sign, numerator)
+    return None
+
+
+def _differential_names(node: ast.Expr) -> tuple[str, ...]:
+    """The names a quotient is written with that read as differentials, as dy and dx, and
+    the d of a differential written as a call, as in d(x^3): where the program defines one
+    of them, the quotient is theirs."""
+    found: dict[str, None] = {}
+    for current in _walk(node):
+        if isinstance(current, ast.Name) and _joined_differential(current) is not None:
+            found[current.id] = None
+        elif isinstance(current, ast.Call) and _called_differential(current) is not None:
+            assert isinstance(current.func, ast.Name)
+            found[current.func.id] = None
+    return tuple(found)
 
 
 def _leibniz_denominator(node: ast.Expr) -> tuple[bool, list[tuple[ast.Expr, int]]] | None:

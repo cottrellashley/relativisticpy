@@ -92,11 +92,15 @@ LIMITS_WORDS: frozenset[str] = frozenset({"int", "iint", "iiint", "oint", "sum",
 #: ``sum``, ``prod`` and ``lim`` without them are names, and ``lim(f, x, 0)`` a call.
 UNSCRIPTED_WORDS: frozenset[str] = frozenset({"int", "iint", "iiint", "oint"})
 
+#: Words that write a sign of LaTeX's, mapped to its command: AsciiMath's ``del``, which is
+#: ∂, so that ``(del f)/(del x)`` is ``\frac{\partial f}{\partial x}``.
+SIGN_WORDS: Mapping[str, str] = MappingProxyType({"del": "partial"})
+
 #: The words a subscript belongs to, as its base, its variable or its limits: ``log_2``,
-#: ``min_x``, ``argmax_x``, ``sup_x``, ``int_0``. The bounds and the places of optima are
-#: words only with a script.
+#: ``min_x``, ``argmax_x``, ``sup_x``, ``int_0``, ``del_x``. The bounds and the places of
+#: optima are words only with a script.
 SCRIPTED_WORDS: frozenset[str] = LIMITS_WORDS | {
-    "log", "min", "max", "sup", "inf", "argmin", "argmax",
+    "log", "min", "max", "sup", "inf", "argmin", "argmax", "del",
 }  # fmt: skip
 
 #: The inverse of each function, used for the ``\sin^{-1} x`` notation.

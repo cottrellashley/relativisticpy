@@ -501,7 +501,7 @@ class Lexer:
         name = self.text[start:end].replace("\\_", "_")
         if (word := self._word(name, start, end)) is not None:
             kind = TokenKind.IDENT if word in _PLACE_OF_OPTIMUM else TokenKind.COMMAND
-            self._emit(kind, word, start, start + len(word))
+            self._emit(kind, vocab.SIGN_WORDS.get(word, word), start, start + len(word))
             return
         self._emit(TokenKind.IDENT, name, start, end, verbatim=name == vocab.INFINITY)
 
@@ -521,7 +521,7 @@ class Lexer:
             if word not in vocab.SCRIPTED_WORDS or not one_token or "\\" in self.text[start:end]:
                 return None  # max_iter, log_file: a name, as a program writes one
             return word if self._applies(end, power=True, operand=True) else None
-        if name in vocab.FUNCTION_WORDS:
+        if name in vocab.FUNCTION_WORDS or name in vocab.SIGN_WORDS:
             applies = self._applies(
                 end, power=True, subscript=name in vocab.SCRIPTED_WORDS, operand=True
             )

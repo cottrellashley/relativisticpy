@@ -1880,3 +1880,49 @@ class TestPlainTextAndUnicodeSpellLatex:
     )
     def test_a_word_that_applies_to_nothing_is_a_name(self, text, expected):
         assert program(text) == expected
+
+    @pytest.mark.parametrize(
+        ("spelled", "latex"),
+        [
+            # d/dx sin(x) was d sin(x)/dx, d(x^3)/dx a function d, and df/dx a name over dx
+            ("d/dx sin(x)", r"\frac{d}{dx} \sin(x)"),
+            ("d/dx (x^3)", r"\frac{d}{dx} (x^3)"),
+            ("d/dx(x^3)", r"\frac{d}{dx}(x^3)"),
+            ("(d/dx)(x^3)", r"\frac{d}{dx}(x^3)"),
+            ("d^2/dx^2 (x^4)", r"\frac{d^2}{dx^2} (x^4)"),
+            ("d²/dx² (x⁴)", r"\frac{d^2}{dx^2} (x^4)"),
+            ("d/dθ (sin²θ)", r"\frac{d}{d\theta} (\sin^2\theta)"),
+            ("d(x^3)/dx", r"\frac{d(x^3)}{dx}"),
+            ("df/dx", r"\frac{df}{dx}"),
+            ("df(x)/dx", r"\frac{df(x)}{dx}"),
+            ("d^2y/dx^2", r"\frac{d^2y}{dx^2}"),
+            ("(dy)/(dx)", r"\frac{dy}{dx}"),
+            ("∂f/∂x", r"\frac{\partial f}{\partial x}"),
+            ("(del f)/(del x)", r"\frac{\partial f}{\partial x}"),
+            ("x dy/dx", r"x \frac{dy}{dx}"),
+            ("x*dy/dx", r"x \cdot \frac{dy}{dx}"),
+            ("2 d/dx (x^3)", r"2 \frac{d}{dx} (x^3)"),
+            ("-d/dx (x^2)", r"-\frac{d}{dx} (x^2)"),
+        ],
+    )
+    def test_a_solidus_between_differentials_is_leibnizs_fraction(self, spelled, latex):
+        assert sexpr(spelled) == sexpr(latex)
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            ("dx/2", "(/ dx 2)"),
+            ("d/c", "(/ d c)"),
+            ("a/dt", "(/ a dt)"),
+            ("dr^2/(1 - 2M/r)", "(/ (^ dr 2) (- 1 (/ (* 2 M) r)))"),
+        ],
+    )
+    def test_a_solidus_with_no_differential_on_one_side_divides(self, text, expected):
+        assert sexpr(text) == expected
+
+    def test_a_leibniz_solidus_keeps_the_quotient_as_written(self):
+        derivative = parse_expression("dy/dx")
+        assert isinstance(derivative, ast.Derivative)
+        assert derivative.written is not None
+        assert to_sexpr(derivative.written.expr) == "(/ dy dx)"
+        assert derivative.written.names == ("dy", "dx")
