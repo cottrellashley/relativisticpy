@@ -80,7 +80,10 @@ def summation(
     integer and, where it converges only under conditions, under the bounds the program
     assumes or else the assumption books make (see
     :func:`relativisticpy.assumptions.summed`); else kept as it is written
-    (design/notation.md, decision 4)."""
+    (design/notation.md, decision 4). A closed form of a series of numbers is checked by
+    summing it numerically (see :mod:`relativisticpy.runtime.crosscheck`)."""
+    from relativisticpy.runtime import crosscheck
+
     written = sympy.Sum(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
     if finite is not written:
@@ -93,6 +96,7 @@ def summation(
         return written
     if isinstance(found, sympy.Basic) and found.has(sympy.Sum):
         return _kept(written)
+    crosscheck.series(found, sympy.sympify(body), variable, lower, upper)
     return found
 
 

@@ -385,8 +385,9 @@ def integrated(f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any
     decision 1). Nothing is assumed of a symbol the program said something of. An integral
     SymPy leaves undone is computed another way, where one applies (see :func:`_otherwise`).
     Where no closed form is found in the time an integral is given, it is kept as written,
-    as a remark says (decision 4)."""
-    from relativisticpy.runtime import core
+    as a remark says (decision 4). A closed form is checked by another route, and refused
+    where it confidently disagrees (see :mod:`relativisticpy.runtime.crosscheck`)."""
+    from relativisticpy.runtime import core, crosscheck
 
     f = sympy.sympify(f)
     try:
@@ -394,13 +395,15 @@ def integrated(f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any
             found = _computed(sympy.integrate, f, limits, bounds)
             if isinstance(found, sympy.Basic) and found.has(sympy.Integral):
                 found = _otherwise(f, limits, bounds, found)
-            return found
     except core._OverBudget:
         remark(
             f"SymPy found no closed form of the integral in the {core._INTEGRAL_BUDGET:g} s it "
             "is given"
         )
         return sympy.Integral(f, *limits)
+    if isinstance(found, sympy.Basic) and not found.has(sympy.Integral):
+        crosscheck.integral(found, f, limits)
+    return found
 
 
 #: How long simplifying the integrand of an integral SymPy left undone may take, in seconds.
