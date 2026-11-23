@@ -125,10 +125,22 @@ class UnitImpulseSequence:
 )  # fmt: skip
 class UnitStepSequence:
     def exact(self, n: Any) -> Any:
+        if sympy.sympify(n).is_extended_real is False:
+            raise _not_real()
         return step(n)
 
     def numeric(self, xp: Any, n: Any) -> Any:
-        return xp.where(n >= 0, 1.0, 0.0)
+        if xp.iscomplexobj(n) and xp.any(xp.imag(n) != 0):
+            raise _not_real()
+        return xp.where((xp.real(n) if xp.iscomplexobj(n) else n) >= 0, 1.0, 0.0)
+
+
+def _not_real() -> EvaluationError:
+    return EvaluationError(
+        "the unit step u[n] is a function of a real number, and this is not one",
+        hint="u[n] is 1 where n ≥ 0 and 0 where n < 0, which compares n with 0, as only a "
+        "real n can be",
+    )
 
 
 def _roots(H: Any, z: Any, part: Callable[[Any], Any], what: str) -> list[Any]:

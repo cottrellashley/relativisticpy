@@ -367,6 +367,15 @@ class TestRefusals:
             assert wb.expr("zeros(5)") == []  # a constant that is not 0 has none
             assert wb.expr("poles(0)") == []
 
+    def test_the_unit_step_of_a_complex_number_is_refused(self):
+        # u[n] compares n with 0: of data over ℂ², x = [0.5 + i, -1.5 + 0.5i], it gave [1, 0]
+        said = "the unit step u[n] is a function of a real number, and this is not one"
+        assert refused("step(x^l)", data=[0.5 + 1j, -1.5 + 0.5j]) == said
+        assert refused("step(1/2 + i)") == said
+        with Workbook() as wb:
+            wb["x^l"] = np.asarray([0.5 + 0j, -1.5 + 0j])  # complex numbers that are real
+            assert list(np.asarray(wb.expr("step(x^l)").components)) == [1.0, 0.0]
+
     def test_the_poles_of_a_quintic(self):
         # 27: its roots were sorted by their real parts, which of CRootOf are no numbers
         with Workbook() as wb:
