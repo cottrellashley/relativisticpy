@@ -15,6 +15,7 @@ from sympy import Array, Symbol
 from relativisticpy import Workbook
 from relativisticpy.errors import EvaluationError
 from relativisticpy.ir import SCALAR, Graph, ops
+from relativisticpy.language import Source
 from relativisticpy.runtime import Executor, registry
 
 
@@ -216,3 +217,15 @@ def test_text_in_quotes_runs_nothing(program, monkeypatch):
 def test_text_that_names_things_is_taken():
     assert Workbook().expr("symbols('a b')") == (Symbol("a"), Symbol("b"))
     assert Workbook().expr("\\lim_{x \\to 0} \\frac{\\sin x}{x}") == 1  # a side of a limit
+
+
+@pytest.mark.parametrize("written", ["AB", "A B", r"A \cdot B", "A*B"])
+def test_a_row_times_a_column_is_one_number_however_it_is_written(written):
+    # AB and A \cdot B gave [[32]], a matrix, where A B gave 32, as books read it
+    with Workbook() as wb:
+        wb.exe(r"A := \begin{bmatrix} 1 & 2 & 3 \end{bmatrix}" "\n"
+               r"B := \begin{bmatrix} 4 \\ 5 \\ 6 \end{bmatrix}")  # fmt: skip
+        (step,) = list(wb.each(Source(written, latex=True)))
+        assert step.values == [32]
+        assert f"{written} is a 1 × 1 matrix, so it is read as the number it holds" in step.notes
+        assert wb.expr("B A").shape == (3, 3)  # a column times a row is no number

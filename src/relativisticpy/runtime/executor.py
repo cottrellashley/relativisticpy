@@ -20,7 +20,7 @@ from relativisticpy.errors import (
 )
 from relativisticpy.ir import Node, dependencies, ops
 from relativisticpy.runtime import paths, registry
-from relativisticpy.runtime.kernels import execute, refuse_quoted, refuse_text
+from relativisticpy.runtime.kernels import execute, one_by_one, refuse_quoted, refuse_text
 from relativisticpy.tensors import numerical
 from relativisticpy.tensors.simplification import simplify_component
 
@@ -168,6 +168,8 @@ class Executor:
                             known[current.key] = execute(current.op, args, self)
                     else:
                         known[current.key] = execute(current.op, args, self)
+                    if isinstance(current.op, ops.Mul):  # a row times a column is a number
+                        known[current.key] = one_by_one(current, args, known[current.key])
                 if said:
                     self._remarks[current.key] = said
             except RelativisticPyError as error:

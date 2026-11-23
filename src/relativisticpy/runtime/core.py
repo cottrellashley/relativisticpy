@@ -985,7 +985,10 @@ def _ones_of(like: Any, shape: tuple[int, ...]) -> Any:
 
 
 def entry(matrix: Any, row: int, column: int) -> Any:
-    """The entry of a matrix in a row and a column, counted from 0."""
+    """The entry of a matrix in a row and a column, counted from 0; of a number, which a
+    product of matrices that is a 1 × 1 matrix gives, the number, in row and column 0."""
+    if row == column == 0 and not numerical.is_numerical(matrix) and _scalar(matrix):
+        return matrix
     array = arrays.to_array(matrix)
     shape = tuple(array.shape)
     if len(shape) != 2 or row >= shape[0] or column >= shape[1]:
@@ -994,6 +997,11 @@ def entry(matrix: Any, row: int, column: int) -> Any:
         )
     value = array[row, column]
     return numerical.number(value) if numerical.is_numerical(array) else value
+
+
+def _scalar(value: Any) -> bool:
+    """Whether a value is a number or an expression, not an array of them."""
+    return isinstance(value, int | float | complex | sympy.Expr) and not isinstance(value, bool)
 
 
 def _size(shape: tuple[int, ...]) -> str:

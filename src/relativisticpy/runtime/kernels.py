@@ -21,6 +21,7 @@ from sympy.functions.elementary.trigonometric import TrigonometricFunction
 from sympy.polys.monomials import itermonomials
 
 from relativisticpy import display
+from relativisticpy.assumptions import remark
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
 from relativisticpy.errors import NO_INVERSE, EvaluationError, MetricError
@@ -157,6 +158,21 @@ def _pow(op: ops.Pow, args: list[Any], executor: Executor) -> Any:
             raise EvaluationError(NO_INVERSE)  # SymPy gives 1/0 for each 0 of a diagonal
         return arrays.to_array(power)
     raise EvaluationError("only a square matrix can be raised to a power, and only an integer one")
+
+
+def one_by_one(node: Node, factors: Sequence[Any], product: Any) -> Any:
+    """The value of a product of matrices that is a 1 × 1 matrix, as a row times a column
+    or a row times a matrix times a column: the number it holds, as books read it, said in
+    a note, however the product is written, AB, A B or A \\cdot B. Any other value as it
+    is."""
+    if _shape(product) != (1, 1):
+        return product
+    if sum(len(_shape(_arithmetic(factor))) == 2 for factor in factors) < 2:
+        return product
+    written = " ".join(node.span.text.split()) if node.span is not None else "the product"
+    remark(f"{written} is a 1 × 1 matrix, so it is read as the number it holds")
+    value = product[0, 0]
+    return numerical.number(value) if numerical.is_numerical(product) else value
 
 
 def _arithmetic(value: Any) -> Any:
