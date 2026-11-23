@@ -1,0 +1,239 @@
+r"""LaTeX forms an agent writes in algebra and calculus, each held to its value computed by
+SymPy on its own, or to a refusal: brackets with powers and primes, derivatives written
+as fractions, products written side by side, powers of functions, nested scripts,
+absolute values, roots, ``\cdot`` and ``\times`` between numbers and names, and decimals
+in exponents. A form read otherwise than as it is written gives a silent wrong answer,
+the worst bug there is, so each is read in LaTeX, as a paper or an agent writes it."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+import sympy
+from sympy import Abs, Function, Rational, acos, asin, atan, cos, diff, exp, log, pi, sin, sqrt
+
+from relativisticpy import Workbook
+from relativisticpy.errors import RelativisticPyError
+from relativisticpy.language import Source
+
+a, b, c, n, x, y, z, r, t = sympy.symbols("a b c n x y z r t")
+theta, phi, alpha, beta = sympy.symbols("theta phi alpha beta")
+
+#: What a form that must be refused has in the place of a value.
+REFUSED = object()
+
+BRACKETS = [
+    # a power after brackets is of all they hold (x y^2 and a b/c before)
+    (r"(xy)^2", x**2 * y**2),
+    (r"\left(xy\right)^2", x**2 * y**2),
+    (r"a (bc)^{-1}", a / (b * c)),
+    (r"(2ab)^3", 8 * a**3 * b**3),
+    (r"(ab)^n", (a * b) ** n),
+    (r"(xyz)^2", x**2 * y**2 * z**2),
+    (r"(xy)^{1/2}", sqrt(x * y)),
+    (r"\frac{1}{(xy)^2}", 1 / (x**2 * y**2)),
+    (r"e^{(xy)^2}", exp(x**2 * y**2)),
+    (r"(\alpha\beta)^2", alpha**2 * beta**2),
+    (r"\Bigl(xy\Bigr)^2", x**2 * y**2),
+    (r"\left[xy\right]^2", x**2 * y**2),
+    (r"\left[1 + x^2\right]^{-1}", 1 / (1 + x**2)),
+    (r"(xy)^2(ab)^3", x**2 * y**2 * a**3 * b**3),
+    (r"\frac{d}{dx}(xy)^2", diff((x * y) ** 2, x)),
+    (r"\int_0^1 (xy)^2 \, dx", sympy.integrate((x * y) ** 2, (x, 0, 1))),
+    (r"(x+1)^2(x-1)", (x + 1) ** 2 * (x - 1)),
+    (r"(x^2)^3", x**6),
+    (r"(-x)^2", x**2),
+    (r"-2^2", -4),
+    (r"[xy]^2", REFUSED),  # square brackets of one item are a list (decision 31)
+    # a name that multiplies the brackets after it raises them alone (\pi^2 (x+1)^2 before)
+    (r"\pi(x + 1)^2", pi * (x + 1) ** 2),
+    (r"x(x + 1)^2 + \alpha", x * (x + 1) ** 2 + alpha),
+    (r"(xy)(x + 1)", x * y * (x + 1)),
+]
+
+PRIMES = [
+    # a prime after brackets is the derivative of the bracket (x'^3 and e'^(-x^2) before)
+    (r"(x^3)'", diff(x**3, x)),
+    (r"(e^{-x^2})'", diff(exp(-(x**2)), x)),
+    (r"(\sin\theta)'", cos(theta)),
+    (r"(x^2 + 1)''", 2),
+    (r"\left(x^3\right)'", 3 * x**2),
+    (r"(\theta^2)'", 2 * theta),
+    (r"(x^2 + 1)'(3)", 6),
+    (r"(xy)'", REFUSED),  # by x or by y?
+    ("f(x) := x^3\nf'(x)", 3 * x**2),
+    ("f(x) := x^3\n(f(x))'", 3 * x**2),
+]
+
+DERIVATIVES = [
+    # d with brackets against it, atop a fraction (sin^2(theta)/theta before)
+    (r"\frac{d(\sin^2\theta)}{d\theta}", diff(sin(theta) ** 2, theta)),
+    (r"\frac{d(x^2)}{dx}", 2 * x),
+    (r"\frac{d(\cos\phi)}{d\phi}", -sin(phi)),
+    (r"\frac{d^2(x^3)}{dx^2}", 6 * x),
+    (r"\frac{\partial (x^2 y)}{\partial x}", 2 * x * y),
+    (r"\frac{d(\theta^2)}{d\theta}", 2 * theta),
+    (r"\frac{\mathrm{d}(\sin\theta)}{\mathrm{d}\theta}", cos(theta)),
+    (r"\frac{d}{dx}\left(x^2\right)", 2 * x),
+    (r"\frac{d}{d\theta}\sin^2\theta", diff(sin(theta) ** 2, theta)),
+    ("f(x) := x^3\nD_x f(x)", 3 * x**2),  # Euler's D (decision 18)
+    ("f(x) := x^3\nDf(x)", 3 * x**2),
+]
+
+FRACTIONS_AND_PRODUCTS = [
+    (r"\tfrac{1}{2}x", x / 2),
+    (r"\frac12 x", x / 2),
+    (r"\frac{1}{2}xy", x * y / 2),
+    (r"\dfrac{x}{2}y", x * y / 2),
+    (r"\frac{a}{b}c", a * c / b),
+    (r"2\pi r", 2 * pi * r),
+    (r"\pi r^2", pi * r**2),
+    (r"(x+1)(x-1)", (x + 1) * (x - 1)),
+    (r"ab^2c", a * b**2 * c),
+    (r"\frac{x+1}{2}(x-1)", (x + 1) * (x - 1) / 2),
+    (r"3!", 6),
+]
+
+FUNCTION_POWERS = [
+    (r"\sin^{-1} x", asin(x)),
+    (r"\sin^{-1}(1/2)", pi / 6),
+    (r"\ln^2 x", log(x) ** 2),
+    (r"\sin^2(2x)", sin(2 * x) ** 2),
+    (r"\cos^2 x + \sin^2 x", 1),
+    (r"\tan^{-1}(1)", pi / 4),
+    (r"\log^2(x)", log(x) ** 2),
+    (r"\sin x^2", sin(x**2)),
+    (r"\sin(x)^2", sin(x) ** 2),
+    (r"\cos^{-1}(0)", pi / 2),
+    (r"\sin 2x", sin(2 * x)),
+    (r"\sin^3 2x", sin(2 * x) ** 3),
+    (r"\ln(x)^2", log(x) ** 2),
+    (r"\sqrt{x}^3", x ** Rational(3, 2)),
+    (r"\log_{10} 1000", 3),
+    (r"\sin^{-1}x + \cos^{-1}x", asin(x) + acos(x)),
+    (r"\arctan 1", atan(1)),
+]
+
+SCRIPTS = [
+    (r"x^{y^2}", x ** (y**2)),
+    (r"x^{2^3}", x**8),
+    (r"2^{2^2}", 16),
+    (r"e^{-x^2/2}", exp(-(x**2) / 2)),
+    (r"x^{-1/2}", 1 / sqrt(x)),
+    (r"e^{i\pi}", -1),
+    (r"x_1^2", sympy.Symbol("x_1") ** 2),
+    (r"x^2_1", sympy.Symbol("x_1") ** 2),
+    (r"x^{10}", x**10),
+    (r"x^{2n}", x ** (2 * n)),
+    ("J^0", sympy.Symbol("J^0")),  # a component, never J to the power 0 (decision 6)
+    (r"{\partial}_{i}F^{0i} = 4\pi J^0", REFUSED),  # F is no tensor
+]
+
+ABSOLUTE_VALUES_AND_ROOTS = [
+    (r"|x - 1|", Abs(x - 1)),
+    (r"\left|x\right|", Abs(x)),
+    (r"|-3|", 3),
+    (r"2|x|", 2 * Abs(x)),
+    (r"\left|\frac{x}{2}\right|", Abs(x) / 2),
+    (r"\sqrt{xy}", sqrt(x * y)),
+    (r"\sqrt[3]{8}", 2),
+    (r"\sqrt{x}y", sqrt(x) * y),
+    (r"\sqrt[n]{x}", x ** (1 / n)),
+    (r"\sqrt{4}^3", 8),
+    (r"\sqrt{2}\sqrt{8}", 4),
+    (r"\sqrt[3]{x^2}", sympy.root(x**2, 3)),
+]
+
+NUMBERS = [
+    (r"2 \cdot 3", 6),
+    (r"2 \times 3 + 4", 10),
+    (r"2 \cdot x", 2 * x),
+    (r"x \times y", x * y),
+    (r"3 \times 10^8", 300000000),
+    (r"2.5 \times 10^{-3}", 0.0025),
+    (r"a \cdot b^2", a * b**2),
+    (r"2 \cdot 3^2", 18),
+    (r"3 \times (2 + 1)", 9),
+    (r"\frac{3 \times 10^8}{2}", 150000000),
+    (r"x^{0.5}", x**0.5),
+    (r"2^{0.5}", 2**0.5),
+    (r"e^{0.1}", float(sympy.exp(sympy.Float(0.1)))),
+    (r"10^{-0.5}", 10**-0.5),
+    (r"e^{-0.5 x}", exp(-0.5 * x)),
+    (r"1.5^2", 2.25),
+    (r"(0.5)^2", 0.25),
+    (r"0.5^{-1}", 2.0),
+]
+
+RELATIONS = [
+    # a comparison among equalities is links of their chain (2 equal to True before)
+    ("1 + 1 = 2 < 3", [sympy.true, sympy.true]),
+    ("1 + 1 = 2 > 3", [sympy.true, sympy.false]),
+    ("2 = 2 = 2", [sympy.true, sympy.true]),
+]
+
+CHEMISTRY = [
+    # the upright p of chemists (decision 39)
+    (
+        "K_\\mathrm{a} := 1.8 \\times 10^{-5}\n\\mathrm{p}K_\\mathrm{a}",
+        -log(Rational(18, 10**6), 10),
+    ),
+]
+
+
+def case(group: list[tuple[str, Any]]) -> list[Any]:
+    return [pytest.param(source, expected, id=source) for source, expected in group]
+
+
+def value(source: str) -> Any:
+    """What a program gives, read in LaTeX in every statement: its values, or the error."""
+    with Workbook() as wb:
+        try:
+            return wb.exe(Source(source, latex=True))
+        except RelativisticPyError as error:
+            return error
+
+
+def same(found: Any, expected: Any) -> bool:
+    """Whether a value is the one expected: to rounding error, where either is a decimal."""
+    try:
+        difference = sympy.simplify(sympy.sympify(found) - sympy.sympify(expected))
+    except (sympy.SympifyError, TypeError):
+        return False
+    if difference == 0:
+        return True
+    return bool(difference.is_number) and abs(complex(sympy.N(difference))) < 1e-9
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    case(BRACKETS)
+    + case(PRIMES)
+    + case(DERIVATIVES)
+    + case(FRACTIONS_AND_PRODUCTS)
+    + case(FUNCTION_POWERS)
+    + case(SCRIPTS)
+    + case(ABSOLUTE_VALUES_AND_ROOTS)
+    + case(NUMBERS)
+    + case(CHEMISTRY),
+)
+def test_a_form_gives_what_sympy_computes_or_is_refused(source, expected):
+    found = value(source)
+    if expected is REFUSED:
+        assert isinstance(found, RelativisticPyError), f"{source} gives {found}"
+        return
+    assert not isinstance(found, RelativisticPyError), f"{source}: {found}"
+    assert same(found[-1], expected), f"{source} gives {found[-1]}, not {expected}"
+
+
+@pytest.mark.parametrize(("source", "expected"), case(RELATIONS))
+def test_a_chain_of_relations_gives_a_truth_value_per_link(source, expected):
+    assert value(source) == expected
+
+
+def test_a_name_with_brackets_after_it_stays_a_call_where_it_is_a_function():
+    # f(x)^2 is the square of the call, and 2Gm(r) is 2 G times m(r)
+    f, m = Function("f"), Function("m")
+    assert same(value(r"f(x)^2")[-1], f(x) ** 2)
+    assert same(value(r"2Gm(r)")[-1], 2 * sympy.Symbol("G") * m(r))
