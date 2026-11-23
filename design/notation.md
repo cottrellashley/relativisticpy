@@ -71,7 +71,7 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 1. on the left of `:=` a superscript is part of the name being defined (`\sigma^2`, `\langle x^2 \rangle`, `E_n^{(0)}`), with a note;
 2. `^{(n)}` on a function is its nth derivative, and on a new name an order label;
-3. `^T`, `^\top` and `^\intercal` on a matrix are its transpose when T has no value, and `^\dagger` is always the conjugate transpose;
+3. `^T`, `^\top` and `^\intercal` on a matrix are its transpose when T has no value, and `^\dagger` is always the conjugate transpose. So, with a note, is a lowercase t on a matrix, raised after it or before it, as Artin and Lang write `A^t` and `{}^tA`, where t means nothing, and a tilde over a matrix the program defines, as Goldstein and Griffiths write `\tilde{A}`, where nothing defines `\tilde{A}` (23 November 2026: `A^t` was the t-th power of A, silently, and of some 3 × 3 matrices a crash; `{}^tA` and `\tilde{A}` were names). A Markov chain's `P^t` is a power once the program says what t is, as `t \in \mathbb{N}`, which the note says;
 4. `^*` after a call or a defined complex quantity is the conjugate, and on a new name part of the name;
 5. on a special function's name it is a label;
 6. `e^{...}` is always the exponential;

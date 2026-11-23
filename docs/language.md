@@ -905,6 +905,7 @@ one in full.
 | Written | Read as |
 |---|---|
 | `A^T`, `A^\top`, `A^\intercal`, `Aᵀ` | the transpose, where T has no value |
+| `A^t`, `{}^tA`, `\tilde{A}` | the transpose too, with a note: where t means nothing, `A^t` is no power |
 | `A^\dagger`, `A^*`, `A^{-1}`, `A^+` | the conjugate transpose, the inverse and the pseudoinverse |
 | `\operatorname{tr} A`, `\det A`, `\operatorname{rank} A` | the trace, the determinant and the rank; without brackets, of the factors that follow, so `\operatorname{tr} A B` is tr(AB) |
 | `e^{A t}`, `\exp(A)`, `\log A`, `\sqrt{A}`, `A^{1/2}`, `A^k` | functions of the matrix, not of each entry |

@@ -1444,6 +1444,8 @@ class Expressions(LinearAlgebra):
             return self._dotted(node.base, node.accent, node.span, scope, ctx)
         if node.accent == "bar" and (conjugate := self._barred(node, scope, ctx)) is not None:
             return conjugate  # \bar{z} of z := 3 + 4i, and \overline{3 + 4i}
+        if node.accent == "tilde" and (transposed := self._tilde_transpose(node, scope, ctx)):
+            return transposed  # \tilde{T} of a matrix, as Goldstein writes it
         if not isinstance(node.base, ast.Name):
             raise CompileError(f"\\{node.accent} needs a single symbol", span=node.base.span)
         return self.value(

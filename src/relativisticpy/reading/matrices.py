@@ -2,7 +2,10 @@ r"""The notation of matrices that is no call, read by its operands (``design/not
 6, 12, 13 and 23), each reading recorded with why, and a note where another was possible:
 
 - a superscript T, ``\top`` or ``\intercal`` on a matrix is its transpose where T has no
-  value; ``\dagger`` and * its conjugate transpose; + its pseudoinverse;
+  value; ``\dagger`` and * its conjugate transpose; + its pseudoinverse; and, with a note,
+  a superscript t, after the matrix or before it, as Artin and Lang write ``A^t`` and
+  ``{}^tA``, where t means nothing, and a tilde over it, as Goldstein and Griffiths write
+  ``\tilde{A}``;
 - ``e^{A t}`` and ``\exp`` of a matrix are its exponential, and ``\log`` and ``\sqrt`` of
   a matrix its logarithm and square root; a matrix to a power that is no whole number, as
   ``\Lambda^k`` or ``V^{1/2}``, is its power, or its square root;
@@ -26,6 +29,7 @@ The functions of a matrix these call are the capabilities of
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from typing import Any
 
@@ -33,6 +37,7 @@ import sympy
 
 from relativisticpy import integrations
 from relativisticpy.compiler.builtins import BUILTINS
+from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import Context, Scope, VariableBinding
 from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, dependencies, ops
@@ -63,6 +68,9 @@ _MARKS = {
     "*": ("ctranspose", "the conjugate transpose"),
     "+": ("pinv", "the pseudoinverse"),
 }
+
+#: A t raised before a name, as the parser names Lang's {}^tA.
+_LEFT_T = re.compile(r"\^\{t\}(?P<name>[A-Za-z]\w*)")
 
 #: The names of the identity, where nothing defines them.
 _IDENTITIES = ("I", "𝟙")
@@ -124,6 +132,8 @@ class Matrices(Reader):
         if script.kind == "_":
             return self._entry(node, scope, ctx)
         mark = script.body.id if isinstance(script.body, ast.Name) else None
+        if mark == "t" and self._means_nothing("t", scope):  # A^t, as Artin writes it
+            return self._book_transpose(node.base, node.base.span.text, node.span, scope, ctx)
         if mark not in _MARKS or (mark == "T" and scope.lookup("T") is not None):
             return None
         name, what = _MARKS[mark]
@@ -157,6 +167,65 @@ class Matrices(Reader):
         why = f"{written} is a matrix" + (", and T has no value" if mark == "T" else "")
         self._decide(MATRIX, node.span, f"{what} of {written}", why)
         return self._of_a_matrix(name, [matrix], node.span)
+
+    def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
+        if (transposed := self._left_transpose(node, scope, ctx)) is not None:
+            return transposed  # {}^tA, as Lang writes it
+        return super()._Name(node, scope, ctx)
+
+    def _left_transpose(self, node: ast.Name, scope: Scope, ctx: Context) -> Node | None:
+        """``{}^tA`` or ``{}^{t}A``, a t raised before a matrix, which the parser makes a
+        name: its transpose, as Lang writes it, where t means nothing; ``None`` otherwise."""
+        match = _LEFT_T.fullmatch(node.id) if node.verbatim else None
+        if match is None or not self._means_nothing("t", scope):
+            return None
+        base = ast.Name(match["name"], span=node.span)
+        return self._book_transpose(base, match["name"], node.span, scope, ctx)
+
+    def _tilde_transpose(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node | None:
+        """``\\tilde{A}`` of a matrix the program defines, where nothing defines the name
+        with its tilde: its transpose, as Goldstein and Griffiths write it, with a note;
+        ``None`` otherwise."""
+        base = node.base
+        if not isinstance(base, ast.Name) or scope.lookup(f"{base.id}tilde") is not None:
+            return None
+        return self._book_transpose(base, base.span.text, node.span, scope, ctx, tilde=True)
+
+    def _means_nothing(self, name: str, scope: Scope) -> bool:
+        """Whether nothing gives a letter a meaning: no value, no assumption, and no
+        coordinate, as t of a Markov chain's P^t has, once ``t \\in \\mathbb{N}``."""
+        coordinates = {c.name for c in self.session.coordinates or ()}
+        known = name in self.session.assumptions or name in coordinates
+        return scope.lookup(name) is None and not known
+
+    def _book_transpose(
+        self,
+        base: ast.Expr,
+        written: str,
+        span: Span,
+        scope: Scope,
+        ctx: Context,
+        *,
+        tilde: bool = False,
+    ) -> Node | None:
+        """``A^t``, ``{}^tA`` or ``\\tilde{A}`` of a matrix, ``written`` so: its transpose,
+        as Artin and Lang, and Goldstein and Griffiths, write it, with a note that says how
+        to write the other reading. ``None`` where what the mark is on is no matrix."""
+        matrix = self._matrix_operand(base, scope, ctx)
+        if matrix is None:
+            return None
+        whole = span.text if not span.text.startswith("^") else "{}" + span.text  # {}^tA
+        if tilde:
+            books = "Goldstein and Griffiths"
+            other = f"for a name of its own, define {whole} first"
+        else:
+            books = "Artin and Lang"
+            other = f"for a power of {written}, say what t is first, as t \\in \\mathbb{{N}}"
+        why = f"{written} is a matrix" + ("" if tilde else ", and t means nothing")
+        note = f"{whole} is read as the transpose of {written}, as {books} write it; {other}"
+        self._decide(MATRIX, span, f"the transpose of {written}", why, note)
+        self._note(note)
+        return self._of_a_matrix("transpose", [matrix], span)
 
     def _entry(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
         """``(A^3)_{12}`` or ``A_{12}`` of a matrix: its entry in row 1 and column 2, counted

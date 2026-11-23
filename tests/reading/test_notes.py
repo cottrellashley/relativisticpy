@@ -125,6 +125,18 @@ class TestSilentReadingsAreSaid:
             r"subscript of D numbers, as Stewart writes it; for D_1 times f, write D_1 \cdot f"
         ]
 
+    def test_a_t_raised_on_a_matrix_is_its_transpose_and_says_so(self, wb):
+        # A^t was the t-th power, silently, where Artin and Lang mean the transpose
+        wb.exe(r"A := \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}")
+        assert notes(wb, "A^t") == [
+            r"A^t is read as the transpose of A, as Artin and Lang write it; for a power of A, "
+            r"say what t is first, as t \in \mathbb{N}"
+        ]
+        assert notes(wb, r"\tilde{A}") == [
+            r"\tilde{A} is read as the transpose of A, as Goldstein and Griffiths write it; for "
+            r"a name of its own, define \tilde{A} first"
+        ]
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

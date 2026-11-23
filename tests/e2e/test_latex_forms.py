@@ -295,6 +295,40 @@ def test_a_chain_of_relations_gives_a_truth_value_per_link(source, expected):
     assert value(source) == expected
 
 
+SQUARE = "A := \\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}\n"
+NINE = "A := \\begin{bmatrix} 1 & 2 & 3 \\\\ 4 & 5 & 6 \\\\ 7 & 8 & 9 \\end{bmatrix}\n"
+SHEAR = "A := \\begin{pmatrix} 1 & 1 \\\\ 0 & 1 \\end{pmatrix}\n"
+natural_t = sympy.Symbol("t", integer=True, nonnegative=True)
+
+TRANSPOSES = [
+    # a t raised on a matrix, after it or before it, is its transpose, as Artin and Lang
+    # write it, where t means nothing: it was the t-th power, silently, and for a 3 x 3
+    # matrix a crash; and a tilde over one, as Goldstein and Griffiths write it, the name
+    # Atilde
+    (SQUARE + "A^t", sympy.Matrix([[1, 3], [2, 4]])),
+    (SQUARE + "A^{t}", sympy.Matrix([[1, 3], [2, 4]])),
+    (NINE + "A^t", sympy.Matrix([[1, 4, 7], [2, 5, 8], [3, 6, 9]])),
+    (SQUARE + "{}^{t}A", sympy.Matrix([[1, 3], [2, 4]])),
+    (SQUARE + "{}^tA", sympy.Matrix([[1, 3], [2, 4]])),
+    (SQUARE + "\\tilde{A}", sympy.Matrix([[1, 3], [2, 4]])),
+    (SQUARE + "\\tilde A", sympy.Matrix([[1, 3], [2, 4]])),
+    # where t means something, A^t is a power, and a definition of \tilde{A} wins
+    (SHEAR + "t \\in \\mathbb{N}\nA^t", sympy.Matrix([[1, natural_t], [0, 1]])),
+    (SHEAR + "t := 3\nA^t", sympy.Matrix([[1, 3], [0, 1]])),
+    (SQUARE + "\\tilde{A} := 5\n\\tilde{A}", 5),
+]
+
+
+@pytest.mark.parametrize(("source", "expected"), case(TRANSPOSES))
+def test_a_transpose_is_read_as_books_write_it(source, expected):
+    found = value(source)
+    assert not isinstance(found, RelativisticPyError), f"{source}: {found}"
+    if isinstance(expected, sympy.Matrix):
+        assert sympy.Matrix(found[-1]) == expected, f"{source} gives {found[-1]}"
+    else:
+        assert same(found[-1], expected), f"{source} gives {found[-1]}, not {expected}"
+
+
 def test_a_name_with_brackets_after_it_stays_a_call_where_it_is_a_function():
     # f(x)^2 is the square of the call, and 2Gm(r) is 2 G times m(r)
     f, m = Function("f"), Function("m")
