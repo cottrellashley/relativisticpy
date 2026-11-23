@@ -3060,6 +3060,13 @@ _PYTHON_KEYWORDS = {
 }
 _PYTHON_KEYWORDS["from"] = _PYTHON_KEYWORDS["import"]
 
+#: Words of prose that a plain-text statement would read as a factor, as where is in
+#: f'(x) where f(x) = x^2, which states an equation of the product; and what to write.
+_PROSE_WORDS = {
+    "where": "define what it introduces first, on a line of its own, then use it: "
+    "f(x) := x^2, then f'(x)",
+}
+
 
 def _children(node: ast.Node) -> Iterator[ast.Node]:
     """The nodes directly inside ``node``."""
@@ -3087,6 +3094,18 @@ def _python_habits(statement: ast.Statement) -> None:
             and node.span.text == node.id
         ):
             raise _keyword(node, statement)
+        if (
+            isinstance(node, ast.Name)
+            and node.id in _PROSE_WORDS
+            and not node.verbatim
+            and node.span.text == node.id
+            and not (isinstance(statement, ast.Define) and node in statement.targets)
+        ):
+            raise ParseError(
+                f"'{node.id}' is a word of prose, which would be read as a factor here",
+                span=node.span,
+                hint=_PROSE_WORDS[node.id],
+            )
         if (
             isinstance(node, ast.Binary)
             and node.implicit

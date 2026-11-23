@@ -1963,3 +1963,11 @@ class TestPlainTextAndUnicodeSpellLatex:
         assert found.message == "lim needs a subscript that says what tends to what"
         assert found.hint == "for example lim_(x->0) f(x)"
         assert program("lim(sin(x)/x, x, 0)") == ["(call lim (/ (call sin x) x) x 0)"]
+
+    def test_where_typed_plainly_is_prose_and_refused(self):
+        # f'(x) where f(x) = x^2 was the equation where f(x) f'(x) = x^2
+        found = error("f'(x) where f(x) = x^2")
+        assert found.message == "'where' is a word of prose, which would be read as a factor here"
+        assert found.hint is not None
+        assert "f(x) := x^2, then f'(x)" in found.hint
+        assert program("where := 2") == ["(:= where 2)"]  # a name may still be defined
