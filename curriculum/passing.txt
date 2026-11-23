@@ -139,6 +139,8 @@ econ.bonds.duration
 econ.bonds.price
 econ.capm.alpha
 econ.consumer.cobb-douglas
+econ.consumer.mrs
+econ.consumer.roy
 econ.demand.arc-elasticity
 econ.games.minimax
 econ.games.mixed-equilibrium
