@@ -10,12 +10,13 @@ Digital Library of Mathematical Functions, chapters 9 and 10.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import sympy
 
 from relativisticpy.integrations import Example, function
-from relativisticpy.tensors.numerical import continued
+from relativisticpy.tensors.numerical import continued, integers, whole_number
 
 _ORDERS = [(0, 1.5), (1, 2.5), (0.5, 3.0), (2.5, 0.7)]  # orders and arguments
 _DEGREES = [(0, 1.5), (1, 2.5), (2, 3.0), (3, 0.7)]  # whole orders, as SciPy takes them
@@ -28,6 +29,42 @@ def _elementary(value: Any, order: Any, spherical: Any) -> Any:
     if order.is_Rational and not order.is_integer and (2 * order).is_integer:
         return sympy.expand_func(value.rewrite(spherical))
     return value
+
+
+def _spherical(kind: Any, order: Any, x: Any, cylinder: Any) -> Any:
+    """The spherical Bessel function of a ``kind`` written out: of a whole order, as the
+    elementary function it is; of any other number, through the ``cylinder`` function of
+    its kind, of order n + 1/2 (DLMF 10.47.3), which SymPy evaluates, where it keeps the
+    spherical one as it is."""
+    order = whole_number(order)
+    value = kind(order, x)
+    if order.is_Integer:
+        return sympy.expand_func(value)
+    if order.is_number:
+        return value.rewrite(cylinder)
+    return value
+
+
+def _spherical_numbers(
+    xp: Any, n: Any, x: Any, kind: Callable[..., Any], other: Callable[..., Any], first: bool
+) -> Any:
+    """j_n(x), or y_n(x) where not ``first``, of whole orders by SciPy's function of their
+    ``kind``, and below 0 through the ``other`` kind: j_{-n-1} = (-1)^{n+1} y_n and
+    y_{-n-1} = (-1)^n j_n (DLMF 10.47(ii)); of any other order, through the Bessel function
+    of order n + 1/2 (DLMF 10.47.3), as SymPy writes it, and undefined past 0, nan, where
+    the language computes it as SymPy does."""
+    from scipy.special import jv, yv
+
+    orders = integers(xp, n)
+    if orders is None:
+        cylinder = jv if first else yv
+        return xp.sqrt(xp.pi / (2 * x)) * cylinder(xp.asarray(n) + 0.5, x)
+    below = orders < 0
+    if not bool(xp.any(below)):
+        return kind(orders, x)
+    whole = xp.where(below, -orders - 1, orders)
+    sign = (-1.0) ** (whole + 1) if first else (-1.0) ** whole
+    return xp.where(below, sign * other(whole, x), kind(whole, x))
 
 
 @function(
@@ -127,13 +164,12 @@ class BesselK:
 )
 class SphericalBesselJ:
     def exact(self, n: Any, x: Any) -> Any:
-        value = sympy.jn(n, x)
-        return sympy.expand_func(value) if sympy.sympify(n).is_Integer else value
+        return _spherical(sympy.jn, n, x, sympy.besselj)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
-        from scipy.special import spherical_jn
+        from scipy.special import spherical_jn, spherical_yn
 
-        return spherical_jn(xp.asarray(n).astype(int), x)
+        return _spherical_numbers(xp, n, x, spherical_jn, spherical_yn, first=True)
 
 
 @function(
@@ -149,13 +185,12 @@ class SphericalBesselJ:
 )
 class SphericalBesselY:
     def exact(self, n: Any, x: Any) -> Any:
-        value = sympy.yn(n, x)
-        return sympy.expand_func(value) if sympy.sympify(n).is_Integer else value
+        return _spherical(sympy.yn, n, x, sympy.bessely)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
-        from scipy.special import spherical_yn
+        from scipy.special import spherical_jn, spherical_yn
 
-        return spherical_yn(xp.asarray(n).astype(int), x)
+        return _spherical_numbers(xp, n, x, spherical_yn, spherical_jn, first=False)
 
 
 @function(

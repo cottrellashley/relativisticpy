@@ -9,6 +9,7 @@ import pytest
 import sympy
 
 from relativisticpy import Workbook
+from relativisticpy.errors import EvaluationError
 
 PAIR = r"\mathcal{V} := \mathbb{R}^{2}" "\n" r"l \in \mathcal{V}"
 COMPLEX_PAIR = r"\mathcal{V} := \mathbb{C}^{2}" "\n" r"l \in \mathcal{V}"
@@ -26,6 +27,81 @@ def exactly(program):
     """The value of a program, as a complex number."""
     with Workbook() as wb:
         return complex(sympy.N(wb.expr(program), 30))
+
+
+def refused(program, setup="", data=None, name="x^l"):
+    """The message a program is refused with, of data bound to ``name`` where it is given."""
+    with Workbook() as wb:
+        if setup:
+            wb.exe(setup)
+        if data is not None:
+            wb[name] = np.asarray(data)
+        with pytest.raises(EvaluationError) as error:
+            wb.expr(program)
+    return error.value.message
+
+
+class TestDegrees:
+    """5 and 7: a whole degree is an integer, and other degrees are what exact makes them."""
+
+    def test_a_laguerre_polynomial_of_a_high_degree(self):
+        found = of_data(r"L_{40}(x^l)", [25.0, 60.0])
+        expected = [float(mpmath.laguerre(40, 0, v)) for v in (25, 60)]
+        assert np.allclose(found, expected, rtol=1e-9)
+
+    def test_a_generalised_laguerre_polynomial_of_a_high_degree(self):
+        found = of_data(r"assoc_laguerre(100, 3/2, x^l)", [25.0, 60.0])
+        expected = [float(mpmath.laguerre(100, 1.5, v)) for v in (25, 60)]
+        assert np.allclose(found, expected, rtol=1e-9)
+
+    def test_a_laguerre_polynomial_of_a_negative_degree(self):
+        found = of_data(r"laguerre(-2, x^l)", [0.3, 1.5])
+        assert np.allclose(found, [np.exp(v) * (1 + v) for v in (0.3, 1.5)], rtol=1e-12)
+
+    def test_a_spherical_bessel_function_of_half_an_order(self):
+        found = of_data(r"jn(1/2, x^l)", [1.5, 3.0])
+        expected = [
+            float(mpmath.sqrt(mpmath.pi / (2 * v)) * mpmath.besselj(1, v)) for v in (1.5, 3)
+        ]
+        assert np.allclose(found, expected, rtol=1e-12)
+
+    def test_a_spherical_bessel_function_of_a_negative_order(self):
+        assert np.allclose(of_data(r"jn(-1, x^l)", [1.5, 3.0]), np.cos([1.5, 3]) / [1.5, 3])
+        assert np.allclose(of_data(r"yn(-1, x^l)", [1.5, 3.0]), np.sin([1.5, 3]) / [1.5, 3])
+
+    def test_a_hermite_function_of_half_a_degree(self):
+        found = of_data(r"hermite(1/2, x^l)", [1.5, 3.0])
+        assert np.allclose(found, [float(mpmath.hermite(0.5, v)) for v in (1.5, 3)], rtol=1e-12)
+        assert np.isclose(found[0], exactly("N(hermite(1/2, 3/2))"), rtol=1e-12)
+
+    @pytest.mark.parametrize(
+        ("program", "said"),
+        [
+            ("hermite(-1, x^l)", "hermite takes a degree that is a real number from 0, not -1"),
+            ("laguerre(1/2, x^l)", "laguerre takes a degree that is a whole number, not 1/2"),
+            ("assoc_laguerre(1/2, 1, x^l)", "assoc_laguerre takes a degree that is a whole"),
+            ("Ynm(1/2, 0, x^l, 1)", "Ynm takes a degree that is a whole number, not 1/2"),
+        ],
+    )
+    def test_a_degree_exact_refuses_is_refused_of_data(self, program, said):
+        assert said in refused(program, PAIR, [0.3, 0.7])
+        assert said in refused(program.replace("x^l", "3/10"))
+
+    def test_an_order_beyond_its_degree_is_refused_by_both(self):
+        said = "Ynm is of a degree l from 0 and an order m from -l to l, not l = 2, m = 3"
+        assert refused("Ynm(2, 3, x^l, 1)", PAIR, [0.3, 0.7]) == said
+        assert refused("Ynm(2, 3, 3/10, 1)") == said
+
+    def test_spherical_harmonics_with_scipy_before_1_15(self, monkeypatch):
+        # which names the function sph_harm, with the order first and the azimuth second
+        import scipy.special
+
+        newer = scipy.special.sph_harm_y
+        older = lambda m, n, azimuth, polar: newer(n, m, polar, azimuth)  # noqa: E731
+        monkeypatch.delattr(scipy.special, "sph_harm_y")
+        monkeypatch.setattr(scipy.special, "sph_harm", older, raising=False)
+        found = of_data("Ynm(2, 1, x^l, 1/2)", [0.3, 1.2])
+        assert np.allclose(found, newer(2, 1, np.array([0.3, 1.2]), 0.5))
 
 
 class TestComplexValues:

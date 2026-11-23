@@ -4,8 +4,10 @@ The Legendre polynomials ``P_n(x)`` and associated Legendre functions ``P_l^m(x)
 physicists' Hermite polynomials ``H_n(x)`` (probabilists write He_n), the Laguerre
 polynomials ``L_n(x)`` and ``L_n^{(\alpha)}(x)``, the Chebyshev polynomials ``T_n(x)`` and
 ``U_n(x)``, and the spherical harmonics ``Y_l^m(\theta, \phi)``, by their book names. Exact
-with SymPy, which writes those of a given degree out, and numeric with SciPy. DLMF is the
-NIST Digital Library of Mathematical Functions, chapters 14 and 18.
+with SymPy, which writes those of a given degree out, and numeric with SciPy, which takes
+a whole degree as an integer. A degree a polynomial is not of, as a Laguerre polynomial is
+of no degree 1/2, is refused by both. DLMF is the NIST Digital Library of Mathematical
+Functions, chapters 14 and 18.
 """
 
 from __future__ import annotations
@@ -14,10 +16,79 @@ from typing import Any
 
 import sympy
 
+from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.numerical import integers, realised, whole_number
 
 x, alpha, theta, phi = sympy.symbols("x alpha theta phi")
 _DEGREES = [(0, 0.3), (1, 0.7), (2, -0.4), (5, 0.9)]  # degrees and arguments
+
+
+def _degree(n: Any, name: str, *, negative: bool = False, fractional: bool = False) -> Any:
+    """``n`` as the polynomial called ``name`` takes its degree: a whole number given as a
+    decimal, as data gives it, made an integer; a symbol or an expression kept as it is,
+    for a value later; and a number refused that is below 0, unless the polynomial has
+    degrees below 0 (``negative``), or that is no whole number, unless it is a function of
+    any degree (``fractional``)."""
+    n = whole_number(n)
+    if n.is_number and not _allowed(n, negative=negative, fractional=fractional):
+        raise _no_degree(name, n, negative=negative, fractional=fractional)
+    return n
+
+
+def _degrees(
+    xp: Any, n: Any, name: str, *, negative: bool = False, fractional: bool = False
+) -> Any:
+    """Degrees given as numbers: as integers where every one is whole, and as they are
+    where the polynomial is a function of any degree (``fractional``) and one is not;
+    refused as :func:`_degree` refuses them."""
+    whole = integers(xp, n)
+    values = whole if whole is not None else xp.asarray(n)
+    complex_ = xp.iscomplexobj(values)
+    below = not complex_ and bool(xp.any(values < 0))
+    if (whole is None and (complex_ or not fractional)) or (below and not negative):
+        for each in xp.ravel(values).tolist():  # the first it is not of, to say so
+            value = sympy.nsimplify(each)
+            if not _allowed(value, negative=negative, fractional=fractional):
+                raise _no_degree(name, value, negative=negative, fractional=fractional)
+    return values
+
+
+def _allowed(n: Any, *, negative: bool, fractional: bool) -> bool:
+    """Whether a number is a degree of a polynomial that has degrees below 0 or not, and
+    real degrees that are no whole numbers or not. No degree is complex: SymPy reflects
+    P_n(-x) into (-1)^n P_n(x), which holds of whole numbers alone."""
+    whole = n.is_Integer or (fractional and n.is_extended_real)
+    return bool(whole and (negative or not n.is_extended_negative))
+
+
+def _no_degree(name: str, n: Any, *, negative: bool, fractional: bool) -> EvaluationError:
+    number = "a real number" if fractional else "a whole number"
+    wanted = number if negative else f"{number} from 0"
+    return EvaluationError(
+        f"{name} takes a degree that is {wanted}, not {n}",
+        hint="each polynomial is of the degrees books define it of, as n = 0, 1, 2, ...",
+    )
+
+
+def _order(ell: Any, m: Any, name: str) -> None:
+    """Refuse a degree and an order, whole numbers, that the function called ``name`` is
+    not of: a degree below 0, or an order larger than it."""
+    if ell < 0 or abs(m) > ell:
+        raise EvaluationError(
+            f"{name} is of a degree l from 0 and an order m from -l to l, not l = {ell}, m = {m}",
+            hint="P_l^m(x) and Y_l^m are of l = 0, 1, 2, ... and m = -l, ..., l",
+        )
+
+
+def _orders(xp: Any, degrees: Any, orders: Any, name: str) -> None:
+    """Refuse degrees and orders given as whole numbers as :func:`_order` refuses them,
+    saying the first pair the function is not of."""
+    wrong = (degrees < 0) | (xp.abs(orders) > degrees)
+    if bool(xp.any(wrong)):
+        degrees, orders, wrong = xp.broadcast_arrays(degrees, orders, wrong)
+        first = int(xp.argmax(wrong))
+        _order(int(xp.ravel(degrees)[first]), int(xp.ravel(orders)[first]), name)
 
 
 @function(
@@ -33,12 +104,12 @@ _DEGREES = [(0, 0.3), (1, 0.7), (2, -0.4), (5, 0.9)]  # degrees and arguments
 )
 class Legendre:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.legendre(n, x)
+        return sympy.legendre(_degree(n, "legendre", negative=True, fractional=True), x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
         from scipy.special import eval_legendre
 
-        return eval_legendre(n, x)
+        return eval_legendre(_degrees(xp, n, "legendre", negative=True, fractional=True), x)
 
 
 @function(
@@ -55,11 +126,18 @@ class Legendre:
 )
 class AssociatedLegendre:
     def exact(self, ell: Any, m: Any, x: Any) -> Any:
+        ell = _degree(ell, "assoc_legendre", negative=True, fractional=True)
+        m = _degree(m, "assoc_legendre", negative=True, fractional=True)
+        if ell.is_Integer and m.is_Integer:
+            _order(ell, m, "assoc_legendre")
         return sympy.assoc_legendre(ell, m, x)
 
     def numeric(self, xp: Any, ell: Any, m: Any, x: Any) -> Any:
         from scipy.special import lpmv
 
+        degrees, orders = integers(xp, ell), integers(xp, m)
+        if degrees is not None and orders is not None:
+            _orders(xp, degrees, orders, "assoc_legendre")
         return lpmv(m, ell, x)
 
 
@@ -76,12 +154,20 @@ class AssociatedLegendre:
 )
 class Hermite:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.hermite(n, x)
+        return sympy.hermite(_degree(n, "hermite", fractional=True), x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
         from scipy.special import eval_hermite
 
-        return eval_hermite(xp.asarray(n).astype(int), x)
+        degrees = _degrees(xp, n, "hermite", fractional=True)
+        if degrees.dtype.kind == "i":
+            return eval_hermite(degrees, x)
+        import mpmath
+        import numpy as np
+
+        # the Hermite function, of a degree that is no whole number, as SymPy evaluates it
+        each = np.vectorize(lambda n, x: complex(mpmath.hermite(n, x)), otypes=[complex])
+        return realised(np, each(np.asarray(degrees), np.asarray(x)))
 
 
 @function(
@@ -97,12 +183,17 @@ class Hermite:
 )
 class Laguerre:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.laguerre(n, x)
+        return sympy.laguerre(_degree(n, "laguerre", negative=True), x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
         from scipy.special import eval_laguerre
 
-        return eval_laguerre(n, x)
+        degrees = _degrees(xp, n, "laguerre", negative=True)
+        below = degrees < 0
+        if not bool(xp.any(below)):
+            return eval_laguerre(degrees, x)
+        whole = xp.where(below, -degrees - 1, degrees)  # L_{-n}(x) = e^x L_{n-1}(-x)
+        return xp.where(below, xp.exp(x) * eval_laguerre(whole, -x), eval_laguerre(whole, x))
 
 
 @function(
@@ -118,12 +209,12 @@ class Laguerre:
 )
 class GeneralisedLaguerre:
     def exact(self, n: Any, alpha: Any, x: Any) -> Any:
-        return sympy.assoc_laguerre(n, alpha, x)
+        return sympy.assoc_laguerre(_degree(n, "assoc_laguerre"), alpha, x)
 
     def numeric(self, xp: Any, n: Any, alpha: Any, x: Any) -> Any:
         from scipy.special import eval_genlaguerre
 
-        return eval_genlaguerre(n, alpha, x)
+        return eval_genlaguerre(_degrees(xp, n, "assoc_laguerre"), alpha, x)
 
 
 @function(
@@ -139,12 +230,12 @@ class GeneralisedLaguerre:
 )
 class ChebyshevT:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.chebyshevt(n, x)
+        return sympy.chebyshevt(_degree(n, "chebyshevt", negative=True, fractional=True), x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
         from scipy.special import eval_chebyt
 
-        return eval_chebyt(n, x)
+        return eval_chebyt(_degrees(xp, n, "chebyshevt", negative=True, fractional=True), x)
 
 
 @function(
@@ -160,12 +251,18 @@ class ChebyshevT:
 )
 class ChebyshevU:
     def exact(self, n: Any, x: Any) -> Any:
+        n = _degree(n, "chebyshevu", negative=True, fractional=True)
+        if n.is_number and n.is_extended_negative and not n.is_Integer:
+            # through the hypergeometric function, as SciPy computes it: SymPy reflects
+            # U_n into -U_{-n-2}, which is below 0 too, and fails
+            half = sympy.Rational(3, 2)
+            return sympy.hyperexpand((n + 1) * sympy.hyper([-n, n + 2], [half], (1 - x) / 2))
         return sympy.chebyshevu(n, x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
         from scipy.special import eval_chebyu
 
-        return eval_chebyu(n, x)
+        return eval_chebyu(_degrees(xp, n, "chebyshevu", negative=True, fractional=True), x)
 
 
 @function(
@@ -184,11 +281,21 @@ class ChebyshevU:
 )  # fmt: skip
 class SphericalHarmonic:
     def exact(self, ell: Any, m: Any, theta: Any, phi: Any) -> Any:
+        ell, m = _degree(ell, "Ynm", negative=True), _degree(m, "Ynm", negative=True)
+        known = ell.is_Integer and m.is_Integer
+        if known:
+            _order(ell, m, "Ynm")
         value = sympy.Ynm(ell, m, theta, phi)
-        known = sympy.sympify(ell).is_Integer and sympy.sympify(m).is_Integer
         return value.expand(func=True) if known else value
 
     def numeric(self, xp: Any, ell: Any, m: Any, theta: Any, phi: Any) -> Any:
-        from scipy.special import sph_harm_y
+        degrees = _degrees(xp, ell, "Ynm", negative=True)
+        orders = _degrees(xp, m, "Ynm", negative=True)
+        _orders(xp, degrees, orders, "Ynm")
+        try:
+            from scipy.special import sph_harm_y
+        except ImportError:  # SciPy before 1.15 names it sph_harm, and takes the azimuth first
+            from scipy.special import sph_harm
 
-        return sph_harm_y(xp.asarray(ell).astype(int), xp.asarray(m).astype(int), theta, phi)
+            return sph_harm(orders, degrees, phi, theta)
+        return sph_harm_y(degrees, orders, theta, phi)
