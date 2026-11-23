@@ -111,7 +111,6 @@ DERIVATIVES = [
     case(  # y is tied to x by the curve: neither is 0, and both are refused (guard 6)
         Pair("x^3 + y^3 = 6 x y", r"\frac{dy}{dx}", r"\frac{d}{dx} y", REFUSED),
         "of-a-name-tied-by-an-equation",
-        "22: guard 6 catches dy/dx but not d/dx y, which gives 0",
     ),
 ]  # fmt: skip
 
@@ -139,13 +138,11 @@ SUMS = [
         Pair("a_0 := 1\na_n := \\frac{1}{n}", r"\sum_{n=0}^{3} a_n", "a_0 + a_1 + a_2 + a_3",
              1 + sum(sympy.Rational(1, n) for n in range(1, 4))),
         "of-a-family-with-a-member-given",
-        "9: the sum inlines the formula, 1/0 at n = 0, and never consults a_0",
     ),
     case(
         Pair("c_n := \\frac{1}{n^2}\nc_1 := 5", r"\sum_{n=1}^{3} c_n", "c_1 + c_2 + c_3",
              5 + sympy.Rational(1, 4) + sympy.Rational(1, 9)),
         "of-a-family-with-its-first-member-given",
-        "9: the sum gives 49/36, its terms 193/36",
     ),
 ]  # fmt: skip
 
@@ -164,7 +161,6 @@ ONES = [
     case(
         Pair(W, r"\mathbf{1}^T w", r"\mathbf{1} \cdot w", float(np.sum([0.2, 0.3, 0.5]))),
         "of-a-column",
-        "6: \\mathbf{1} \\cdot w is w, as \\mathbf{1} is read alone beside \\cdot",
     ),
 ]
 
@@ -211,13 +207,11 @@ LISTS = [
         Pair(r"x := \texttt{x}", r"\sum_{i=1}^{3} x_i", r"\sum_{n=1}^{3} x_n",
              float(np.sum(SCOPE["x"])), SCOPE),
         "a-sum-of-its-elements",
-        "21: a Python list is a constant array to the reader, and x_i a new symbol",
     ),
     case(
         Pair(r"v := \texttt{v}", r"|v|", r"\sqrt{v \cdot v}", float(np.linalg.norm(SCOPE["v"])),
              SCOPE),
         "its-length",
-        "21: the absolute value of a list from Python is not defined",
     ),
 ]  # fmt: skip
 
@@ -261,7 +255,6 @@ OPERATORS = [
         Pair(P, r"\hat{p} x \psi(x)", r"-i \hbar \frac{d}{dx} (x \psi(x))",
              -sympy.I * hbar * sympy.diff(x * PSI, x)),
         "of-a-product",
-        "1: a defined operator acts on the next factor only",
     ),
 ]  # fmt: skip
 
@@ -290,7 +283,6 @@ NORMS = [
              r"\| |\psi\rangle \|", r"\sqrt{\langle \psi | \psi \rangle}",
              float(np.linalg.norm(np.array([1, 1j]) / np.sqrt(2)))),
         "of-a-complex-ket",
-        "3: the length of a complex vector is sqrt(sum v^2), without conjugating",
     ),
 ]  # fmt: skip
 
