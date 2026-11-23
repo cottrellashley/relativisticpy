@@ -32,7 +32,8 @@ A renaming statement gives a built-in another name: `MetricSymbol := G` makes th
 ## Names and numbers
 
 - A name that nothing defines is a symbol. `theta`, `\theta` and `θ` are one symbol, as is every spelling of a Greek letter.
-- In LaTeX, a run of letters is a product of one symbol for each letter: `\frac{2GM}{r}` is 2·G·M/r. Greek names, defined names and builtins stay whole, and `\mathrm{GM}` or `\text{GM}` is one name. In plain text, `GM` is one name.
+- In LaTeX, a run of letters is a product of one symbol for each letter: `\frac{2GM}{r}` is 2·G·M/r. Greek names, defined names and builtins stay whole, and `\mathrm{GM}` or `\text{GM}` is one name. In plain text, `GM` is one name, with a note where its letters are written alone too.
+- Plain text and Unicode write LaTeX's functions and operators in letters, as AsciiMath does, and read as the commands they spell: `sin 2x` and `sin²x` are `\sin 2x` and `\sin^2 x`, and `log_2 8`, `int_0^1 x^2 dx`, `lim_(x->0) f(x)` and `sum_(n=1)^oo 1/n^2` are `\log_2 8`, `\int_0^1 x^2\,dx`, `\lim_{x \to 0} f(x)` and `\sum_{n=1}^{\infty} 1/n^2`; `oo` is `\infty`. A solidus between differentials is Leibniz's fraction: `d/dx f`, `dy/dx`, `d(x^3)/dx`, `∂f/∂x`. `sum(f, (n, a, b))` and `product(f, (k, a, b))` are `\sum` and `\prod`. A name that runs a function into its argument, as `sinx`, is one name with a note in plain text, and refused in LaTeX and Unicode.
 - A subscript on a symbol makes another symbol: `r_s` and `r_{s}` are both `r_s`. On a tensor, it is an index.
 - A name followed by a bracket, with no space, is a call: `f(x)`. A function nothing defines is unknown, as `A(r)` in a metric. A function written as a command takes what follows it: `\sin x`, `\sin^2\theta`.
 - Arithmetic is exact: `1/2` is a half, and a decimal stays a decimal. `^` and `**` are powers, a space between factors multiplies, and `299\,792\,458` is one number.
@@ -275,7 +276,7 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 
 ### Unicode
 
-Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`, ⊛ `\circledast`. The operators · ⋅ ∗ × ÷ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, so `r²` is `r^{2}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
+Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`, ⊛ `\circledast`. The operators · ⋅ ∗ × ÷ ⁄ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, letters too, so `r²` is `r^{2}`, `rₛ` is `r_{s}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. ∛ and ∜ are `\sqrt[3]` and `\sqrt[4]`, and a vulgar fraction, ½, and the fraction slash, `3⁄4`, are fractions. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
 
 ## Verdicts of a check
 

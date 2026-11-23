@@ -366,6 +366,24 @@ integral is. Otherwise it is kept as written, with a note:
 
 ```
 
+In plain text and Unicode, calculus is typed as AsciiMath types it, and reads as the LaTeX
+it spells: a solidus between differentials is Leibniz's fraction, `int`, `lim` and `sum`
+with their scripts are `\int`, `\lim` and `\sum`, and `sum(f, (n, a, b))` is `\sum`, as
+`integrate(f, (x, a, b))` is `\int`:
+
+```python
+>>> wb.exe("""
+...     d/dx sin(x)
+...     d(x^3)/dx
+...     int_0^1 x^2 dx
+...     lim_(x->0) sin(x)/x
+...     sum(1/n^2, (n, 1, oo))
+...     ∫_0^π sin²x dx
+... """)
+[cos(x), 3*x**2, 1/3, 1, pi**2/6, pi/2]
+
+```
+
 The Laplace, Fourier and z-transforms and their inverses are written as books write them,
 a calligraphic letter with braces, `\mathcal{L}\{f(t)\}(s)`, which is the transform
 whatever the plain letter means. Their variables are named by convention, by the letters
