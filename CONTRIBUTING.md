@@ -55,6 +55,11 @@ Every stage has its own tests under `tests/`. A change comes with tests for the
 stage it touches and, for anything a user can write, an end-to-end test in
 `tests/e2e` that states the notation and what it means.
 
+Where one thing is written in two ways, as `\frac{dy}{dx}` and `\frac{d}{dx} y`, the two
+must agree. `tests/equivalences` holds such pairs, each with its value computed without
+RelativisticPy. A pair that does not agree yet is marked to fail, with the finding it
+comes from, and the fix of the finding removes the mark.
+
 ## Adding a library
 
 Every function of the language is a capability that an integration declares: one module
