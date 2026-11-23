@@ -86,3 +86,14 @@ def test_a_scale_in_the_exponential_is_taken_positive_as_books_take_it(program):
 
 def test_an_integral_that_diverges_is_not_given_a_value_by_its_series():
     assert value(r"\int_0^\infty \frac{1}{e^x - 1} dx") == sympy.oo
+
+
+def test_limits_written_as_the_variable_equal_to_a_value_are_those_values():
+    # the integral was given the equations x = 0 and x = 1, and SymPy failed on them
+    assert value(r"\int_{x=0}^{x=1} x^2 \, dx") == sympy.Rational(1, 3)
+    assert value(r"\int_{t=1}^{t=2} \frac{1}{t} \, dt") == sympy.log(2)
+    *_, last = Workbook().each(Source(r"\int_{y=0}^{y=1} x \, dx", latex=True))
+    assert last.error is not None
+    assert last.error.message == (
+        "a limit of the integral over x is written y = 0, which does not say what x is"
+    )

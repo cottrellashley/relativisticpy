@@ -52,7 +52,24 @@ def make_tuple(*items: Any) -> tuple[Any, ...]:
 
 
 def limits(variable: Any, lower: Any, upper: Any) -> tuple[Any, Any, Any]:
-    return (variable, lower, upper)
+    """The limits of an integral, each a value, or written as the variable equal to one,
+    as ``\\int_{x=0}^{x=1}`` writes them (Riley, Hobson and Bence (2006), section 6.1)."""
+    return (variable, _end(variable, lower), _end(variable, upper))
+
+
+def _end(variable: Any, end: Any) -> Any:
+    """A limit of an integral: the value of ``x = a``, which must name its variable."""
+    if not isinstance(end, sympy.Equality):
+        return end
+    for named, value in ((end.lhs, end.rhs), (end.rhs, end.lhs)):
+        if named == variable:
+            return value
+    shown = display.unicode(variable)
+    raise EvaluationError(
+        f"a limit of the integral over {shown} is written {display.unicode(end)}, which does "
+        f"not say what {shown} is",
+        hint=f"write the limit as {shown} = a, or as a alone",
+    )
 
 
 def piecewise(*args: Any) -> Any:
