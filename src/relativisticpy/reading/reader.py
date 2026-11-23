@@ -79,6 +79,7 @@ from relativisticpy.reading.names import (
     _names_builtin,
     _names_inside,
     _names_written,
+    _number_then_letters,
     _often,
     _operators_written,
     _other_names,
@@ -707,10 +708,17 @@ class Reader(Typer):
                 f"{function} {argument} or {function}({argument})"
             )
             return
+        alone = self._factors | self.session.factors
+        if (parts := _subscripted_parts(name)) is not None:  # x_1x_2, of x_1 and x_2
+            if all(part in alone or scope.lookup(part) is not None for part in parts):
+                self._note(
+                    f"{written} is one name, as plain text writes names; for the product, "
+                    f"write {' '.join(parts)} or {'*'.join(parts)}"
+                )
+            return
         letters = split_index_labels(name)
         if not name.isalpha() or len(letters) not in (2, 3) or _a_differential(name):
             return  # a word, as rate is, or a differential, as dr is
-        alone = self._factors | self.session.factors
         if all(letter in alone or scope.lookup(letter) is not None for letter in letters):
             self._note(
                 f"{written} is one name, as plain text writes names; for the product, write "
@@ -2506,3 +2514,14 @@ def _bound(
         elif slot is not None:
             return None
     return tuple(arguments), tuple(keywords)
+
+
+def _subscripted_parts(name: str) -> list[str] | None:
+    """The names that a name the lexer joined runs together after a number as subscript:
+    x_1 and x_2 of ``x_1x_2``, and x_1, x_2 and x_3 of ``x_1x_2x_3``; ``None`` for any
+    other name."""
+    split = _number_then_letters(name)
+    if split is None:
+        return None
+    first, rest = split
+    return [first, *(_subscripted_parts(rest) or [rest])]

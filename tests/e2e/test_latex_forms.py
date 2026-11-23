@@ -64,6 +64,14 @@ BRACKETS = [
     ("f(x) := x^2\n(f)(3)", 9),
     ("f(x) := x^2\nf \\left(3\\right)", 9),
     ("y(x) := x^3\ny (x + 1)", (x + 1) ** 3),
+    # a letter after a subscript of a number starts a factor, as TeX sets it (x_1x_2 was a
+    # name of its own)
+    (r"x_1x_2", sympy.Symbol("x_1") * sympy.Symbol("x_2")),
+    (r"x_1y", sympy.Symbol("x_1") * y),
+    (r"x_1x_2x_3", sympy.Symbol("x_1") * sympy.Symbol("x_2") * sympy.Symbol("x_3")),
+    ("x_1 := 3\nx_2 := 5\nx_1x_2", 15),
+    ("x_n := n^2\nx_1x_3 + x_2", 13),
+    (r"x_{12}", sympy.Symbol("x_12")),
 ]
 
 PRIMES = [

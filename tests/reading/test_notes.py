@@ -81,6 +81,17 @@ class TestSilentReadingsAreSaid:
         assert notes(wb, "k(1, 2)") == []
         assert wb.expr("k(1, 2)") == 5
 
+    def test_a_name_run_on_after_a_numbered_subscript_is_one_name_and_says_so(self, wb):
+        # in plain text x_1x_2 is one name, as a program writes one; where x_1 and x_2 have
+        # values it says how to write their product (in LaTeX it is the product)
+        assert notes(wb, "x_1x_2") == []
+        wb.exe("x_1 := 3\nx_2 := 5")
+        assert notes(wb, "x_1x_2") == [
+            "x_1x_2 is one name, as plain text writes names; for the product, write x_1 x_2 "
+            "or x_1*x_2"
+        ]
+        assert wb.expr("x_1 x_2") == 15  # the hint works
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

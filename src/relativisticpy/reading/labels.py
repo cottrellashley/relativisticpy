@@ -33,7 +33,12 @@ from relativisticpy.ir import SCALAR, Node, TensorType
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.vocabulary import GREEK
-from relativisticpy.reading.names import _letter, _shown, _written_as_letter
+from relativisticpy.reading.names import (
+    _letter,
+    _number_then_letters,
+    _shown,
+    _written_as_letter,
+)
 from relativisticpy.reading.subscripts import (
     Subscripts,
     _base_name,
@@ -90,7 +95,23 @@ class Labels(Subscripts):
     def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
         if ctx.latex and (run := self._run_with_a_label(node, scope, ctx)) is not None:
             return run
+        if ctx.latex and (factors := self._after_a_number(node, scope, ctx)) is not None:
+            return factors
         return super()._Name(node, scope, ctx)
+
+    def _after_a_number(self, node: ast.Name, scope: Scope, ctx: Context) -> Node | None:
+        """In LaTeX, ``x_1x_2``, a name with a number as its subscript and a letter right
+        after it, which the lexer joins into one name: as TeX sets it, the letter starts a
+        factor, x_1 times x_2 (design/notation.md, decision 5.9). ``None`` for any other
+        name."""
+        split = _number_then_letters(node.id)
+        if split is None or node.verbatim or scope.lookup(node.id) is not None:
+            return None
+        first, rest = split
+        why = "in LaTeX a subscript without braces ends where a letter follows its number"
+        self._decide("letters", node.span, f"{first} times {rest}", why)
+        factors = [ast.Name(first, span=node.span), ast.Name(rest, span=node.span)]
+        return self._multiply([self.value(factor, scope, ctx) for factor in factors], node.span)
 
     def _run_with_a_label(self, node: ast.Name, scope: Scope, ctx: Context) -> Node | None:
         """In LaTeX, ``iE_1``, a run of letters that names nothing, with a subscript: as TeX

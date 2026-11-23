@@ -277,6 +277,19 @@ def glued_function(name: str) -> tuple[str, str] | None:
     return None
 
 
+#: A name the lexer joined, whose subscript is a number with letters right after it, as
+#: x_1x_2 and x_1y are.
+_NUMBER_THEN_LETTERS = re.compile(r"(?P<first>[^_]+_[0-9]+)(?P<rest>[A-Za-z].*)")
+
+
+def _number_then_letters(name: str) -> tuple[str, str] | None:
+    """The name with a number as its subscript, and what follows it, that a name the lexer
+    joined runs together: x_1 and x_2 of ``x_1x_2``, and x_1 and y of ``x_1y``. ``None``
+    for any other name, as x_12 and f_xy."""
+    match = _NUMBER_THEN_LETTERS.fullmatch(name)
+    return (match["first"], match["rest"]) if match is not None else None
+
+
 def _parameters_run(node: ast.Name, ctx: Context) -> list[str] | None:
     """The parameters that a name runs together, in the body of the function whose
     parameters they are, as ``xy`` runs x and y in ``g(x, y) := x e^(xy)``: two or more
