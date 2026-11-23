@@ -14,6 +14,7 @@ analysis.limits.sinc
 analysis.multivariable.iterated
 analysis.multivariable.lagrange
 analysis.multivariable.region
+analysis.multivariable.second-derivative-test
 analysis.series.basel
 analysis.series.harmonic
 analysis.series.radius-ratio
@@ -39,6 +40,7 @@ astro.stars.hydrostatic-pressure
 astro.stars.lane-emden-n0
 astro.stars.lane-emden-n1
 astro.stars.lane-emden-n5-mass
+chem.equilibrium.henderson-hasselbalch
 chem.huckel.benzene-delocalisation
 chem.huckel.butadiene
 chem.huckel.ethylene
@@ -127,6 +129,7 @@ dyn.control.step-response
 dyn.control.transfer-function
 dyn.flows.lorenz-hopf
 dyn.flows.lyapunov-function
+dyn.flows.rabbits-sheep
 dyn.flows.stability-1d
 dyn.linear.matrix-exponential
 dyn.linear.trace-determinant
@@ -268,6 +271,7 @@ group.su2.orthonormality
 group.su3.casimir
 group.su3.decuplet
 la.eigen.characteristic
+la.eigen.exponential
 la.eigen.powers
 la.eigen.spectral
 la.index.epsilon-delta
