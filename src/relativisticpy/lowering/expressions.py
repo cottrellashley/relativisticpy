@@ -327,6 +327,7 @@ class Expressions(LinearAlgebra):
         factors = self._compound_names(factors, scope, ctx)  # \Delta x, one name
         factors = self._calls_of_names(factors, scope)  # \psi_n(x), of the program's own
         factors = self._book_factors(factors, scope)  # J_{\nu}(x) is a call
+        factors = self._euler_factors(factors, scope, ctx)  # D f(x) is f'(x)
         grouped = self._statistic_factors(factors, scope, ctx)
         grouped = self._ones_vectors(grouped, scope, ctx)  # \mathbf{1}^T A \mathbf{1}
         grouped = self._identities_in_a_product(grouped, scope, ctx)  # I \sigma_x
@@ -577,7 +578,7 @@ class Expressions(LinearAlgebra):
         if builtin:
             self._check_keywords(BUILTINS[name], node)
         if multiplies == "letters":  # 2Gm(r) in LaTeX is 2 G m(r)
-            *leading, last = _letters_called(node, self._letters_of(func, scope))
+            *leading, last = self._euler_letters(node, scope, ctx)
             factors = [self.value(n, scope, ctx) for n in leading]
             factors.append(self.value(last, scope, ctx))
             return self._multiply(factors, node.span)
@@ -683,17 +684,82 @@ class Expressions(LinearAlgebra):
             raised = ast.Scripted(group, node.scripts, span=group.span.to(node.span))
             times = ast.Binary("*", call.func, raised, implicit=True, span=node.span)
             return self.value(times, scope, ctx)
-        assert isinstance(call.func, ast.Name)
-        *leading, last = _letters_called(call, self._letters_of(call.func, scope))
+        *leading, last = self._euler_letters(call, scope, ctx)
         factors = [self.value(n, scope, ctx) for n in leading]
         raised = ast.Scripted(last, node.scripts, span=last.span.to(node.span))
         factors.append(self.value(raised, scope, ctx))
         return self._multiply(factors, node.span)
 
+    def _euler_factors(self, factors: list[ast.Expr], scope: Scope, ctx: Context) -> list[ast.Expr]:
+        """Factors with Euler's D before a function applied made its derivative there, as
+        Stewart writes ``D f(x)`` for f'(x) (see :meth:`_euler`), and ``D_x``, which the
+        lexer joins into one name, the derivative ``D_{x}`` before what follows it."""
+        merged: list[ast.Expr] = []
+        position = 0
+        while position < len(factors):
+            factor = factors[position]
+            following = factors[position + 1] if position + 1 < len(factors) else None
+            derivative = None
+            if following is not None and _side_by_side(factor, following):  # not D \cdot f(x)
+                derivative = self._euler(factor, following, scope, ctx)
+            if following is not None and derivative is None:
+                operator = self._joined_derivative(factor, scope)  # D_x f(x)
+                if operator is not None:
+                    merged.append(operator)
+                    position += 1
+                    continue
+            merged.append(derivative or factor)
+            position += 2 if derivative is not None else 1
+        return merged
+
     def _letters_of(self, func: ast.Name, scope: Scope) -> list[str]:
         """The letters of a run that names nothing, ``Gm`` or ``Gm_1``, the subscript on the
         last."""
         return self._labelled_run(func, scope) or split_index_labels(func.id)
+
+    def _euler_letters(self, node: ast.Call, scope: Scope, ctx: Context) -> list[ast.Expr]:
+        """The factors of a run of letters of which the last is called, as
+        :func:`_letters_called` gives them, with Euler's D before the call made its
+        derivative, as ``Df(x)`` is f'(x)."""
+        assert isinstance(node.func, ast.Name)
+        *leading, last = _letters_called(node, self._letters_of(node.func, scope))
+        if leading and (derivative := self._euler(leading[-1], last, scope, ctx)) is not None:
+            return [*leading[:-1], derivative]
+        return [*leading, last]
+
+    def _euler(
+        self, operator: ast.Expr, operand: ast.Expr, scope: Scope, ctx: Context
+    ) -> ast.Expr | None:
+        """``D f(x)``: Euler's D, which nothing defines, before a function of one variable
+        applied, a function the program defines or one it does not know, is its derivative
+        there, f'(x), with a note (decision 18). ``None`` for anything else: D with a value,
+        and D before anything but a call, which multiplies."""
+        if not (
+            isinstance(operator, ast.Name)
+            and operator.id == "D"
+            and self._undefined(operator, scope)
+            and isinstance(operand, ast.Call)
+            and isinstance(operand.func, ast.Name)
+            and len(operand.args) == 1
+        ):
+            return None
+        func = operand.func
+        binding = scope.lookup(func.id)
+        if isinstance(binding, FunctionBinding):
+            if len(binding.definition.params) != 1:
+                return None
+        elif binding is not None or _names_builtin(func, latex=ctx.latex):
+            return None
+        elif self._multiplies(operand, binding, scope, ctx) is not None:
+            return None  # D x(x + 1): x multiplies, so D is a factor too
+        applied = f"{self._written_label(func.id)}({operand.args[0].span.text})"
+        primed = applied.replace("(", "'(", 1)
+        self._note(
+            f"D {applied} is read as Euler's D, the derivative {primed}; for D times "
+            f"{applied}, write D \\cdot {applied}"
+        )
+        prime = ast.Prime(func, 1, span=func.span)
+        return ast.Call(prime, operand.args, span=operand.span)
 
     def _metric_trace(self, argument: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """``trace(R_{\\mu\\nu})``: the two indices of a tensor on spacetime contracted with
@@ -1795,3 +1861,14 @@ def _a_power(script: ast.Script) -> bool:
     if script.kind != "^" or body is None or _decoration(script):
         return False
     return not (isinstance(body, ast.Name) and body.id in (*_TRANSPOSES, "dagger"))
+
+
+def _side_by_side(left: ast.Expr, right: ast.Expr) -> bool:
+    """Whether two factors are written side by side, with nothing but space between them,
+    as D and f(x) are in ``D f(x)``, and not in ``D \\cdot f(x)``."""
+    if left.span.source is not right.span.source or left.span.end > right.span.start:
+        return False
+    between = Span(left.span.source, left.span.end, right.span.start).text
+    for space in ("\\,", "\\;", "\\:", "\\ ", "~"):
+        between = between.replace(space, "")
+    return not between.strip()

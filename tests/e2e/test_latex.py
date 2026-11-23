@@ -21,6 +21,7 @@ from sympy import (
 
 from helpers import same
 from relativisticpy.errors import CompileError
+from relativisticpy.language import Source
 
 x, y, z, t, tau, theta = (Symbol(n) for n in ("x", "y", "z", "t", "tau", "theta"))
 f, g, h = Function("f"), Function("g"), Function("h")
@@ -135,6 +136,28 @@ def test_derivatives(wb, source, expected):
 def test_lagrange_notation_for_defined_functions(wb):
     assert wb.expr("f(x) := x^3\nf'(2)") == 12
     assert wb.expr("f''(x)") == 6 * x
+
+
+def test_eulers_operator(wb):
+    # D_x f(x) was the symbol D_x times f(x), and Df(x) D times f(x): Stewart writes both
+    # for the derivative (design/notation.md, 18)
+    wb.exe("f(x) := x^3")
+    (step,) = list(wb.each(Source("D_x f(x)", latex=True)))
+    assert step.values == [3 * x**2]
+    assert step.notes == [
+        "there are no coordinates, so D_x is the derivative by x, d/dx, as Euler writes it"
+    ]
+    (step,) = list(wb.each(Source("Df(x)", latex=True)))
+    assert step.values == [3 * x**2]
+    assert step.notes == [
+        r"D f(x) is read as Euler's D, the derivative f'(x); for D times f(x), write "
+        r"D \cdot f(x)"
+    ]
+    D = Symbol("D")
+    assert wb.expr(r"D \cdot f(x)") == D * x**3  # as the note says
+    assert wb.expr(Source("D_x + 1", latex=True)) == Symbol("D_x") + 1  # alone, a name
+    wb.exe("D := 2")
+    assert wb.expr(Source("D f(x)", latex=True)) == 2 * x**3  # D with a value multiplies
 
 
 @pytest.mark.parametrize(

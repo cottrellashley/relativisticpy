@@ -210,6 +210,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** d is a differential only before a variable, inside an integral, a derivative or a line element. Anywhere else, and in an evaluation bar's list of values, it is a variable. D is the covariant derivative only with an index.
 
+**Euler's D** (23 November 2026). Stewart writes the derivative `Df(x)` and `D_x f(x)`; both were read as products, D times f(x) and a symbol D_x times f(x). `D_x`, which the lexer joins into one name, is read as `D_{x}` is wherever it stands before what it acts on: the covariant derivative with the index x, which, where there are no coordinates, is the derivative by the variable x, with a note. Alone, as in `D_x + 1`, it is a name. A bare D that nothing defines, written against a function of one variable applied, `D f(x)` or `Df(x)`, is Euler's operator, the derivative f'(x), with a note that says how to write the product, `D \cdot f(x)`. D with a value, D before anything but a function applied, as in Fick's `D \frac{\partial^2 c}{\partial x^2}`, and D before a function of several variables multiply, as before.
+
 ## 19. Ellipses and index sets given by a condition
 
 **Waiting on it:** `conditional-index-sets` (2), `ellipsis-patterns` (1).

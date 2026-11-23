@@ -585,6 +585,27 @@ class Families(Labels):
                 return term
         return super()._Name(node, scope, ctx)
 
+    def _joined_derivative(self, node: ast.Expr, scope: Scope) -> ast.Scripted | None:
+        """``D_x`` before what it acts on, which the lexer joins into one name, as ``D_{x}``:
+        the derivative D with the index x, where nothing defines D_x or D (decision 18);
+        by the variable x where there are no coordinates, as Euler's D_x f(x) is. ``None``
+        for any other factor."""
+        if not isinstance(node, ast.Name):
+            return None
+        base, underscore, tail = node.id.partition("_")
+        if not (underscore and base == self.session.names["covariant"] and tail.isalpha()):
+            return None
+        if scope.lookup(node.id) is not None or scope.lookup(base) is not None:
+            return None
+        labels = split_index_labels(tail)
+        if len(labels) != 1:
+            return None
+        span = node.span
+        items = (ast.IndexItem(labels[0], span=span),)
+        label = ast.Name(labels[0], span=span)
+        script = ast.Script("_", label, ast.IndexList(items, span=span), span=span)
+        return ast.Scripted(ast.Name(base, span=span), (script,), span=span)
+
     def _family_alone(
         self,
         node: ast.Expr,

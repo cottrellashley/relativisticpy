@@ -428,6 +428,12 @@ class Tensors(Notation):
                     f"with respect to a variable named {label}; declare coordinates to make "
                     f"{label} an index"
                 )
+            elif covariant:  # D_x f(x), as Stewart writes the derivative (decision 18)
+                d, label = self.session.names["covariant"], self._written_label(item.label)
+                self._note(
+                    f"there are no coordinates, so {d}_{label} is the derivative by {label}, "
+                    f"d/d{label}, as Euler writes it"
+                )
             variable = self.graph.const(self.session.symbol(item.label), SCALAR)
             return self._differentiate(operand, [(variable, 1)], span)
         self.session.require_coordinates(span, "a derivative with an index")
