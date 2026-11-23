@@ -16,7 +16,12 @@ from typing import Any
 import sympy
 
 from relativisticpy.integrations import Example, function
-from relativisticpy.tensors.numerical import continued, integers, whole_number
+from relativisticpy.tensors.numerical import (
+    continued,
+    integers,
+    through_fractions,
+    whole_number,
+)
 
 _ORDERS = [(0, 1.5), (1, 2.5), (0.5, 3.0), (2.5, 0.7)]  # orders and arguments
 _DEGREES = [(0, 1.5), (1, 2.5), (2, 3.0), (3, 0.7)]  # whole orders, as SciPy takes them
@@ -27,7 +32,10 @@ def _elementary(value: Any, order: Any, spherical: Any) -> Any:
     function it is through the spherical one (DLMF 10.47.3 and 10.49.3)."""
     order = sympy.sympify(order)
     if order.is_Rational and not order.is_integer and (2 * order).is_integer:
-        return sympy.expand_func(value.rewrite(spherical))
+        cylinder = value.func
+        return through_fractions(
+            lambda nu, x: sympy.expand_func(cylinder(nu, x).rewrite(spherical)), *value.args
+        )
     return value
 
 
@@ -37,12 +45,10 @@ def _spherical(kind: Any, order: Any, x: Any, cylinder: Any) -> Any:
     its kind, of order n + 1/2 (DLMF 10.47.3), which SymPy evaluates, where it keeps the
     spherical one as it is."""
     order = whole_number(order)
-    value = kind(order, x)
     if order.is_Integer:
-        return sympy.expand_func(value)
-    if order.is_number:
-        return value.rewrite(cylinder)
-    return value
+        return through_fractions(lambda n, x: sympy.expand_func(kind(n, x)), order, x)
+    value = kind(order, x)
+    return value.rewrite(cylinder) if order.is_number else value
 
 
 def _spherical_numbers(

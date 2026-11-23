@@ -4,21 +4,24 @@ The Legendre polynomials ``P_n(x)`` and associated Legendre functions ``P_l^m(x)
 physicists' Hermite polynomials ``H_n(x)`` (probabilists write He_n), the Laguerre
 polynomials ``L_n(x)`` and ``L_n^{(\alpha)}(x)``, the Chebyshev polynomials ``T_n(x)`` and
 ``U_n(x)``, and the spherical harmonics ``Y_l^m(\theta, \phi)``, by their book names. Exact
-with SymPy, which writes those of a given degree out, and numeric with SciPy, which takes
-a whole degree as an integer. A degree a polynomial is not of, as a Laguerre polynomial is
-of no degree 1/2, is refused by both. DLMF is the NIST Digital Library of Mathematical
-Functions, chapters 14 and 18.
+with SymPy, which writes those of a given degree out, and of decimals at the fractions
+they denote; numeric with SciPy, which evaluates a polynomial of a whole degree at real
+numbers by its recurrence, and with mpmath for any other, which SciPy sums as a series
+in double precision and loses. A degree a polynomial is not of, as a Laguerre polynomial
+is of no degree 1/2, is refused by both. DLMF is the NIST Digital Library of
+Mathematical Functions, chapters 14 and 18.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 import sympy
 
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
-from relativisticpy.tensors.numerical import integers, realised, whole_number
+from relativisticpy.tensors.numerical import integers, realised, through_fractions, whole_number
 
 x, alpha, theta, phi = sympy.symbols("x alpha theta phi")
 _DEGREES = [(0, 0.3), (1, 0.7), (2, -0.4), (5, 0.9)]  # degrees and arguments
@@ -71,6 +74,32 @@ def _no_degree(name: str, n: Any, *, negative: bool, fractional: bool) -> Evalua
     )
 
 
+def _recurrent(xp: Any, degrees: Any, x: Any) -> bool:
+    """Whether SciPy evaluates a polynomial by its recurrence, which keeps its accuracy at
+    any degree: of whole degrees at real numbers. Of a complex number, or of a degree that
+    is no whole number, it sums a series in double precision and loses it as the degree
+    grows: T_40(0.3 + 0i) would be 356.8, and is 0.929; U_20.5(-0.9) would be -979037, and
+    is 2.21."""
+    return bool(degrees.dtype.kind == "i") and not xp.iscomplexobj(x)
+
+
+#: How many binary digits of a sum mpmath may lose to cancellation before it is taken as 0.
+_NO_DIGITS = 5000
+
+
+def _by_series(compute: Callable[..., Any], *arrays: Any) -> Any:
+    """A function of mpmath's at each of the numbers of arrays: mpmath sums a series with
+    the digits it needs, where SciPy's are lost. A sum that cancels beyond any digits, as
+    a polynomial's does at a root of it, is 0."""
+    import numpy as np
+
+    each = np.vectorize(
+        lambda *values: complex(compute(*values, zeroprec=_NO_DIGITS, maxprec=4 * _NO_DIGITS)),
+        otypes=[complex],
+    )
+    return realised(np, each(*(np.asarray(array) for array in arrays)))
+
+
 def _order(ell: Any, m: Any, name: str) -> None:
     """Refuse a degree and an order, whole numbers, that the function called ``name`` is
     not of: a degree below 0, or an order larger than it."""
@@ -104,12 +133,17 @@ def _orders(xp: Any, degrees: Any, orders: Any, name: str) -> None:
 )
 class Legendre:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.legendre(_degree(n, "legendre", negative=True, fractional=True), x)
+        n = _degree(n, "legendre", negative=True, fractional=True)
+        return through_fractions(sympy.legendre, n, x) if n.is_Integer else sympy.legendre(n, x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
+        import mpmath
         from scipy.special import eval_legendre
 
-        return eval_legendre(_degrees(xp, n, "legendre", negative=True, fractional=True), x)
+        degrees = _degrees(xp, n, "legendre", negative=True, fractional=True)
+        if _recurrent(xp, degrees, x):
+            return eval_legendre(degrees, x)
+        return _by_series(mpmath.legendre, degrees, x)
 
 
 @function(
@@ -130,6 +164,7 @@ class AssociatedLegendre:
         m = _degree(m, "assoc_legendre", negative=True, fractional=True)
         if ell.is_Integer and m.is_Integer:
             _order(ell, m, "assoc_legendre")
+            return through_fractions(sympy.assoc_legendre, ell, m, x)
         return sympy.assoc_legendre(ell, m, x)
 
     def numeric(self, xp: Any, ell: Any, m: Any, x: Any) -> Any:
@@ -154,20 +189,17 @@ class AssociatedLegendre:
 )
 class Hermite:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.hermite(_degree(n, "hermite", fractional=True), x)
+        n = _degree(n, "hermite", fractional=True)
+        return through_fractions(sympy.hermite, n, x) if n.is_Integer else sympy.hermite(n, x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
+        import mpmath
         from scipy.special import eval_hermite
 
         degrees = _degrees(xp, n, "hermite", fractional=True)
-        if degrees.dtype.kind == "i":
+        if _recurrent(xp, degrees, x):
             return eval_hermite(degrees, x)
-        import mpmath
-        import numpy as np
-
-        # the Hermite function, of a degree that is no whole number, as SymPy evaluates it
-        each = np.vectorize(lambda n, x: complex(mpmath.hermite(n, x)), otypes=[complex])
-        return realised(np, each(np.asarray(degrees), np.asarray(x)))
+        return _by_series(mpmath.hermite, degrees, x)  # the Hermite function, as SymPy has it
 
 
 @function(
@@ -183,12 +215,16 @@ class Hermite:
 )
 class Laguerre:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.laguerre(_degree(n, "laguerre", negative=True), x)
+        n = _degree(n, "laguerre", negative=True)
+        return through_fractions(sympy.laguerre, n, x) if n.is_Integer else sympy.laguerre(n, x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
+        import mpmath
         from scipy.special import eval_laguerre
 
         degrees = _degrees(xp, n, "laguerre", negative=True)
+        if not _recurrent(xp, degrees, x):
+            return _by_series(lambda n, x, **few: mpmath.laguerre(n, 0, x, **few), degrees, x)
         below = degrees < 0
         if not bool(xp.any(below)):
             return eval_laguerre(degrees, x)
@@ -209,12 +245,19 @@ class Laguerre:
 )
 class GeneralisedLaguerre:
     def exact(self, n: Any, alpha: Any, x: Any) -> Any:
-        return sympy.assoc_laguerre(_degree(n, "assoc_laguerre"), alpha, x)
+        n = _degree(n, "assoc_laguerre")
+        if n.is_Integer:
+            return through_fractions(sympy.assoc_laguerre, n, alpha, x)
+        return sympy.assoc_laguerre(n, alpha, x)
 
     def numeric(self, xp: Any, n: Any, alpha: Any, x: Any) -> Any:
+        import mpmath
         from scipy.special import eval_genlaguerre
 
-        return eval_genlaguerre(_degrees(xp, n, "assoc_laguerre"), alpha, x)
+        degrees = _degrees(xp, n, "assoc_laguerre")
+        if _recurrent(xp, degrees, x) and not xp.iscomplexobj(alpha):
+            return eval_genlaguerre(degrees, alpha, x)
+        return _by_series(mpmath.laguerre, degrees, alpha, x)
 
 
 @function(
@@ -230,12 +273,19 @@ class GeneralisedLaguerre:
 )
 class ChebyshevT:
     def exact(self, n: Any, x: Any) -> Any:
-        return sympy.chebyshevt(_degree(n, "chebyshevt", negative=True, fractional=True), x)
+        n = _degree(n, "chebyshevt", negative=True, fractional=True)
+        if n.is_Integer:
+            return through_fractions(sympy.chebyshevt, n, x)
+        return sympy.chebyshevt(n, x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
+        import mpmath
         from scipy.special import eval_chebyt
 
-        return eval_chebyt(_degrees(xp, n, "chebyshevt", negative=True, fractional=True), x)
+        degrees = _degrees(xp, n, "chebyshevt", negative=True, fractional=True)
+        if _recurrent(xp, degrees, x):
+            return eval_chebyt(degrees, x)
+        return _by_series(mpmath.chebyt, degrees, x)
 
 
 @function(
@@ -257,12 +307,18 @@ class ChebyshevU:
             # U_n into -U_{-n-2}, which is below 0 too, and fails
             half = sympy.Rational(3, 2)
             return sympy.hyperexpand((n + 1) * sympy.hyper([-n, n + 2], [half], (1 - x) / 2))
+        if n.is_Integer:
+            return through_fractions(sympy.chebyshevu, n, x)
         return sympy.chebyshevu(n, x)
 
     def numeric(self, xp: Any, n: Any, x: Any) -> Any:
+        import mpmath
         from scipy.special import eval_chebyu
 
-        return eval_chebyu(_degrees(xp, n, "chebyshevu", negative=True, fractional=True), x)
+        degrees = _degrees(xp, n, "chebyshevu", negative=True, fractional=True)
+        if _recurrent(xp, degrees, x):
+            return eval_chebyu(degrees, x)
+        return _by_series(mpmath.chebyu, degrees, x)
 
 
 @function(
@@ -282,11 +338,12 @@ class ChebyshevU:
 class SphericalHarmonic:
     def exact(self, ell: Any, m: Any, theta: Any, phi: Any) -> Any:
         ell, m = _degree(ell, "Ynm", negative=True), _degree(m, "Ynm", negative=True)
-        known = ell.is_Integer and m.is_Integer
-        if known:
-            _order(ell, m, "Ynm")
-        value = sympy.Ynm(ell, m, theta, phi)
-        return value.expand(func=True) if known else value
+        if not (ell.is_Integer and m.is_Integer):
+            return sympy.Ynm(ell, m, theta, phi)
+        _order(ell, m, "Ynm")
+        return through_fractions(
+            lambda *given: sympy.Ynm(*given).expand(func=True), ell, m, theta, phi
+        )
 
     def numeric(self, xp: Any, ell: Any, m: Any, theta: Any, phi: Any) -> Any:
         degrees = _degrees(xp, ell, "Ynm", negative=True)
@@ -297,5 +354,8 @@ class SphericalHarmonic:
         except ImportError:  # SciPy before 1.15 names it sph_harm, and takes the azimuth first
             from scipy.special import sph_harm
 
-            return sph_harm(orders, degrees, phi, theta)
-        return sph_harm_y(degrees, orders, theta, phi)
+            value = sph_harm(orders, degrees, phi, theta)
+        else:
+            value = sph_harm_y(degrees, orders, theta, phi)
+        # exact writes sin(theta)^|m|, of an angle past pi too, where SciPy has |sin(theta)|^|m|
+        return value * xp.sign(xp.sin(xp.abs(theta))) ** xp.abs(orders)

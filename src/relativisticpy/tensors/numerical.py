@@ -31,6 +31,7 @@ from typing import Any
 import sympy
 
 from relativisticpy.errors import EvaluationError
+from relativisticpy.tensors.simplification import rationalise
 
 #: Contractions whose largest operand has more elements than this are done in slices.
 CHUNK = 2**25
@@ -113,6 +114,24 @@ def whole_number(value: Any) -> Any:
     if value.is_Float and float(value).is_integer():
         return sympy.Integer(int(value))
     return value
+
+
+#: How many digits SymPy may work with to give a closed form's value to a decimal's fifteen.
+_WORKING_DIGITS = 10_000
+
+
+def through_fractions(compute: Callable[..., Any], *arguments: Any) -> Any:
+    """``compute`` of numbers among which is a decimal: at the fractions the decimals
+    denote, and its value then as a decimal, to the fifteen digits one has. SymPy sums a
+    closed form in the decimals' own digits, and loses them as the form grows: the Laguerre
+    polynomial L_40 at 25.0 would be 60672, and is -2372.12. Of symbols, or of no decimal,
+    ``compute`` as it is."""
+    values = [sympy.sympify(argument) for argument in arguments]
+    decimal = any(value.has(sympy.Float) for value in values)
+    if not decimal or any(value.free_symbols for value in values):
+        return compute(*values)
+    exact = compute(*(rationalise(value) for value in values))
+    return sympy.N(exact, 15, maxn=_WORKING_DIGITS)
 
 
 def as_array(value: Any) -> Any:

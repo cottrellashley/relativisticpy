@@ -104,6 +104,91 @@ class TestDegrees:
         assert np.allclose(found, newer(2, 1, np.array([0.3, 1.2]), 0.5))
 
 
+def spherical(cylinder, n, x):
+    """A spherical Bessel function through the Bessel function of order n + 1/2."""
+    with mpmath.workdps(40):
+        x = mpmath.mpf(str(x))
+        return complex(mpmath.sqrt(mpmath.pi / (2 * x)) * cylinder(n + mpmath.mpf(1) / 2, x))
+
+
+class TestHighDegrees:
+    """5, beyond the data the review tried: a closed form of decimals was summed in their
+    own fifteen digits by SymPy, and a polynomial of a complex number, or of a degree that
+    is no whole number, as a series in double precision by SciPy, and each lost its digits
+    as the degree grew."""
+
+    @pytest.mark.parametrize(
+        ("program", "value"),
+        [
+            ("laguerre(40, 25.0)", lambda: mpmath.laguerre(40, 0, 25)),  # was 60672
+            ("L_{40}(25.0)", lambda: mpmath.laguerre(40, 0, 25)),
+            ("assoc_laguerre(100, 1.5, 25.0)", lambda: mpmath.laguerre(100, 1.5, 25)),
+            ("chebyshevt(100, 0.9)", lambda: mpmath.chebyt(100, mpmath.mpf("0.9"))),  # 3.5e18
+            ("chebyshevu(100, 0.9)", lambda: mpmath.chebyu(100, mpmath.mpf("0.9"))),
+            ("legendre(100, 0.9)", lambda: mpmath.legendre(100, mpmath.mpf("0.9"))),
+            ("hermite(100, 2.5)", lambda: mpmath.hermite(100, 2.5)),
+            ("assoc_legendre(40, 2, 0.3)", lambda: mpmath.legenp(40, 2, mpmath.mpf("0.3"))),
+            ("Ynm(40, 1, 0.3, 0.7)",
+             lambda: mpmath.spherharm(40, 1, mpmath.mpf("0.3"), mpmath.mpf("0.7"))),
+            ("jn(40, 0.9)", lambda: spherical(mpmath.besselj, 40, 0.9)),  # was 7.1e44
+            ("yn(40, 0.9)", lambda: spherical(mpmath.bessely, 40, 0.9)),
+            ("besselj(81/2, 0.9)", lambda: mpmath.besselj(40.5, mpmath.mpf("0.9"))),
+        ],
+    )  # fmt: skip
+    def test_a_closed_form_of_a_decimal(self, program, value):
+        with mpmath.workdps(40):
+            expected = complex(value())
+        assert exactly(program) == pytest.approx(expected, rel=1e-12)
+
+    def test_a_closed_form_of_symbols_is_as_it_was(self):
+        x = sympy.Symbol("x")
+        with Workbook() as wb:
+            assert wb.expr("chebyshevt(3, x)") == 4 * x**3 - 3 * x
+            assert wb.expr("laguerre(2, 1/2)") == sympy.Rational(1, 8)
+            assert float(wb.expr("hermite(2.0, 1.5)")) == 7.0
+
+    @pytest.mark.parametrize(
+        ("name", "computed"),
+        [
+            ("legendre", mpmath.legendre),
+            ("chebyshevt", mpmath.chebyt),  # T_40(0.3 + 0i) was 356.8
+            ("chebyshevu", mpmath.chebyu),
+            ("hermite", mpmath.hermite),
+            ("laguerre", lambda n, z: mpmath.laguerre(n, 0, z)),
+        ],
+    )
+    def test_a_polynomial_of_complex_data(self, name, computed):
+        z = [0.3 + 0.0j, 0.5 + 0.2j, 3.0 - 4.0j]
+        found = of_data(
+            f"{name}(40, z^l)", z, r"\mathcal{V} := \mathbb{C}^{3}" "\n" r"l \in \mathcal{V}", "z^l"
+        )
+        with mpmath.workdps(40):
+            expected = [complex(computed(40, mpmath.mpc(v))) for v in z]
+        assert np.allclose(found, expected, rtol=1e-11, atol=0)
+
+    @pytest.mark.parametrize(
+        ("name", "computed"),
+        [
+            ("legendre", mpmath.legendre),
+            ("chebyshevt", mpmath.chebyt),
+            ("chebyshevu", mpmath.chebyu),
+        ],
+    )
+    def test_a_function_of_a_degree_that_is_no_whole_number(self, name, computed):
+        found = of_data(f"{name}(41/2, x^l)", [0.3, -0.9])  # U_20.5(-0.9) was -979037
+        with mpmath.workdps(40):
+            expected = [
+                complex(computed(mpmath.mpf("20.5"), mpmath.mpf(v))) for v in ("0.3", "-0.9")
+            ]
+        assert np.allclose(found, expected, rtol=1e-11, atol=0)
+
+    def test_a_polynomial_at_a_root_of_it_is_zero(self):
+        # where mpmath finds no digits left of its sum, which cancels altogether
+        z = [2.5 + 0.0j, 1.0 + 1.0j]
+        found = of_data("assoc_laguerre(1, 3/2, z^l)", z, COMPLEX_PAIR, "z^l")
+        assert np.allclose(found, [0, 1.5 - 1j])
+
+
 class TestComplexValues:
     """6: past the real domain, data is complex where exact is, never nan or a real part."""
 
