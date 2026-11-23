@@ -276,7 +276,7 @@ These commands are LaTeX's, or a package's, but not the language's. Each is an e
 
 ### Unicode
 
-Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`, ⊛ `\circledast`. The operators · ⋅ ∗ × ÷ ⁄ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, letters too, so `r²` is `r^{2}`, `rₛ` is `r_{s}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. ∛ and ∜ are `\sqrt[3]` and `\sqrt[4]`, and a vulgar fraction, ½, and the fraction slash, `3⁄4`, are fractions. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
+Unicode reads as the LaTeX it stands for. A Greek letter, `θ`, is its command, and so are ∂ `\partial`, ∇ `\nabla`, √ `\sqrt`, ∑ `\sum`, ∏ `\prod`, ∫ `\int`, ∬ `\iint`, ∭ `\iiint`, ∮ `\oint`, ⊛ `\circledast`, ⌊ `\lfloor`, ⌋ `\rfloor`, ⌈ `\lceil`, ⌉ `\rceil`. The operators · ⋅ ∗ × ÷ ⁄ − ≤ ≥ ≠ → ↦ ≡ ≔ ′ ± ∓ ∧ ∘ ⊗ ‖ ⟨ ⟩ 〈 〉 … ⋯ and the relations ∼ ≃ ≈ ≅ ∝ ≪ ≫ ∈ ∉ ⊂ ⊆ ↔ are LaTeX's. Superscripts and subscripts are scripts, letters too, so `r²` is `r^{2}`, `rₛ` is `r_{s}` and `Aᵀ` is `A^{T}`, † after a matrix is `^\dagger`, ⊕ is `\oplus`, and the double-struck letters, ℝ ℂ 𝔼 𝟙, are `\mathbb`'s. ∛ and ∜ are `\sqrt[3]` and `\sqrt[4]`, and a vulgar fraction, ½, and the fraction slash, `3⁄4`, are fractions. A combining accent, as in ȧ, is an error that names it: write the command, `\dot{a}`.
 
 ## Verdicts of a check
 

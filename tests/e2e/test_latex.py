@@ -287,6 +287,7 @@ def test_unicode_fractions_divide(wb):
     assert wb.expr("rₛ/(2r)") == Symbol("r_s") / (2 * Symbol("r"))  # a letter as a subscript
     assert wb.expr("eˣ") == exp(x)
     assert wb.expr("∛8 + ∜16") == 4
+    assert wb.expr("⌊3.7⌋ + ⌈0.2⌉") == 4
     assert wb.expr("∑ₙ₌₁^∞ 1/n²") == pi**2 / 6  # its = written as a subscript too
 
 

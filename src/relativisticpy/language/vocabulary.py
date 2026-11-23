@@ -337,6 +337,7 @@ UNICODE_COMMANDS: Mapping[str, str] = MappingProxyType(
     {
         "∂": "partial", "∇": "nabla", "√": "sqrt", "∑": "sum", "∏": "prod",
         "∫": "int", "∬": "iint", "∭": "iiint", "∮": "oint", "⊛": "circledast",
+        "⌊": "lfloor", "⌋": "rfloor", "⌈": "lceil", "⌉": "rceil",
     }
 )  # fmt: skip
 

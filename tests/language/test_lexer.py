@@ -512,6 +512,10 @@ class TestUnicode:
         assert lex("eˣ + 2ⁱ") == "e ^ { x } + 2 ^ { i }"
         assert lex("∑ₙ₌₁ + x⁽²⁾") == r"\sum _ { n = 1 } + x ^ { ( 2 ) }"  # its = and brackets
 
+    def test_floor_and_ceiling_brackets_are_the_commands(self):
+        # ⌊3.7⌋ was refused as a character the language had no use for
+        assert lex("⌊x⌋ + ⌈y⌉") == r"\lfloor x \rfloor + \lceil y \rceil"
+
     def test_roots_of_a_degree_are_roots_of_that_degree(self):
         # ∛8 was refused as a character the language had no use for
         assert lex("∛8 + ∜x") == r"\sqrt [ 3 ] 8 + \sqrt [ 4 ] x"
