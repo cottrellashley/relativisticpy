@@ -467,7 +467,8 @@ Everything needed to use RelativisticPy is in the installed package, offline.
   2. `:=` always defines; `=` defines only what has no meaning yet, and is otherwise a
      claim, which is checked.
   3. In LaTeX a run of letters is a product, as it is typeset: `\frac{2GM}{r}` is
-     2·G·M/r. Write `\mathrm{name}` for a name of several letters.
+     2·G·M/r. Write `\mathrm{name}` for a name of several letters. In plain text it is
+     one name, as in Python: `2GM/r` is 2·GM/r, so write `2 G M/r` or `2*G*M/r`.
   4. A script without braces takes one letter, as in TeX: write `\Gamma^{r}_{tt}`, not
      `\Gamma^r_tt`.
   5. A name right before a bracket calls it, as in `A(r)`; to multiply, leave a space or
