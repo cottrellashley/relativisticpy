@@ -195,6 +195,15 @@ class Prime(Expr):
 
 
 @dataclass(frozen=True)
+class Primed(Expr):
+    """Primes after brackets, ``(x^3)'``: the derivative of what the brackets hold, by the
+    one variable it is written with, as ``f'`` is of a function of one variable."""
+
+    operand: Expr
+    order: int
+
+
+@dataclass(frozen=True)
 class Accent(Expr):
     """An accented symbol: ``\\dot{a}``, ``\\bar{x}``, ``\\hat{n}``.
 
@@ -608,6 +617,9 @@ class _Printer:
 
     def _Prime(self, node: Prime) -> str:
         return node.func.id + "'" * node.order
+
+    def _Primed(self, node: Primed) -> str:
+        return f"({chr(39) * node.order} {self.render(node.operand)})"
 
     def _Accent(self, node: Accent) -> str:
         return f"({node.accent} {self.render(node.base)})"

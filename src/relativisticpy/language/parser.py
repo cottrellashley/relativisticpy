@@ -1188,6 +1188,13 @@ class Parser:
                 node = ast.Scripted(call, node.scripts, span=self._span(node.span))
             elif kind is K.LBRACE and _applicable(node) and self._at_typeset_arguments():
                 node = self._typeset_call(node)
+            elif kind is K.PRIME and grouped and not braced:  # (x^3)': of all the brackets
+                order = 0
+                while self.accept(K.PRIME):
+                    order += 1
+                node, grouped = ast.Primed(node, order, span=self._span(node.span)), False
+            elif kind is K.LPAREN and not token.space_before and isinstance(node, ast.Primed):
+                node = self._call(node)  # (x^3)'(2), the derivative at 2
             elif kind is K.PRIME and isinstance(node, ast.Name):
                 order = 0
                 while self.accept(K.PRIME):

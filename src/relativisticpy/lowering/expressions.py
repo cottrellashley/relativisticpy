@@ -514,6 +514,8 @@ class Expressions(LinearAlgebra):
         func = node.func
         if isinstance(func, ast.Prime):
             return self._prime(func, node.args, node.span, scope, ctx)
+        if isinstance(func, ast.Primed):  # (x^3)'(2)
+            return self._primed_at(func, node.args, node.span, scope, ctx)
         if (called := self._call_of_a_name(node, scope, ctx)) is not None:  # \psi_3(x)
             return called
         if not isinstance(func, ast.Name):  # J_{\nu}(x), made one call by the reader
@@ -1426,6 +1428,58 @@ class Expressions(LinearAlgebra):
         if binding is not None or _names_builtin(node.func, latex=ctx.latex):
             raise CompileError(f"{primed} needs an argument, as in {primed}(x)", span=node.span)
         return self.graph.const(self.session.symbol(primed), SCALAR, node.span)
+
+    def _Primed(self, node: ast.Primed, scope: Scope, ctx: Context) -> Node:
+        """``(x^3)'``: the derivative of what the brackets hold, by the one variable it is
+        written with, as ``f'`` is of a function of one variable, with a note that says
+        which; of what is written with no variable, 0."""
+        value = self.value(node.operand, scope, ctx)
+        variable = self._variable_of(node, value)
+        return self._differentiate(value, [(variable, node.order)], node.span)
+
+    def _primed_at(
+        self, node: ast.Primed, args: tuple[ast.Expr, ...], span: Span, scope: Scope, ctx: Context
+    ) -> Node:
+        """``(x^3)'(2)``: the derivative of what the brackets hold, by its one variable,
+        at the point in the brackets after it."""
+        if len(args) != 1:
+            raise CompileError(f"{node.span.text}(x) takes one argument", span=span)
+        value = self.value(node.operand, scope, ctx)
+        variable = self._variable_of(node, value)
+        point = self.value(args[0], scope, ctx)
+        order = self.graph.const(node.order, VALUE)
+        return self._call("core.derivative_at", [value, variable, order, point], SCALAR, span)
+
+    def _variable_of(self, node: ast.Primed, value: Node) -> Node:
+        """The variable primes after brackets differentiate by: the one symbol what the
+        brackets hold is written with. Refused where it is written with more than one, as
+        ``(xy)'`` is, since the prime does not say which."""
+        names = _symbols_written(value)
+        written = node.span.text
+        if len(names) > 1:
+            shown = [self._written_label(name) for name in names]
+            raise CompileError(
+                f"{written} is written with {_listed(shown)}, so its prime does not say "
+                "which variable it is the derivative by",
+                span=node.span,
+                hint=f"write the variable, as in \\frac{{d}}{{d{shown[0]}}}"
+                f"{node.operand.span.text}",
+            )
+        if not names:  # (3)': of a constant, 0 by any variable
+            return self.graph.const(sympy.Dummy("x"), SCALAR)
+        (name,) = names
+        symbol = next(
+            each
+            for found in dependencies([value])
+            if isinstance(found.op, ops.Const) and isinstance(found.op.value, sympy.Basic)
+            for each in found.op.value.free_symbols
+            if isinstance(each, Symbol) and each.name == name
+        )
+        self._note(
+            f"{written} is the derivative by {self._written_label(name)}, the one variable "
+            "it is written with"
+        )
+        return self.graph.const(symbol, SCALAR, node.span)
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         if (book := self._book_scripted(node, scope)) is not None:  # (a)_n

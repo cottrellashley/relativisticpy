@@ -133,6 +133,20 @@ class TestArithmetic:
     def test_a_prime_that_has_no_symbol_to_mark_is_an_error(self):
         assert "a prime after these scripts is ambiguous" in str(error(r"\dot{x}_0'"))
 
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            # (x^3)' was x'^3, and (e^{-x^2})' e'^{-x^2}: the prime went inside the brackets
+            ("(x^3)'", "(' (^ x 3))"),
+            ("(e^{-x^2})'", "(' (^ e (- (^ x 2))))"),
+            (r"\left(\sin x\right)''", "('' (call sin x))"),
+            ("(x^2 + 1)'(3)", "(call (' (+ (^ x 2) 1)) 3)"),
+            ("{x^3}'", "(^ x' 3)"),  # braces do not show, so the prime is on x, as TeX sets it
+        ],
+    )
+    def test_primes_after_brackets_are_of_the_brackets(self, text, expected):
+        assert sexpr(text) == expected
+
     def test_factorial(self):
         assert sexpr("n!") == "(! n)"
         assert sexpr("(n - k)!") == "(! (- n k))"

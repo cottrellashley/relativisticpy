@@ -84,6 +84,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** A prime is a derivative only on a function of one variable: one the program defined, or an unknown function written with its argument. Elsewhere, and always on the left of `:=`, it is part of the name. On an index it marks another frame's index.
 
+**Primes after brackets** (23 November 2026). `(x^3)'` was x'³, the prime put on the base inside the brackets. A prime after brackets is the derivative of all they hold, by the one variable it is written with, as `f'` is of a function of one variable, with a note that names the variable: `(e^{-x^2})'` is −2x e^{−x²}, `(x^2 + 1)'(3)` is 6, and `(3)'` is 0. What is written with more than one variable, as `(x^2 y)'`, is refused, with a hint to write `\frac{d}{dx}`. Braces do not show, so `{x^3}'` stays x'³, as TeX sets it.
+
 ## 8. What accents mean
 
 **Waiting on it:** `unit-vectors` (8), `accent-script` (7), `conjugate-bar` (3), `lagrangian-velocities` (3), `accented-definitions` (1).

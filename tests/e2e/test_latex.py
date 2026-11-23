@@ -9,6 +9,7 @@ from sympy import (
     Symbol,
     cos,
     diff,
+    exp,
     factorial,
     integrate,
     oo,
@@ -19,6 +20,7 @@ from sympy import (
 )
 
 from helpers import same
+from relativisticpy.errors import CompileError
 
 x, y, z, t, tau, theta = (Symbol(n) for n in ("x", "y", "z", "t", "tau", "theta"))
 f, g, h = Function("f"), Function("g"), Function("h")
@@ -129,6 +131,31 @@ def test_derivatives(wb, source, expected):
 def test_lagrange_notation_for_defined_functions(wb):
     assert wb.expr("f(x) := x^3\nf'(2)") == 12
     assert wb.expr("f''(x)") == 6 * x
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        # (x^3)' was x'^3 and (e^{-x^2})' e'^(-x^2): the prime was put on the base inside
+        ("(x^3)'", diff(x**3, x)),
+        ("(e^{-x^2})'", diff(exp(-(x**2)), x)),
+        (r"(\sin\theta)'", diff(sin(theta), theta)),
+        (r"\left(x^2 + 1\right)''", 2),
+        ("(x^3)'(2) + 1", 13),
+        ("(3)'", 0),
+    ],
+)
+def test_primes_after_brackets_differentiate_by_the_one_variable(wb, source, expected):
+    *_, step = wb.each(source)
+    assert step.values == [expected]
+    if expected not in (0, 13):
+        assert "the one variable it is written with" in step.notes[0]
+
+
+def test_primes_after_brackets_of_several_variables_are_refused(wb):
+    with pytest.raises(CompileError, match="its prime does not say which variable") as error:
+        wb.expr("(x^2 y)'")
+    assert error.value.hint == r"write the variable, as in \frac{d}{dx}(x^2 y)"
 
 
 @pytest.mark.parametrize(
