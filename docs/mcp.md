@@ -7,8 +7,8 @@
 > **Before this:** [Getting started](getting-started.md).
 
 Language models write physics and mathematics fluently, and get long algebra wrong.
-RelativisticPy reads the LaTeX they write, computes it exactly, and says where a claim
-does not hold. `relativisticpy mcp` serves it over the
+RelativisticPy reads what they write, in LaTeX, plain text or Unicode, computes it
+exactly, and says where a claim does not hold. `relativisticpy mcp` serves it over the
 [Model Context Protocol](https://modelcontextprotocol.io), on standard input and output,
 as tools an agent calls:
 
@@ -140,7 +140,9 @@ Each tool says, in its description, what it takes and gives, and the limits the 
 was started with; the server's instructions, which a client may give the model, sum up
 the language.
 
-Every answer is right, or says that it is not one. What an agent reads, to know which:
+Every answer is right, or says that it is not one: a wrong answer given without a word
+is a bug, and the [roadmap](roadmap.md) lists those known. What an agent reads, to know
+which:
 
 | Field | Where | What it says |
 |---|---|---|
