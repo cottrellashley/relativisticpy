@@ -194,6 +194,28 @@ def remarks() -> Iterator[list[Remark]]:
         _REMARKS.reset(token)
 
 
+# -- what the program wrote, which its values no longer show ---------------------------------
+
+_DENOMINATORS: ContextVar[tuple[Any, ...]] = ContextVar("denominators", default=())
+
+
+@contextlib.contextmanager
+def written(denominators: Sequence[Any]) -> Iterator[None]:
+    """Give the computation inside the denominators its argument is written with, as
+    computed, which its value may no longer show: x - 3 of x(x - 3)/(x - 3), which SymPy
+    cancels as it builds the fraction."""
+    token = _DENOMINATORS.set(tuple(denominators))
+    try:
+        yield
+    finally:
+        _DENOMINATORS.reset(token)
+
+
+def denominators() -> tuple[Any, ...]:
+    """The denominators the computation's argument is written with (see :func:`written`)."""
+    return _DENOMINATORS.get()
+
+
 # -- what the bounds decide ---------------------------------------------------------------
 
 

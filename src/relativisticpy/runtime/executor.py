@@ -9,7 +9,9 @@ from collections.abc import Callable, Hashable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any, TypeVar
 
-from relativisticpy.assumptions import Remark, remarks
+import sympy
+
+from relativisticpy.assumptions import Remark, remarks, written
 from relativisticpy.errors import (
     InternalError,
     RelativisticPyError,
@@ -152,7 +154,8 @@ class Executor:
             args = [known[arg.key] for arg in computed]
             try:
                 refuse_text(current.op, args, computed)  # SymPy would run it as Python
-                with remarks() as said:  # what the computation says of its value
+                divided = _denominators(current, known)
+                with remarks() as said, written(divided):  # what the computation says of its value
                     if entry is not None and entry.references:  # IR made with the nodes it names
                         known[current.key] = execute(current.op, [*args, *current.args[1:]], self)
                     elif entry is not None and entry.evaluates:  # the value of IR computed
@@ -200,6 +203,41 @@ class Executor:
         if self._pool is not None:
             self._pool.shutdown(cancel_futures=True)
             self._pool = None
+
+
+#: The operations given the denominators their first argument is written with: solve, as an
+#: equation is not defined where one of them is 0, though its value may no longer show it.
+_DIVIDED = frozenset({"solve"})
+#: The operations an equation is written with, through which its denominators are found:
+#: arithmetic, functions and lists of equations, but not a tensor's computation, as the
+#: inverse of a metric, whose g_rr = 1/f says nothing of where g^rr = f is defined.
+_WRITTEN = (ops.Equation, ops.Add, ops.Mul, ops.Pow, ops.Call, ops.MakeArray)
+
+
+def _denominators(node: Node, known: dict[Hashable, Any]) -> tuple[Any, ...]:
+    """The denominators the first argument of a call of solve is written with, as computed:
+    the base of each negative power in its arithmetic, as x - 3 of x(x - 3)/(x - 3), which
+    SymPy cancels as it builds the fraction. None for any other operation."""
+    if not (isinstance(node.op, ops.Call) and node.op.name in _DIVIDED and node.args):
+        return ()
+    found: dict[Any, None] = {}
+    pending, seen = [node.args[0]], set()
+    while pending:
+        each = pending.pop()
+        if each.key in seen or not isinstance(each.op, _WRITTEN):
+            continue
+        seen.add(each.key)
+        pending.extend(each.args)
+        if isinstance(each.op, ops.Pow) and len(each.args) == 2:
+            base, exponent = (known.get(arg.key) for arg in each.args)
+            if isinstance(base, sympy.Expr) and _negative(exponent):
+                found[base] = None
+    return tuple(found)
+
+
+def _negative(exponent: Any) -> bool:
+    """Whether an exponent is a negative number, as the -1 of a denominator."""
+    return isinstance(exponent, int | sympy.Expr) and bool(sympy.sympify(exponent).is_negative)
 
 
 def _operand_scale(equation: Node, known: dict[Hashable, Any]) -> float:

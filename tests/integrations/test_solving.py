@@ -1,7 +1,8 @@
 r"""Solving respects what a program assumes, and does not fail where another path does not.
 
 ``solve`` drops the solutions a stated assumption rules out, with a note that says which
-and why; it keeps the roots of a fraction that also zero a factor it cancels; it says so
+and why; it keeps the roots of a fraction the program computed that also zero a factor it
+cancels, but drops a root where a denominator the equation is written with is 0; it says so
 where the equation does not contain the unknown; and a failure inside SymPy that another
 path avoids does not end it (design/interface.md, the same answer every time). ``dsolve``
 takes conditions written as equations, y(0) = y_0.
@@ -69,16 +70,49 @@ class TestAssumptionsRuleOutSolutions:
 
 
 class TestRobustly:
-    def test_a_root_that_zeroes_a_cancelled_factor_is_kept(self, wb):
+    def test_a_root_that_zeroes_a_cancelled_factor_of_a_computed_value_is_kept(self, wb):
+        # g_rr is written 1/f, and g^rr, computed, is f: 0 at the horizons, which are kept
         source = r"""
+            Coordinates := [t, r, \theta, \phi]
             f := 1 - \frac{2M}{r} + \frac{Q^2}{r^2}
-            solve(\frac{r^2 f^2}{r^2 - 2Mr + Q^2} = 0, r)
+            g_{\mu\nu} := diag(-f, \frac{1}{f}, r^2, r^2 \sin^2\theta)
+            solve(g^{rr} = 0, r)
         """
         found = wb.expr(source)
         M, Q = sympy.symbols("M Q")
         horizons = [M - sympy.sqrt(M**2 - Q**2), M + sympy.sqrt(M**2 - Q**2)]
         assert len(found) == 2
         assert all(any(sympy.simplify(a - b) == 0 for b in horizons) for a in found)
+
+    @pytest.mark.parametrize(
+        ("source", "dropped"),
+        [
+            # SymPy cancels x - 3 as it builds the fraction, and solve saw x = 3
+            (r"solve(\frac{x (x - 3)}{x - 3} = 3, x)", "x = 3, where x − 3 is 0"),
+            (r"solve(\frac{(x-1)^2}{x-1} = 0, x)", "x = 1, where x − 1 is 0"),
+            (
+                r"f(x) := \frac{x (x - 3)}{x - 3}" "\n" r"solve(f(x) = 3, x)",
+                "x = 3, where x − 3 is 0",
+            ),
+        ],
+    )
+    def test_a_root_where_a_denominator_as_written_is_0_is_dropped(self, wb, source, dropped):
+        last = step(wb, source)
+        assert last.values == [[]]
+        assert last.notes == [
+            f"solve dropped {dropped}, which the equation divides by as it is written"
+        ]
+
+    def test_a_zero_written_as_0_over_0_is_no_root(self, wb):
+        source = r"""
+            f := 1 - \frac{2M}{r} + \frac{Q^2}{r^2}
+            solve(\frac{r^2 f^2}{r^2 - 2Mr + Q^2} = 0, r)
+        """
+        last = step(wb, source)
+        assert last.values == [[]]  # as SymPy finds: the equation is not defined there
+        assert len(last.notes) == 2
+        assert all("Q² − 2M r + r² is 0" in note for note in last.notes)
+        M, Q = sympy.symbols("M Q")
         assert (
             sympy.solve(r**2 * (1 - 2 * M / r + Q**2 / r**2) ** 2 / (r**2 - 2 * M * r + Q**2), r)
             == []

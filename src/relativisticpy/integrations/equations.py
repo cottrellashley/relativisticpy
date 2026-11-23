@@ -102,11 +102,14 @@ def _solved(equations: Any, unknowns: tuple[Any, ...], bounds: tuple[Any, ...]) 
 
 
 def _defined(found: Any, equations: list[Any], unknowns: list[Any]) -> Any:
-    """The solutions found, but those where a side of an equation, as written, is not
-    defined, as (x² - 1)/(x - 1) is not at 1, which its common factor cancelled would give:
-    the denominator vanishes there, and the side, its common factors cancelled, is not 0. A
-    side that is, as r²f²/(r² - 2Mr + Q²) is at a horizon, has a zero there written as 0/0,
-    which is kept. A note names the solutions dropped."""
+    """The solutions found, but those where an equation, as written, is not defined: where
+    a denominator it is written with is 0, as x - 3 is at 3 in x(x - 3)/(x - 3) = 3, though
+    SymPy cancels it as it builds the fraction (see :func:`relativisticpy.assumptions.
+    written`); and where a side is not defined, as (x² - 1)/(x - 1) is not at 1, which its
+    common factor cancelled would give: the denominator vanishes there, and the side, its
+    common factors cancelled, is not 0. A side computed rather than written that is, as
+    r²f²/(r² - 2Mr + Q²) is at a horizon where the program computed it so, has a zero there
+    written as 0/0, which is kept. A note names the solutions dropped."""
     sides = [
         side
         for equation in equations
@@ -114,17 +117,33 @@ def _defined(found: Any, equations: list[Any], unknowns: list[Any]) -> Any:
             (equation.lhs, equation.rhs) if isinstance(equation, sympy.Equality) else (equation,)
         )
     ]
+    divisors = [
+        each for each in assumptions.denominators() if any(_mentions(each, u) for u in unknowns)
+    ]
     kept: list[tuple[dict[Any, Any], Any]] = []
     dropped: list[str] = []
     for mapping, item in _items(found, unknowns):
         undefined = next((side for side in sides if _undefined_at(side, mapping)), None)
-        if undefined is None:
-            kept.append((mapping, item))
-        else:
+        zero = next((each for each in divisors if _zero_at(each, mapping)), None)
+        if undefined is not None:
             dropped.append(f"{_shown(mapping)}, where {display.unicode(undefined)} is not defined")
+        elif zero is not None:
+            dropped.append(
+                f"{_shown(mapping)}, where {display.unicode(zero)} is 0, which the equation "
+                "divides by as it is written"
+            )
+        else:
+            kept.append((mapping, item))
     for each in dropped:
         assumptions.remark(f"solve dropped {each}")
     return _rebuilt(found, kept) if dropped else found
+
+
+def _zero_at(divisor: Any, mapping: dict[Any, Any]) -> bool:
+    """Whether a denominator is 0 at a solution."""
+    if not all(isinstance(u, sympy.Symbol) for u in mapping) or not divisor.has(*mapping):
+        return False
+    return _vanishes(divisor.xreplace(mapping)) is True
 
 
 def _undefined_at(side: Any, mapping: dict[Any, Any]) -> bool:
