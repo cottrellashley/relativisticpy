@@ -39,7 +39,7 @@ def _equations(values: Iterable[Any]) -> list[Any]:
     summary=r"`solve(x^2 = 4, x)`, the solutions; `solve(E, T_{\mu\nu})` solves an equation "
     "between tensors for one",
     examples=[
-        Example("solve(x^2 = 4, x)", [-2, 2], "standard"),
+        Example("solve(x^2 = 4, x)", [-2, 2], "sorted(numpy.roots([1, 0, -4]))"),
         Example("solve(2x + 1 = 0, x)", [sympy.Rational(-1, 2)], "standard"),
     ],
 )
@@ -392,7 +392,8 @@ def _shown(mapping: dict[Any, Any]) -> str:
         Example("dsolve(f''(x) + f(x) = 0, f(x))",
                 sympy.Eq(f(x), sympy.Symbol("C1") * sympy.sin(x)
                          + sympy.Symbol("C2") * sympy.cos(x)), "standard"),
-        Example("dsolve(f'(x) = f(x), f(0) = 2)", sympy.Eq(f(x), 2 * sympy.exp(x)), "standard"),
+        Example("dsolve(f'(x) = f(x), f(0) = 2)", sympy.Eq(f(x), 2 * sympy.exp(x)),
+                "sympy.dsolve(f(x).diff(x) - f(x), ics={f(0): 2})"),
     ],
 )  # fmt: skip
 class DifferentialSolve:
@@ -499,7 +500,7 @@ def _equation(value: Any, name: str) -> Any:
     aliases=["rhs"],
     summary="the right side of an equation",
     examples=[
-        Example("RHS(x^2 = 4)", 4, "standard"),
+        Example("RHS(x^2 = 4)", 4, "sympy.Eq(x**2, 4).rhs"),
         Example("rhs(y = 2x + 1)", 2 * x + 1, "standard"),
     ],
     lifts=False,
@@ -518,7 +519,7 @@ class RightSide:
     aliases=["lhs"],
     summary="the left side of an equation",
     examples=[
-        Example("LHS(x^2 = 4)", x**2, "standard"),
+        Example("LHS(x^2 = 4)", x**2, "sympy.Eq(x**2, 4).lhs"),
         Example("lhs(y = 2x + 1)", y, "standard"),
     ],
     lifts=False,
@@ -537,7 +538,7 @@ class LeftSide:
     summary="`Eq(a, b)`, the equation a = b",
     examples=[
         Example("Eq(x, 2)", sympy.Eq(x, 2), "standard"),
-        Example("Eq(1, 1)", True, "standard"),
+        Example("Eq(1, 1)", True, "sympy.Eq(1, 1)"),
     ],
 )
 class Equation:
@@ -549,7 +550,7 @@ class Equation:
     "symbols",
     summary="`symbols('x y')`, the symbols named in quotes",
     examples=[
-        Example("symbols('x y')", [x, y], "standard"),
+        Example("symbols('x y')", [x, y], "sympy.symbols('x y')"),
         Example("symbols('t')", sympy.Symbol("t"), "standard"),
     ],
     takes_names=True,
@@ -570,7 +571,7 @@ class Symbols:
     "latex",
     summary="the LaTeX of a value, as text",
     examples=[
-        Example("latex(x^2)", "x^{2}", "standard"),
+        Example("latex(x^2)", "x^{2}", "sympy.latex(x**2)"),
         Example("latex(1/2)", r"\frac{1}{2}", "standard"),
     ],
     lifts=False,

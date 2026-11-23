@@ -27,7 +27,9 @@ HALF = sympy.Rational(1, 2)
     "canonical form",
     gives_form=True,
     examples=[
-        Example("simplify(sin(x)^2 + cos(x)^2)", 1, "standard"),
+        Example(
+            "simplify(sin(x)^2 + cos(x)^2)", 1, "sympy.simplify(sympy.sin(x)**2 + sympy.cos(x)**2)"
+        ),
         Example("simplify((x^2 - 1)/(x - 1))", x + 1, "standard"),
     ],
     points=[(sympy.sin(x) ** 2 + sympy.cos(x) ** 2,), ((x**2 - 1) / (x - 1),)],
@@ -42,7 +44,7 @@ class Simplify:
     summary="multiplied out",
     gives_form=True,
     examples=[
-        Example("expand((x + 1)^2)", x**2 + 2 * x + 1, "standard"),
+        Example("expand((x + 1)^2)", x**2 + 2 * x + 1, "sympy.expand((x + 1)**2)"),
         Example("expand((a + b)(a - b))", a**2 - b**2, "standard"),
     ],
     points=[((x + 1) ** 2,), ((x - 1) * (x + 1),)],
@@ -57,7 +59,7 @@ class Expand:
     summary="factorised",
     gives_form=True,
     examples=[
-        Example("factor(x^2 - 1)", (x - 1) * (x + 1), "standard"),
+        Example("factor(x^2 - 1)", (x - 1) * (x + 1), "sympy.factor(x**2 - 1)"),
         Example("factor(x^2 + 2x + 1)", (x + 1) ** 2, "standard"),
     ],
     points=[(x**2 - 1,), (x**2 + 2 * x + 1,)],
@@ -72,7 +74,7 @@ class Factor:
     summary="`collect(f, x)`, the terms of f gathered by powers of x",
     gives_form=True,
     examples=[
-        Example("collect(a x + b x, x)", (a + b) * x, "standard"),
+        Example("collect(a x + b x, x)", (a + b) * x, "sympy.collect(a*x + b*x, x)"),
         Example("collect(a x^2 + x^2 + b x, x)", (a + 1) * x**2 + b * x, "standard"),
     ],
     points=[(a * x + b * x, x), (a * x**2 + x**2, x)],
@@ -87,7 +89,7 @@ class Collect:
     summary="a fraction, with common factors cancelled",
     gives_form=True,
     examples=[
-        Example("cancel((x^2 - 1)/(x - 1))", x + 1, "standard"),
+        Example("cancel((x^2 - 1)/(x - 1))", x + 1, "sympy.cancel((x**2 - 1)/(x - 1))"),
         Example("cancel((x^2 + 2x + 1)/(x + 1))", x + 1, "standard"),
     ],
     points=[((x**2 - 1) / (x - 1),), ((x**2 + 2 * x + 1) / (x + 1),)],
@@ -102,7 +104,7 @@ class Cancel:
     summary="partial fractions",
     gives_form=True,
     examples=[
-        Example("apart(1/(x (x + 1)))", 1 / x - 1 / (x + 1), "standard"),
+        Example("apart(1/(x (x + 1)))", 1 / x - 1 / (x + 1), "sympy.apart(1/(x*(x + 1)))"),
         Example("apart(1/(x^2 - 1))", HALF / (x - 1) - HALF / (x + 1), "standard"),
     ],
     points=[(1 / (x * (x + 1)),), (1 / (x**2 - 1),)],
@@ -117,7 +119,7 @@ class Apart:
     summary="one fraction",
     gives_form=True,
     examples=[
-        Example("together(1/x + 1/y)", (x + y) / (x * y), "standard"),
+        Example("together(1/x + 1/y)", (x + y) / (x * y), "sympy.together(1/x + 1/y)"),
         Example("together(1/x + 1)", (x + 1) / x, "standard"),
     ],
     points=[(1 / x + 1 / y,), (1 / x + 1,)],
@@ -132,7 +134,11 @@ class Together:
     summary="trigonometric functions simplified",
     gives_form=True,
     examples=[
-        Example("trigsimp(2 sin(x) cos(x))", sympy.sin(2 * x), "standard"),
+        Example(
+            "trigsimp(2 sin(x) cos(x))",
+            sympy.sin(2 * x),
+            "sympy.trigsimp(2*sympy.sin(x)*sympy.cos(x))",
+        ),
         Example("trigsimp(sin(x)^2 + cos(x)^2)", 1, "standard"),
     ],
     points=[(2 * sympy.sin(x) * sympy.cos(x),), (sympy.sin(x) ** 2 + sympy.cos(x) ** 2,)],
@@ -147,7 +153,7 @@ class TrigonometricSimplify:
     summary="powers combined: `x^a x^b` is `x^{a+b}`",
     gives_form=True,
     examples=[
-        Example("powsimp(x^a x^b)", x ** (a + b), "standard"),
+        Example("powsimp(x^a x^b)", x ** (a + b), "sympy.powsimp(x**a*x**b)"),
         Example("powsimp(x^2 x^3)", x**5, "standard"),
     ],
     points=[(x**a * x**b,), (y**2 * y**a,)],
@@ -162,7 +168,11 @@ class PowerSimplify:
     summary="functions of sums and multiples of angles, expanded",
     gives_form=True,
     examples=[
-        Example("expand_trig(sin(2x))", 2 * sympy.sin(x) * sympy.cos(x), "standard"),
+        Example(
+            "expand_trig(sin(2x))",
+            2 * sympy.sin(x) * sympy.cos(x),
+            "sympy.expand_trig(sympy.sin(2*x))",
+        ),
         Example(
             "expand_trig(cos(x + y))",
             sympy.cos(x) * sympy.cos(y) - sympy.sin(x) * sympy.sin(y),
@@ -180,7 +190,7 @@ class ExpandTrigonometric:
     "nsimplify",
     summary="the exact number a decimal stands for: `0.5` is `1/2`",
     examples=[
-        Example("nsimplify(0.5)", sympy.Rational(1, 2), "standard"),
+        Example("nsimplify(0.5)", sympy.Rational(1, 2), "fractions.Fraction(0.5)"),
         Example("nsimplify(0.25)", sympy.Rational(1, 4), "standard"),
     ],
     points=[(0.5,), (0.25,)],
@@ -194,7 +204,7 @@ class NumberSimplify:
     "diff",
     summary=r"`diff(f, x)`, `diff(f, x, 2)`, `diff(f, x, y)`: derivatives, as `\frac{d}{dx}`",
     examples=[
-        Example("diff(x^3, x)", 3 * x**2, "standard"),
+        Example("diff(x^3, x)", 3 * x**2, "sympy.diff(x**3, x)"),
         Example("diff(sin(x), x, 2)", -sympy.sin(x), "standard"),
     ],
     points=[(x**3, x), (sympy.sin(x), x)],
@@ -209,7 +219,7 @@ class Differentiate:
     summary=r"`integrate(f, x)`, `integrate(f, (x, 0, 1))`: integrals, as `\int`",
     examples=[
         Example("integrate(x^2, x)", x**3 / 3, "standard"),
-        Example("integrate(x, (x, 0, 2))", 2, "standard"),
+        Example("integrate(x, (x, 0, 2))", 2, "scipy.integrate.quad(lambda x: x, 0, 2)[0]"),
     ],
     points=[(x**2, x), (sympy.cos(x), x)],
 )
@@ -228,7 +238,7 @@ _SIDES = ("+", "-", "+-")
     summary=r"`limit(f, x, a)`, as x tends to a from both sides, as `\lim_{x \to a}` is; "
     r"`limit(f, x, a, '-')` from below and `'+'` from above, as `\lim_{x \to a^-}`",
     examples=[
-        Example("limit(sin(x)/x, x, 0)", 1, "standard"),
+        Example("limit(sin(x)/x, x, 0)", 1, "mpmath.limit(lambda x: mpmath.sin(x)/x, 0)"),
         Example("limit(1/x, x, oo)", 0, "standard"),
     ],
     points=[(sympy.sin(x) / x, x, 0), ((1 + 1 / x) ** x, x, sympy.oo)],
@@ -267,7 +277,11 @@ def _text_in(value: Any) -> bool:
     "series",
     summary="`series(f, x, a, n)`, the Taylor series about a, to order n",
     examples=[
-        Example("series(exp(x), x, 0, 3)", 1 + x + x**2 / 2 + sympy.O(x**3), "standard"),
+        Example(
+            "series(exp(x), x, 0, 3)",
+            1 + x + x**2 / 2 + sympy.O(x**3),
+            "sympy.series(sympy.exp(x), x, 0, 3)",
+        ),
         Example("series(sin(x), x, 0, 4)", x - x**3 / 6 + sympy.O(x**4), "standard"),
     ],
     points=[(sympy.exp(x), x, 0, 3), (sympy.cos(x), x, 0, 3)],
@@ -284,7 +298,7 @@ _ABSENT = object()
     "subs",
     summary="`subs(f, x, a)`, f with a put for x; `subs(f, x = a)` too",
     examples=[
-        Example("subs(x^2, x, 3)", 9, "standard"),
+        Example("subs(x^2, x, 3)", 9, "numpy.polyval([1, 0, 0], 3)"),
         Example("subs(x + y, x = 1)", y + 1, "standard"),
     ],
     points=[(x**2, x, 3), (x + y, x, 1)],
@@ -336,7 +350,7 @@ def _digits(digits: Any) -> int:
     "doit",
     summary="sums, products and integrals, kept as written, carried out",
     examples=[
-        Example(r"doit(\sum_{n=1}^{N} n)", N * (N + 1) / 2, "standard"),
+        Example(r"doit(\sum_{n=1}^{N} n)", N * (N + 1) / 2, "sympy.Sum(n, (n, 1, N)).doit()"),
         Example(r"doit(\prod_{n=1}^{N} 2)", 2**N, "standard"),
     ],
     points=[(sympy.Sum(n, (n, 1, N)),), (sympy.Product(2, (n, 1, N)),)],

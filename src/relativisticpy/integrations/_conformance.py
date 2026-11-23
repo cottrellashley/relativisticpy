@@ -5,7 +5,8 @@ There are thirteen checks, each a function that takes a capability and gives its
 failures, none where it passes:
 
 1. **declaration**: names that are the capability's alone, a summary, two examples with
-   their sources, the library it needs declared, and written forms that read as it;
+   their sources, one at least from outside, a book or the library called directly, the
+   library it needs declared, and written forms that read as it;
 2. **examples**: each example runs in the language and gives its known answer, in the
    form of the answer where the capability gives a form, as ``factor`` does;
 3. **agreement**: the exact and numeric implementations agree at points, with NumPy and
@@ -170,9 +171,21 @@ def declaration(capability: Capability) -> list[str]:
                 'give its source, a book and equation, "DLMF 10.8.1", or the library called '
                 'directly, "scipy.special.jv(0, 1.5)"'
             )
+    if capability.examples and all(map(_standard, capability.examples)):
+        failures.append(
+            f"{name}: each of its examples says its answer is standard, which says not where "
+            'to find it: give one its source, a book and its section, "DLMF 4.21(i)", or the '
+            'library called directly, "math.sin(1.2)"'
+        )
     failures += _dependencies(capability)
     failures += _written(capability)
     return failures
+
+
+def _standard(example: Any) -> bool:
+    """Whether an example gives its answer as standard, known to every book and found in
+    none, rather than with the place it comes from."""
+    return isinstance(example, Example) and example.source.strip().lower().startswith("standard")
 
 
 def _one_name(written: str) -> bool:

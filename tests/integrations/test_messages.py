@@ -39,7 +39,7 @@ class BrokenJ:
 @function(
     "brokenk",
     summary="the identity, which fails inside on a list",
-    examples=[Example("brokenk(1)", 1, "standard"), Example("brokenk(2)", 2, "standard")],
+    examples=[Example("brokenk(1)", 1, "standard"), Example("brokenk(2)", 2, "math.sqrt(4)")],
 )
 class BrokenK:
     def exact(self, x):
@@ -83,6 +83,22 @@ def test_the_declaration_is_told_what_it_lacks(broken):
     assert told(failures, "requires scipyy, which no extra of RelativisticPy installs")
     assert told(failures, "imports scipy when it is imported; import it inside exact or numeric")
     assert len(failures) == 5
+
+
+def test_examples_that_all_say_standard_are_told():
+    # 72 capabilities had no answer from outside (the review of the engines, 29)
+    class Same:
+        def exact(self, x):
+            return x
+
+    examples = [
+        integrations.Example("brokensame(1)", 1, "standard"),
+        integrations.Example("brokensame(2)", 2, "standard: the identity"),
+    ]
+    same = integrations.function("brokensame", summary="the identity", examples=examples)(Same)
+    failures = integrations.check(same, ["declaration"])["declaration"]
+    assert told(failures, "each of its examples says its answer is standard")
+    assert told(failures, "give one its source, a book and its section", "math.sin(1.2)")
 
 
 def test_an_example_with_the_wrong_answer_is_told(broken):

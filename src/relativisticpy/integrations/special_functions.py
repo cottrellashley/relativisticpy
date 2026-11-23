@@ -74,7 +74,7 @@ class Zeta:
     examples=[
         Example(r"\operatorname{Log}(-1 - i)",
                 sympy.log(sympy.sqrt(2)) - 3 * sympy.pi * sympy.I / 4,
-                "standard: Log z = ln|z| + i Arg z"),
+                "cmath.log(-1 - 1j)"),
         Example(r"\operatorname{Log}(i)", sympy.pi * sympy.I / 2, "standard"),
     ],
 )  # fmt: skip
@@ -388,7 +388,11 @@ class UnitStep:
     "a variation in physics",
     examples=[
         Example("DiracDelta(1)", 0, "standard"),
-        Example("integrate(DiracDelta(x), (x, -1, 1))", 1, "standard"),
+        Example(
+            "integrate(DiracDelta(x), (x, -1, 1))",
+            1,
+            "sympy.integrate(sympy.DiracDelta(x), (x, -1, 1))",
+        ),
     ],
     points=[(1.0,), (-2.0,), (0.5,)],
 )

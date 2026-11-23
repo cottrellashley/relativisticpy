@@ -228,7 +228,8 @@ class Determinant:
     summary="the inverse of a matrix, `A^{-1}`",
     examples=[
         Example("inverse([[1, 2], [3, 4]])",
-                [[-2, 1], [sympy.Rational(3, 2), sympy.Rational(-1, 2)]], "standard"),
+                [[-2, 1], [sympy.Rational(3, 2), sympy.Rational(-1, 2)]],
+                "numpy.linalg.inv([[1, 2], [3, 4]])"),
         Example("inv([[2, 0], [0, 4]])",
                 [[sympy.Rational(1, 2), 0], [0, sympy.Rational(1, 4)]], "standard"),
     ],
@@ -268,7 +269,9 @@ class PseudoInverse:
     "transpose",
     summary="the transpose of a matrix, `A^T`",
     examples=[
-        Example("transpose([[1, 2], [3, 4]])", [[1, 3], [2, 4]], "standard"),
+        Example(
+            "transpose([[1, 2], [3, 4]])", [[1, 3], [2, 4]], "numpy.transpose([[1, 2], [3, 4]])"
+        ),
         Example("transpose([[1, 2, 3]])", [[1], [2], [3]], "standard"),
     ],
     points=[*_SQUARE, ([[1, 2, 3]],)],

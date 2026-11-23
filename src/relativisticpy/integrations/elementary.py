@@ -23,7 +23,7 @@ _BEYOND = [(1.6,), (2.5,)]  # beyond 1, where the inverse hyperbolic cosine and 
     "sin",
     summary=r"the sine; `\sin^2\theta` is the square of `\sin\theta`",
     examples=[
-        Example(r"\sin(\pi/6)", sympy.Rational(1, 2), "standard"),
+        Example(r"\sin(\pi/6)", sympy.Rational(1, 2), "math.sin(math.pi / 6)"),
         Example("sin(0)", 0, "standard"),
     ],
 )
@@ -39,7 +39,7 @@ class Sine:
     "cos",
     summary="the cosine",
     examples=[
-        Example(r"\cos(\pi/3)", sympy.Rational(1, 2), "standard"),
+        Example(r"\cos(\pi/3)", sympy.Rational(1, 2), "math.cos(math.pi / 3)"),
         Example("cos(0)", 1, "standard"),
     ],
 )
@@ -55,7 +55,7 @@ class Cosine:
     "tan",
     summary="the tangent",
     examples=[
-        Example(r"\tan(\pi/4)", 1, "standard"),
+        Example(r"\tan(\pi/4)", 1, "math.tan(math.pi / 4)"),
         Example("tan(0)", 0, "standard"),
     ],
 )
@@ -71,7 +71,7 @@ class Tangent:
     "cot",
     summary="the cotangent",
     examples=[
-        Example(r"\cot(\pi/4)", 1, "standard"),
+        Example(r"\cot(\pi/4)", 1, "mpmath.cot(mpmath.pi / 4)"),
         Example(r"\cot(\pi/2)", 0, "standard"),
     ],
 )
@@ -85,7 +85,7 @@ class Cotangent:
     summary="the secant",
     examples=[
         Example("sec(0)", 1, "standard"),
-        Example(r"\sec(\pi/3)", 2, "standard"),
+        Example(r"\sec(\pi/3)", 2, "mpmath.sec(mpmath.pi / 3)"),
     ],
 )
 class Secant:
@@ -98,7 +98,7 @@ class Secant:
     summary="the cosecant",
     examples=[
         Example(r"\csc(\pi/2)", 1, "standard"),
-        Example(r"\csc(\pi/6)", 2, "standard"),
+        Example(r"\csc(\pi/6)", 2, "mpmath.csc(mpmath.pi / 6)"),
     ],
 )
 class Cosecant:
@@ -111,7 +111,7 @@ class Cosecant:
     aliases=["arcsin"],
     summary=r"the inverse sine; `\sin^{-1} x` too",
     examples=[
-        Example("asin(1)", sympy.pi / 2, "standard"),
+        Example("asin(1)", sympy.pi / 2, "math.asin(1)"),
         Example(r"\arcsin(1/2)", sympy.pi / 6, "standard"),
     ],
     points=_UNIT,
@@ -129,7 +129,7 @@ class InverseSine:
     aliases=["arccos"],
     summary="the inverse cosine",
     examples=[
-        Example("acos(0)", sympy.pi / 2, "standard"),
+        Example("acos(0)", sympy.pi / 2, "math.acos(0)"),
         Example(r"\arccos(1/2)", sympy.pi / 3, "standard"),
     ],
     points=_UNIT,
@@ -147,7 +147,7 @@ class InverseCosine:
     aliases=["arctan"],
     summary="the inverse tangent",
     examples=[
-        Example("atan(1)", sympy.pi / 4, "standard"),
+        Example("atan(1)", sympy.pi / 4, "math.atan(1)"),
         Example(r"\arctan(\sqrt{3})", sympy.pi / 3, "standard"),
     ],
 )
@@ -163,7 +163,7 @@ class InverseTangent:
     "acot",
     summary="the inverse cotangent",
     examples=[
-        Example("acot(1)", sympy.pi / 4, "standard"),
+        Example("acot(1)", sympy.pi / 4, "mpmath.acot(1)"),
         Example("acot(0)", sympy.pi / 2, "standard"),
     ],
 )
@@ -177,7 +177,7 @@ class InverseCotangent:
     summary="the inverse secant",
     examples=[
         Example("asec(1)", 0, "standard"),
-        Example("asec(2)", sympy.pi / 3, "standard"),
+        Example("asec(2)", sympy.pi / 3, "mpmath.asec(2)"),
     ],
     points=_BEYOND,
 )
@@ -191,7 +191,7 @@ class InverseSecant:
     summary="the inverse cosecant",
     examples=[
         Example("acsc(1)", sympy.pi / 2, "standard"),
-        Example("acsc(2)", sympy.pi / 6, "standard"),
+        Example("acsc(2)", sympy.pi / 6, "mpmath.acsc(2)"),
     ],
     points=_BEYOND,
 )
@@ -205,7 +205,7 @@ class InverseCosecant:
     summary="the hyperbolic sine",
     examples=[
         Example("sinh(0)", 0, "standard"),
-        Example(r"\sinh(\ln 2)", sympy.Rational(3, 4), "standard"),
+        Example(r"\sinh(\ln 2)", sympy.Rational(3, 4), "math.sinh(math.log(2))"),
     ],
 )
 class HyperbolicSine:
@@ -221,7 +221,7 @@ class HyperbolicSine:
     summary="the hyperbolic cosine",
     examples=[
         Example("cosh(0)", 1, "standard"),
-        Example(r"\cosh(\ln 2)", sympy.Rational(5, 4), "standard"),
+        Example(r"\cosh(\ln 2)", sympy.Rational(5, 4), "math.cosh(math.log(2))"),
     ],
 )
 class HyperbolicCosine:
@@ -237,7 +237,7 @@ class HyperbolicCosine:
     summary="the hyperbolic tangent",
     examples=[
         Example("tanh(0)", 0, "standard"),
-        Example(r"\tanh(\ln 2)", sympy.Rational(3, 5), "standard"),
+        Example(r"\tanh(\ln 2)", sympy.Rational(3, 5), "math.tanh(math.log(2))"),
     ],
 )
 class HyperbolicTangent:
@@ -252,7 +252,7 @@ class HyperbolicTangent:
     "coth",
     summary="the hyperbolic cotangent",
     examples=[
-        Example(r"\coth(\ln 2)", sympy.Rational(5, 3), "standard"),
+        Example(r"\coth(\ln 2)", sympy.Rational(5, 3), "mpmath.coth(mpmath.log(2))"),
         Example(r"\coth(\ln 3)", sympy.Rational(5, 4), "standard"),
     ],
 )
@@ -266,7 +266,7 @@ class HyperbolicCotangent:
     summary="the hyperbolic secant",
     examples=[
         Example("sech(0)", 1, "standard"),
-        Example(r"\operatorname{sech}(\ln 2)", sympy.Rational(4, 5), "standard"),
+        Example(r"\operatorname{sech}(\ln 2)", sympy.Rational(4, 5), "mpmath.sech(mpmath.log(2))"),
     ],
 )
 class HyperbolicSecant:
@@ -278,7 +278,7 @@ class HyperbolicSecant:
     "csch",
     summary="the hyperbolic cosecant",
     examples=[
-        Example(r"\operatorname{csch}(\ln 2)", sympy.Rational(4, 3), "standard"),
+        Example(r"\operatorname{csch}(\ln 2)", sympy.Rational(4, 3), "mpmath.csch(mpmath.log(2))"),
         Example(r"\operatorname{csch}(\ln 3)", sympy.Rational(3, 4), "standard"),
     ],
 )
@@ -292,7 +292,7 @@ class HyperbolicCosecant:
     summary="the inverse hyperbolic sine",
     examples=[
         Example("asinh(0)", 0, "standard"),
-        Example("asinh(3/4)", sympy.log(2), "standard"),
+        Example("asinh(3/4)", sympy.log(2), "math.asinh(3 / 4)"),
     ],
 )
 class InverseHyperbolicSine:
@@ -305,7 +305,7 @@ class InverseHyperbolicSine:
     summary="the inverse hyperbolic cosine",
     examples=[
         Example("acosh(1)", 0, "standard"),
-        Example("acosh(5/4)", sympy.log(2), "standard"),
+        Example("acosh(5/4)", sympy.log(2), "math.acosh(5 / 4)"),
     ],
     points=_BEYOND,
 )
@@ -319,7 +319,7 @@ class InverseHyperbolicCosine:
     summary="the inverse hyperbolic tangent",
     examples=[
         Example("atanh(0)", 0, "standard"),
-        Example("atanh(3/5)", sympy.log(2), "standard"),
+        Example("atanh(3/5)", sympy.log(2), "math.atanh(3 / 5)"),
     ],
     points=_UNIT,
 )
@@ -332,7 +332,7 @@ class InverseHyperbolicTangent:
     "acoth",
     summary="the inverse hyperbolic cotangent",
     examples=[
-        Example("acoth(5/3)", sympy.log(2), "standard"),
+        Example("acoth(5/3)", sympy.log(2), "mpmath.acoth(mpmath.mpf(5) / 3)"),
         Example("acoth(5/4)", sympy.log(3), "standard"),
     ],
     points=_BEYOND,
@@ -347,7 +347,7 @@ class InverseHyperbolicCotangent:
     summary="the inverse hyperbolic secant",
     examples=[
         Example("asech(1)", 0, "standard"),
-        Example("asech(4/5)", sympy.log(2), "standard"),
+        Example("asech(4/5)", sympy.log(2), "mpmath.asech(mpmath.mpf(4) / 5)"),
     ],
     points=_UNIT,
 )
@@ -360,7 +360,7 @@ class InverseHyperbolicSecant:
     "acsch",
     summary="the inverse hyperbolic cosecant",
     examples=[
-        Example("acsch(4/3)", sympy.log(2), "standard"),
+        Example("acsch(4/3)", sympy.log(2), "mpmath.acsch(mpmath.mpf(4) / 3)"),
         Example("acsch(3/4)", sympy.log(3), "standard"),
     ],
 )
@@ -374,7 +374,7 @@ class InverseHyperbolicCosecant:
     summary="the exponential; `e^{x}` too",
     examples=[
         Example("exp(0)", 1, "standard"),
-        Example(r"\exp(\ln 3)", 3, "standard"),
+        Example(r"\exp(\ln 3)", 3, "math.exp(math.log(3))"),
     ],
 )
 class Exponential:
@@ -390,7 +390,7 @@ class Exponential:
     summary="the natural logarithm",
     examples=[
         Example("ln(1)", 0, "standard"),
-        Example(r"\ln(e^2)", 2, "standard"),
+        Example(r"\ln(e^2)", 2, "math.log(math.e ** 2)"),
     ],
 )
 class NaturalLogarithm:
@@ -405,7 +405,7 @@ class NaturalLogarithm:
     "sqrt",
     summary=r"the square root; `\sqrt[n]{x}` is the nth root",
     examples=[
-        Example("sqrt(16)", 4, "standard"),
+        Example("sqrt(16)", 4, "math.sqrt(16)"),
         Example(r"\sqrt{1/4}", sympy.Rational(1, 2), "standard"),
     ],
 )
@@ -423,7 +423,7 @@ class SquareRoot:
     summary=r"the absolute value; `\lvert x \rvert` too",
     examples=[
         Example("abs(-3)", 3, "standard"),
-        Example("abs(3 - 4i)", 5, "standard"),
+        Example("abs(3 - 4i)", 5, "numpy.abs(3 - 4j)"),
     ],
 )
 class AbsoluteValue:
@@ -438,7 +438,7 @@ class AbsoluteValue:
     "sign",
     summary="the sign: −1, 0 or 1",
     examples=[
-        Example("sign(-2)", -1, "standard"),
+        Example("sign(-2)", -1, "numpy.sign(-2)"),
         Example("sign(0)", 0, "standard"),
     ],
 )
@@ -454,7 +454,7 @@ class Sign:
     "floor",
     summary=r"rounded down; `\lfloor x \rfloor` too",
     examples=[
-        Example("floor(5/2)", 2, "standard"),
+        Example("floor(5/2)", 2, "math.floor(5 / 2)"),
         Example("floor(-1/2)", -1, "standard"),
     ],
 )
@@ -470,7 +470,7 @@ class Floor:
     "ceiling",
     summary=r"rounded up; `\lceil x \rceil` too",
     examples=[
-        Example("ceiling(5/2)", 3, "standard"),
+        Example("ceiling(5/2)", 3, "math.ceil(5 / 2)"),
         Example("ceiling(-1/2)", 0, "standard"),
     ],
 )
@@ -484,7 +484,7 @@ class Ceiling:
     summary="the factorial; `n!` too",
     requires="scipy",
     examples=[
-        Example("factorial(5)", 120, "standard"),
+        Example("factorial(5)", 120, "math.factorial(5)"),
         Example("factorial(0)", 1, "standard"),
     ],
 )
@@ -502,7 +502,7 @@ class Factorial:
     "factorial2",
     summary="the double factorial; `n!!` too",
     examples=[
-        Example("factorial2(7)", 105, "standard: 7·5·3·1"),
+        Example("factorial2(7)", 105, "scipy.special.factorial2(7, exact=True)"),
         Example("factorial2(8)", 384, "standard: 8·6·4·2"),
     ],
     points=[(3,), (4,), (7,)],
@@ -532,7 +532,7 @@ class Gamma:
     aliases=["Re"],
     summary=r"the real part; `\Re` too",
     examples=[
-        Example("re(3 + 4i)", 3, "standard"),
+        Example("re(3 + 4i)", 3, "numpy.real(3 + 4j)"),
         Example("re(i)", 0, "standard"),
     ],
 )
@@ -549,7 +549,7 @@ class RealPart:
     aliases=["Im"],
     summary=r"the imaginary part; `\Im` too",
     examples=[
-        Example("im(3 + 4i)", 4, "standard"),
+        Example("im(3 + 4i)", 4, "numpy.imag(3 + 4j)"),
         Example("im(2)", 0, "standard"),
     ],
 )
@@ -566,7 +566,7 @@ class ImaginaryPart:
     aliases=["conj"],
     summary="the complex conjugate",
     examples=[
-        Example("conjugate(3 + 4i)", 3 - 4 * sympy.I, "standard"),
+        Example("conjugate(3 + 4i)", 3 - 4 * sympy.I, "numpy.conj(3 + 4j)"),
         Example("conj(2)", 2, "standard"),
     ],
 )
@@ -582,7 +582,7 @@ class Conjugate:
     "arg",
     summary="the argument of a complex number",
     examples=[
-        Example("arg(i)", sympy.pi / 2, "standard"),
+        Example("arg(i)", sympy.pi / 2, "cmath.phase(1j)"),
         Example("arg(-1)", sympy.pi, "standard"),
     ],
 )

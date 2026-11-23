@@ -24,7 +24,7 @@ x, n = sympy.symbols("x n")
     summary=r"the logarithm; `log(x, b)` to the base b, `\log_b x` in LaTeX",
     examples=[
         Example("log(e^3)", 3, "standard"),
-        Example("log(8, 2)", 3, "standard"),
+        Example("log(8, 2)", 3, "math.log(8, 2)"),
     ],
     lifts=False,
 )
@@ -40,7 +40,7 @@ class Logarithm:
     "root",
     summary="`root(x, n)`, the nth root",
     examples=[
-        Example("root(8, 3)", 2, "standard"),
+        Example("root(8, 3)", 2, "mpmath.root(8, 3)"),
         Example("root(16, 4)", 2, "standard"),
     ],
     lifts=False,
@@ -54,7 +54,7 @@ class Root:
     "binomial",
     summary=r"`binomial(n, k)`; `\binom{n}{k}` too",
     examples=[
-        Example("binomial(5, 2)", 10, "standard"),
+        Example("binomial(5, 2)", 10, "math.comb(5, 2)"),
         Example("binomial(n, 1)", n, "standard"),
     ],
     lifts=False,
@@ -68,7 +68,7 @@ class Binomial:
     "atan2",
     summary="`atan2(y, x)`, the angle of the point (x, y)",
     examples=[
-        Example("atan2(1, 1)", sympy.pi / 4, "standard"),
+        Example("atan2(1, 1)", sympy.pi / 4, "math.atan2(1, 1)"),
         Example("atan2(1, 0)", sympy.pi / 2, "standard"),
     ],
     lifts=False,
@@ -83,7 +83,7 @@ class Angle:
     aliases=["Min"],
     summary="the least of the arguments",
     examples=[
-        Example("min(3, 1, 2)", 1, "standard"),
+        Example("min(3, 1, 2)", 1, "numpy.min([3, 1, 2])"),
         Example("min(x, x + 1)", x, "standard"),
     ],
     lifts=False,
@@ -98,7 +98,7 @@ class Least:
     aliases=["Max"],
     summary="the greatest of the arguments",
     examples=[
-        Example("max(3, 1, 2)", 3, "standard"),
+        Example("max(3, 1, 2)", 3, "numpy.max([3, 1, 2])"),
         Example("max(x, x + 1)", x + 1, "standard"),
     ],
     lifts=False,
@@ -166,7 +166,7 @@ class GreatestCommonDivisor:
     "lcm",
     summary="the least common multiple",
     examples=[
-        Example("lcm(4, 6)", 12, "standard"),
+        Example("lcm(4, 6)", 12, "math.lcm(4, 6)"),
         Example("lcm(x, x^2)", x**2, "standard"),
     ],
     lifts=False,

@@ -35,7 +35,8 @@ The decorator takes, by name:
 - `examples`: two or more `Example(program, answer, source)`, each a program that uses the
   capability and the value of its last output, known from *outside* the integration: a
   closed form with its place in a book, `"DLMF 10.8.1"`, or the library called directly,
-  `"scipy.special.jv(0, 1.5)"`;
+  `"scipy.special.jv(0, 1.5)"`, which the tests run, and hold to the answer. One example
+  may say `"standard"` of an answer every book has, but not all of them;
 - `requires`: the library it needs beyond SymPy, as pip installs it, if any;
 - `aliases`: other names it is called by, as `arcsin` for `asin`;
 - for a function, `points`: arguments it is checked at, where it has a value. Without
@@ -256,8 +257,9 @@ declarations.
 it applies to its kind. A failure names the capability and says what to do:
 
 1. **Declaration.** Its names are its own, and the language reads each as one name; it
-   has a summary, at least two examples, each with its source, and declares the library
-   it needs, which is imported only when it is used. Each written form reads as it, under
+   has a summary, at least two examples, each with its source, one at least a book or
+   the library called directly, and declares the library it needs, which is imported only
+   when it is used. Each written form reads as it, under
    a name that is no other capability's: `N(x)` could not be the normal distribution
    function, as `N` is numerical evaluation.
 2. **Examples.** Each runs in the language, calls the capability, and gives its answer,
