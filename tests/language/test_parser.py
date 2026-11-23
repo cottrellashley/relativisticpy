@@ -1926,3 +1926,8 @@ class TestPlainTextAndUnicodeSpellLatex:
         assert derivative.written is not None
         assert to_sexpr(derivative.written.expr) == "(/ dy dx)"
         assert derivative.written.names == ("dy", "dx")
+
+    @pytest.mark.parametrize("text", ["(del f)/(del x)", "(x dy)/dx", "-d/dx (x^2)"])
+    def test_leibnizs_fraction_spans_what_is_written(self, text):
+        # (del f)/(del x) was shown as del f)/(del x), without its first bracket
+        assert parse(text).statements[0].span.text == text

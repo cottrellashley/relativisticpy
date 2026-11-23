@@ -2760,7 +2760,7 @@ class Parser:
             result = ast.Unary(sign, result, span=tail.sign.span.to(span))
         if tail.rest is None:
             return result
-        span = tail.rest.span.to(span)
+        span = left.span.to(span)  # from what is written first, its bracket too
         return ast.Binary("*", tail.rest, result, implicit=tail.beside, span=span)
 
     def _at_solidus_denominator(self) -> bool:
@@ -3571,8 +3571,8 @@ def _leibniz_tail(node: ast.Expr) -> _LeibnizTail | None:
             continue
         numerator = _product([factor, *(each for each, _ in chain[start + 1 :])])
         assert numerator is not None
-        if start == 0:
-            return _LeibnizTail(None, True, sign, numerator)
+        if start == 0:  # the whole product, as written, brackets and all
+            return _LeibnizTail(None, True, sign, node if sign is None else numerator)
         rest = chain[0][0]
         for each, joined in chain[1:start]:
             rest = ast.Binary("*", rest, each, implicit=joined, span=rest.span.to(each.span))
