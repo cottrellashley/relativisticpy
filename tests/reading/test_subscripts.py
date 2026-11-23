@@ -85,6 +85,12 @@ class TestPrecedence:
         assert wb.expr("f_{xy}") == 2 * x
         assert wb.expr("f_x := 7\nf_x") == 7  # a definition of the name wins
 
+    def test_a_component_of_a_tensor_however_its_number_is_written(self, wb):
+        # V_0 was a name of its own, where V_{0} was the component, -5
+        wb.exe("ds^2 = -dt^2 + dx^2 + dy^2 + dz^2\nV^\\mu := [5, 1, 2, 3]")
+        assert wb.expr("V_0") == wb.expr("V_{0}") == -5
+        assert wb.expr("V_1 + V^1") == 2
+
     def test_a_book_name_of_an_integer(self, wb):
         wb.exe(r"n \in \mathbb{N}")
         assert wb.expr("H_n") == sympy.harmonic(sympy.Symbol("n", integer=True, nonnegative=True))

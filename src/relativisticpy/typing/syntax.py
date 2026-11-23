@@ -241,16 +241,23 @@ def _shape_text(shape: tuple[int, ...]) -> str:
 
 def _indexed_name(node: ast.Name, scope: Scope) -> ast.Scripted | None:
     """``y_t`` as ``y_{t}`` when ``y`` is a tensor and ``y_t`` names nothing: data
-    notation writes the indices of a tensor without braces."""
+    notation writes the indices of a tensor without braces; and ``V_0`` as ``V_{0}``, the
+    component, as a number in braces is."""
     base, underscore, tail = node.id.partition("_")
-    binding = scope.lookup(base) if underscore and tail.isalpha() else None
+    written = underscore and (tail.isalpha() or (tail.isdigit() and tail.isascii()))
+    binding = scope.lookup(base) if written else None
     if not (
         isinstance(binding, TensorBinding)
         or (isinstance(binding, VariableBinding) and isinstance(binding.node.type, TensorType))
     ):
         return None
     span = node.span
-    items = tuple(ast.IndexItem(label, span=span) for label in split_index_labels(tail))
+    if tail.isdigit():  # V_01 as V_{01}: the components 0 and 1
+        items = tuple(
+            ast.IndexItem(None, ast.Number(digit, span=span), span=span) for digit in tail
+        )
+    else:
+        items = tuple(ast.IndexItem(label, span=span) for label in split_index_labels(tail))
     script = ast.Script("_", None, ast.IndexList(items, span=span), span=span)
     return ast.Scripted(ast.Name(base, span=span), (script,), span=span)
 
