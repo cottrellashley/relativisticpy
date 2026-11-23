@@ -16,6 +16,7 @@ uv run ruff check && uv run ruff format --check
 uv run mypy
 uv run --group docs mkdocs build --strict
 uv run python benchmarks/curriculum.py       # no case that passed may fail
+uv run python benchmarks/notations.py        # no cell of the notation matrix either
 ```
 
 Python 3.10 to 3.14 are supported, and CI runs them all, with `PYTHONHASHSEED=0`. Use

@@ -133,3 +133,81 @@ expected = 48 * M**2 / r**6
 - **Never fit a case to the program.** Write the program as people write the
   mathematics. If the language cannot read it yet, the case fails, and that is the point.
 - **One idea per case.** A case that fails should say one thing about what to build.
+
+## The notation matrix
+
+`notations/` holds the same mathematics written every way a book writes it. A construct
+of the core, such as a fraction, a derivative or a definite integral, names its **forms**,
+its **operands** and its **oracle**; a **cell** is one form filled with one operand,
+`calculus.derivative/leibniz-fraction/x^3`. Every form of a construct must give the answer
+its oracle gives, so two spellings of the same mathematics that disagree are found by
+running it.
+
+```bash
+uv run python benchmarks/notations.py                        # the scoreboard, in seconds
+uv run python benchmarks/notations.py --construct calculus   # some constructs
+uv run python benchmarks/notations.py --failures             # why each cell fails
+uv run python benchmarks/notations.py --show CELL            # a cell, as a case
+uv run python benchmarks/notations.py --oracles              # each oracle, by two routes
+uv run python benchmarks/notations.py --update               # record what passes now
+uv run python benchmarks/notations.py --seeds 0,1,2          # what the hash seed changes
+```
+
+It reports by construct, by notation and by form: pass, wrong, refused. It lists every
+wrong answer with its program, the answer given and the answer expected, and, for each
+operand, the forms that disagree with each other. A cell is run as a case is, in a fresh
+workbook, within the same time limit, its answer compared as strictly; each runs in a
+process of its own, so that none depends on the cells before it.
+`notations/passing.txt` records the cells that pass, and `tests/test_notations.py` keeps
+them passing.
+
+A construct is a Markdown file, `notations/<area>/<construct>.md`, named after its
+folder and its file. Markdown, because a person reads it on the page and extends it by
+copying a form; a table for the operands, because tens of them are compared at a glance.
+It starts with `# Title` and a paragraph that names its books, then has these sections:
+
+- **`## Names`:** Python, with SymPy's names in scope, that defines what the operands and
+  the oracle are written with: `x = symbols("x")`.
+- **`## Operands`:** a table. The first column names an operand, on the first of its
+  rows; the second says which notations a row is written in, of `latex`, `text`,
+  `unicode` and `python`; each column headed by a slot, as `` `f` ``, says how that slot
+  is written in them; a last column says what misreading the operand separates. A bar in
+  a cell is written `\|`. An operand not written in a notation has no cell of its forms.
+- **`## Oracle`:** Python that computes the answer from the operand's slots alone, as
+  `python` writes them, and sets `expected`, as a case's oracle does. It never imports
+  RelativisticPy, and never sees the form.
+- **`## Second route`:** Python run after the oracle, which computes the answer another
+  way and asserts that the two agree.
+- **`## Setup`,** if needed: the lines every form's program starts with, a fenced block
+  for each notation, and a `python-scope` block for Python objects a program reads.
+- **`## Forms`:** a `###` section for each form, with a line naming it and its source,
+  ``**Form** · `leibniz-fraction` · Stewart (2015), §2.8``, and its template in a fenced
+  block marked `latex`, `text` or `unicode`, where `«f»` stands for the slot `f`. A
+  template is written as its source writes it, never as the language reads it: a cell
+  that fails is a finding. Two more lines are optional:
+  ``**Not of** · `sum` · why``, or ``**Only of** · ...``, where a source does not write
+  the form of every operand, and ``**Refused** · `ParseError` · where it is decided``,
+  for a form that a decision says is refused: its cells pass when the program is refused
+  with that error, and an answer is a failure.
+
+A program in LaTeX is given to the language as LaTeX, in every statement
+(`design/notation.md`, decision 10); one in plain text or Unicode is given as it is typed.
+
+````markdown
+## Oracle
+
+```python
+expected = diff(f, var)
+```
+
+## Forms
+
+### Leibniz's fraction, of a function's name
+
+**Form** · `leibniz-fraction` · Stewart (2015), §2.8, Other Notations: `\frac{dy}{dx}`
+
+```latex
+«name»(«var») := «f»
+\frac{d«name»}{d«var»}
+```
+````
