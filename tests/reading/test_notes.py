@@ -201,6 +201,24 @@ class TestSilentReadingsAreSaid:
             "the values of M, solve it, as in solve(2 M + b = 5, M)"
         ]
 
+    def test_the_unknown_of_dsolve_is_a_function_of_the_variable_its_arguments_write(self, wb):
+        # dsolve(y' = r y, y(t)) was refused, its other names r and t; dsolve(y' = r*y) was
+        # the function of r, e^(r^2/2), without a word
+        y, r, t = sympy.Function("y"), sympy.Symbol("r"), sympy.Symbol("t")
+        assert wb.expr("dsolve(y' = r y, y(t))") == sympy.Eq(
+            y(t), sympy.Symbol("C1") * sympy.exp(r * t)
+        )
+        assert wb.expr("dsolve(y' = r y, y(0) = 1, y(t))") == sympy.Eq(y(t), sympy.exp(r * t))
+        assert notes(wb, "dsolve(y' = r y)") == [
+            "y' is read as the derivative of y(r), by r, the one other name the equation is "
+            "written with; for y as a function of another variable, write it in the "
+            "arguments, as dsolve(..., y(t))"
+        ]
+
+    def test_a_condition_of_dsolve_says_nothing_of_a_product(self, wb):
+        # y(0) = 1 said y(0) is an unknown function, and how to write a product
+        assert notes(wb, r"dsolve(y''(t) = -\omega^2 y(t), y(0) = 1, y'(0) = 0)") == []
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]
