@@ -79,6 +79,7 @@ def test_a_solidus_between_differentials_is_leibnizs_fraction(wb):
     wb.exe("g(x, y) := x^2 y")
     assert wb.expr("∂g/∂x") == 2 * x * y
     assert wb.expr("(del g)/(del x)") == 2 * x * y  # AsciiMath writes ∂ as del
+    assert wb.expr("∂²g/∂x∂y") == 2 * x
 
 
 def test_sum_and_product_called_as_sympy_calls_them_are_latexs(wb):

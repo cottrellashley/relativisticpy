@@ -1898,6 +1898,8 @@ class TestPlainTextAndUnicodeSpellLatex:
             ("d^2y/dx^2", r"\frac{d^2y}{dx^2}"),
             ("(dy)/(dx)", r"\frac{dy}{dx}"),
             ("∂f/∂x", r"\frac{\partial f}{\partial x}"),
+            ("∂²f/∂x∂y", r"\frac{\partial^2 f}{\partial x \partial y}"),  # was refused
+            ("∂f/∂x ∂g/∂y", r"\frac{\partial f}{\partial x} \frac{\partial g}{\partial y}"),
             ("(del f)/(del x)", r"\frac{\partial f}{\partial x}"),
             ("x dy/dx", r"x \frac{dy}{dx}"),
             ("x*dy/dx", r"x \cdot \frac{dy}{dx}"),

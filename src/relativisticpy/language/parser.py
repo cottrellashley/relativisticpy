@@ -2758,7 +2758,8 @@ class Parser:
         if tail is None or not self._at_solidus_denominator():
             return None
         before = self.pos, self.previous
-        denominator = self._solidus_denominator()
+        top = _leibniz_numerator(tail.numerator)
+        denominator = self._solidus_denominator(top[1] or 1 if top is not None else 1)
         span = tail.numerator.span.to(denominator.span)
         quotient = _quotient(tail.numerator, denominator, span, leibniz=True)
         if not isinstance(quotient, ast.Derivative):
@@ -2788,10 +2789,27 @@ class Parser:
             return follower.kind is K.IDENT or self._at_plain_differential()
         return _starts_a_differential(token) and (token.kind is K.IDENT or follower.kind is K.IDENT)
 
-    def _solidus_denominator(self) -> ast.Expr:
-        """The denominator of Leibniz's fraction after a solidus: a differential and its
-        power, ``dx^2``, ``d\\theta``, ``∂x``, ``{\\rm d}x``, or differentials in brackets,
-        ``(dx dy)``; never a call, so that ``d/dx(x^3)`` is the derivative of x^3."""
+    def _solidus_denominator(self, order: int) -> ast.Expr:
+        """The denominator of Leibniz's fraction after a solidus: differentials, each with
+        its power, as many as the numerator's ``order`` asks, as ``∂x∂y`` of ``∂²f/∂x∂y``,
+        but no more, so that ``∂f/∂x ∂g/∂y`` is two fractions; or differentials in
+        brackets, ``(dx dy)``."""
+        denominator = self._one_differential()
+        while (
+            not self.check(K.LPAREN)
+            and _differential_order(denominator) < order
+            and self._at_solidus_denominator()
+        ):
+            more = self._one_differential()
+            denominator = ast.Binary(
+                "*", denominator, more, implicit=True, span=denominator.span.to(more.span)
+            )
+        return denominator
+
+    def _one_differential(self) -> ast.Expr:
+        """One differential of a denominator after a solidus, with its power: ``dx^2``,
+        ``d\\theta``, ``∂x``, ``{\\rm d}x``, or those in brackets, ``(dx dy)``; never a call,
+        so that ``d/dx(x^3)`` is the derivative of x^3."""
         token = self.peek()
         if token.kind is K.LPAREN:
             return self._postfix(self._parenthesized(), grouped=True)
@@ -3519,6 +3537,12 @@ def _leibniz_numerator(node: ast.Expr) -> tuple[bool, int | None, ast.Expr | Non
     if (called := _called_differential(head)) is not None:
         return False, None, _product([called, *rest])
     return None
+
+
+def _differential_order(node: ast.Expr) -> int:
+    """The order of the differentials a denominator writes: 2 of ``dx^2`` and of ``∂x∂y``."""
+    found = _leibniz_denominator(node)
+    return sum(order for _, order in found[1]) if found is not None else 0
 
 
 def _called_differential(node: ast.Expr) -> ast.Expr | None:
