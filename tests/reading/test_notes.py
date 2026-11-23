@@ -32,6 +32,16 @@ class TestSilentReadingsAreSaid:
         )
         assert notes(wb, "x^n y^n") == []  # a Latin exponent is a power, as written
 
+    def test_a_superscript_i_on_a_name_that_means_nothing(self, wb):
+        # Carroll's E^i, a component of the electric field, was E to the power i, the
+        # imaginary unit, and nothing said so
+        assert notes(wb, "E^i") == [
+            "E is not defined, so E^i is read as E to the power i, the imaginary unit; to use "
+            "a vector, define it first: E^{i} := [...]"
+        ]
+        wb.exe("i := 2")
+        assert notes(wb, "E^i") == []  # i has a value
+
     def test_a_letter_followed_by_brackets_is_a_function_and_says_so(self, wb):
         assert notes(wb, r"\gamma(t - v x)") == [
             r"\gamma is not defined, so \gamma(t - v x) is an unknown function applied to "

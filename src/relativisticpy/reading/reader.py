@@ -1581,10 +1581,11 @@ class Reader(Typer):
             hint=f"for the {meant}, write {a} {b} {sign} {b} {a}",
         )
 
-    def _note_power(self, base: ast.Name, script: ast.Script) -> None:
+    def _note_power(self, base: ast.Name, script: ast.Script, scope: Scope) -> None:
         """Say so where a superscript on a name that means nothing looks like indices, a
-        Greek label or several, as in T^{\\mu\\nu}, but is read as a power; or where the
-        statement also writes the name with the label as a subscript, as u^a u_a."""
+        Greek label or several, as in T^{\\mu\\nu}, but is read as a power; where the
+        statement also writes the name with the label as a subscript, as u^a u_a; or where
+        the label is i, the imaginary unit, as in E^i, a component of a field in physics."""
         written = base.span.text
         items = script.indices.items if script.indices is not None else ()
         if not items or not all(_plain_label(item) for item in items):
@@ -1601,6 +1602,11 @@ class Reader(Typer):
             self._note(
                 f"{written} is not defined, so {power} is a power and {written}_{labels[0]} one "
                 f"symbol; to use a tensor, define it first: {tensor} := [...]"
+            )
+        elif labels == ["i"] and scope.lookup("i") is None:  # E^i, as Carroll writes a field
+            self._note(
+                f"{written} is not defined, so {power} is read as {written} to the power i, "
+                f"the imaginary unit; to use a vector, define it first: {tensor} := [...]"
             )
 
     def _script_math(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node:
@@ -1685,7 +1691,7 @@ class Reader(Typer):
                     hint=f"define it first, for example {written_base}^{{{shown}}} := [...]",
                 )
             if not subscripts and isinstance(base, ast.Name) and self._undefined(base, scope):
-                self._note_power(base, script)
+                self._note_power(base, script, scope)
             if (
                 isinstance(script.body, ast.Name)
                 and script.body.id in _TRANSPOSES
