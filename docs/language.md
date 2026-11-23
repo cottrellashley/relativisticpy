@@ -961,13 +961,17 @@ A function of one variable is a wavefunction, and so is a bracket defined as
 `\langle x|\alpha\rangle := ...`. A bracket of wavefunctions is an integral, of
 \(\phi^* A \psi\), over the domain the program states for the variable, or over the whole
 line, and angle brackets around an operator are its expectation value, in the one state
-the program defines or the state a subscript names, as in `\langle x \rangle_\psi`.
+the program defines or the state a subscript names, as in `\langle x \rangle_\psi`,
+divided by \(\langle\psi|\psi\rangle\), as a state need not be normalised. A function named
+\(\phi\) or \(\Phi\), which books give potentials and phases too, is a state only where a
+ket or a subscript names it.
 Written the other way round, a bracket a program defines is its conjugate, its labels
 real; and `\psi^*(x)` is the conjugate of \(\psi(x)\).
 
 An expression that ends in an operator with nothing to act on, as `-i\hbar\frac{d}{dx}`
-does, is an operator. Defined, it is a value: it acts on what follows it, as in
-`\hat{p}\psi(x)`, and products and powers compose it, as in `\hat{p}^2`. Defined with
+does, is an operator. Defined, it is a value: it acts on the rest of the term after it,
+as \(\frac{d}{dx}\) does, as in `\hat{p}\psi(x)` and `\hat{p} x \psi(x)`, and products
+and powers compose it, as in `\hat{p}^2`. Defined with
 `\pm` in its name, as in `a_\pm := ...`, it is two, one for each sign. A claim between
 operators is decided by applying both sides to a test function, as a note says.
 
@@ -1021,13 +1025,18 @@ Sakurai writes it, and the physics and braket packages' `\ket`, `\bra`, `\braket
 
 A list, a tuple or a column of numbers is a vector, and is read as one by what it meets:
 `\cdot` between vectors is their dot product and `\times` their cross product, while
-between numbers both multiply; `|\mathbf{v}|` and `\|\mathbf{v}\|` are its length, and
-`\mathbf{p}^2` is \(\mathbf{p} \cdot \mathbf{p}\). Derivatives, integrals, evaluation
-bars and limits of a vector are taken component by component. Where nothing defines
-them, `\hat{\mathbf{x}}`, `\hat{\imath}` and `\mathbf{i}`, `\mathbf{j}`, `\mathbf{k}` are
-the unit vectors of Cartesian coordinates, and so is `\hat{x}`, unless an operator is
-near, as `\hat{p}` is; `\hat{\mathbf{r}}` and `\mathbf{e}_\theta` are those of the
-coordinates in force. A typeface does not make a name of its own yet: `\mathbf{r}` is
+between numbers both multiply; `|\mathbf{v}|` and `\|\mathbf{v}\|` are its length, the
+root of the sum of each component times its conjugate, of a row and a column alike, and
+`\mathbf{p}^2` is \(\mathbf{p} \cdot \mathbf{p}\). Beside `\cdot` or `\times`,
+`\mathbf{1}` is the vector of ones as long as the vector it meets. Derivatives, integrals,
+evaluation bars and limits of a vector are taken component by component. Where nothing
+defines them, `\hat{\mathbf{x}}`, `\hat{\imath}` and `\mathbf{i}`, `\mathbf{j}`, `\mathbf{k}`
+are the unit vectors of Cartesian coordinates, and so is `\hat{x}`, unless it is the
+position x: in the angle brackets of a wavefunction of x, or beside an operator that
+differentiates by x, as `\hat{p} := -i\hbar \frac{d}{dx}` does, where the statement writes
+no hat that only a unit vector can be, as `\hat{y}` is; a function is read as it was where
+it is defined. `\hat{\mathbf{r}}` and `\mathbf{e}_\theta` are those of the coordinates in
+force. A typeface does not make a name of its own yet: `\mathbf{r}` is
 `r` (decision 9 of the [notation decisions](notation.md)).
 
 `\nabla` with no index is vector calculus's: `\nabla f`, `\nabla \cdot \mathbf{v}`,
