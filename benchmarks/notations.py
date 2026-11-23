@@ -530,8 +530,9 @@ def _is_an_error(kind: str) -> bool:
 
 @dataclass(frozen=True)
 class Outcome:
-    """How a cell went, in the curriculum's words: ``passed``, ``wrong`` (a value, but not
-    the answer, or an answer where it had to be refused), ``refused``, ``timeout``,
+    """How a cell went, in the curriculum's words: ``passed``, ``wrong`` (a value given as
+    the answer, but not the answer, or an answer where it had to be refused), ``kept`` (a
+    value kept as written, as a note of the program says), ``refused``, ``timeout``,
     ``crashed`` or ``broken`` (the specification is at fault)."""
 
     cell: Cell
@@ -791,7 +792,7 @@ def _oracle_first(item: tuple[str | None, list[str]]) -> tuple[bool, int]:
 # -- the scoreboard ---------------------------------------------------------------------------
 
 
-_KINDS = ("passed", "wrong", "refused")
+_KINDS = ("passed", "wrong", "kept", "refused")
 
 
 @dataclass

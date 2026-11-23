@@ -134,6 +134,48 @@ def test_other_solutions_are_not():
     assert not curriculum.equal({p: 1}, [(1, 2)])
 
 
+LEFT = "an integral is left as written: SymPy could not compute it"
+RELU = (
+    r"\operatorname{ReLU} is not a function RelativisticPy knows, so "
+    r"\operatorname{ReLU}(3) is an unknown function"
+)
+
+
+def test_a_value_kept_as_written_where_a_note_says_so_is_kept():
+    unknown = sympy.Function("ReLU")
+    assert curriculum.kept(sympy.Integral(x**x, (x, 0, 1)), 0.7834, [LEFT]) == LEFT
+    assert curriculum.kept(unknown(-2) + unknown(3), 3, [RELU]) == RELU
+    det = sympy.Function("det")(6 * sympy.Symbol("I_5") - sympy.Symbol("J_5"))
+    unknown_value = (
+        r"\det\left(6 I_5 - J_5\right) is left as an unknown value: nothing defines I_{5} "
+        "and J_{5}, which may be matrices of any size, not numbers"
+    )
+    assert curriculum.kept(sympy.Eq(det, 1296), True, [unknown_value]) == unknown_value
+
+
+def test_a_function_called_inside_a_sum_kept_as_written_is_kept_with_it():
+    # sig.random.autocorrelation: u, the unit step, is unknown, inside the sum left undone
+    a, n, lag = sympy.symbols("a n l")
+    u = sympy.Function("u")
+    terms = a**n * a ** (n - lag) * u(n) * u(n - lag)
+    left = "a sum is left as written: SymPy found no closed form for it"
+    value = sympy.Sum(terms, (n, -sympy.oo, sympy.oo))
+    assert curriculum.kept(value, a ** abs(lag) / (1 - a**2), [left]) == left
+    assert curriculum.kept(value + u(lag), a ** abs(lag) / (1 - a**2), [left]) is None
+
+
+def test_a_value_no_note_says_is_kept_is_given_as_the_answer():
+    integral = sympy.Integral(x**x, (x, 0, 1))
+    assert curriculum.kept(integral, 0.7834, []) is None
+    assert curriculum.kept(integral, 0.7834, ["assuming a > 0; the program does not say"]) is None
+    series = sympy.Sum(1 / (x * sympy.log(x)), (x, 2, sympy.oo))
+    assert curriculum.kept(series, 1, ["assuming n > 0, as books take a scale to be"]) is None
+    assert curriculum.kept(sympy.Function("f")(3), 3, [RELU]) is None  # f in "function"
+    assert curriculum.kept(x + 1, 3, [LEFT]) is None  # nothing kept: a value, and wrong
+    # an unknown function the answer holds too is none the value keeps
+    assert curriculum.kept(y(t) + 1, y(t), [f"y is not defined, so {y(t)} is unknown"]) is None
+
+
 def _case(program: str, oracle: str, *, latex: bool = True):  # type: ignore[no-untyped-def]
     return curriculum.Case(
         id="test.case",
@@ -148,6 +190,21 @@ def _case(program: str, oracle: str, *, latex: bool = True):  # type: ignore[no-
         line=1,
         latex=latex,
     )
+
+
+def test_a_program_that_keeps_a_function_nothing_defines_is_kept_not_wrong():
+    # num.rounding.cancellation: fl is defined where it is used (design/notation.md, 26)
+    program = r"""u := 2^{-53}
+x := 10^{-8}
+\operatorname{fl}\left(\frac{1 - \cos x}{x^2}\right)"""
+    result = curriculum.run(_case(program, "expected = 0.0"))
+    assert result.outcome == "kept", result.describe()
+    assert r"\operatorname{fl} is not a function RelativisticPy knows" in result.reason
+
+
+def test_a_program_that_gives_another_value_is_wrong():
+    result = curriculum.run(_case("x := 2\nx + 1", "expected = 4"))
+    assert result.outcome == "wrong", result.describe()
 
 
 def test_a_program_written_in_latex_is_given_as_latex_in_every_statement(tmp_path):

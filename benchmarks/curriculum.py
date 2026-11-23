@@ -40,11 +40,12 @@ from pathlib import Path
 from typing import Any
 
 import sympy
+from sympy.core.function import AppliedUndef
 
-from relativisticpy import Workbook
+from relativisticpy import Workbook, display
 from relativisticpy.__main__ import fix_hash_seed
 from relativisticpy.checking import _time_limit
-from relativisticpy.errors import RelativisticPyError
+from relativisticpy.errors import InternalError, RelativisticPyError
 from relativisticpy.language.source import Source
 
 ROOT = Path(__file__).resolve().parent.parent / "curriculum"
@@ -95,9 +96,12 @@ class Case:
 
 @dataclass
 class Result:
-    """How a case went: ``passed``, ``wrong`` (a value, but not the answer), ``refused`` (an
-    error from RelativisticPy), ``timeout``, ``crashed`` (an error that is not
-    RelativisticPy's), or ``broken`` (the case itself is at fault)."""
+    """How a case went: ``passed``; ``wrong`` (a value given as the answer, which is not
+    the answer); ``kept`` (a value kept as written, which holds an integral, a sum, a
+    product, a limit or a derivative not carried out, or a function nothing defines, as a
+    note of the program says: no answer, and said to be none); ``refused`` (an error from
+    RelativisticPy); ``timeout``; ``crashed`` (a failure of RelativisticPy's own); or
+    ``broken`` (the case itself is at fault)."""
 
     case: Case
     outcome: str
@@ -242,10 +246,13 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
         return Result(case, "broken", f"the scope fails: {type(error).__name__}: {error}")
     try:
         with _beside(case), workbook, _time_limit(time_limit):
-            values = workbook.exe(_given(case))
+            shown = _shown_by(workbook, _given(case))
     except TimeoutError:
         seconds = time.perf_counter() - start
         return Result(case, "timeout", f"over {time_limit:g} s", seconds=seconds)
+    except InternalError as error:  # a failure of RelativisticPy's own, in its words
+        reason = f"{type(error).__name__}: {error.message}".splitlines()[0]
+        return Result(case, "crashed", reason, str(error), time.perf_counter() - start)
     except RelativisticPyError as error:
         seconds = time.perf_counter() - start
         wanted = expectation.get("error")
@@ -256,6 +263,7 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
         reason = f"{type(error).__name__}: {error}".splitlines()[0]
         return Result(case, "crashed", reason, seconds=time.perf_counter() - start)
     seconds = time.perf_counter() - start
+    values = [each.value for each in shown]
     if "error" in expectation:
         detail = f"expected {expectation['error']}, but it gave {_shown(values)}"
         return Result(case, "wrong", "should have been refused", detail, seconds)
@@ -264,23 +272,48 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
         if len(values) != len(wanted_all):
             detail = f"expected {len(wanted_all)} outputs, got {len(values)}: {_shown(values)}"
             return Result(case, "wrong", "a different number of outputs", detail, seconds)
-        pairs = list(zip(values, wanted_all, strict=True))
+        pairs = list(zip(shown, wanted_all, strict=True))
     else:
         if not values:
             return Result(case, "wrong", "no output", "the program shows nothing", seconds)
-        pairs = [(values[-1], expectation["expected"])]
+        pairs = [(shown[-1], expectation["expected"])]
+    kept_as_written = None
     for number, (actual, wanted) in enumerate(pairs, start=1):
         try:
-            same = equal(actual, wanted, tolerance)
+            same = equal(actual.value, wanted, tolerance)
         except Exception as error:  # comparing failed: the value is not what was expected
             same, why = False, f"cannot compare: {type(error).__name__}: {error}"
         else:
             why = ""
-        if not same:
-            label = f"output {number}: " if len(pairs) > 1 else ""
-            detail = f"{label}expected {_shown(wanted)}\n{label}got      {_shown(actual)}"
+        if same:
+            continue
+        label = f"output {number}: " if len(pairs) > 1 else ""
+        detail = f"{label}expected {_shown(wanted)}\n{label}got      {_shown(actual.value)}"
+        said = kept(actual.value, wanted, actual.notes)
+        if said is None:  # given as the answer, and not the answer
             return Result(case, "wrong", why or "not the answer", detail, seconds)
-    return Result(case, "passed", seconds=seconds)
+        kept_as_written = kept_as_written or Result(case, "kept", said, detail, seconds)
+    return kept_as_written or Result(case, "passed", seconds=seconds)
+
+
+@dataclass(frozen=True)
+class Shown:
+    """A value a program shows, with the notes of the statement that shows it."""
+
+    value: Any
+    notes: tuple[str, ...] = ()
+
+
+def _shown_by(workbook: Workbook, program: str | Source) -> list[Shown]:
+    """Every value a program shows, in order, each with the notes of its statement, as a
+    person or an agent is shown them: the values :meth:`Workbook.exe` gives, and the first
+    error raised, as it raises it."""
+    shown = []
+    for step in workbook.each(program):
+        if step.error is not None:
+            raise step.error
+        shown += [Shown(value, tuple(step.notes)) for value in step.values or ()]
+    return shown
 
 
 def _given(case: Case) -> str | Source:
@@ -498,6 +531,80 @@ def _left_undone(actual: Any, expected: Any) -> set[str]:
     return kinds - {type(node).__name__ for node in expected.atoms(*_UNEVALUATED)}
 
 
+#: What a value kept as written may hold that was not carried out, and the words with
+#: which a note says so of each, as "an integral is left as written".
+_NOT_CARRIED_OUT = (
+    (sympy.Integral, ("integral",)),
+    (sympy.Sum, ("sum",)),
+    (sympy.Product, ("product", "sum")),
+    (sympy.Limit, ("limit",)),
+    (sympy.Derivative, ("derivative",)),
+)
+
+
+def kept(actual: Any, expected: Any, notes: Sequence[str]) -> str | None:
+    """Why ``actual``, a value that is not the answer, is kept as written rather than given
+    as the answer: the note of the program that says what it holds and the answer does
+    not, an integral, a sum, a product, a limit or a derivative not carried out, or a
+    function nothing defines, as ReLU(3) where nothing defines ReLU. A function called
+    only inside what is not carried out is kept with it. ``None`` where the value holds
+    none of these, or where no note says so of each: a value given as the answer."""
+    mine, theirs = _expressions(actual), _expressions(expected)
+    said: list[str] = []
+    for kind, words in _NOT_CARRIED_OUT:
+        if any(e.has(kind) for e in mine) and not any(e.has(kind) for e in theirs):
+            note = next((n for n in notes if _names(n.lower(), words)), None)
+            if note is None:
+                return None
+            said.append(note)
+            mine = [e.replace(kind, _kept_whole) for e in mine]
+    unknown = _unknown_functions(mine) - _unknown_functions(theirs)
+    for name in sorted(unknown):
+        spellings = {name, display.unicode(sympy.Symbol(name))}
+        note = next((n for n in notes if "unknown" in n and _names(n, spellings)), None)
+        if note is None:
+            return None
+        said.append(note)
+    return "; ".join(dict.fromkeys(said)) if said else None
+
+
+def _kept_whole(*args: Any) -> Any:
+    """What stands for an operation kept as written, given its arguments, once a note has
+    said so: nothing in it is said again, as the unknown u(n) in a sum of u(n) left as
+    written."""
+    return sympy.Dummy("kept")
+
+
+def _names(text: str, words: Iterable[str]) -> bool:
+    """Whether ``text`` says one of ``words``, each as a word of its own: sum in "a sum is
+    left as written", but not in "assuming", and ReLU in ``\\operatorname{ReLU}``, but f
+    not in "function"."""
+    return any(re.search(rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])", text) for word in words)
+
+
+def _unknown_functions(expressions: Iterable[Any]) -> set[str]:
+    """The names of the functions nothing defines that ``expressions`` apply."""
+    return {type(call).__name__ for each in expressions for call in each.atoms(AppliedUndef)}
+
+
+def _expressions(value: Any) -> list[Any]:
+    """The SymPy expressions a value is made of: itself, its entries, or its components."""
+    if isinstance(value, sympy.Basic):
+        return [value]
+    if isinstance(value, sympy.MatrixBase):
+        return list(value)
+    if isinstance(value, dict):
+        return [e for item in value.items() for part in item for e in _expressions(part)]
+    if isinstance(value, list | tuple):
+        return [e for item in value for e in _expressions(item)]
+    found = []
+    for part in ("components", "lhs", "rhs"):  # a tensor, or an equation of tensors
+        inner = getattr(value, part, None)
+        if inner is not None and not callable(inner):
+            found += _expressions(inner)
+    return found
+
+
 def _same_expression(actual: Any, expected: Any, tolerance: float) -> bool:
     if isinstance(actual, str) or isinstance(expected, str):
         return str(actual) == str(expected)
@@ -590,8 +697,13 @@ def _agrees_numerically(difference: Any, tolerance: float) -> bool:
 
 def _shown(value: Any) -> str:
     text = repr(value) if isinstance(value, list) else str(value)
+    return _shortened(text, 300)
+
+
+def _shortened(text: str, width: int = 120) -> str:
+    """Text on one line, cut at ``width`` characters."""
     text = " ".join(text.split())
-    return text if len(text) <= 300 else text[:299] + "…"
+    return text if len(text) <= width else text[: width - 1] + "…"
 
 
 # -- the scoreboard ---------------------------------------------------------------------------
@@ -686,6 +798,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("\nWrong answers and crashes, the most serious:")
         for result in wrong:
             print(result.describe())
+    kept_as_written = [r for r in board.results if r.outcome == "kept"]
+    if kept_as_written:
+        print("\nKept as written, as the program says, and so no answer:")
+        for result in kept_as_written:
+            print(f"{result.case.id}: {_shortened(result.reason)}")
     if board.blockers():
         print("\nWhat is refused most, the next things to build:")
         print(board.blockers())

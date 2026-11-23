@@ -16,6 +16,19 @@ uv run python benchmarks/curriculum.py --seeds 0,1,2  # the cases the hash seed 
 `passing.txt` lists the cases that pass. A case may join it, never leave it:
 `tests/test_curriculum.py` runs every case listed there.
 
+A case that does not pass is one of these, the worst first:
+
+- **wrong:** a value given as the answer that is not the answer;
+- **kept:** a value kept as written, which holds an integral, a sum, a product, a limit
+  or a derivative SymPy did not carry out, or a function nothing defines, as a note of
+  the program says: no answer, and said to be none;
+- **refused:** an error that says why, and what to write instead;
+- **timeout:** over the time limit of 30 s.
+
+A case is also **crashed**, by a failure of RelativisticPy's own, or **broken**, where the
+case itself is at fault. A program is run as a person or an agent runs it, statement by
+statement, with the notes of each: what the language says of a value is part of it.
+
 A run fixes Python's hash seed, starting again with `PYTHONHASHSEED=0` as the command
 line does, so that the scoreboard is the same every time; the tests run under the same
 seed in continuous integration. `--seeds` runs the curriculum once under each seed given,
@@ -155,7 +168,7 @@ uv run python benchmarks/notations.py --update               # record what passe
 uv run python benchmarks/notations.py --seeds 0,1,2          # what the hash seed changes
 ```
 
-It reports by construct, by notation and by form: pass, wrong, refused. It lists every
+It reports by construct, by notation and by form: pass, wrong, kept, refused. It lists every
 wrong answer with its program, the answer given and the answer expected, and, for each
 operand, the forms that disagree with each other. A cell is run as a case is, in a fresh
 workbook, within the same time limit, its answer compared as strictly; each runs in a
