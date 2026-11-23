@@ -167,10 +167,18 @@ class PythonObjects(Quantum):
         if isinstance(made, Scalar):
             return self.graph.const(self._as_written(made.value), SCALAR, node.span)
         if isinstance(made, Array):
-            return self.graph.const(self._as_written(made.value), VALUE, node.span)
+            return self._listed(self._as_written(made.value).tolist(), node.span)
         if isinstance(made, Data):
             return self._data_node(made, node)
         return self.graph.const(made, VALUE, node.span)
+
+    def _listed(self, items: Any, span: Span) -> Node:
+        """A vector or a matrix from Python as the language's own lists are: a list of its
+        entries, and of a matrix a list of its rows, so that whatever reads a list written
+        in the program, as a sum over its elements, a length or a transpose, reads it."""
+        if not isinstance(items, list):
+            return self.graph.const(items, SCALAR, span)
+        return self._call("core.list", [self._listed(item, span) for item in items], VALUE, span)
 
     def _as_written(self, value: Any) -> Any:
         """A SymPy value from Python with its symbols the program's, by name, so that the x of

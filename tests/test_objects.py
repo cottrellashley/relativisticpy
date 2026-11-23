@@ -272,6 +272,37 @@ def test_lists_and_sympy_matrices_are_vectors_and_matrices():
     assert wb["w"].to_numpy().tolist() == [1.0, 2.0]
 
 
+def test_a_python_list_is_a_list_to_the_reader_as_the_languages_own_are():
+    """Finding 21 of the review of the reading stack: a Python list or matrix bound from
+    the scope was a constant array, which nothing that reads a list recognised: a sum
+    over its elements was ``3 x_i``, ``x_1`` a new symbol, ``|v|`` and ``v \\cdot v``
+    refused, and ``A^T`` a power. It is lowered as the lists a program writes are."""
+    scope = {"x": [1.0, 2.0, 3.0], "v": [3.0, 4.0], "L": [[1.0, 2.0], [3.0, 4.0]]}
+    wb = Workbook(scope=scope)
+    wb.exe(r"x := \texttt{x}" "\n" r"v := \texttt{v}" "\n" r"A := \texttt{L}")
+    assert float(wb.expr(r"\sum_{i=1}^{3} x_i")) == 6.0
+    with pytest.raises(CompileError, match="x is a list"):
+        wb.expr("x_1")  # as of a list the program writes: its positions have no start
+    assert float(wb.expr("|v|")) == 5.0
+    assert float(wb.expr(r"v \cdot v")) == 25.0
+    transpose = [[float(entry) for entry in row] for row in wb.expr("A^T").tolist()]
+    assert transpose == [[1.0, 3.0], [2.0, 4.0]]
+    assert "core.list" in wb.ir(r"\texttt{x}")
+    own = Workbook()
+    own.exe("x := [1.0, 2.0, 3.0]\nv := [3.0, 4.0]\nA := [[1.0, 2.0], [3.0, 4.0]]")
+    for written in (r"\sum_{i=1}^{3} x_i", "|v|", r"v \cdot v"):  # the two read alike
+        assert wb.expr(written) == own.expr(written)
+    assert wb.expr("A^T").tolist() == own.expr("A^T").tolist()
+
+
+def test_data_whose_indices_no_one_wrote_names_none_in_its_hint():
+    wb = Workbook(scope={"M": np.array([[1.0, 2.0], [3.0, 4.0]])})
+    wb.exe(r"B := \texttt{M}")
+    with pytest.raises(IndexNotationError) as raised:
+        wb.expr("B^T")
+    assert raised.value.hint == "for example B_{ab}"  # was B_{#i}_{#j}
+
+
 def test_lists_that_are_no_vector_are_refused():
     with pytest.raises(DataError, match=r"\\texttt\{v\}: the object is ragged: entry 2 has 1"):
         Workbook(scope={"v": [[1, 2], [3]]}).expr(r"\texttt{v}")

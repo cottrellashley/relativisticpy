@@ -47,6 +47,8 @@ class Tensors(Notation):
         rank = len(source.indices)
         if len(main) != rank:
             example = source.name + "".join(str(i) for i in source.indices)
+            if any(index.name.startswith("#") for index in source.indices):  # no one wrote them
+                example = f"{source.name}_{{{'abcdefgh'[:rank]}}}"
             raise IndexNotationError(
                 f"{source.name} has {rank} ind{'ex' if rank == 1 else 'ices'}, but "
                 f"{len(main)} {'is' if len(main) == 1 else 'are'} given",
