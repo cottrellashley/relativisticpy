@@ -115,4 +115,4 @@ R_{μν} = 0: holds in all 10 components
 
 **Next:** [Getting started](getting-started.md), or the
 [language reference](reference.md) for everything at once. From RelativisticPy 1.x, see
-[Upgrading from 1.x](upgrading.md).
+[Coming from 1.x](upgrading.md).

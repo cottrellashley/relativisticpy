@@ -1779,7 +1779,7 @@ class _Version(argparse.Action):
 
 
 def version_text() -> str:
-    """``relativisticpy 2.0.0 (Python 3.13.1, SymPy 1.14.0, NumPy 2.3.1)``."""
+    """``relativisticpy 0.1.0 (Python 3.13.1, SymPy 1.14.0, NumPy 2.3.1)``."""
     from importlib import metadata
 
     parts = [f"Python {sys.version.split()[0]}"]

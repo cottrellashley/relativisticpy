@@ -1,4 +1,4 @@
-# Publishes to PyPI when a version tag such as v2.0.0 is pushed. PyPI must trust
+# Publishes to PyPI when a version tag such as v0.1.0 is pushed. PyPI must trust
 # this workflow first: https://docs.pypi.org/trusted-publishers/
 name: Release
 

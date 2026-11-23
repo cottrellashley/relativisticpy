@@ -47,7 +47,7 @@ by what you want to do:
 | compute with data | [Beyond spacetime](spaces.md), [Python API](python.md) |
 | know the language | [The language](language.md), [the language reference](reference.md), [Glossary](glossary.md) |
 | work in Jupyter or marimo | [Jupyter and notebooks](jupyter.md), [Live mathematics in notebooks](live.md), [Examples](examples.md) |
-| move from another tool | [Coming from other tools](coming-from.md), [Upgrading from 1.x](upgrading.md) |
+| move from another tool | [Coming from other tools](coming-from.md), [Coming from 1.x](upgrading.md) |
 | know how it works | [How it works](architecture.md), [Roadmap](roadmap.md) |
 
 When a result surprises you, see [Troubleshooting](troubleshooting.md).

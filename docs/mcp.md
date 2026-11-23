@@ -27,7 +27,7 @@ Every page of this documentation is also a [resource](#resources), and two
 The server needs the `mcp` extra, which adds the official MCP SDK:
 
 ```bash
-pip install "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 `relativisticpy mcp` then waits for a client on standard input; a client starts it
@@ -55,7 +55,7 @@ claude mcp add relativisticpy -- relativisticpy mcp --allow-files /path/to/paper
 `uvx` runs it from GitHub:
 
 ```bash
-claude mcp add relativisticpy -- uvx --from "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy@v2" relativisticpy mcp
+claude mcp add relativisticpy -- uvx --from "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy" relativisticpy mcp
 ```
 
 ### Claude Desktop
@@ -84,7 +84,7 @@ Or, run from GitHub by `uvx`:
       "command": "uvx",
       "args": [
         "--from",
-        "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy@v2",
+        "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy",
         "relativisticpy",
         "mcp"
       ]

@@ -12,7 +12,7 @@ computes any part of a statement you select.
 ## Install
 
 ```bash
-pip install "relativisticpy[live] @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy[live] @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 The `live` extra adds anywidget, which the editor needs. Typeset results and `show` need

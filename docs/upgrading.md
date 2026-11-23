@@ -1,26 +1,27 @@
-# Upgrading from 1.x
+# Coming from 1.x
 
-> **For:** users of RelativisticPy 1.x. **You will learn:** what still works in version
-> 2, what changed, and the program of version 1's README, rewritten.
+> **For:** users of RelativisticPy 1.x, the releases on PyPI from 1.1.9 to 1.2.9. **You
+> will learn:** what still works, what changed, and the program of the 1.x README,
+> rewritten.
 
-Version 2 is a new implementation, from the reading of the text to the computing of its
-results. Most programs of version 1 run, and most run as before; the changes below are
-the ones to look for.
+RelativisticPy is a new implementation, from the reading of the text to the computing of
+its results, and it starts its version numbers again, at 0.1.0. Most programs written for
+1.x run, and most run as before; the changes below are the ones to look for.
 
 ## Installing
 
-Version 1.2.9, the last on PyPI, fails to import, because it needs a package, `loguru`,
-that it does not declare. Version 2 needs only SymPy, and Python 3.10 or newer. Until it
-is on PyPI, install it from GitHub:
+Version 1.2.9, the last of the 1.x releases, fails to import, because it needs a package,
+`loguru`, that it does not declare. RelativisticPy now needs only SymPy, and Python 3.10
+or newer. While PyPI still serves the 1.x releases, install it from GitHub:
 
 ```bash
-pip install "relativisticpy @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 ## What still works
 
 - `import relativisticpy as rel` and `rel.Workbook()`, and its `expr` method.
-- Index notation in version 1's style: `g_{mu}_{nu}`, `Ric_{mu}_{nu}`, and components
+- Index notation in the style of 1.x: `g_{mu}_{nu}`, `Ric_{mu}_{nu}`, and components
   chosen with a colon, `Ric_{mu:0}_{nu:0}` and `C^{a:1}_{b:0 c:0}`.
 - `Coordinates := [t, r, theta, phi]`, metrics as nested lists, and `**` for powers.
 - `RHS`, `dsolve`, `subs`, `simplify` and `tsimplify`, and tensors defined from
@@ -28,8 +29,7 @@ pip install "relativisticpy @ git+https://github.com/cottrellashley/relativistic
 
 ## What changed
 
-- **`:=` and `=`.** In version 1, `eq0 = Ric_{mu:0}_{nu:0}` named a value. In version 2,
-  `:=` defines, and `=` defines only what has no meaning yet; otherwise it is a claim,
+- **`:=` and `=`.** In 1.x, `eq0 = Ric_{mu:0}_{nu:0}` named a value. Now `:=` defines, and `=` defines only what has no meaning yet; otherwise it is a claim,
   which is checked. Write `:=` for every definition.
 - **Names and unknown functions.** `B` and the unknown function `B(r)` are one name: once
   `B` has a value, `B(r)` no longer means the unknown function. Give a solution a name of
@@ -40,13 +40,13 @@ pip install "relativisticpy @ git+https://github.com/cottrellashley/relativistic
   in the source and a hint, rather than returned as text.
 - **LaTeX** runs as well as plain text: `\Gamma^{\lambda}_{\mu\nu}`, `\frac{1}{2}`,
   `\partial_\mu`, line elements and whole environments.
-- **Modules.** The modules of version 1, such as `relativisticpy.core`,
+- **Modules.** The modules of 1.x, such as `relativisticpy.core`,
   `relativisticpy.gr` and `relativisticpy.symengine`, are gone. Import from
   `relativisticpy` itself; [the Python API](python.md) lists what it holds.
 
-## Version 1's README, in version 2
+## The README of 1.x, as it is written now
 
-Version 1's README derived the Schwarzschild solution in these steps:
+The README of 1.x derived the Schwarzschild solution in these steps:
 
 ```text
 eq0 = Ric_{mu:0}_{nu:0}
@@ -58,7 +58,7 @@ eq6 = simplify( subs(eq2, B(r), B) )
 A = RHS( dsolve(eq6, A(r)) )
 ```
 
-In version 2 it defines with `:=`, and names the solution for `B(r)` apart from the
+Now it defines with `:=`, and names the solution for `B(r)` apart from the
 function:
 
 ```python
@@ -78,5 +78,5 @@ C1 + C2/r
 
 That is Schwarzschild's A(r), with the constants that the Newtonian limit fixes.
 
-**Next:** [Getting started](getting-started.md), for what version 2 adds, and
+**Next:** [Getting started](getting-started.md), for what is new, and
 [the language](language.md).

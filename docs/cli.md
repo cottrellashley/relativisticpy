@@ -223,7 +223,7 @@ define, and the IR of each is headed by where it is: `# notes.md:12`.
 `relativisticpy` with no file, in a terminal, starts the prompt:
 
 ```text
-RelativisticPy 2.0.0: type help for help, who for what is defined, exit or Ctrl-D to leave.
+RelativisticPy 0.1.0: type help for help, who for what is defined, exit or Ctrl-D to leave.
 rp> g_{\mu\nu} := Schwarzschild(M)
 defines the metric g_{μν} and the coordinates t, r, θ, φ
 rp> R_{abcd} R^{abcd}

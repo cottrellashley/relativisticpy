@@ -28,9 +28,9 @@ OPTIONAL = frozenset({"architecture.md", "roadmap.md"})
 FACTS = r"""
 It is a Python package and a language. Key facts:
 
-- Install: `pip install "relativisticpy[numeric] @ git+https://github.com/cottrellashley/relativisticpy@v2"`
-  until version 2 is on PyPI, which still has version 1. The extras are `numeric` (NumPy
-  and SciPy), `data` (with pandas and scikit-learn) and `jax`.
+- Install: `pip install "relativisticpy[numeric] @ git+https://github.com/cottrellashley/relativisticpy"`
+  while PyPI still serves the earlier 1.x releases. The extras are `numeric` (NumPy and
+  SciPy), `data` (with pandas and scikit-learn) and `jax`.
 - Run a program or a Markdown notebook with `relativisticpy FILE`, code with
   `relativisticpy -c "..."`, and check the equations of a LaTeX paper with
   `relativisticpy check paper.tex`. From Python, `Workbook().expr(source)` gives the

@@ -4,10 +4,13 @@ Notable changes to RelativisticPy. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 2.0.0 - Unreleased
+## 0.1.0 - Unreleased
 
-A rewrite of the whole project around its first idea: equations written as they
-are in papers, in LaTeX or in plain text, with an engine that computes them.
+The first release of RelativisticPy as a language: mathematics written as its books
+and papers write it, in LaTeX, plain text or Unicode, with an engine that computes
+it. It is a new implementation, and starts the version numbers again: the releases
+1.1.9 to 1.2.9 on PyPI were an earlier one, and "Changed" and "Removed" below are
+what differs from them.
 
 ### Added
 
@@ -434,10 +437,10 @@ are in papers, in LaTeX or in plain text, with an engine that computes them.
 
 ### Removed
 
-- The modules of version 1 (`relativisticpy.core`, `relativisticpy.gr`,
+- The modules of 1.x (`relativisticpy.core`, `relativisticpy.gr`,
   `relativisticpy.interpreter`, `relativisticpy.symengine` and others). The
   package's entry point is still `relativisticpy.Workbook`.
 
-## 1.2.9 and earlier
+## 1.1.9 to 1.2.9
 
-The original implementation, whose history is in the git log.
+An earlier implementation, published to PyPI, whose history is in the git log.

@@ -24,12 +24,13 @@ says how it read each line.
 
 ## Install
 
-RelativisticPy 2 needs Python 3.10 or newer. PyPI still has version 1, whose last
-release, 1.2.9, fails to import; until version 2 is published there, install it from
-GitHub:
+RelativisticPy needs Python 3.10 or newer. This is version 0.1.0, the first release of
+RelativisticPy as a language. PyPI still serves the releases of an earlier
+implementation, 1.1.9 to 1.2.9, which pip would choose, and the last of which fails to
+import; until they are withdrawn there, install it from GitHub:
 
 ```bash
-pip install "relativisticpy @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 Its only dependency is SymPy. Extras add what numerical work needs:
@@ -43,7 +44,7 @@ Its only dependency is SymPy. Extras add what numerical work needs:
 | `live` | anywidget | the editor that computes mathematics as it is typed, in marimo and Jupyter |
 
 ```bash
-pip install "relativisticpy[data] @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy[data] @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 ## A first program
@@ -406,7 +407,7 @@ Everything needed to use RelativisticPy is in the installed package, offline.
   documentation. Install it with the `mcp` extra, and connect it:
 
   ```bash
-  pip install "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy@v2"
+  pip install "relativisticpy[mcp] @ git+https://github.com/cottrellashley/relativisticpy"
   claude mcp add relativisticpy -- relativisticpy mcp
   ```
 
@@ -498,7 +499,7 @@ The documentation is in [docs](docs/), and `relativisticpy help` prints it offli
 [the language reference](docs/reference.md), [the Python API](docs/python.md),
 [the command line](docs/cli.md), [the MCP server](docs/mcp.md),
 [integrations](docs/integrations.md), [troubleshooting](docs/troubleshooting.md),
-[coming from other tools](docs/coming-from.md), [upgrading from 1.x](docs/upgrading.md),
+[coming from other tools](docs/coming-from.md), [coming from 1.x](docs/upgrading.md),
 [Jupyter and notebooks](docs/jupyter.md), [live mathematics](docs/live.md),
 [how it works](docs/architecture.md) and the [roadmap](docs/roadmap.md). The [examples](examples/) are Markdown notebooks and
 Python scripts, shown with their results in [Examples](docs/examples.md).

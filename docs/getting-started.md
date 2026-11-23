@@ -5,11 +5,12 @@
 
 ## Install
 
-RelativisticPy 2 needs Python 3.10 or newer. PyPI still has version 1, so until
-version 2 is published there, install it from GitHub:
+RelativisticPy needs Python 3.10 or newer. PyPI still serves the releases of an earlier
+implementation, 1.1.9 to 1.2.9, which pip would choose; until they are withdrawn there,
+install it from GitHub:
 
 ```bash
-pip install "relativisticpy @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 Its only dependency is [SymPy](https://www.sympy.org), which does the algebra. Extras
@@ -23,7 +24,7 @@ add what numerical work needs:
 | `live` | anywidget | the editor, which computes as you type: [Live mathematics in notebooks](live.md) |
 
 ```bash
-pip install "relativisticpy[data] @ git+https://github.com/cottrellashley/relativisticpy@v2"
+pip install "relativisticpy[data] @ git+https://github.com/cottrellashley/relativisticpy"
 ```
 
 ## Raw strings
