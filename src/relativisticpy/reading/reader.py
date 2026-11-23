@@ -843,13 +843,15 @@ class Reader(Typer):
         also writes as a subscript, as in x^\\mu x_\\mu, or on a tensor, or a Greek
         letter it raises on more than one name, as in p^\\mu N^\\nu = n m U^\\mu U^\\nu.
         A Greek superscript written once is a power, as in t^\\alpha; and so is a label
-        with a value here, as the parameter of a family is in a_{n} := x^n."""
+        that a parameter or a sum gives a value here, as the parameter of a family does in
+        a_{n} := x^n."""
         items = script.indices.items if script.indices is not None else ()
         if len(items) != 1 or not _plain_label(items[0]):
             return None
         label = str(items[0].label)
-        if scope.lookup(label) is not None:
-            return None
+        binding = scope.lookup(label)
+        if binding is not None and binding is not self.session.globals.lookup(label):
+            return None  # a parameter's, or a sum's index, which has a value here
         lowered, raised = self._scripts["_"][label], self._scripts["^"][label]
         index = lowered or label in self._labels or (label in GREEK and raised > 1)
         return label if index else None

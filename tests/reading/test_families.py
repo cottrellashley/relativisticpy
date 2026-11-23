@@ -39,6 +39,9 @@ class TestFamilies:
         assert wb.expr(r"\sum_{n=0}^{3} a_n") == 1 + x + x**2 / 2 + x**3 / 6
         wb.exe(r"b_{k} := r^k")
         assert wb.expr("b_2") == sympy.Symbol("r") ** 2
+        wb.exe(r"\lambda := 2")  # a value of the program's own leaves a label an index
+        with pytest.raises(CompileError, match=r"x is not a tensor, so \\lambda on it"):
+            wb.expr(r"x^\lambda x_\lambda")
 
     def test_members_written_in_latex(self, wb):
         wb.exe(r"E_k := \alpha + 2\beta \cos\frac{2\pi k}{6}")
