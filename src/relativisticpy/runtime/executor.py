@@ -19,7 +19,7 @@ from relativisticpy.errors import (
     translate,
 )
 from relativisticpy.ir import Node, dependencies, ops
-from relativisticpy.runtime import registry
+from relativisticpy.runtime import paths, registry
 from relativisticpy.runtime.kernels import execute, refuse_quoted, refuse_text
 from relativisticpy.tensors import numerical
 from relativisticpy.tensors.simplification import simplify_component
@@ -156,6 +156,8 @@ class Executor:
                 refuse_text(current.op, args, computed)  # SymPy would run it as Python
                 divided = _denominators(current, known)
                 with remarks() as said, written(divided):  # what the computation says of its value
+                    if paths.meets(current):  # a field met with a path is at the path's point
+                        args = paths.along(current, computed, args)
                     if entry is not None and entry.references:  # IR made with the nodes it names
                         known[current.key] = execute(current.op, [*args, *current.args[1:]], self)
                     elif entry is not None and entry.evaluates:  # the value of IR computed

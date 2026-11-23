@@ -375,6 +375,36 @@ class TestLatexRelativity:
         )
         assert same(lagrangian[2], -expected) or same(lagrangian[2], expected)
 
+    def test_a_metric_met_with_a_path_is_taken_along_it(self, wb):
+        # A free particle on a sphere, as the curriculum's cm.lagrangian.index-form writes
+        # it: the metric's θ in g_{ij} q'^i q'^j is the path's θ(t). Taken as the
+        # coordinate, it gave Lagrange's equations without the terms in sin θ cos θ.
+        wb.exe(r"""
+            Coordinates := [\theta, \phi]
+            ds^2 = R^2 \left(d\theta^2 + \sin^2\theta\, d\phi^2\right)
+            q^i := (\theta(t), \phi(t))
+            L := \frac{1}{2} m\, g_{ij} \dot{q}^i \dot{q}^j
+        """)
+        tm, m, R, g0 = symbols("t m R g_0")
+        th, ph = Function("theta")(tm), Function("phi")(tm)
+        dth, dph = diff(th, tm), diff(ph, tm)
+        assert same(wb.expr("L"), m * R**2 / 2 * (dth**2 + sin(th) ** 2 * dph**2))
+        equations = wb.expr(
+            r"\frac{d}{dt} \frac{\partial L}{\partial \dot{q}^i} - \frac{\partial L}{\partial q^i}"
+        )
+        expected = [
+            m * R**2 * (diff(th, tm, 2) - sin(th) * cos(th) * dph**2),
+            m * R**2 * (sin(th) ** 2 * diff(ph, tm, 2) + 2 * sin(th) * cos(th) * dth * dph),
+        ]
+        assert all(same(equations[i], expected[i]) for i in range(2))
+        # a potential written with the coordinate is taken along the path when L is
+        # differentiated by the path's coordinates
+        wb.exe(r"V := L - m g_0 R \cos\theta")
+        force = wb.expr(r"\frac{\partial V}{\partial q^i}")
+        assert same(force[0], m * R**2 * sin(th) * cos(th) * dph**2 + m * g0 * R * sin(th))
+        (step,) = wb.each(r"\frac{\partial V}{\partial q^i}")
+        assert any("θ is taken along the path, as θ(t)" in note for note in step.notes)
+
     def test_geodesic_equations(self, wb):
         wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
         equations = wb.expr(r"geodesic_equations(\tau)")

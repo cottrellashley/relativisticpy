@@ -57,6 +57,7 @@ cm.central.circular-orbit
 cm.central.kepler-period
 cm.central.kepler-third-law
 cm.hamiltonian.legendre
+cm.lagrangian.index-form
 cm.oscillations.angular-momentum
 cm.oscillations.mismatched-index
 cm.oscillations.pendulum-period
