@@ -4,7 +4,7 @@ or refused as undecided, never shown as if it were an answer."""
 import pytest
 import sympy
 
-from relativisticpy import Workbook, holds
+from relativisticpy import Workbook, display, holds
 from relativisticpy.checking import Verdict
 from relativisticpy.documents import Document
 from relativisticpy.errors import EvaluationError
@@ -162,3 +162,30 @@ class TestLimitsAreOfTheValuesNear:
         )
         wb.exe(f"g(x) := {self.CASES % 'x^2'}")
         assert wb.expr("g'(0)") == 0
+
+
+class TestFormsAreShownAsGiven:
+    """A capability that gives a form, as factor does, is shown in it, never tidied into
+    another (the review of the engines, 18): factor(x^2 - 1) showed x^2 - 1."""
+
+    def test_factorised(self, wb):
+        value = wb.expr("factor(x^2 - 1)")
+        assert value == (x - 1) * (x + 1)  # as SymPy holds it, not only equal to it
+        assert display.text(value) == "(x - 1)*(x + 1)"
+
+    def test_partial_fractions(self, wb):
+        assert wb.expr("apart(1/(x (x + 1)))") == 1 / x - 1 / (x + 1)
+        assert display.text(wb.expr("apart(1/(x (x + 1)))")) == "1/x - 1/(x + 1)"
+
+    def test_a_form_defined_is_shown_in_it(self, wb):
+        wb.exe("f := factor(x^2 - 1)")
+        assert wb.expr("f") == (x - 1) * (x + 1)
+
+    def test_each_component(self, wb):
+        wb.exe(r"\mathcal{V} := \mathbb{R}^{2}" "\n" r"l \in \mathcal{V}")
+        factorised = wb.expr("v^{l} := [x^2 - 1, x^2 - 4]\nfactor(v^l)").components
+        assert list(factorised) == [(x - 1) * (x + 1), (x - 2) * (x + 2)]
+
+    def test_what_asks_for_no_form_is_tidied(self, wb):
+        assert wb.expr("(x^2 - 1)/(x - 1)") == x + 1
+        assert wb.expr("2 factor(x^2 - 1)") == 2 * x**2 - 2  # a product, not factor's value

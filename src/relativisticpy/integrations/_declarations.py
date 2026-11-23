@@ -89,6 +89,10 @@ class Capability:
     #: The parameters a form written with a letter reads as it only where they are
     #: integers, as φ(n) is Euler's totient only where n is one (design/notation.md, 32).
     integers: tuple[str, ...] = ()
+    #: Whether its value is a form of its argument, as factor's is the factorised one: shown
+    #: as it is computed, never tidied into another, and an example's answer is that form,
+    #: not any expression equal to it.
+    gives_form: bool = False
 
     @property
     def module(self) -> str:
@@ -199,6 +203,7 @@ def function(
     scalar: bool = True,
     integers: Sequence[str] = (),
     takes_names: bool = False,
+    gives_form: bool = False,
 ) -> Callable[[type], Function]:
     """Declare a function: scalar in, scalar out. It ``lifts`` to tensors and data, applied
     to each component, unless it takes its arguments whole, as ``min`` and ``max`` do, and
@@ -206,7 +211,8 @@ def function(
     written with a letter, as ``\\varphi(n)``, reads as it only where the parameters it
     names as ``integers`` are integers, and prints so only there. Where it ``takes_names``,
     it is given text in quotes as it is written, as ``limit`` is the side of a limit, '-',
-    and never reads it as Python."""
+    and never reads it as Python. One that ``gives_form``, as ``factor`` does, is shown as
+    it computes its value, and its examples are held to the form of their answers."""
     return _declare(
         Function,
         name,
@@ -221,6 +227,7 @@ def function(
         scalar=scalar,
         integers=integers,
         takes_names=takes_names,
+        gives_form=gives_form,
     )
 
 

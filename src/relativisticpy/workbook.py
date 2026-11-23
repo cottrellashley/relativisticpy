@@ -16,7 +16,7 @@ from sympy import Symbol
 from sympy.core.function import AppliedUndef
 from sympy.core.relational import Relational
 
-from relativisticpy import checking, display
+from relativisticpy import checking, display, integrations
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.compiler.binding import (
     bind_data,
@@ -884,9 +884,11 @@ class Workbook:
             raise undecided
         kind = output.node.type
         coordinates: Sequence[Symbol] = self._session.coordinates or ()
+        as_computed = _gives_form(output.node.op)  # factor(x^2 - 1) is shown factorised
         try:
             if isinstance(kind, TensorType):
-                components = value if numerical.is_numerical(value) else arrays.apply(value, tidy)
+                tidied = not (as_computed or numerical.is_numerical(value))
+                components = arrays.apply(value, tidy) if tidied else value
                 return Tensor(
                     components,
                     shown_indices(kind.indices),
@@ -909,7 +911,7 @@ class Workbook:
             if numerical.is_numerical(value) and getattr(value, "shape", ()) == ():
                 return value.item()  # a plain Python number
             if isinstance(kind, ScalarType):
-                return tidy(value)
+                return value if as_computed else tidy(value)
             return value
         except Exception as error:  # in RelativisticPy's words, or an internal error
             failure = translate(error, span=output.span)
@@ -1247,6 +1249,18 @@ def _undecided(output: Output, value: Any) -> UndecidedError | None:
         notes=["shown as it is, an undecided claim would read as an answer"],
         hint="to see what is left, write the difference of its sides alone, as an expression",
     )
+
+
+def _gives_form(op: ops.Op) -> bool:
+    """Whether an operation is a call of a capability whose value is a form of its
+    argument, as factor's is: shown as it is computed, never tidied into another
+    (:attr:`relativisticpy.integrations.Capability.gives_form`)."""
+    if not isinstance(op, ops.Call | ops.Map):
+        return False
+    try:
+        return integrations.find(op.name).gives_form
+    except KeyError:  # an operation of the language's own, as core.sum
+        return False
 
 
 def _left_undone(value: Any) -> list[str]:

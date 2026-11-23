@@ -17,6 +17,7 @@ from relativisticpy.integrations import Example, function
 from relativisticpy.tensors.numerical import whole_number
 
 x, y, a, b, n, N = sympy.symbols("x y a b n N")
+HALF = sympy.Rational(1, 2)
 
 
 @function(
@@ -24,6 +25,7 @@ x, y, a, b, n, N = sympy.symbols("x y a b n N")
     aliases=["tsimplify"],
     summary="the simplest form; of an equation between tensors without components, its "
     "canonical form",
+    gives_form=True,
     examples=[
         Example("simplify(sin(x)^2 + cos(x)^2)", 1, "standard"),
         Example("simplify((x^2 - 1)/(x - 1))", x + 1, "standard"),
@@ -38,6 +40,7 @@ class Simplify:
 @function(
     "expand",
     summary="multiplied out",
+    gives_form=True,
     examples=[
         Example("expand((x + 1)^2)", x**2 + 2 * x + 1, "standard"),
         Example("expand((a + b)(a - b))", a**2 - b**2, "standard"),
@@ -52,6 +55,7 @@ class Expand:
 @function(
     "factor",
     summary="factorised",
+    gives_form=True,
     examples=[
         Example("factor(x^2 - 1)", (x - 1) * (x + 1), "standard"),
         Example("factor(x^2 + 2x + 1)", (x + 1) ** 2, "standard"),
@@ -66,6 +70,7 @@ class Factor:
 @function(
     "collect",
     summary="`collect(f, x)`, the terms of f gathered by powers of x",
+    gives_form=True,
     examples=[
         Example("collect(a x + b x, x)", (a + b) * x, "standard"),
         Example("collect(a x^2 + x^2 + b x, x)", (a + 1) * x**2 + b * x, "standard"),
@@ -80,6 +85,7 @@ class Collect:
 @function(
     "cancel",
     summary="a fraction, with common factors cancelled",
+    gives_form=True,
     examples=[
         Example("cancel((x^2 - 1)/(x - 1))", x + 1, "standard"),
         Example("cancel((x^2 + 2x + 1)/(x + 1))", x + 1, "standard"),
@@ -94,9 +100,10 @@ class Cancel:
 @function(
     "apart",
     summary="partial fractions",
+    gives_form=True,
     examples=[
         Example("apart(1/(x (x + 1)))", 1 / x - 1 / (x + 1), "standard"),
-        Example("apart(1/(x^2 - 1))", 1 / (2 * (x - 1)) - 1 / (2 * (x + 1)), "standard"),
+        Example("apart(1/(x^2 - 1))", HALF / (x - 1) - HALF / (x + 1), "standard"),
     ],
     points=[(1 / (x * (x + 1)),), (1 / (x**2 - 1),)],
 )
@@ -108,6 +115,7 @@ class Apart:
 @function(
     "together",
     summary="one fraction",
+    gives_form=True,
     examples=[
         Example("together(1/x + 1/y)", (x + y) / (x * y), "standard"),
         Example("together(1/x + 1)", (x + 1) / x, "standard"),
@@ -122,6 +130,7 @@ class Together:
 @function(
     "trigsimp",
     summary="trigonometric functions simplified",
+    gives_form=True,
     examples=[
         Example("trigsimp(2 sin(x) cos(x))", sympy.sin(2 * x), "standard"),
         Example("trigsimp(sin(x)^2 + cos(x)^2)", 1, "standard"),
@@ -136,6 +145,7 @@ class TrigonometricSimplify:
 @function(
     "powsimp",
     summary="powers combined: `x^a x^b` is `x^{a+b}`",
+    gives_form=True,
     examples=[
         Example("powsimp(x^a x^b)", x ** (a + b), "standard"),
         Example("powsimp(x^2 x^3)", x**5, "standard"),
@@ -150,6 +160,7 @@ class PowerSimplify:
 @function(
     "expand_trig",
     summary="functions of sums and multiples of angles, expanded",
+    gives_form=True,
     examples=[
         Example("expand_trig(sin(2x))", 2 * sympy.sin(x) * sympy.cos(x), "standard"),
         Example(

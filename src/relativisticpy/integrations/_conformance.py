@@ -6,7 +6,8 @@ failures, none where it passes:
 
 1. **declaration**: names that are the capability's alone, a summary, two examples with
    their sources, the library it needs declared, and written forms that read as it;
-2. **examples**: each example runs in the language and gives its known answer;
+2. **examples**: each example runs in the language and gives its known answer, in the
+   form of the answer where the capability gives a form, as ``factor`` does;
 3. **agreement**: the exact and numeric implementations agree at points, with NumPy and
    with JAX; of an optimizer, the optimizers of the other kind, exact or numeric, find the
    same optimum of the problems it is checked at; of a distribution, SymPy's density and
@@ -350,13 +351,37 @@ def examples(capability: Capability) -> list[str]:
             if not values:
                 failures.append(f"{capability.name}'s example {shown} shows nothing")
                 continue
-            if not _same(values[-1], example.answer, example.tolerance):
+            if capability.gives_form and not _alike(values[-1], example.answer):
+                failures.append(
+                    f"{capability.name}'s example {shown} gives {_value(values[-1])}, not "
+                    f"{_value(example.answer)} as it is written{_from(example)}: it gives a "
+                    "form, which is shown as it is computed; fix exact, or the example's answer"
+                )
+            elif not _same(values[-1], example.answer, example.tolerance):
                 failures.append(
                     f"{capability.name}'s example {shown} gives {_value(values[-1])}, not "
                     f"{_value(example.answer)}{_from(example)}: fix exact, or the example's "
                     "answer"
                 )
     return failures
+
+
+def _alike(value: Any, answer: Any) -> bool:
+    """Whether the language's value is the answer as it is written: the same expression,
+    term for term and factor for factor, as SymPy holds both, and not only one equal to
+    it, as x^2 - 1 is to (x - 1)(x + 1); lists item by item."""
+    mine, theirs = _items(value), _items(answer)
+    if mine is not None or theirs is not None:
+        return (
+            mine is not None
+            and theirs is not None
+            and len(mine) == len(theirs)
+            and all(_alike(a, b) for a, b in zip(mine, theirs, strict=True))
+        )
+    try:
+        return bool(sympy.sympify(value) == sympy.sympify(answer))
+    except (sympy.SympifyError, TypeError):
+        return bool(value == answer)
 
 
 def _uses(ir: str, capability: Capability) -> bool:

@@ -171,6 +171,31 @@ def test_a_form_written_with_the_name_of_another_capability_is_told():
     assert told(failures, "would read as brokennormal; write it with a name of its own")
 
 
+def test_an_example_of_a_form_is_held_to_the_form():
+    # factor(x^2 - 1) passed while it showed x^2 - 1, as equal (the review of the engines, 18)
+    import sympy
+
+    x = sympy.Symbol("x")
+
+    class Expanded:
+        def exact(self, expr):
+            return sympy.expand(expr)
+
+    examples = [
+        integrations.Example("brokenfactor(x^2 - 1)", (x - 1) * (x + 1), "sympy.factor(x**2 - 1)"),
+        integrations.Example("brokenfactor(x)", x, "sympy.factor(x)"),
+    ]
+    factorised = integrations.function(
+        "brokenfactor", summary="factorised", examples=examples, gives_form=True
+    )(Expanded)
+    (failure,) = integrations.check(factorised, ["examples"])["examples"]
+    assert failure == (
+        "brokenfactor's example brokenfactor(x^2 - 1) gives x² − 1, not (x − 1) (x + 1) as it is "
+        "written (sympy.factor(x**2 - 1)): it gives a form, which is shown as it is computed; "
+        "fix exact, or the example's answer"
+    )
+
+
 def test_a_function_of_data_past_its_points_is_held_to_exact():
     # W_0 of data gave real parts only, where exact is complex (the review of the engines, 6)
     import sympy

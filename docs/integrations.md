@@ -42,7 +42,10 @@ The decorator takes, by name:
   them, each argument takes 0.3, 0.7 and 1.6. And `lifts=False` for a function that takes
   its arguments whole, as `min` does; and `integers`, the parameters of a function of
   integers, as `n` of Euler's totient: a form written with a letter, `\varphi(n)`, reads
-  as it only where they are integers, and a call prints by its name where they are not;
+  as it only where they are integers, and a call prints by its name where they are not.
+  And `gives_form=True` for one whose value is a form of its argument, as `factor`'s is:
+  it is shown as it is computed, never tidied into another form, and its examples are
+  held to the form of their answers;
 - for a function of a matrix, `points` too, each matrix a list of its rows, as
   `points=[([[2, 1], [1, 3]],)]`, and `scalar=True` where its value is a number, as a
   trace's. It acts on a map written with its indices, `A^{a}{}_{b}`, unless `lifts=False`,
@@ -257,8 +260,8 @@ it applies to its kind. A failure names the capability and says what to do:
    it needs, which is imported only when it is used. Each written form reads as it, under
    a name that is no other capability's: `N(x)` could not be the normal distribution
    function, as `N` is numerical evaluation.
-2. **Examples.** Each runs in the language, calls the capability, and gives its answer;
-   an optimizer's is found by it.
+2. **Examples.** Each runs in the language, calls the capability, and gives its answer,
+   in the answer's form where the capability gives a form; an optimizer's is found by it.
 3. **Agreement.** `exact` and `numeric` agree at each point, `numeric` takes arrays of the
    points at once, and JAX agrees with NumPy where it is installed; of a function of a
    matrix, entry by entry, at each matrix; of an optimizer, at each problem it declares,
