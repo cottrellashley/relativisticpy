@@ -96,6 +96,22 @@ class Labels(Subscripts):
         """In LaTeX, ``iE_1``, a run of letters that names nothing, with a subscript: as TeX
         sets it, the subscript binds to the last letter, i times E_1 (decision 5.7 of
         design/notation.md). ``None`` for any other name."""
+        letters = self._labelled_run(node, scope)
+        if letters is None:
+            return None
+        why = "in LaTeX a subscript binds to the last letter of a run that names nothing"
+        reading = f"{' '.join(letters[:-1])} times {letters[-1]}"
+        self._decide("letters", node.span, reading, why)
+        factors = [
+            _letter(letter, node.span, first=position == 0)
+            for position, letter in enumerate(letters[:-1])
+        ]
+        factors.append(ast.Name(letters[-1], span=node.span))
+        return self._multiply([self.value(factor, scope, ctx) for factor in factors], node.span)
+
+    def _labelled_run(self, node: ast.Name, scope: Scope) -> list[str] | None:
+        """The letters of ``iE_1``, a run of letters that names nothing, with a subscript,
+        which binds to the last: i and E_1. ``None`` for any other name."""
         if node.verbatim or scope.lookup(node.id) is not None:
             return None  # \mathrm{iE_1}, or a name read as one, as xbar_00 of \bar x_{00}
         run, underscore, subscript = node.id.partition("_")
@@ -109,15 +125,7 @@ class Labels(Subscripts):
         letters = split_index_labels(run)
         if len(letters) < 2:
             return None
-        last = f"{letters[-1]}_{subscript}"
-        why = "in LaTeX a subscript binds to the last letter of a run that names nothing"
-        self._decide("letters", node.span, f"{' '.join(letters[:-1])} times {last}", why)
-        factors = [
-            _letter(letter, node.span, first=position == 0)
-            for position, letter in enumerate(letters[:-1])
-        ]
-        factors.append(ast.Name(last, span=node.span))
-        return self._multiply([self.value(factor, scope, ctx) for factor in factors], node.span)
+        return [*letters[:-1], f"{letters[-1]}_{subscript}"]
 
     def _labelled(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term | None:
         """A name with scripts read as a name of its own (decision 5): one the program

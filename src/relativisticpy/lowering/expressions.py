@@ -577,7 +577,7 @@ class Expressions(LinearAlgebra):
         if builtin:
             self._check_keywords(BUILTINS[name], node)
         if multiplies == "letters":  # 2Gm(r) in LaTeX is 2 G m(r)
-            *leading, last = _letters_called(node)
+            *leading, last = _letters_called(node, self._letters_of(func, scope))
             factors = [self.value(n, scope, ctx) for n in leading]
             factors.append(self.value(last, scope, ctx))
             return self._multiply(factors, node.span)
@@ -638,15 +638,17 @@ class Expressions(LinearAlgebra):
             why = product if isinstance(product, str) else f"{name} is a coordinate"
             self._decide(CALL, node.span, "a product", why)
             return "product"
-        if binding is not None or not (ctx.latex and _splittable(func)):
+        if binding is not None or not ctx.latex:
             return None
+        if not (_splittable(func) or self._labelled_run(func, scope) is not None):
+            return None  # Gm(r), or Gm_1(r), a run with a subscript on its last letter
         if _names_builtin(func, latex=ctx.latex) or self._book_call(node, scope) is not None:
             return None
         if _in_brackets(func):  # (xy)(x + 1): the letters in brackets are one factor
             why = "in LaTeX a run of letters that names nothing is a product, here in brackets"
             self._decide(CALL, node.span, "a product", why)
             return "product"
-        labels = split_index_labels(name)
+        labels = self._letters_of(func, scope)
         read = f"{' '.join(labels[:-1])} times {labels[-1]} called"
         why = "in LaTeX only the last letter of a run that names nothing is called"
         self._decide("letters", node.span, read, why)
@@ -681,11 +683,17 @@ class Expressions(LinearAlgebra):
             raised = ast.Scripted(group, node.scripts, span=group.span.to(node.span))
             times = ast.Binary("*", call.func, raised, implicit=True, span=node.span)
             return self.value(times, scope, ctx)
-        *leading, last = _letters_called(call)
+        assert isinstance(call.func, ast.Name)
+        *leading, last = _letters_called(call, self._letters_of(call.func, scope))
         factors = [self.value(n, scope, ctx) for n in leading]
         raised = ast.Scripted(last, node.scripts, span=last.span.to(node.span))
         factors.append(self.value(raised, scope, ctx))
         return self._multiply(factors, node.span)
+
+    def _letters_of(self, func: ast.Name, scope: Scope) -> list[str]:
+        """The letters of a run that names nothing, ``Gm`` or ``Gm_1``, the subscript on the
+        last."""
+        return self._labelled_run(func, scope) or split_index_labels(func.id)
 
     def _metric_trace(self, argument: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
         """``trace(R_{\\mu\\nu})``: the two indices of a tensor on spacetime contracted with
@@ -1757,15 +1765,26 @@ def _bracketed(node: ast.Call) -> ast.Expr:
     return replace(_group(node), span=span)
 
 
-def _letters_called(node: ast.Call) -> list[ast.Expr]:
-    """The factors of a call of a run of letters that names nothing, in LaTeX: each letter
-    but the last, then the last called, as G and m(r) are of ``Gm(r)``."""
+def _letters_called(node: ast.Call, labels: Sequence[str]) -> list[ast.Expr]:
+    """The factors of a call of a run of letters that names nothing, in LaTeX, of which
+    ``labels`` are the letters: each but the last, then the last called, as G and m(r) are
+    of ``Gm(r)``."""
     func = node.func
     assert isinstance(func, ast.Name)
-    labels = split_index_labels(func.id)
-    leading = [_letter(label, func.span, first=n == 0) for n, label in enumerate(labels[:-1])]
-    last = _letter(labels[-1], func.span, first=False)
-    return [*leading, replace(node, func=last)]
+    spans = [func.span] * len(labels)
+    if func.span.text == "".join(labels):  # each letter where it is written
+        ends = list(itertools.accumulate(len(label) for label in labels))
+        spans = [
+            Span(func.span.source, func.span.start + end - len(label), func.span.start + end)
+            for label, end in zip(labels, ends, strict=True)
+        ]
+    leading = [
+        _letter(label, span, first=n == 0)
+        for n, (label, span) in enumerate(zip(labels[:-1], spans, strict=False))
+    ]
+    last = _letter(labels[-1], spans[-1], first=False)
+    called = Span(node.span.source, spans[-1].start, node.span.end)
+    return [*leading, replace(node, func=last, span=called)]
 
 
 def _a_power(script: ast.Script) -> bool:

@@ -100,6 +100,14 @@ class TestLatexReading:
     def test_only_the_last_letter_is_called(self, wb):
         assert wb.expr(r"2Gm(r) + \alpha") == 2 * Symbol("G") * Function("m")(r) + Symbol("alpha")
 
+    def test_only_the_last_letter_is_called_with_its_subscript(self, wb):
+        # 2Gm_1(r) was the unknown function Gm_1 at r, where Gm_1 alone is G m_1
+        (step,) = list(wb.each(r"2Gm_1(r) + \alpha"))
+        assert step.values == [2 * Symbol("G") * Function("m_1")(r) + Symbol("alpha")]
+        assert step.notes == [
+            "m_1 is not a function RelativisticPy knows, so m_1(r) is an unknown function"
+        ]
+
     def test_a_coordinate_with_an_expression_is_a_product(self, wb):
         wb.exe("Coordinates := [t, r]")
         assert wb.expr(r"r(\beta - 1)") == r * (Symbol("beta") - 1)
