@@ -41,20 +41,33 @@ _R = TypeVar("_R")
 _WATCH = 0.25
 
 
-def _outlive_nothing() -> None:
-    """Start a worker process that ends when the process that started it does, however
-    that ended: a run stopped with SIGTERM, as a harness stops a command that takes too
-    long, or with SIGKILL, has no Python left in it to stop its workers, which would
-    compute on for nobody. When its parent is gone, a worker is adopted by another
-    process, and so changes parent. (A worker started by a fork server has the server as
-    its parent, which ends when the workbook's process does.)"""
+def _outlive_nothing(owner: int) -> None:
+    """Start a worker process that ends when the process that owns it does, however that
+    ended: a run stopped with SIGTERM, as a harness stops a command that takes too long,
+    or with SIGKILL, has no Python left in it to stop its workers, which would compute on
+    for nobody. A forked worker's parent is its owner, and when that is gone the worker
+    is adopted by another process, and so changes parent. A worker started by a fork
+    server, the default from Python 3.14, has the server as its parent, which may outlive
+    the owner: so the owner is watched by its process id too, where the platform can ask
+    after a process without stopping it."""
     import threading
     import time
 
     parent = os.getppid()
 
+    def owner_alive() -> bool:
+        if os.name != "posix":  # os.kill would end the process there, not ask after it
+            return True
+        try:
+            os.kill(owner, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:  # alive, as another user's process
+            return True
+        return True
+
     def watch() -> None:
-        while os.getppid() == parent:
+        while os.getppid() == parent and owner_alive():
             time.sleep(_WATCH)
         os._exit(1)  # nothing of the worker's is worth finishing
 
@@ -172,6 +185,7 @@ class Executor:
                 max_workers=self.workers,
                 mp_context=_context(),
                 initializer=_outlive_nothing,
+                initargs=(os.getpid(),),
             )
         chunk = max(1, len(items) // (4 * self.workers))
         return list(self._pool.map(func, items, chunksize=chunk))
