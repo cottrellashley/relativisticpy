@@ -119,7 +119,7 @@ from relativisticpy.typing.typer import _EXAMPLE_LABELS, TensorSource, Typer, _l
 BOOK = "book name"
 
 #: The names that write an integral in plain text, beside its differential.
-_INTEGRAL_WORDS = frozenset({"int", "integral"})
+_INTEGRAL_WORDS = frozenset({"int", "integral", "integrate"})
 
 
 def _written_differential(node: ast.Expr) -> str | None:
@@ -1190,10 +1190,10 @@ class Reader(Typer):
         )
 
     def _check_misread_integral(self, factors: Sequence[ast.Expr], scope: Scope) -> None:
-        """Refuse a product of a name that writes an integral, as integral or int, that
-        nothing defines, and a differential at its end that nothing defines either, as
-        ``integral x^2 dx``: read as written, it would multiply the symbols int and dx
-        (design/notation.md, decision 39)."""
+        """Refuse a product of a name that writes an integral, as integral, int or
+        integrate without its brackets, that nothing defines, and a differential at its end
+        that nothing defines either, as ``integral x^2 dx`` and ``integrate x^2 dx``: read
+        as written, it would multiply by the symbol dx (design/notation.md, decision 39)."""
         if len(factors) < 2:
             return
         last = _written_differential(factors[-1])
@@ -1206,8 +1206,8 @@ class Reader(Typer):
                 and scope.lookup(factor.id) is None
             ):
                 raise CompileError(
-                    f"{factor.span.text} ... {factors[-1].span.text} is read as a product of "
-                    "names, not as an integral",
+                    f"{factor.span.text} ... {factors[-1].span.text} is read as a product, "
+                    "not as an integral",
                     span=factor.span.to(factors[-1].span),
                     hint=f"for the integral, write int_a^b f {last}, int f {last}, or "
                     f"integrate(f, {last[1:]})",

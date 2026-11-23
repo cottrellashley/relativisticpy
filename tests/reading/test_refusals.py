@@ -664,7 +664,9 @@ class TestQuotientsWrittenAsDerivativesAre:
         assert wb.expr("d*y/dx") == 10 * sympy.Symbol("d") * sympy.Symbol("y")
         assert str(wb.expr("distance/dt")) == "distance/dt"  # no d above: a quotient
 
-    def test_an_integral_written_as_a_product_of_names_is_refused(self, wb):
-        found = error(wb, "integral x^2 dx")
-        assert "is read as a product of names, not as an integral" in found.message
+    @pytest.mark.parametrize("source", ["integral x^2 dx", "integrate x^2 dx"])
+    def test_an_integral_written_as_a_product_is_refused(self, wb, source):
+        # integrate x^2 dx was dx x^3/3, integrate applied to x^2 alone
+        found = error(wb, source)
+        assert found.message.endswith("is read as a product, not as an integral")
         assert wb.expr("int x^2 dx") == x**3 / 3  # the hint works
