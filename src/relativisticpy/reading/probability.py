@@ -377,7 +377,7 @@ def function_of(head: ast.Expr) -> tuple[str, ast.Expr] | None:
     variable: ast.Expr | None = None
     if isinstance(head, ast.Name) and "_" in head.id:
         letter, _, rest = head.id.partition("_")
-        variable = ast.Name(rest, span=head.span) if rest else None
+        variable = ast.Name(rest, span=_after_the_letter(head.span, rest)) if rest else None
     elif (
         isinstance(head, ast.Scripted)
         and isinstance(head.base, ast.Name)
@@ -394,6 +394,14 @@ def function_of(head: ast.Expr) -> tuple[str, ast.Expr] | None:
             return None
         kind = "quantile"
     return kind, variable
+
+
+def _after_the_letter(span: Span, variable: str) -> Span:
+    """Where the variable of ``f_X`` is written, the X, so that a note names it and not
+    the function; the whole, where it is written otherwise, as with braces."""
+    if span.text.endswith(variable):
+        return Span(span.source, span.end - len(variable), span.end)
+    return span
 
 
 def _minus_one(node: ast.Expr | None) -> bool:

@@ -32,6 +32,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.convolutions import Convolutions
 from relativisticpy.reading import probability
+from relativisticpy.reading.labels import label_name
 from relativisticpy.reading.probability import DISTRIBUTED, RANDOM, Declaration, Law
 from relativisticpy.reading.quantum import expectation_name
 from relativisticpy.reading.subscripts import SAMPLE as _SAMPLE
@@ -75,8 +76,31 @@ class Probability(Convolutions):
             declared = probability.declaration(statement.expr)
             return declared is not None and self._declare_variables(declared, scope, ctx)
         if isinstance(statement, ast.FunctionDefinition | ast.Define):
+            self._refuse_defining_a_random_variable(statement, scope)
             return self._gives_probability(statement, scope, ctx)
         return False
+
+    def _refuse_defining_a_random_variable(self, statement: ast.Statement, scope: Scope) -> None:
+        """Refuse a definition of a name the program declares a random variable, as
+        ``X := 5`` after ``X \\sim \\mathcal{N}(0, 1)``: what follows would be of the number,
+        ``P(X < 1)`` of no random variable, as a declaration of a name defined is refused."""
+        if isinstance(statement, ast.FunctionDefinition):
+            names = [statement.name]
+        else:
+            assert isinstance(statement, ast.Define)
+            names = [name for name in map(_name, statement.targets) if name is not None]
+        for name in names:
+            binding = scope.lookup(name)
+            if not isinstance(binding, VariableBinding) or not _random(binding):
+                continue
+            declared = binding.node.span
+            where = f" on line {declared.line}" if declared is not None else ""
+            raise CompileError(
+                f"{name} is declared a random variable{where}, so "
+                f"{' '.join(statement.span.text.split())} cannot define it",
+                span=statement.span,
+                hint="define a name of its own, or declare the variable again with another law",
+            )
 
     def _declare_variables(self, declared: Declaration, scope: Scope, ctx: Context) -> bool:
         """Bind each variable ``declared`` to a random variable of its law; ``False`` where
@@ -109,7 +133,7 @@ class Probability(Convolutions):
             together = frozenset(name for name, _ in names)
             known = self.session.conventions.get(_INDEPENDENT, frozenset())
             self.session.conventions[_INDEPENDENT] = known | {together}
-        listed = ", ".join(node.span.text for _, node in names)
+        listed = ", ".join(_unbraced(item) for item in declared.variables)  # X_1, \ldots, X_4
         what = "a random variable" if len(names) == 1 else "random variables"
         note = f"{_shown(declared)} declares {listed} {what}, of {_described(declared.law)}"
         if declared.given is not None:
@@ -226,15 +250,33 @@ class Probability(Convolutions):
             if power == 1:
                 parameters.append(self.value(argument, scope, ctx))
                 continue
-            if _power_of(argument, power) is not None:  # \sigma^2 of \mathcal{N}(\mu, \sigma^2)
-                base = _power_of(argument, power)
-                assert base is not None
-                parameters.append(self.value(base, scope, ctx))
-                continue
+            base = _power_of(argument, power)
+            if base is not None and not self._a_name_of_its_own(argument, scope):
+                parameters.append(self._root_written(base, power, scope, ctx))
+                continue  # \sigma^2 of \mathcal{N}(\mu, \sigma^2)
             value = self.value(argument, scope, ctx)
             root = self.graph.const(sympy.Rational(1, power), SCALAR)
             parameters.append(self.graph.add(ops.Pow(), (value, root), SCALAR, argument.span))
         return self._call(written.capability.name, parameters, VALUE, written.span)
+
+    def _a_name_of_its_own(self, argument: ast.Expr, scope: Scope) -> bool:
+        """Whether an argument written as a power is a name the program defines as it is
+        written, as ``\\sigma^2 := 4`` defines σ²: its value is then the variance, and σ
+        its root, not a symbol σ."""
+        if not isinstance(argument, ast.Scripted):
+            return False
+        name = label_name(argument)
+        return name is not None and scope.lookup(name) is not None
+
+    def _root_written(self, base: ast.Expr, power: int, scope: Scope, ctx: Context) -> Node:
+        """The parameter an argument written as its power gives, the base written: σ of
+        σ², and of an even power of what is known to be negative, as (-2)², what it is the
+        power of that is positive, 2, as a standard deviation is."""
+        node = self.value(base, scope, ctx)
+        known = self._folded(node)
+        if power % 2 == 0 and known is not None and known.is_negative:
+            return self.graph.add(ops.Add((-1,)), (node,), SCALAR, base.span)
+        return node
 
     def _pieces(self, declared: Declaration, law: Node, scope: Scope, ctx: Context) -> list[Node]:
         """The law of a declaration, under the condition it is given, if any: of ``X \\mid N``,
@@ -306,6 +348,16 @@ class Probability(Convolutions):
             return False
         if scope.lookup(head) is not None:
             return False
+        declared = self._random_names([event, given], scope)
+        if declared:  # its law gives the probability: Pr(0 < X) would not be the one given
+            names = ", ".join(name.replace("_…", "") for name in declared)
+            raise CompileError(
+                f"{statement.span.text} gives the probability of an event of {names}, "
+                "declared with a law, which gives its probability",
+                span=statement.span,
+                hint="give the probability of an event with a name of its own, as "
+                "\\Pr(A) := 0.3, or declare the variable with the law that gives it",
+            )
         node = self.value(value, scope, ctx)
         if isinstance(node.op, ops.Const) and _outside(node.op.value):
             raise CompileError(

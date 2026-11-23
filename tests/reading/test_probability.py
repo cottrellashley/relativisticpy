@@ -117,6 +117,35 @@ class TestDeclarations:
         with pytest.raises(CompileError, match="is defined"):
             wb.run(r"X \sim \mathcal{N}(0, 1)")
 
+    def test_a_random_variable_is_not_defined_again(self, wb):
+        # P(X < 1) after it would be of the number 5, the probability of nothing
+        wb.run(r"X \sim \mathcal{N}(0, 1)")
+        with pytest.raises(CompileError) as refused:
+            wb.run("X := 5")
+        assert refused.value.message == (
+            "X is declared a random variable on line 1, so X := 5 cannot define it"
+        )
+        assert same(wb.expr("P(X < 1)"), (1 + sympy.erf(1 / sympy.sqrt(2))) / 2)
+
+    @pytest.mark.parametrize(
+        "program",
+        [r"X \sim \mathcal{N}(0,(-2)^2)", "s := -2\n" r"X \sim \mathcal{N}(0, s^2)"],
+    )
+    def test_a_variance_written_as_the_square_of_a_negative_number(self, wb, program):
+        wb.run(program)
+        assert wb.expr(r"\operatorname{Var}(X)") == 4
+
+    def test_a_variance_defined_as_a_name_of_its_own_is_its_value(self, wb):
+        # \sigma^2 := 4 defines the name σ²: the law's σ is its root, not a symbol σ
+        wb.run("\\sigma^2 := 4\nX \\sim \\mathcal{N}(0, \\sigma^2)")
+        assert wb.expr(r"\operatorname{Var}(X)") == 4
+        assert same(wb.expr("P(X < 2)"), (1 + sympy.erf(1 / sympy.sqrt(2))) / 2)
+
+    def test_a_note_lists_the_variables_as_they_are_written(self, wb):
+        source = r"X_1, \ldots, X_4 \overset{\text{iid}}{\sim} \operatorname{Exp}(1)"
+        (note,) = notes(wb, source)
+        assert note.startswith(source + r" declares X_1, \ldots, X_4 random variables, of ")
+
     def test_a_random_process_is_refused_saying_what_it_is(self, wb):
         with pytest.raises(CompileError, match="random process"):
             wb.run(r"w[n] \sim \mathcal{N}(0, \sigma^2) \text{ independent}")
@@ -169,6 +198,15 @@ class TestProbabilities:
             wb.run(r"\Pr(A)")
         with pytest.raises(CompileError, match="outside 0 to 1"):
             wb.run(r"\Pr(A) := 1.5")
+
+    def test_the_probability_of_an_event_of_a_declared_variable_is_its_laws(self, wb):
+        # given as written, \Pr(X > 0) would be 0.7 and \Pr(0 < X) the law's 1/2
+        wb.run(r"X \sim \mathcal{N}(0, 1)")
+        with pytest.raises(CompileError, match="a law, which gives its probability") as refused:
+            wb.run(r"\Pr(X>0) := 0.7")
+        assert "\\Pr(A) := 0.3" in (refused.value.hint or "")
+        half = sympy.Rational(1, 2)
+        assert wb.run("\\Pr(X>0)\n\\Pr(0<X)\n\\Pr(X \\le 0)") == [half, half, half]
 
     def test_p_is_a_probability_only_of_random_variables(self, wb):
         assert isinstance(wb.expr("P(x)"), sympy.core.function.AppliedUndef)
@@ -306,6 +344,11 @@ class TestFunctionsOfARandomVariable:
         wb.run(r"X \sim \operatorname{Poisson}(\lambda)")
         assert same(wb.expr("M_X(t)"), sympy.exp(lam * (sympy.exp(t) - 1)))
         assert same(wb.expr(r"\varphi_X(t)"), sympy.exp(lam * (sympy.exp(sympy.I * t) - 1)))
+
+    def test_a_note_names_the_variable_not_the_function(self, wb):
+        wb.run(r"X \sim \mathcal{N}(0, 1)")
+        assert notes(wb, "f_X(0)") == ["f_X(0) is the density of X"]
+        assert notes(wb, "M_X(t)") == ["M_X(t) is the moment-generating function of X"]
 
     @pytest.mark.parametrize(
         ("law", "written"),

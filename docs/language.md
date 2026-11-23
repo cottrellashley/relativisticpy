@@ -760,7 +760,9 @@ independent, and a note says so. `X_1, \ldots, X_n \overset{\text{iid}}{\sim} D`
 sample of n, whose members `X_i` a sum takes in turn. A capital letter nothing defines,
 inside a probability, an expectation or a variance, is a random variable of a law not given,
 as books write one, so that a rule that holds for every law is decided. The probabilities a
-program gives events, as `\Pr(A \mid B_1) := 0.9`, are what it writes of them:
+program gives events, as `\Pr(A \mid B_1) := 0.9`, are what it writes of them; an event of
+a random variable it declares takes its probability from the law, and giving it another is
+refused, as is defining a name declared a random variable:
 
 ```python
 >>> sample = Workbook()
