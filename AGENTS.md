@@ -19,6 +19,11 @@ uv run python benchmarks/curriculum.py       # no case that passed may fail
 uv run python benchmarks/notations.py        # no cell of the notation matrix either
 ```
 
+A change to the lexer, the parser or the reader also says which statements it reads
+otherwise: `uv run python benchmarks/readings.py --write before.tsv` before it, `--write
+after.tsv` after it, then `--compare before.tsv after.tsv`. Each statement listed should be
+one the change meant to change.
+
 Python 3.10 to 3.14 are supported, and CI runs them all, with `PYTHONHASHSEED=0`. Use
 no syntax or library feature newer than 3.10.
 
