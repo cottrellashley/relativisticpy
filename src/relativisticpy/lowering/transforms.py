@@ -44,6 +44,7 @@ from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.definitions import Definitions
 from relativisticpy.reading.names import _elements
+from relativisticpy.reading.subscripts import Kind
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space
 from relativisticpy.typing.syntax import _tensor_pattern, _walk
@@ -675,6 +676,18 @@ class Transforms(Definitions):
         carriers = self._carriers(label, node.body, scope)
         if not carriers:
             return None
+        runs = self._runs_through(node.body, label, scope, ctx)
+        if runs and all(space is None for _, space, _, _ in carriers):
+            return None  # x_i y_i, of a list x and a family y: taken term by term
+        for run in runs:
+            if run.kind is Kind.LABEL and run.written is not None:
+                text = run.written.node.span.text
+                raise CompileError(
+                    f"{text} names nothing, and the sum runs over its subscript: read as "
+                    "written, it would be one symbol in every term",
+                    span=node.span,
+                    hint=f"define it over the index, as in {text} := [...]",
+                )
         written = f"\\{node.op}"
         limits = self._sum_limits(node, scope, ctx)
         tensors = [(name, space, upper) for name, space, upper, _ in carriers if space is not None]

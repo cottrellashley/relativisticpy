@@ -18,7 +18,6 @@ from relativisticpy import assumptions as applying
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS
 from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import Context, Scope, VariableBinding
-from relativisticpy.compiler.session import Session
 from relativisticpy.errors import CompileError
 from relativisticpy.ir import SCALAR, VALUE, EquationType, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
@@ -39,12 +38,6 @@ COEFFICIENT = "product or call"
 
 class Arithmetic(PythonObjects):
     """The lowering of number theory."""
-
-    def __init__(self, session: Session) -> None:
-        super().__init__(session)
-        # The indices of the sums and products being lowered, innermost last: integers, of
-        # which a letter books give an arithmetic function is that function.
-        self._indices_summed: list[Symbol] = []
 
     def _Call(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
         func = node.func
@@ -232,11 +225,11 @@ class Arithmetic(PythonObjects):
             return self._over(node, every, scope, ctx)
         if not isinstance(node.variable, ast.Name):
             return super()._BigOperator(node, scope, ctx)
-        self._indices_summed.append(self.session.symbol(node.variable.id))
+        self._sum_indices.append(self.session.symbol(node.variable.id))
         try:
             return super()._BigOperator(node, scope, ctx)
         finally:
-            self._indices_summed.pop()
+            self._sum_indices.pop()
 
     def _over(self, node: ast.BigOperator, given: IndexSet, scope: Scope, ctx: Context) -> Node:
         """``\\sum_{d \\mid n} f(d)``, ``\\prod_{p \\le x}`` or ``\\prod_{p \\text{ prime}}``:
@@ -254,12 +247,12 @@ class Arithmetic(PythonObjects):
         inner = scope.child()
         index = self.graph.const(symbol, SCALAR, given.index.span)
         inner.bind(given.index.id, VariableBinding(index))
-        self._indices_summed.append(symbol)
+        self._sum_indices.append(symbol)
         try:
             body = self.value(node.body, inner, ctx)
             conditions = [self._condition(each, inner, ctx) for each in given.conditions]
         finally:
-            self._indices_summed.pop()
+            self._sum_indices.pop()
         lower = self._bound_or(given.lower, -sympy.oo, scope, ctx)
         upper = self._bound_or(given.upper, sympy.oo, scope, ctx)
         of = self._bound_or(given.of, sympy.S.Zero, scope, ctx)

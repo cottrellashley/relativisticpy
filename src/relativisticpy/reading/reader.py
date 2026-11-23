@@ -2003,6 +2003,11 @@ class Reader(Typer):
             for name in names
         )
 
+    def _a_sum_index(self, name: str, scope: Scope) -> bool:
+        """Whether a name is bound as the index of a sum or a product being read, which the
+        resolver says (see :class:`~relativisticpy.reading.subscripts.Subscripts`)."""
+        return False
+
     def _an_index_label(self, slot: ast.Node) -> bool:
         """Whether a script is an index label of the statement: written both as a
         subscript and as a superscript, or ranging over a space."""

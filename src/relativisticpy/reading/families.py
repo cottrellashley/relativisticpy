@@ -38,7 +38,7 @@ from relativisticpy.compiler.scope import (
     VariableBinding,
 )
 from relativisticpy.compiler.session import Session
-from relativisticpy.errors import CompileError
+from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
 from relativisticpy.language import syntax as ast
@@ -46,6 +46,7 @@ from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.reading.labels import Labels
 from relativisticpy.reading.names import (
+    _STATISTICS,
     _mentions_symbol,
     _recurrence,
     _shown,
@@ -146,6 +147,10 @@ def _subscript_written(subscript: str, span: Span) -> ast.Expr | None:
     if re.fullmatch(r"[A-Za-z]", subscript):
         return ast.Name(subscript, span=span)
     return None
+
+
+def _is_name(node: ast.Node, name: str) -> bool:
+    return isinstance(node, ast.Name) and node.id == name
 
 
 def _whole_numbers(node: ast.Expr | None) -> int | None:
@@ -279,6 +284,8 @@ class Families(Labels):
             return False
         if len(label) != 1 or label in definition.params or not self._may_label(label, scope):
             return False
+        if _WORD.search(definition.span.text.partition("(")[0]):
+            return False  # C_\mathrm{A}(t): a word, never a label that takes values
         body = definition.body
         if not isinstance(body, ast.Expr) or not self._written_with_label(
             body, label, scope, definition.latex
@@ -451,14 +458,17 @@ class Families(Labels):
     def _member_read(
         self, reading: Reading, arguments: Sequence[ast.Expr] | None, scope: Scope, ctx: Context
     ) -> Node | None:
-        """A member of a family, as the resolver read it: the family at the subscript, and
-        at the ``arguments`` where it is called; or the name at the value its subscript has
-        here, as \\sigma_a is \\sigma_1 in T_1. ``None`` where that names no member."""
+        """A member of a family, as the resolver read it: the member the program gives as
+        a name of its own at the subscript, where it gives one, and else the family at the
+        subscript, and at the ``arguments`` where it is called. Of a label at a value, the
+        name at that value, as \\sigma_a is \\sigma_1 in T_1. ``None`` where that names no
+        member."""
         written = reading.written
         assert written is not None
         node, base, subscript = written.node, written.base, written.subscript
         assert subscript is not None
-        if isinstance(subscript, ast.Name) and subscript.id in self._at_members:
+        if reading.at_a_value:
+            assert isinstance(subscript, ast.Name)
             return self._at_member(node, base, subscript.id, arguments, scope, ctx)
         binding = reading.binding
         assert isinstance(binding, FunctionBinding)
@@ -466,15 +476,49 @@ class Families(Labels):
         assert isinstance(family, Family)
         bound = isinstance(subscript, ast.Name) and scope.lookup(subscript.id) is not None
         own = isinstance(subscript, ast.Name) and subscript.id == family.label
-        if own and not bound:  # c_n as it stands: at its label, never at i = \\sqrt{-1}
+        if own and not bound:  # c_n as it stands: at its label, never at i = \sqrt{-1}
             point = self._symbol_of(family.label)
         else:
             point = self.value(subscript, scope, ctx)
+        at = self._folded(point)
+        given = self._member_given(base, at, arguments, node, scope, ctx)
+        if given is not None:
+            return given
         args = [self.value(a, scope, ctx) for a in arguments] if arguments is not None else None
         member = f"{_shown(base, ctx.latex)}_{family.label}"
         why = f"{member} is a family in {family.label}, defined on line {family.span.line}"
-        self._decide(FAMILY, node.span, f"{member} at {family.label} = {written.shown}", why)
+        shown = str(at) if isinstance(at, sympy.Integer) else written.shown
+        self._decide(FAMILY, node.span, f"{member} at {family.label} = {shown}", why)
         return self._member(binding, point, args, node.span, scope, ctx)
+
+    def _member_given(
+        self,
+        base: str,
+        at: object,
+        arguments: Sequence[ast.Expr] | None,
+        node: ast.Expr,
+        scope: Scope,
+        ctx: Context,
+    ) -> Node | None:
+        """The member the program gives as a name of its own at a subscript whose value is
+        known where it is read, a whole number or a symbol, as ``c_2`` is of ``c_{2k}``
+        where k is 1: the name's value, which the member written out has too. ``None``
+        where the program gives none there."""
+        if isinstance(at, sympy.Integer):
+            name = f"{base}_{at}"
+        elif isinstance(at, sympy.Symbol):
+            name = f"{base}_{at.name}"
+        else:
+            return None
+        given = scope.lookup(name)
+        if given is None:
+            return None
+        if isinstance(given, FunctionBinding) and isinstance(given.definition, Family):
+            return None  # c_n at n itself: the family, not a member it is given
+        named = ast.Name(name, verbatim=True, span=node.span)
+        if arguments is not None:
+            return self.value(ast.Call(named, tuple(arguments), span=node.span), scope, ctx)
+        return self.value(named, scope, ctx)
 
     def _at_member(
         self,
@@ -586,7 +630,8 @@ class Families(Labels):
                 alone = func if isinstance(func, ast.Name) else node
                 return self._family_alone(alone, binding, node.args, scope, ctx)
             return None
-        if reading.kind not in (Kind.MEMBER, Kind.RECURRENCE) or reading.refusal is not None:
+        member = reading.kind in (Kind.MEMBER, Kind.RECURRENCE) and reading.refusal is None
+        if not (member or reading.at_a_value):
             return None
         called = replace(reading, written=replace(written, node=node))
         return self._member_read(called, node.args, scope, ctx)
@@ -662,50 +707,184 @@ class Families(Labels):
     # -- sums of names ----------------------------------------------------------------------
 
     def _term_by_term(self, node: ast.BigOperator, scope: Scope, ctx: Context) -> Node | None:
-        """``\\sum_{a=1}^{8} \\lambda_a^2`` after \\lambda_1, ..., \\lambda_8 are defined: a
-        finite sum or product whose index is the subscript of names the program defines, one
-        or more of them, taken term by term; ``None`` for any other."""
+        """A sum or a product whose index runs through the subscript of a name, as n does
+        in ``\\sum_{n=0}^{3} a_n`` and k in ``\\sum_{k=1}^{3} c_{2k}``: with limits that are
+        whole numbers it is taken term by term, each name read at the value the index has
+        there as it is read written out, the member the program gives, the family at the
+        subscript, or a name of its own, so that the sum agrees with its terms. With other
+        limits it is refused where its terms cannot be told apart from its formula (see
+        :meth:`_check_runs`). ``None`` for any other sum, and for one of tensors."""
         variable = node.variable
-        first, last = _whole_numbers(node.lower), _whole_numbers(node.upper)
-        if not isinstance(variable, ast.Name) or first is None or last is None:
+        if not isinstance(variable, ast.Name) or node.lower is None or node.upper is None:
             return None
-        if not 0 < last - first + 1 <= _TERMS or scope.lookup(variable.id) is not None:
+        runs = self._runs_through(node.body, variable.id, scope, ctx)
+        if not runs:
             return None
-        bases = self._named_by_index(node.body, variable.id, scope)
-        defined = [
-            base
-            for base in bases
-            if any(scope.lookup(f"{base}_{k}") is not None for k in range(first, last + 1))
-        ]
-        if not defined:
+        first = self._whole_limit(node.lower, scope, ctx)
+        last = self._whole_limit(node.upper, scope, ctx)
+        if first is not None and last == first - 1:
+            return None  # no terms: its value does not depend on them
+        if first is None or last is None or not 0 < last - first + 1 <= _TERMS:
+            self._check_runs(node, runs, first, last, scope, ctx)
             return None
         terms = []
-        for k in range(first, last + 1):
-            inner = scope.child()
-            point = self.graph.const(sympy.Integer(k), SCALAR)
-            inner.bind(variable.id, VariableBinding(point))
-            with self._members_at(variable.id, point):
-                terms.append(self.value(node.body, inner, ctx))
+        ranges = dict(self._term_ranges)
+        self._term_ranges[variable.id] = (first, last)
+        try:
+            for k in range(first, last + 1):
+                inner = scope.child()
+                point = self.graph.const(sympy.Integer(k), SCALAR)
+                inner.bind(variable.id, VariableBinding(point))
+                with self._members_at(variable.id, point):
+                    terms.append(self.value(node.body, inner, ctx))
+        finally:
+            self._term_ranges = ranges
         if any(isinstance(term.type, TensorType) for term in terms):
             return None
-        shown = _shown(defined[0], ctx.latex)
+        ran = runs[0].written
+        assert ran is not None
+        shown = _shown(ran.base, ctx.latex)
         what = "sum" if node.op == "sum" else "product"
         why = f"{variable.span.text} is the subscript of {shown}_{first}, …, {shown}_{last}"
+        if not isinstance(ran.subscript, ast.Name):  # c_{2k}
+            why = f"{variable.span.text} runs through the subscript of {ran.node.span.text}"
         self._decide(FAMILY, node.span, f"the {what} of its {len(terms)} terms", why)
+        for reading in runs:
+            self._say_names_of_a_book_letter(reading, variable, (first, last), scope, ctx)
         if node.op == "prod":
             return self._multiply(terms, node.span)
         kind = VALUE if any(isinstance(term.type, ValueType) for term in terms) else SCALAR
         return self.graph.add(ops.Add((1,) * len(terms)), terms, kind, node.span)
 
-    def _named_by_index(self, body: ast.Expr, label: str, scope: Scope) -> list[str]:
-        """The bases of the names a body writes with ``label`` as their subscript and that
-        name nothing else: \\lambda of \\lambda_a."""
+    def _whole_limit(self, limit: ast.Expr, scope: Scope, ctx: Context) -> int | None:
+        """A limit of a sum or a product, where it is a whole number known as the program
+        is read: written as one, as 3 or -2, or computed from names given whole numbers, as
+        n and n - 1 after ``n := 8``; ``None`` for any other, as N or \\infty."""
+        written = _whole_numbers(limit)
+        if written is not None:
+            return written
+        read = dict(self._decided), dict(self._resolved), list(self._notes)
+        try:  # compiled to see whether it is known, not to be read so
+            value = self._folded(self.value(limit, scope, ctx))
+        except RelativisticPyError:
+            return None
+        finally:
+            self._decided, self._resolved, self._notes = read
+        return int(value) if isinstance(value, sympy.Integer) else None
+
+    def _say_names_of_a_book_letter(
+        self,
+        reading: Reading,
+        index: ast.Name,
+        ends: tuple[int, int],
+        scope: Scope,
+        ctx: Context,
+    ) -> None:
+        """Say so where a name a sum runs through is one books write for a number, as
+        ``H_n`` after ``n \\in \\mathbb{N}``: under the sum over n it is a name for each n, as
+        the coefficients of a series are (decisions 34 and 35), though alone it is the
+        number."""
+        written = reading.written
+        assert written is not None
+        book = self._reads_as_book(written, scope) if reading.kind is Kind.LABEL else None
+        call = book.book.call if book is not None and book.book is not None else None
+        if call is None:
+            return
+        base, capability = _shown(written.base, ctx.latex), call.capability
+        self._note(
+            f"{written.node.span.text} is a name for each {index.span.text} of the sum, "
+            f"{base}_{ends[0]}, …, {base}_{ends[1]}, as the coefficients of a series are; "
+            f"{capability.brief} is {capability.name}({index.span.text})"
+        )
+
+    def _runs_through(
+        self, body: ast.Expr, index: str, scope: Scope, ctx: Context
+    ) -> list[Reading]:
+        """The names a sum's body writes with a subscript its index runs through, as
+        ``a_n``, ``\\lambda_a`` and ``c_{2k}`` are, each as the resolver reads it there: a
+        member of a family, or a name of its own. A tensor's index, an element of a list, a
+        member of a sample and a book name are no such names: each is summed as it is."""
         found = []
+        inner = scope.child()  # as the sum binds its index, an integer with no value yet
+        symbol = self.session.symbol(index)
+        inner.bind(index, VariableBinding(self.graph.const(symbol, SCALAR)))
         for node in _nodes(body):
-            named = _subscripted(node) if isinstance(node, ast.Name | ast.Scripted) else None
-            if named is None or named[1] != label:
+            written = subscripted(node) if isinstance(node, ast.Expr) else None
+            if written is None or written.subscript is None:
                 continue
-            base = named[0]
-            if scope.lookup(base) is None and family_of(base, scope) is None:
-                found.append(base)
-        return list(dict.fromkeys(found))
+            if written.labels is not None and len(written.labels) > 1:
+                continue  # T_{\mu\nu}: indices
+            if written.base in _STATISTICS or written.base in BUILTINS:
+                continue  # \mathbb{E}_t, a statistic over the index: no name
+            if not any(_is_name(each, index) for each in _nodes(written.subscript)):
+                continue
+            self._sum_indices.append(symbol)
+            try:
+                reading = self._subscript_reading(written, inner, latex=ctx.latex)
+            finally:
+                self._sum_indices.pop()
+            if reading.refusal is not None:
+                continue
+            if reading.kind is Kind.DEFINED and reading.name is not None:
+                binding = scope.lookup(reading.name)
+                if isinstance(binding, FunctionBinding) and isinstance(binding.definition, Family):
+                    found.append(replace(reading, kind=Kind.MEMBER, binding=binding))  # a_n
+            elif reading.kind in (Kind.MEMBER, Kind.RECURRENCE, Kind.LABEL):
+                found.append(reading)
+        return found
+
+    def _check_runs(
+        self,
+        node: ast.BigOperator,
+        runs: Sequence[Reading],
+        first: int | None,
+        last: int | None,
+        scope: Scope,
+        ctx: Context,
+    ) -> None:
+        """Refuse a sum or a product that cannot be taken term by term, its limits no whole
+        numbers or its terms too many, whose index runs through a name of its own, as
+        ``a_n`` where nothing defines a: read as written, a_n would be one symbol in every
+        term. And one that runs past a member the program gives apart from its family, as
+        a_0 beside ``a_n := 1/n``, which the family's value alone would miss. A sum over a
+        recurrence, whose members follow from those given, is read as before."""
+        what = "sum" if node.op == "sum" else "product"
+        index = node.variable.span.text
+        backwards = first is not None and last is not None and last < first
+        if first is None or last is None:
+            cannot = "has limits that are no whole numbers"
+        else:
+            cannot = "has limits that run backwards" if backwards else f"has over {_TERMS} terms"
+        for reading in runs:
+            written = reading.written
+            assert written is not None
+            text, base = written.node.span.text, _shown(written.base, ctx.latex)
+            if reading.kind is Kind.LABEL:
+                raise CompileError(
+                    f"{text} names nothing, and the {what} runs over its subscript: read as "
+                    f"written, it would be one symbol in every term, and the {what} {cannot}",
+                    span=node.span,
+                    hint=f"define the family, as in {base}_{index} := ..., or give the {what} "
+                    "limits that are whole numbers, so that it is taken term by term",
+                )
+            binding = reading.binding
+            family = binding.definition if isinstance(binding, FunctionBinding) else None
+            if not isinstance(family, Family) or family.recurring or backwards:
+                continue
+            bare = isinstance(written.subscript, ast.Name)
+            given = [
+                k
+                for k in sorted(self._given_members(written.base, scope))
+                if not (bare and first is not None and k < first)
+                and not (bare and last is not None and k > last)
+            ]
+            if given:
+                member = f"{base}_{given[0]}"
+                raise CompileError(
+                    f"the {what} runs over {member}, which the program gives apart from "
+                    f"{base}_{family.label} := ..., and the {what} {cannot}: it cannot be taken "
+                    "term by term",
+                    span=node.span,
+                    hint=f"write the members given apart from the {what}, as {member} + "
+                    f"\\{node.op}_{{{index}={given[0] + 1}}}^{{...}} {text}",
+                )

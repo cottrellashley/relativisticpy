@@ -60,7 +60,7 @@ from relativisticpy.compiler.scope import (
 from relativisticpy.compiler.session import Session
 from relativisticpy.errors import CompileError
 from relativisticpy.integrations import _forms as forms
-from relativisticpy.ir import Node, TensorType, ops
+from relativisticpy.ir import SCALAR, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
@@ -359,9 +359,10 @@ def _labelled_by_index(node: ast.Scripted) -> bool:
 def picks_a_member(subscript: ast.Expr | None, bound: Callable[[str], bool]) -> bool:
     """Whether a subscript picks a member of a family or an element of a list: a whole
     number, as 1 in ``c_1`` and -1 in ``E_{-1}``; an expression computed from numbers and
-    names, as ``n+1`` and ``n-1``; or a name that ``bound`` says has a value where it is
-    written, as the index of a sum has. A letter that nothing binds, as x in ``v_x``, may
-    name a component of its own."""
+    names, as ``n+1``, ``n-1`` and ``2k``; or a name that ``bound`` says has a value where
+    it is written, as the index of a sum has. A letter that nothing binds, as x in
+    ``v_x``, may name a component of its own; and what is written side by side with no
+    number first, as ``\\mu\\nu`` and ``i0``, are labels, not a product."""
     if isinstance(subscript, ast.Number):
         return subscript.text.isdigit()
     if isinstance(subscript, ast.Name):
@@ -370,7 +371,12 @@ def picks_a_member(subscript: ast.Expr | None, bound: Callable[[str], bool]) -> 
         return subscript.op in ("-", "+")
     if not isinstance(subscript, ast.Binary):
         return False
-    return subscript.op in ("+", "-", "/", "**") or (subscript.op == "*" and not subscript.implicit)
+    if subscript.op == "*" and subscript.implicit:  # 2k, but not \mu\nu or \mathrm{A}0
+        first: ast.Expr = subscript
+        while isinstance(first, ast.Binary) and first.op == "*" and first.implicit:
+            first = first.left
+        return isinstance(first, ast.Number)
+    return subscript.op in ("+", "-", "*", "/", "**")
 
 
 def family_of(base: str, scope: Scope) -> FunctionBinding | None:
@@ -407,7 +413,10 @@ class Reading:
     by, its ``labels``; and the ``book`` name. ``refusal`` is the error it is refused
     with, where it cannot be read, raised where the reading is taken, and ``why`` the
     reason a decision records for it. ``note`` says which reading was taken where the
-    program defines the base as two things, as a family and a list."""
+    program defines the base as two things, as a family and a list. A label is
+    ``at_a_value`` where its subscript is a label that has a value where it is read: it is
+    then the name at that value. ``position`` is where an element is in its list, counted
+    from 0."""
 
     kind: Kind
     written: Subscripted | None = None
@@ -419,6 +428,8 @@ class Reading:
     refusal: CompileError | None = None
     why: str = ""
     note: str | None = None
+    at_a_value: bool = False
+    position: int | None = None
 
 
 #: The readings by what the program itself defines: where two of them apply to one name,
@@ -460,6 +471,12 @@ class Subscripts(Matrices):
         # The names the equation being read writes at points that nothing defines: its
         # unknown sequences, as y and x of y[n] = x[n] + \frac{1}{2} y[n-1].
         self._unknown_sequences: frozenset[str] = frozenset()
+        # The indices of the sums and products being read, innermost last: each an integer,
+        # with a value in each term.
+        self._sum_indices: list[sympy.Symbol] = []
+        # The sums and products being taken term by term: each index with its first and
+        # its last value, from which the elements of a list are counted (decision 17).
+        self._term_ranges: dict[str, tuple[int, int]] = {}
 
     # -- what the layers above give ---------------------------------------------------------
 
@@ -489,6 +506,13 @@ class Subscripts(Matrices):
         """A call of a capability, lowered (see
         :class:`~relativisticpy.lowering.expressions.Expressions`)."""
         raise NotImplementedError
+
+    def _a_sum_index(self, name: str, scope: Scope) -> bool:
+        """Whether a name is bound as the index of a sum or a product being read."""
+        binding = scope.lookup(name)
+        if not (isinstance(binding, VariableBinding) and isinstance(binding.node.op, ops.Const)):
+            return False
+        return binding.node.op.value in self._sum_indices
 
     @contextlib.contextmanager
     def _members_at(self, label: str, point: Node) -> Iterator[None]:
@@ -540,7 +564,9 @@ class Subscripts(Matrices):
             else:
                 others.append(reading)
         if found is None:
-            return Reading(Kind.LABEL, written)
+            subscript = written.subscript
+            valued = isinstance(subscript, ast.Name) and subscript.id in self._at_members
+            return Reading(Kind.LABEL, written, at_a_value=valued and written.plain)
         if not others:
             return found
         shown = written.node.span.text
@@ -561,7 +587,7 @@ class Subscripts(Matrices):
         node, kind = written.node, reading.kind
         if reading.note is not None:
             self._note(reading.note)
-        if kind in (Kind.MEMBER, Kind.RECURRENCE):
+        if kind in (Kind.MEMBER, Kind.RECURRENCE) or reading.at_a_value:
             if any(script.body is None for script in written.raised):
                 return None
             member = self._member_read(reading, None, scope, ctx)
@@ -571,6 +597,8 @@ class Subscripts(Matrices):
                 assert script.body is not None
                 member = self._power(member, self.value(script.body, scope, ctx), node.span)
             return member
+        if kind is Kind.ELEMENT and reading.position is not None and not written.raised:
+            return self._element(reading)
         if written.raised:
             return None  # what is raised on it is read with the name it makes
         if kind is Kind.INDEX and reading.indexed is not None:  # y_t, where y is a tensor
@@ -636,17 +664,14 @@ class Subscripts(Matrices):
         called: bool,
         summed: frozenset[str] = frozenset(),
     ) -> Reading | None:
-        """A member of a family of the base, as ``c_1`` and ``a_{n+1}`` are; or, where the
-        subscript is a label that has a value here, the name at that value, whatever the
-        base, as \\sigma_a is \\sigma_1 in T_1. Not one of the names a family's value
-        writes, as x_0; nor, unless it is called, a subscript that is a letter nothing
-        binds, as k of c_k, a symbol of its own. A name defined with a letter that could
-        be no label is no family, and what would be its members are refused."""
+        """A member of a family of the base, as ``c_1``, ``c_{2k}`` and ``a_{n+1}`` are.
+        Not one of the names a family's value writes, as x_0; nor, unless it is called, a
+        subscript that is a letter nothing binds, as k of c_k, a symbol of its own. A name
+        defined with a letter that could be no label is no family, and what would be its
+        members are refused."""
         subscript = written.subscript
         if not written.plain or subscript is None:
             return None
-        if isinstance(subscript, ast.Name) and subscript.id in self._at_members:
-            return Reading(Kind.MEMBER, written)
         binding = family_of(written.base, scope)
         if binding is None:
             return self._reads_as_no_family(written, scope, latex)
@@ -709,9 +734,11 @@ class Subscripts(Matrices):
     def _reads_as_element(
         self, written: Subscripted, scope: Scope, latex: bool, summed: frozenset[str]
     ) -> Reading | None:
-        """An element of a list the program defines, where the subscript picks one. A sum
-        over an index of a list binds the list as a tensor over the sum's space, whose
-        index the subscript then is; anywhere else its positions have no start, and it is
+        """An element of a list the program defines, where the subscript picks one,
+        counted from the lower limit of the sum that ranges over the whole list (decision
+        17): a sum over an index of a list alone binds the list as a tensor over the sum's
+        space, whose index the subscript then is, and one taken term by term reads each
+        element where the index is. Anywhere else its positions have no start, and it is
         refused. A list written with the name, as p := (p_x, p_y), has it as a name of its
         own."""
         within = scope.lookup(written.base)
@@ -723,6 +750,18 @@ class Subscripts(Matrices):
         if _mentions_symbol(within.node, written.name):
             return None
         shown, text = _shown(written.base, latex), written.node.span.text
+        counted = self._counted(written.subscript)
+        if counted is not None:
+            first, last, at = counted
+            why = f"the sum runs over all of {shown}, from {first}"
+            if last - first + 1 == size:
+                return Reading(Kind.ELEMENT, written, binding=within, position=at - first, why=why)
+            refusal = CompileError(
+                f"{shown} has {size} elements, but the sum runs over {last - first + 1}: a sum "
+                "over a part of a list is not supported yet",
+                span=written.node.span,
+            )
+            return Reading(Kind.ELEMENT, written, binding=within, refusal=refusal, why=why)
         label = written.shown if len(written.shown) == 1 and written.shown.isalpha() else "i"
         refusal = CompileError(
             f"{text} names nothing, and {shown} is a list, whose elements are not "
@@ -736,6 +775,33 @@ class Subscripts(Matrices):
         )
         why = f"{shown} is a list"
         return Reading(Kind.ELEMENT, written, binding=within, refusal=refusal, why=why)
+
+    def _counted(self, subscript: ast.Expr | None) -> tuple[int, int, int] | None:
+        """The first and the last value of the index of a sum taken term by term, and the
+        value it has in the term being read, where ``subscript`` is that index."""
+        if not isinstance(subscript, ast.Name) or subscript.id not in self._term_ranges:
+            return None
+        point = self._at_members.get(subscript.id)
+        value = point.op.value if point is not None and isinstance(point.op, ops.Const) else None
+        if not isinstance(value, sympy.Integer):
+            return None
+        first, last = self._term_ranges[subscript.id]
+        return first, last, int(value)
+
+    def _element(self, reading: Reading) -> Node:
+        """An element of a list, at its position: the item written there, or, of a list a
+        value holds, the item it has."""
+        written, binding, position = reading.written, reading.binding, reading.position
+        assert written is not None
+        assert isinstance(binding, VariableBinding)
+        assert position is not None
+        base, span = written.base, written.node.span
+        self._decide("index or power", span, f"element {position + 1} of {base}", reading.why)
+        node = binding.node
+        if isinstance(node.op, ops.Call) and node.op.name in ("core.list", "core.tuple"):
+            return node.args[position]
+        assert isinstance(node.op, ops.Const)
+        return self.graph.const(sympy.sympify(node.op.value[position]), SCALAR, span)
 
     def _list_summed(self, node: ast.Node, index: str, scope: Scope) -> int | None:
         """How many elements a list has, where ``node`` is a name with the index of a sum

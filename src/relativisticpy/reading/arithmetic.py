@@ -132,9 +132,9 @@ def _integer_name(reader: Reader, name: str, scope: Scope, *, bound: bool) -> bo
     if binding is not None:
         if not bound or not isinstance(binding, VariableBinding):
             return False
-        value = binding.node.op.value if isinstance(binding.node.op, ops.Const) else None
-        if value in getattr(reader, "_indices_summed", ()):
+        if reader._a_sum_index(name, scope):
             return True
+        value = binding.node.op.value if isinstance(binding.node.op, ops.Const) else None
         return isinstance(value, sympy.Basic) and value.is_integer is True
     symbol = reader.session.assumptions.get(name)
     return symbol is not None and symbol.is_integer is True

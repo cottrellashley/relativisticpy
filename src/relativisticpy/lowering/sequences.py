@@ -597,11 +597,11 @@ class Sequences(Arithmetic):
         self._note(note)
         inner = scope.child()
         variable = self._bound_variable(index, inner)
-        self._indices_summed.append(self.session.symbol(index.id))
+        self._sum_indices.append(self.session.symbol(index.id))
         try:
             body = self.value(node.body, inner, ctx)
         finally:
-            self._indices_summed.pop()
+            self._sum_indices.pop()
         ends = [self.graph.const(end, SCALAR) for end in (-sympy.oo, sympy.oo)]
         return self._call("seq.sum", [body, variable, *ends], _passed(body.type), node.span)
 

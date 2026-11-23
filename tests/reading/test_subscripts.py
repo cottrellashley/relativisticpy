@@ -128,3 +128,125 @@ class TestAFamilyAndAListOfOneLetter:
         wb.exe("c := [10, 20, 30]")
         assert wb.expr(r"\sum_{i=1}^{3} c_i") == 60
         assert notes(wb, r"\sum_{i=1}^{3} c_i") == []
+
+
+class TestASumOverAFamilyAgreesWithItsTerms:
+    """Finding 9: a finite sum over a family is taken term by term, through the lookup its
+    members written out use, so that it has the members the program gives. Before,
+    ``a_0 := 1`` beside ``a_n := 1/n`` made ``a_0 + a_1 + a_2 + a_3`` 17/6 and
+    ``\\sum_{n=0}^{3} a_n`` zoo, the family's value at 0."""
+
+    def test_a_member_the_program_gives_is_summed(self, wb):
+        wb.exe("a_0 := 1\na_n := \\frac{1}{n}")
+        terms = wb.expr("a_0 + a_1 + a_2 + a_3")
+        assert terms == sympy.Rational(17, 6)
+        assert wb.expr(r"\sum_{n=0}^{3} a_n") == terms
+        assert wb.expr(r"\prod_{n=0}^{2} (1 + a_n)") == 6
+
+    def test_a_member_given_after_the_family_is_summed(self, wb):
+        wb.exe("c_n := \\frac{1}{n^2}\nc_1 := 5")
+        terms = wb.expr("c_1 + c_2 + c_3")
+        assert terms == sympy.Rational(193, 36)
+        assert wb.expr(r"\sum_{n=1}^{3} c_n") == terms
+
+    def test_a_sum_past_a_given_member_whose_terms_cannot_be_taken_is_refused(self, wb):
+        wb.exe("a_0 := 1\na_n := \\frac{1}{n}")
+        with pytest.raises(CompileError) as raised:
+            wb.expr(r"\sum_{n=0}^{N} a_n")
+        assert raised.value.message == (
+            "the sum runs over a_0, which the program gives apart from a_n := ..., and the sum "
+            "has limits that are no whole numbers: it cannot be taken term by term"
+        )
+        assert raised.value.hint == (
+            r"write the members given apart from the sum, as a_0 + \sum_{n=1}^{...} a_n"
+        )
+        big = sympy.Symbol("N")
+        assert wb.expr(r"a_0 + \sum_{n=1}^{N} a_n") == 1 + sympy.harmonic(big)  # the hint works
+
+    def test_a_sum_that_starts_after_the_given_members_has_the_familys_value(self, wb):
+        wb.exe("a_0 := 1\na_n := \\frac{1}{n^2}")
+        assert wb.expr(r"\sum_{n=1}^{\infty} a_n") == sympy.pi**2 / 6
+
+    def test_a_recurrence_is_summed_from_the_members_given(self, wb):
+        wb.exe("a_0 := 1\na_1 := 1\na_{n+2} := a_{n+1} + a_n")
+        assert wb.expr(r"\sum_{n=0}^{5} a_n") == 20
+
+    def test_a_list_and_a_family_in_one_sum(self, wb):
+        wb.exe("x := [1, 2, 3]\ny_n := n^2")
+        assert wb.expr(r"\sum_{i=1}^{3} x_i y_i") == 36  # was 6 y_i
+        assert wb.expr(r"\sum_{i=0}^{2} x_i y_i") == 14  # counted from the lower limit
+        with pytest.raises(CompileError, match="a sum over a part of a list"):
+            wb.expr(r"\sum_{i=1}^{2} x_i y_i")
+
+
+class TestASubscriptTheIndexOfASumRunsThrough:
+    """Finding 10: a subscripted name that the index of a sum runs through is expanded, or
+    the sum is refused; it is never one constant. Before, ``\\sum_{n=1}^{3} a_n`` was
+    ``3 a_n``, and ``\\sum_{k=1}^{3} c_{2k}`` of a family c was ``3 c_2k``."""
+
+    def test_names_of_their_own_are_written_out(self, wb):
+        a = sympy.symbols("a_1 a_2 a_3")
+        assert wb.expr(r"\sum_{n=1}^{3} a_n") == sum(a)
+        assert wb.expr(r"\prod_{n=1}^{3} a_n") == a[0] * a[1] * a[2]
+        assert wb.expr(r"\sum_{n=3}^{2} a_n") == 0  # no terms
+
+    def test_the_names_the_program_defines_are_used(self, wb):
+        wb.exe("\\lambda_1 := 2\n\\lambda_2 := 3")
+        assert wb.expr(r"\sum_{a=1}^{2} \lambda_a^2") == 13
+        assert wb.expr(r"\sum_{a=1}^{3} \lambda_a^2") == 13 + sympy.Symbol("lambda_3") ** 2
+
+    def test_a_book_letter_under_a_sum_is_a_name_for_each_term_and_says_so(self, wb):
+        wb.exe(r"n \in \mathbb{N}")
+        integer = sympy.Symbol("n", integer=True, nonnegative=True)
+        assert wb.expr("H_n") == sympy.harmonic(integer)
+        names = sympy.symbols("H_1 H_2 H_3")
+        assert wb.expr(r"\sum_{n=1}^{3} H_n") == sum(names)  # was 3 H_n
+        assert notes(wb, r"\sum_{n=1}^{3} H_n") == [
+            "H_n is a name for each n of the sum, H_1, …, H_3, as the coefficients of a "
+            "series are; the harmonic number is harmonic(n)"
+        ]
+        assert wb.expr(r"\sum_{n=1}^{3} harmonic(n)") == sympy.Rational(13, 3)  # as it says
+
+    def test_an_expression_in_the_index_picks_a_member(self, wb):
+        k = sympy.Symbol("k")
+        wb.exe("c_n := \\frac{1}{n^2}")
+        assert wb.expr("c_{2k}") == 1 / (4 * k**2)
+        assert wb.expr(r"\sum_{k=1}^{3} c_{2k}") == sympy.Rational(49, 144)
+        assert wb.expr("b_n := c_{2n}\nb_1") == sympy.Rational(1, 4)  # was the symbol c_2n
+
+    def test_a_member_given_at_the_value_of_an_expression_is_used(self, wb):
+        wb.exe("c_n := \\frac{1}{n^2}\nc_2 := 7")
+        terms = wb.expr("c_{2} + c_{4} + c_{6}")
+        assert wb.expr(r"\sum_{k=1}^{3} c_{2k}") == terms == sympy.Rational(1021, 144)
+
+    @pytest.mark.parametrize(
+        ("written", "why"),
+        [
+            (r"\sum_{n=1}^{N} a_n", "has limits that are no whole numbers"),
+            (r"\sum_{n=1}^{\infty} a_n \sin(n x)", "has limits that are no whole numbers"),
+            (r"\sum_{n=1}^{200} a_n", "has over 100 terms"),
+            (r"\sum_{n=3}^{1} a_n", "has limits that run backwards"),
+        ],
+    )
+    def test_a_sum_whose_terms_cannot_be_taken_is_refused(self, wb, written, why):
+        with pytest.raises(CompileError) as raised:
+            wb.expr(written)
+        assert raised.value.message == (
+            "a_n names nothing, and the sum runs over its subscript: read as written, it "
+            f"would be one symbol in every term, and the sum {why}"
+        )
+        wb.exe("a_n := n")  # the hint works: a family is summed by its value
+        big = sympy.Symbol("N")
+        assert sympy.expand(wb.expr(r"\sum_{n=1}^{N} a_n") - big * (big + 1) / 2) == 0
+
+    def test_a_label_then_a_number_is_no_expression(self, wb):
+        # C_{\mathrm{A}0}, the initial concentration of A, is a name, not C at A times 0
+        wb.exe("C_\\mathrm{A}(t) := \\frac{C_{\\mathrm{A}0}}{1 + k C_{\\mathrm{A}0} t}")
+        initial, rate = sympy.symbols("C_A0 k")
+        assert wb.expr(r"C_\mathrm{A}(0)") == initial
+        assert wb.expr(r"C_\mathrm{A}(1)") == initial / (1 + rate * initial)
+
+    def test_a_list_and_a_name_in_one_sum(self, wb):
+        wb.exe("x := [1, 2, 3]")
+        y = sympy.symbols("y_1 y_2 y_3")
+        assert wb.expr(r"\sum_{i=1}^{3} x_i y_i") == y[0] + 2 * y[1] + 3 * y[2]  # was 6 y_i
