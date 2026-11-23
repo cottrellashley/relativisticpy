@@ -23,6 +23,7 @@ from sympy import (
 )
 
 from relativisticpy import EvaluationError
+from relativisticpy.errors import CompileError
 
 x, y = Symbol("x"), Symbol("y")
 f, P, Q = Function("f"), Function("P"), Function("Q")
@@ -76,6 +77,20 @@ def test_a_solidus_between_differentials_is_leibnizs_fraction(wb):
     wb.exe("g(x, y) := x^2 y")
     assert wb.expr("∂g/∂x") == 2 * x * y
     assert wb.expr("(del g)/(del x)") == 2 * x * y  # AsciiMath writes ∂ as del
+
+
+def test_sum_and_product_called_as_sympy_calls_them_are_latexs(wb):
+    # sum(1/n^2, (n, 1, oo)) was an unknown function, refused for the tuple in it
+    assert wb.expr("sum(1/n^2, (n, 1, oo))") == pi**2 / 6
+    assert wb.expr("summation(k, (k, 1, 10))") == 55
+    assert wb.expr("product(k, (k, 1, 5))") == 120
+    assert wb.expr("sum(1/(n^2 m^2), (n, 1, oo), (m, 1, oo))") == pi**4 / 36
+    wb.exe("a_n := 1/n")
+    assert wb.expr("sum(a_n, (n, 1, 3))") == wb.expr(r"\sum_{n=1}^{3} a_n") == Rational(11, 6)
+    with pytest.raises(CompileError, match="its index and the index's limits"):
+        wb.expr("sum([1, 2, 3])")
+    wb.exe("product(a, b) := a b")  # the program's own wins
+    assert wb.expr("product(2, 3)") == 6
 
 
 def test_oo_is_infinity_in_every_notation(wb):

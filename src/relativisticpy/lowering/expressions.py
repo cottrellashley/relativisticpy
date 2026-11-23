@@ -538,6 +538,8 @@ class Expressions(LinearAlgebra):
                 defined = f"{func.span.text} is the function defined on line {line}"
                 self._check_numbers(func.span.text, args, value, node.span, defined)
             return value
+        if binding is None and name in _BIG_OPERATOR_CALLS:  # sum(f, (n, 1, oo)), as SymPy
+            return self.value(_big_operator_call(node), scope, ctx)
         trace = binding is None and name in ("trace", "tr", "Tr") and len(node.args) == 1
         if trace and (traced := self._metric_trace(node.args[0], scope, ctx)) is not None:
             return traced
@@ -1879,3 +1881,42 @@ def _a_power(script: ast.Script) -> bool:
     if script.kind != "^" or body is None or _decoration(script):
         return False
     return not (isinstance(body, ast.Name) and body.id in (*_TRANSPOSES, "dagger"))
+
+
+#: The plain-text calls of a sum and a product, by SymPy's names and Python's: ``sum(f, (n,
+#: a, b))`` is ``\sum_{n=a}^{b} f`` and ``product(f, (k, a, b))`` is ``\prod_{k=a}^{b} f``.
+_BIG_OPERATOR_CALLS: Mapping[str, Literal["sum", "prod"]] = {
+    "sum": "sum",
+    "summation": "sum",
+    "product": "prod",
+}
+
+
+def _big_operator_call(node: ast.Call) -> ast.BigOperator:
+    """``sum(f, (n, a, b))``, ``summation(...)`` or ``product(...)``, a sum or a product as
+    SymPy writes one, as the LaTeX it stands for, so that each is read as
+    ``\\sum_{n=a}^{b} f`` is (design/notation.md, decision 39). With the limits of several
+    indices, the first is the innermost, as in SymPy. Anything else is refused."""
+    assert isinstance(node.func, ast.Name)
+    name, op = node.func.id, _BIG_OPERATOR_CALLS[node.func.id]
+    body, *limits = node.args or (None,)
+    written = [
+        limit.items
+        for limit in limits
+        if isinstance(limit, ast.Tuple)
+        and len(limit.items) == 3
+        and isinstance(limit.items[0], ast.Name)
+    ]
+    if body is None or not limits or len(written) != len(limits):
+        index = "k" if op == "prod" else "n"
+        what = "multiplies" if op == "prod" else "sums"
+        raise CompileError(
+            f"{name} takes what it {what}, then its index and the index's limits, in brackets",
+            span=node.span,
+            hint=f"for example {name}(1/{index}^2, ({index}, 1, oo))",
+        )
+    result: ast.Expr = body
+    for variable, lower, upper in written:
+        result = ast.BigOperator(op, variable, lower, upper, result, span=node.span)
+    assert isinstance(result, ast.BigOperator)
+    return result
