@@ -1,115 +1,114 @@
 # Roadmap
 
 > **For:** anyone deciding whether RelativisticPy will do what they need, and anyone
-> who would like to help. **You will learn:** what is done, and what comes next.
+> who would like to help. **You will learn:** what is done, what is being done now, and
+> what comes next.
 
-RelativisticPy began with one idea: Einstein's equations should look exactly as
-they do in papers, with an engine that can compute them. These are the plans
-that grew from it, and where each stands.
+RelativisticPy began with one idea: Einstein's equations should look exactly as they do
+in papers, with an engine that can compute them. It grew into a language that reads
+mathematics in general, as it is written. These are its plans, and where each stands.
+What was left on purpose, and why, is in `design/debt.md` in the repository.
 
 ## Done
 
-- **Equations that look like LaTeX.** Plain-text and LaTeX notation, mixed
-  freely; paste an equation from a paper and it runs.
-- **A context-sensitive grammar** for tensors: `G_{a=0 b}` selects components
-  rather than building a list, and `x^{a}` is a component or a power depending
-  on what `x` is.
-- **The built-in tensors**: metric, Christoffel symbols, Riemann, Ricci, Einstein
-  and Weyl tensors, Ricci and Kretschmann scalars, the Kronecker delta.
-- **Covariant derivatives**, in `\nabla_\mu` and semicolon notation, and partial
-  derivatives in `\partial_\mu` and comma notation.
-- **Symmetric and antisymmetric parts**, `T_{(ab)}` and `T_{[ab]}`, including
-  brackets that span tensors.
-- **Defining tensors** from components or from expressions, with indices
-  reordered to match.
-- **Metrics from line elements**, `ds^2 = ...`, including `d\Omega^2`.
-- **The geodesic equation**, symbolically, and integrated numerically with SciPy.
-- **Known spacetimes**: Minkowski, Schwarzschild, Reissner–Nordström, Kerr,
-  Kerr–Newman, FLRW, de Sitter and anti-de Sitter.
-- **Markdown notebooks**: run the equations of a Markdown document and get it
-  back with the results typeset.
-- **An intermediate representation** with an executor that computes lazily,
-  shares common subexpressions and works in parallel.
-- **Good errors**, located in the source, with hints.
-- **Checking papers**: run a paper's equations and see which hold. Sean
-  Carroll's lecture notes are the benchmark: 98.6% of their equations parse.
-- **Tensor equations solved as tensor equations**: `solve`, `trace`,
-  `simplify` and `subs` in index notation, with the identities of General
-  Relativity, before there are components, and components after.
-- **Beyond spacetime**: indices over spaces of any size, data from NumPy and
-  pandas, statistics as contractions with a measure, spectra and linear algebra,
-  sparse data, and JAX for gradients; portfolios, quantum systems, graphs and
-  regressions in the notation of General Relativity.
-- **One interface everywhere**: results look the same in Python, at the command
-  line, in notebooks and as JSON; every equation says whether it holds; errors
-  say where, why and what to do; `relativisticpy help` works offline.
-- **A tool for AI agents**: `relativisticpy mcp` serves computing, verifying and
-  checking over the Model Context Protocol ([the MCP server](mcp.md)).
-- **A curriculum with known answers**: 734 problems in 32 domains, from notation
-  to research, each with an independent answer. It measures what the language
-  can do, and the test suite keeps what passes passing.
+- **Mathematics as it is written.** LaTeX, plain text and Unicode, mixed freely. Plain
+  text and Unicode are read as the LaTeX they spell, or refused. An equation pasted from
+  a paper runs as it is.
+- **The core**: algebra; calculus, with derivatives in every notation, integrals,
+  limits, sums, products, series, `solve` and `dsolve`; linear algebra; and index
+  notation over any space, its rules checked before anything is computed.
+- **Fields in their books' notation**: special functions, vectors and matrices,
+  probability, signals, optimisation, number theory and combinatorics, and quantum
+  mechanics, with Dirac's notation and operators.
+- **General Relativity**: metrics from line elements; the Christoffel symbols and the
+  Riemann, Ricci, Einstein and Weyl tensors; covariant and Lie derivatives; geodesics,
+  symbolic and numerical; eight known spacetimes; and tensor equations solved as tensor
+  equations, before there are components.
+- **Nothing guessed silently.** A reading that could have been another carries a note,
+  and `explain` shows how each statement was read. What cannot be read or decided is
+  refused, saying where, why and what to write instead. What has no value, as 1/0 or an
+  integral that never settles, is refused too, and a closed form that numbers refute is
+  not given.
+- **Data, and Python**: indices over assets, days or the states of a qubit; data from
+  NumPy, pandas, SciPy and SymPy; JAX for gradients; and Python objects by name,
+  `\texttt{name}`.
+- **Checking papers**: `relativisticpy check` runs a paper's equations and says which
+  hold. Sean Carroll's lecture notes are the benchmark: 98.6% of their equations parse,
+  and the check finds three mistakes in them.
+- **For agents**: an MCP server, to compute, verify a step, check a paper and read the
+  documentation. Each value says whether it is a complete answer, and whether it is
+  approximate; each refusal says why.
+- **Tools**: the command line, Markdown notebooks, Jupyter and marimo, and an editor
+  that computes as it is typed. The documentation is offline, in `relativisticpy help`.
+- **A pipeline with one job for each pass**, from the lexer to the engines, and
+  **integrations to one pattern**: every function a capability that a module declares,
+  held to the pattern by a conformance suite, with no configuration.
+- **Known answers**: a curriculum of 734 problems in 32 fields, and a notation matrix of
+  44 constructs of the core, each written every way books write it. Each answer is
+  computed without RelativisticPy, and the tests keep what passes passing.
 
 ## Now
 
-- **Climbing the curriculum.** Its roadmap ranks what the failing problems need,
-  and the work goes in waves. First, a guard for each way the language can
-  misread notation, so that it refuses rather than answers wrongly. Then the
-  notation and mathematics that fail most often: special functions by their
-  book names, closed-form sums, what a parameter is assumed to be, functions of
-  matrices.
-- **A pipeline with one job for each pass**: reading, then index notation, then
-  lowering to an IR of named operations, which the engines run. Each pass can be
-  inspected, and `explain` shows how a program was read.
-- **Integrations, written to a pattern.** Each library (SciPy's special
-  functions, its FFT, scikit-learn and more) is one module of capabilities: how
-  a function is written, what it takes and gives, and what computes it. A
-  conformance suite verifies each module, so a new library can be added by
-  following the pattern, by a person or an agent, with no configuration.
-- **Python objects by name**: an array, a table or a function defined in Python
-  is used in the mathematics as `\texttt{signal}`, from the scope a workbook is
-  given, without reading files.
-- **Live mathematics**: values typeset in marimo and Jupyter, and an editor that
-  computes as you type and computes any part of an equation you point at.
+- **No silent wrong answer.** Version 0.1.0 waits on the wrong answers known in the
+  core, algebra, calculus, linear algebra and index notation: each is to be fixed, or
+  refused with what to write instead. Those of other fields are fixed too, or listed in
+  the notes of the release. Those known as this is written:
+  - a transpose written as Artin writes it, `A^t`, is a power by t, and of a 3 × 3
+    matrix a crash; Lang's \({}^tA\) and Griffiths' \(\tilde{A}\) are names;
+  - a row times a column is a 1 × 1 matrix written `A \cdot B`, or `AB` in LaTeX,
+    and a number written `A B`: one product, two answers;
+  - an accent on a defined name makes a new name: after `z := 3 + 4i`, `\bar{z}` is
+    `zbar`; and a plain name stands for a bold one: after `\mathbf{w} := (1, 2, 3)`
+    and `w := 7`, `\mathbf{w}` is 7;
+  - a partial derivative by the number of an argument, `f_1` or `D_1 f`, is a name or a
+    product;
+  - a name from a paper is read as a product, without a note, as \(\Phi_N(r)\) is;
+    and a check of a paper says that a relation between quantities nothing defines
+    differs, where it relates them;
+  - brackets after a defined number multiply: after `\delta := 0.1`, `\delta[n]` is
+    0.1 n;
+  - a coordinate along a path, \(q^i := (\theta(t), \phi(t))\), which the metric in a
+    Lagrangian does not follow.
+
+  `uv run python benchmarks/curriculum.py --failures` and
+  `uv run python benchmarks/notations.py --failures` list every wrong answer they find.
+- **The forms agents write.** Refused today, each with a reason: `\|x\|_p` of a vector,
+  `eig(A)`, `dot(u, v)`, `cross(u, v)`, `A.T` and `A @ B`.
+- **Climbing the curriculum.** What it refuses most, by cause, is in its own
+  [roadmap](https://github.com/cottrellashley/relativisticpy/blob/main/curriculum/ROADMAP.md).
 
 ## Next
 
-- **Derivatives in index notation**: \(\nabla_\mu\) and \(\partial_\mu\) as
-  part of the notation, with the Leibniz rule, metric compatibility and the
-  contracted Bianchi identity \(\nabla^\mu G_{\mu\nu} = 0\), so that
-  conservation laws can be derived rather than only checked.
+- **A core with no SymPy in it**: an IR of plain terms, one elaborator that ranks the
+  readings of a form, and the notation of each field declared as data by its
+  integration; then the core rebuilt in Rust.
+- **Results as terms, and other engines**: SymPy's answers translated back into the IR,
+  so that other engines can compute too, and two engines check each other.
+- **Derivatives in index notation**: \(\nabla_\mu\) and \(\partial_\mu\) as part of the
+  notation, with the Leibniz rule, metric compatibility and the contracted Bianchi
+  identity \(\nabla^\mu G_{\mu\nu} = 0\), so that conservation laws can be derived
+  rather than only checked.
 - **Abstract definitions**: `T_{\mu\nu} := (\rho + p) u_\mu u_\nu + p g_{\mu\nu}`
   with a velocity that has no components yet, kept as notation until it has.
-- **A visual engine, with [Manim](https://www.manim.community).** The
-  animation library behind 3Blue1Brown, driven by RelativisticPy: derivations
-  that animate step by step, as chains of equalities already are; orbits and
-  light rays integrated by `relativisticpy.numeric`; light cones tilting
-  towards a horizon; embedding diagrams and Penrose diagrams. Visuals would be
-  a scene library, `relativisticpy.visual`, behind an optional
-  `relativisticpy[visual]` extra, so the core keeps SymPy as its only
-  dependency.
-- **More of physics' implicit conventions**: \(x^\mu\) as the coordinates
-  themselves, coordinates along a curve, \(x^\mu(\lambda)\), in geodesic
-  equations, and \(\eta_{\mu\nu}\) as the Minkowski metric, so that more of a
-  paper can be checked.
-- **Coordinate transformations**: transform tensors between coordinate systems
-  with the Jacobian, e.g. Cartesian to spherical.
-- **Energy-momentum tensors** for common sources (perfect fluids, the
-  electromagnetic field) as built-ins, to state field equations in full.
-- **More spacetimes**: Oppenheimer–Snyder collapse, Lemaître–Tolman–Bondi dust,
-  Schwarzschild–de Sitter.
-- **Fields on grids**: the components of a tensor field evaluated over a grid
-  of points by the numerical kernels, rather than one point at a time, for
-  numerical relativity and for pictures.
-- **Optimisation in notation**: minimise \(w^a \Sigma_{ab} w^b\) subject to
-  constraints, with gradients from JAX; Dirac's bra-ket notation,
-  \(\langle\psi|H|\psi\rangle\); more of scikit-learn's estimators.
-- **Tensor and spacetime visualisation**: embedding diagrams, light cones,
-  Penrose–Carter diagrams.
-- **The ADM formalism** and tools for numerical relativity.
-- **A language server**, for highlighting, errors and "compute this" in
-  editors.
-- **Pages that compute with no server**: notebooks exported to WebAssembly,
-  running RelativisticPy in the reader's browser.
+- **More of physics' implicit conventions**: \(x^\mu\) as the coordinates themselves,
+  coordinates along a curve, \(x^\mu(\lambda)\), and \(\eta_{\mu\nu}\) as the
+  Minkowski metric, so that more of a paper can be checked.
+- **Premises in papers**: a condition a derivation states, as \(R_{\mu\nu} = 0\), so
+  that what follows from it is not read as a mistake.
+- **Units**: quantities with units, converted and checked for dimensions.
+- **Optimisation over a vector written with its index**: minimise
+  \(w^a \Sigma_{ab} w^b\) subject to constraints, with gradients from JAX.
+- **Coordinate transformations**, with the Jacobian; **energy-momentum tensors** for
+  perfect fluids and the electromagnetic field; and **more spacetimes**:
+  Oppenheimer–Snyder collapse, Lemaître–Tolman–Bondi dust, Schwarzschild–de Sitter.
+- **A visual engine, with [Manim](https://www.manim.community)**: derivations that
+  animate step by step, orbits and light rays, light cones, embedding diagrams and
+  Penrose diagrams, behind an optional `relativisticpy[visual]` extra.
+- **Fields on grids**, for numerical relativity and for pictures, and the ADM
+  formalism.
+- **A language server**, for highlighting, errors and "compute this" in editors; and
+  **pages that compute with no server**, in the reader's browser.
+- **An evaluation**: how a model does with the `verify` tool and without it.
 
 ## Someday
 
