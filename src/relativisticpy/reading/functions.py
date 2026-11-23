@@ -32,8 +32,8 @@ from relativisticpy.ir import SCALAR, VALUE, Node
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
 from relativisticpy.reading.families import Families, Family
-from relativisticpy.reading.labels import _base_name, label_name
 from relativisticpy.reading.names import _bracketed_order, _shown, _with_arguments
+from relativisticpy.reading.subscripts import _base_name, label_name
 
 #: The decision of whether a name before brackets is called or multiplies.
 CALL = "product or call"

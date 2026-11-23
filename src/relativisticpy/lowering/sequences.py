@@ -34,9 +34,9 @@ from relativisticpy.language.parser import python_indexing
 from relativisticpy.language.source import Span
 from relativisticpy.lowering.arithmetic import INDEX_SET, Arithmetic
 from relativisticpy.reading import sequences
-from relativisticpy.reading.families import Family
 from relativisticpy.reading.names import _shown
 from relativisticpy.reading.sequences import SAMPLE, Response, Sample, Sequence
+from relativisticpy.reading.subscripts import BRACKET_BOOKS, Kind
 from relativisticpy.runtime.sequences import capital
 from relativisticpy.typing.notation import _passed
 from relativisticpy.typing.syntax import _walk
@@ -44,9 +44,6 @@ from relativisticpy.typing.typer import _listed
 
 #: The decision of what = between sequences is, and of what := with brackets defines.
 DEFINITION = "definition or claim"
-
-#: The capabilities signal processing writes with a letter and a point in brackets.
-_BOOK = {"delta": "impulse", "u": "step"}
 
 #: Where a program's difference equation is kept, among the conventions it states.
 SYSTEM = "difference equation"
@@ -78,9 +75,6 @@ class Sequences(Arithmetic):
 
     def __init__(self, session: Session) -> None:
         super().__init__(session)
-        # The names an equation being compiled writes at points that nothing defines: its
-        # unknown sequences, as y and x of y[n] = x[n] + \frac{1}{2} y[n-1].
-        self._unknown_sequences: frozenset[str] = frozenset()
         # The sequences defined through their own members whose value is being made, with
         # the function each member stands for while it is.
         self._sequence_members: dict[str, str] = {}
@@ -130,20 +124,9 @@ class Sequences(Arithmetic):
         return False
 
     def _a_sequence(self, name: ast.Name, point: ast.Expr, scope: Scope) -> bool:
-        """Whether ``name[point]`` is a sequence at a point (see :meth:`_sampled`)."""
-        binding = scope.lookup(name.id)
-        if isinstance(binding, FunctionBinding):
-            definition = binding.definition
-            if isinstance(definition, Sequence):
-                return True
-            return len(definition.params) == 1 and not isinstance(definition, Family | Response)
-        if binding is not None:
-            return False
-        if name.id in self._unknown_sequences:
-            return True
-        if self._has_a_meaning(name.id) or name.id not in _BOOK:
-            return False
-        return sequences.integral(point, lambda label: self._integral_name(label, scope))
+        """Whether ``name[point]`` is a sequence at a point, as the resolver reads it (see
+        :meth:`~relativisticpy.reading.subscripts.Subscripts._bracket_reading`)."""
+        return self._bracket_reading(name, point, scope).kind in (Kind.SEQUENCE, Kind.BOOK)
 
     def _read_as_before(
         self, name: ast.Name, point: ast.Expr, binding: VariableBinding | TensorBinding
@@ -157,33 +140,6 @@ class Sequences(Arithmetic):
         shown = f"{name.span.text}[{point.span.text}]"
         why = f"{name.span.text} is {what}, not a sequence"
         self._decide(SAMPLE, name.span, "as before", why, written=shown)
-
-    def _integral_name(self, label: str, scope: Scope) -> bool | None:
-        """Whether a name in a point is an integer: one bound to a whole number, or assumed
-        an integer; ``None`` where it is free, or bound to an expression of symbols, as the
-        index of a sum and the label of a sequence are, which a letter may be; and ``False``
-        for one bound to any other number, as j := \\sqrt{-1}, or to a function."""
-        binding = scope.lookup(label)
-        if isinstance(binding, VariableBinding):
-            value = self._folded(binding.node)
-            if not isinstance(value, sympy.Basic):
-                return None  # computed, as the point a sequence is taken at may be
-            if value.is_integer:
-                return True
-            return False if value.is_number else None
-        if binding is not None:
-            return False
-        if label in CONSTANTS:
-            return False
-        symbol = self.session.assumptions.get(label)
-        return True if symbol is not None and symbol.is_integer else None
-
-    def _has_a_meaning(self, name: str) -> bool:
-        """Whether the program gives a name a meaning beyond its scope: a coordinate, a
-        function of the coordinates, or a symbol it says something of."""
-        coordinates = {c.name for c in self.session.coordinates or ()}
-        session = self.session
-        return name in coordinates or name in session.functions or name in session.assumptions
 
     def _product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Term:
         rebuilt = sequences.merged(
@@ -220,7 +176,7 @@ class Sequences(Arithmetic):
             self._decide(SAMPLE, node.span, f"the sequence {written}, unknown, at {at}", why)
             value = self.value(point, scope, ctx)
             return self._call("core.function", [value], SCALAR, node.span, (("name", name.id),))
-        capability = integrations.find(_BOOK[name.id])
+        capability = integrations.find(BRACKET_BOOKS[name.id])
         note: str | None = None
         if not self._used_sequences:  # where a sequence is used, its definition said it
             note = (
@@ -471,7 +427,7 @@ class Sequences(Arithmetic):
         for name, point in sequences.samples(node):
             if scope.lookup(name.id) is not None or self._has_a_meaning(name.id):
                 continue
-            if name.id in _BOOK or name.id in CONSTANTS or name.verbatim:
+            if name.id in BRACKET_BOOKS or name.id in CONSTANTS or name.verbatim:
                 continue
             if sequences.integral(point, lambda label: self._integral_name(label, scope)):
                 found.append(name.id)
@@ -495,7 +451,7 @@ class Sequences(Arithmetic):
         found = sequences.target(equation.lhs)
         if found is not None and scope.lookup(found[0].id) is None:
             name, point = found
-            if not self._has_a_meaning(name.id) and name.id not in _BOOK:
+            if not self._has_a_meaning(name.id) and name.id not in BRACKET_BOOKS:
                 written = sequences.samples(equation.rhs)
                 of_sequences = any(
                     each.id == name.id or self._a_sequence(each, at, scope) for each, at in written

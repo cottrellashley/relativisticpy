@@ -17,7 +17,6 @@ another reading was possible:
 
 from __future__ import annotations
 
-import re
 from collections.abc import Sequence
 
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS
@@ -34,117 +33,19 @@ from relativisticpy.ir import SCALAR, Node, TensorType
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.vocabulary import GREEK
-from relativisticpy.reading.matrices import Matrices
-from relativisticpy.reading.names import (
-    _bracketed_order,
-    _letter,
-    _shown,
-    _written_as_letter,
-    accented,
+from relativisticpy.reading.names import _letter, _shown, _written_as_letter
+from relativisticpy.reading.subscripts import (
+    Subscripts,
+    _base_name,
+    _index_like,
+    _labelled_by_index,
+    _raised,
 )
+from relativisticpy.reading.subscripts import label_name as label_name
 from relativisticpy.typing.syntax import _plain_label, _walk
 
 #: The decision of whether a script on a name labels it or indexes it.
 LABEL = "label or index"
-
-#: The commands written as subscripts that label a name and never index it, as the Sun's
-#: \odot does in M_\odot.
-_MARKS = frozenset(
-    {
-        "odot", "oplus", "earth", "sun", "star", "ast", "bullet", "circ", "times", "pm", "mp",
-        "dagger", "ddagger", "infty", "parallel", "perp", "prime", "max", "min",
-    }
-)  # fmt: skip
-
-#: How a script writes a word, as \rm does in T_{\rm eff}.
-_WORD = re.compile(r"\\(?:rm|mathrm|text[a-z]*|mbox|operatorname)(?![A-Za-z])")
-
-
-def _base_name(base: ast.Expr) -> str | None:
-    """The name a base with scripts is written as: ``lambda`` of ``\\lambda_1``,
-    ``betahat`` of ``\\hat\\beta_1``, ``x'`` of ``x'_1``; ``None`` for what is no name."""
-    if isinstance(base, ast.Name):
-        return base.id
-    if (
-        isinstance(base, ast.Accent)
-        and base.accent not in ("dot", "ddot")
-        and isinstance(base.base, ast.Name)
-    ):
-        return accented(base.base.id, base.accent)
-    if isinstance(base, ast.Prime):
-        return base.func.id + "'" * base.order
-    return None
-
-
-def _lowered(script: ast.Script) -> str:
-    """A subscript as the name it labels writes it: ``1`` of ``\\lambda_1``, ``10`` of
-    ``V_{10}``, ``odot`` of ``M_\\odot``, ``eff`` of ``T_{\\rm eff}``, ``+`` of ``r_+``,
-    ``times`` of ``h_\\times``."""
-    if script.indices is not None:
-        return "".join(
-            str(item.label)
-            if item.label is not None
-            else (item.value.text if isinstance(item.value, ast.Number) else "")
-            for item in script.indices.items
-        )
-    written = script.span.text.lstrip("_").strip()
-    if written.startswith("{") and written.endswith("}"):
-        written = written[1:-1]
-    return written.replace(" ", "").replace("\\", "")
-
-
-def _raised(script: ast.Script) -> str | None:
-    """A superscript that labels a name, as it writes the name: ``2`` of ``\\sigma^2``,
-    ``0`` of ``\\gamma^0``, ``(0)`` of ``E^{(0)}``; ``None`` for one that is no number or
-    order, as ``\\mu`` or ``-1``."""
-    body = script.body
-    if isinstance(body, ast.Number) and body.text.isdigit():
-        return body.text
-    if _bracketed_order(body):
-        assert body is not None
-        return body.span.text.replace(" ", "")
-    return None
-
-
-def label_name(node: ast.Scripted, *, raised: bool = True) -> str | None:
-    """The name a name with scripts makes where its scripts label it, those raised first,
-    as TeX sets ``E^{(0)}_n`` and ``E_n^{(0)}`` alike: ``lambda_1`` of ``\\lambda_1``,
-    ``sigma^2`` of ``\\sigma^2``, ``E^(0)_n`` of either, ``Y^1_2`` of ``Y_2^1``, whose
-    ``Y_2`` the lexer joins. With ``raised`` false, of its base and subscripts alone, as
-    ``lambda_1`` of ``\\lambda_1^2``. ``None`` where the base is no name, or a superscript
-    is no label."""
-    base = _base_name(node.base)
-    if base is None:
-        return None
-    head, underscore, joined = base.partition("_")
-    if not head:
-        return None
-    below = [joined] if underscore and joined else []
-    marks = ""
-    for script in node.scripts:
-        if script.kind == "_":
-            below.append(_lowered(script))
-        elif raised:
-            mark = _raised(script)
-            if mark is None:
-                return None
-            marks += "^" + mark
-    if not below and not marks:
-        return None
-    return head + marks + ("_" + "".join(below) if below else "")
-
-
-def _an_index_label(label: str) -> bool:
-    """Whether a label is written as an index is: a letter or a Greek letter, maybe primed
-    or numbered, as ``\\mu'``, ``\\mu_n`` and ``i0`` are, or ``\\cdots``; not a mark, as
-    ``odot``, nor a word, as ``eff``."""
-    if label == "⋯":
-        return True
-    if label in _MARKS:
-        return False
-    letters = re.sub(r"[0-9']", "", label.partition("_")[0])
-    return (len(letters) == 1 and letters.isascii() and letters.isalpha()) or letters in GREEK
-
 
 #: The names written before another to name a change in it, as \Delta x is the change in x.
 _INCREMENTS = frozenset({"Delta"})
@@ -174,36 +75,7 @@ def compound_name(increment: ast.Expr, operand: ast.Expr) -> str | None:
     return f"{increment.id} {changed}" if changed is not None else None
 
 
-def _index_like(script: ast.Script) -> bool:
-    """Whether a subscript could be index labels or numbers, as those of ``R_{01}``,
-    ``g_{tt}`` and ``S_{\\mu'\\nu'}`` are; not a mark, as ``\\odot``, a word, as ``eff``
-    or ``{\\rm eff}``, nor what is no index list, as ``+`` or ``n+1``."""
-    if script.indices is None or _WORD.search(script.span.text):
-        return False
-    return all(
-        item.label is None or (_an_index_label(item.label) and item.label not in _MARKS)
-        for item in script.indices.items
-    )
-
-
-def _labelled_by_index(node: ast.Scripted) -> bool:
-    """Whether a subscript of a name is written with an index label, as ``\\mu`` and ``i``
-    are in ``\\bar h_{\\mu\\nu}`` and ``\\bar h_{i0}``, and the frame's index ``(\\mu)``
-    is in ``\\hat e_{(\\mu)}``, rather than with numbers, marks, signs and words alone."""
-    for script in node.scripts:
-        if script.kind != "_":
-            continue
-        if script.indices is None:
-            body = script.body
-            name = _base_name(body) if body is not None else None
-            if name is not None and _an_index_label(name):
-                return True
-        elif any(i.label is not None and _an_index_label(i.label) for i in script.indices.items):
-            return True
-    return False
-
-
-class Labels(Matrices):
+class Labels(Subscripts):
     """How the scripts on a name are read: as part of the name, or as its indices."""
 
     def _value_or_notation(
@@ -212,37 +84,6 @@ class Labels(Matrices):
         """A value, or notation kept as it is written, which the lowerer gives (see
         :class:`~relativisticpy.lowering.notation.Notation`)."""
         raise NotImplementedError
-
-    # -- what a script on a name is -----------------------------------------------------
-
-    def _an_index_here(self, label: str) -> bool:
-        """Whether a label is an index wherever it is written: declared to range over a
-        space, ranging over one in this statement, or bound as an index is by a sum."""
-        return label in self._labels or label in self.session.labels or label in self._bound
-
-    def _indexes(self, node: ast.Scripted, base: str) -> bool:
-        """Whether the subscripts of a name nothing defines are indices (decision 5 of
-        design/notation.md): a label declared or ranging over a space; of a built-in
-        tensor, as many as it has, any index label, as \\nu' of ``W_{\\nu'}``, and numbers
-        while a metric is in force, as in ``R_{01}``. Numbers without a metric, marks and
-        words label it, as in ``\\delta_0`` and ``R_\\odot``."""
-        items = [
-            item
-            for script in node.scripts
-            if script.indices is not None
-            for item in script.indices.items
-        ]
-        if any(item.label is not None and self._an_index_here(item.label) for item in items):
-            return True
-        if not any(self._builtin_tensor(base, rank) for rank in range(1, 5)):
-            return False
-        indexed = all(s.indices is not None for s in node.scripts)
-        if indexed and self._builtin_tensor(base, len(items)) is not None:
-            return True
-        if _labelled_by_index(node):
-            return True
-        lowered = [s for s in node.scripts if s.kind == "_"]
-        return self.session.metric is not None and all(map(_index_like, lowered))
 
     # -- names in expressions -------------------------------------------------------------
 

@@ -771,7 +771,7 @@ class Transforms(Definitions):
     ) -> list[tuple[str, Space | None, bool, int]]:
         """What a sum's body writes its variable on as an index: each tensor, with the space
         of that axis and whether the index is up, and each list, with its length, as x is
-        in x_n of x := (1, 2, 0, -1)."""
+        in x_n of x := (1, 2, 0, -1), where the resolver reads the name as its element."""
         found: list[tuple[str, Space | None, bool, int]] = []
         for current in _walk(body):
             entries: list[tuple[str, bool]] | None = None
@@ -794,7 +794,7 @@ class Transforms(Definitions):
                 axis = labels.index(label)
                 if axis < len(node.type.spaces):
                     found.append((name, node.type.spaces[axis], entries[axis][1], 0))
-            elif node is not None and (size := _elements(node)) is not None and len(labels) == 1:
+            elif len(labels) == 1 and (size := self._list_summed(current, label, scope)):
                 found.append((name, None, False, size))
         return found
 

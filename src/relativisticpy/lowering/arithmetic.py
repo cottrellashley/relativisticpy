@@ -20,7 +20,6 @@ from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import Context, Scope, VariableBinding
 from relativisticpy.compiler.session import Session
 from relativisticpy.errors import CompileError
-from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, VALUE, EquationType, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
@@ -89,13 +88,7 @@ class Arithmetic(PythonObjects):
         return self._call("arith.solve", [unknown, *pairs], VALUE, node.span)
 
     def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
-        if scope.lookup(node.id) is not None:
-            return super()._Name(node, scope, ctx)
-        if (shape := forms.subscripted_shape(node)) is not None:
-            book = self._book_name(shape, node, node.span.text, scope)  # B_n, H_n
-            if book is not None:
-                return self._capability(book, node.span, scope, ctx)
-        if (pinned := self._pinned(node)) is not None:
+        if scope.lookup(node.id) is None and (pinned := self._pinned(node)) is not None:
             return pinned  # x, of which 0 \le x < 105 and congruences are assumed
         return super()._Name(node, scope, ctx)
 

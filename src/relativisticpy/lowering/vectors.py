@@ -45,8 +45,9 @@ from relativisticpy.language.source import Span
 from relativisticpy.lowering.probability import Probability
 from relativisticpy.reading.families import Family
 from relativisticpy.reading.labels import label_name
-from relativisticpy.reading.names import _a_pair, _named, _written_as_letter, _written_with
+from relativisticpy.reading.names import _a_pair, _written_as_letter, _written_with
 from relativisticpy.reading.quantum import OperatorBinding
+from relativisticpy.reading.subscripts import Reading
 from relativisticpy.reading.vectors import (
     BOLD,
     CARTESIAN,
@@ -882,8 +883,6 @@ class VectorCalculus(Vectors, Probability):
                 )
                 self._note(note)
                 return unit
-        if (partial := self._partial_named(node, scope, ctx)) is not None:  # f_x
-            return partial
         return super()._Name(node, scope, ctx)
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
@@ -891,8 +890,6 @@ class VectorCalculus(Vectors, Probability):
             return unit
         if (epsilon := self._levi_civita(node, scope, ctx)) is not None:  # \epsilon_{ijk}
             return epsilon
-        if (partial := self._subscript_partial(node, scope, ctx)) is not None:  # \mathbf{x}_u
-            return partial
         if hatted(node.base) is not None:  # {\hat\theta}^{(\mu)}: a name, as before
             self._hats_named.add(id(node.base))
         return super()._Scripted(node, scope, ctx)
@@ -976,59 +973,25 @@ class VectorCalculus(Vectors, Probability):
             return None
         return self._unit_vector(label, node, scope, written_bold=True)
 
-    def _subscript_partial(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
-        """``\\mathbf{x}_u`` or ``\\mathbf{x}_{uv}`` of a function the program defines of u
-        and v, where nothing defines the name: its partial derivatives, at its parameters
-        (decision 5.6 of design/notation.md)."""
-        base = _named(node.base)  # \bar{\mathbf{x}}_u, of \bar{\mathbf{x}}(u, v) := ...
-        if not isinstance(base, ast.Name) or len(node.scripts) != 1 or node.scripts[0].kind != "_":
-            return None
-        script = node.scripts[0]
-        items = script.indices.items if script.indices is not None else ()
-        labels = [str(item.label) for item in items if item.label is not None]
-        if len(labels) != len(items):
-            return None
-        return self._partial_by(base.id, node.base.span.text, labels, node, scope, ctx)
-
-    def _partial_named(self, node: ast.Name, scope: Scope, ctx: Context) -> Node | None:
-        """``f_x`` or ``f_{xy}``, one name as the lexer joins it, of a function the program
-        defines of x and y: its partial derivatives, as :meth:`_subscript_partial`."""
-        function, underscore, labels = node.id.partition("_")
-        if not (underscore and function and labels.isalpha()) or scope.lookup(node.id):
-            return None
-        return self._partial_by(function, function, [labels], node, scope, ctx)
-
-    def _partial_by(
-        self,
-        function: str,
-        written_function: str,
-        labels: list[str],
-        node: ast.Expr,
-        scope: Scope,
-        ctx: Context,
-    ) -> Node | None:
-        """The partial derivatives of the function the program defines as ``function``, by
-        the parameters ``labels`` name in turn, a run of letters each naming one, at its
-        parameters; ``None`` where it defines no such function, as a family is, or defines
-        the name written."""
-        binding = scope.lookup(function)
-        if not isinstance(binding, FunctionBinding) or isinstance(binding.definition, Family):
-            return None
+    def _partial_derivative(self, reading: Reading, scope: Scope, ctx: Context) -> Node:
+        """``f_x``, ``f_{xy}`` or ``\\mathbf{x}_u``, read by the resolver as the partial
+        derivatives of a function the program defines, by the parameters its subscript
+        names in turn (decision 5.6 of design/notation.md): the derivatives, at its
+        parameters."""
+        form, binding = reading.written, reading.binding
+        assert form is not None
+        assert isinstance(binding, FunctionBinding)
+        node, labels = form.node, list(reading.labels)
+        written_function = form.base if form.joined else form.head.span.text
         params = binding.definition.params
-        if not all(label in params for label in labels):
-            labels = [letter for label in labels for letter in label]
-        if not labels:
-            return None
-        if not set(labels) <= set(params) or scope.lookup(f"{function}_{''.join(labels)}"):
-            return None
         written = node.span.text
         shown = ", ".join(params)
         by = " and ".join(dict.fromkeys(labels))
         why = f"{written_function} is a function of {shown}, and nothing defines {written}"
-        reading = f"the partial derivative of {written_function}({shown}) by {by}"
-        note = f"{written} is read as {reading}"
+        read_as = f"the partial derivative of {written_function}({shown}) by {by}"
+        note = f"{written} is read as {read_as}"
         self._note(note)
-        self._decide(VECTOR, node.span, reading, why, note)
+        self._decide(VECTOR, node.span, read_as, why, note)
         symbols = [self.graph.const(self.session.symbol(param), SCALAR) for param in params]
         body = self._inline(binding, symbols, node.span, ctx)
         variables = [(symbols[params.index(label)], 1) for label in labels]

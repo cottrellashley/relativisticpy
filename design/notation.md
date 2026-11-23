@@ -56,6 +56,8 @@ the interface's rule: never guess silently. Where a reading is chosen, say so in
 7. in a letter run the subscript binds to the last letter, as in TeX (`iE_1` is i·E_1);
 8. a comma separates labels on a name that is not a tensor.
 
+**What implementing one resolver settled** (23 November 2026). One resolver reads every name with a subscript, and every name with brackets right after it, and each layer of the compiler asks it (`relativisticpy.reading.subscripts`); before, each layer had a test of its own, and the order of the layers decided. A user's definition always wins, so the readings of what the program defines come before those of what is built in. In order: a name the program defines as it is written, as `c_1` after `c_1 := 5`; an index of a tensor the program defines, braced or not; an entry of a matrix, `A_{12}`; a member of a family, or of a recurrence; an element of a list; a member of a sample; a sequence at a point; a partial derivative; an index of a built-in tensor in force; a book name of an integer (decisions 34 and 35); and, last, a label, part of the name. Where the program defines a base as two of these, as a family `c_n` and a list `c`, the first is taken, whatever the letter of the subscript, and a note says which the other was. Whether a subscript picks a member is decided on the subscript as the parser read it, a number, a name or an expression, never on its text.
+
 ## 6. What a superscript means
 
 **Waiting on it:** `transpose-dagger` (10), `superscript-label` (8), `star-conjugate` (6), `nth-derivative` (2), and four more.

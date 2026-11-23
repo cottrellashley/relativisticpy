@@ -21,10 +21,9 @@ reading recorded with why, and a note where another reading was possible:
 
 from __future__ import annotations
 
-import contextlib
 import re
 from collections.abc import Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import replace
 from typing import Literal
 
 import sympy
@@ -45,9 +44,8 @@ from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
-from relativisticpy.reading.labels import _WORD, Labels, _raised, label_name
+from relativisticpy.reading.labels import Labels
 from relativisticpy.reading.names import (
-    _a_member,
     _mentions_symbol,
     _recurrence,
     _shown,
@@ -55,6 +53,17 @@ from relativisticpy.reading.names import (
     _subscripted,
     _with_arguments,
 )
+from relativisticpy.reading.subscripts import (
+    _WORD,
+    Kind,
+    Reading,
+    _raised,
+    family_of,
+    label_name,
+    member_written,
+    subscripted,
+)
+from relativisticpy.reading.subscripts import Family as Family
 from relativisticpy.typing.notation import _passed
 from relativisticpy.typing.typer import _listed
 
@@ -66,32 +75,6 @@ _LABEL = re.compile(r"(?P<label>[A-Za-z])(?P<shift>[-+]\d+)?")
 
 #: How many terms a sum or a product is taken term by term at most.
 _TERMS = 100
-
-
-@dataclass(frozen=True)
-class Family(ast.FunctionDefinition):
-    """A family defined with a free label, as ``c_n := 1/n^2`` or ``\\psi_n(x) := ...``:
-    the function of its label, then of its parameters, that each of its members is, bound
-    under the family's name as written, ``c_n``. ``base`` is what its members are written
-    with, c; ``fixed`` the names its value writes with the base at a subscript free of the
-    label, as x_0 of ``x_n := x_0 + n d``, which are names of their own; ``shift`` how far
-    the member it defines is from its label, as 2 of ``a_{n+2} := ...``; and ``recurring``
-    whether its value is written with its own members."""
-
-    base: str = field(default="", kw_only=True)
-    fixed: frozenset[str] = field(default=frozenset(), kw_only=True)
-    shift: int = field(default=0, kw_only=True)
-    recurring: bool = field(default=False, kw_only=True)
-
-    @property
-    def label(self) -> str:
-        """The label a member's subscript gives a value, n of ``c_n``."""
-        return self.params[0]
-
-    @property
-    def parameters(self) -> tuple[str, ...]:
-        """The parameters of each member, x of ``\\psi_n(x)``; none of ``c_n``."""
-        return self.params[1:]
 
 
 def _family_target(target: ast.Expr) -> tuple[str, str, int] | None:
@@ -180,9 +163,6 @@ class Families(Labels):
 
     def __init__(self, session: Session) -> None:
         super().__init__(session)
-        # The labels of the families whose members are being made, each with the member's
-        # subscript: \sigma_a of T_a := \sigma_a/2 is \sigma_1 in T_1.
-        self._at_members: dict[str, Node] = {}
         # The families defined through their own members whose value is being made, by
         # the base their members are written with, and the function each member stands
         # for while it is.
@@ -194,18 +174,6 @@ class Families(Labels):
         raise NotImplementedError
 
     # -- what a family is -----------------------------------------------------------------
-
-    def _family_of(self, base: str, scope: Scope) -> FunctionBinding | None:
-        """The family the program defines whose members are written with ``base``, as c_n
-        is for c."""
-        current: Scope | None = scope
-        while current is not None:
-            for _, binding in reversed(current.bindings()):
-                definition = binding.definition if isinstance(binding, FunctionBinding) else None
-                if isinstance(definition, Family) and definition.base == base:
-                    return binding  # type: ignore[return-value]
-            current = current.parent
-        return None
 
     def _may_label(self, label: str, scope: Scope) -> bool:
         """Whether a letter may be a family's label: no index, no coordinate, and free,
@@ -364,16 +332,6 @@ class Families(Labels):
 
     # -- members ----------------------------------------------------------------------------
 
-    @contextlib.contextmanager
-    def _members_at(self, label: str, point: Node) -> Iterator[None]:
-        """Make a family's value at a member: its label's subscripts are the member's."""
-        saved = dict(self._at_members)
-        self._at_members[label] = point
-        try:
-            yield
-        finally:
-            self._at_members = saved
-
     def _member(
         self,
         binding: FunctionBinding,
@@ -479,36 +437,43 @@ class Families(Labels):
         ctx: Context,
         written: str | None = None,
     ) -> Node | None:
-        """A name with a subscript that nothing defines read as a member of a family of its
-        base, as ``c_1`` and ``a_{n+1}`` are; or the name of the member's subscript inside
-        a family's value, as \\sigma_a is \\sigma_1 in T_1. ``None`` for a name that is
-        neither, or that is one of the names a family's value writes, as x_0; and, not
-        called, for a subscript that is a letter nothing binds, as k of c_k, a symbol of
-        its own as before."""
-        written_subscript = written or subscript.span.text.replace(" ", "")
+        """A name of ``base`` with a ``subscript``, which nothing defines, where the
+        resolver reads it as a member of a family (see
+        :meth:`~relativisticpy.reading.subscripts.Subscripts._reads_as_member`); ``None``
+        where it does not."""
+        shown = written or subscript.span.text.replace(" ", "")
+        form = member_written(node, base, subscript, shown)
+        reading = self._reads_as_member(form, scope, ctx.latex, arguments is not None)
+        if reading is None or reading.refusal is not None:
+            return None
+        return self._member_read(reading, arguments, scope, ctx)
+
+    def _member_read(
+        self, reading: Reading, arguments: Sequence[ast.Expr] | None, scope: Scope, ctx: Context
+    ) -> Node | None:
+        """A member of a family, as the resolver read it: the family at the subscript, and
+        at the ``arguments`` where it is called; or the name at the value its subscript has
+        here, as \\sigma_a is \\sigma_1 in T_1. ``None`` where that names no member."""
+        written = reading.written
+        assert written is not None
+        node, base, subscript = written.node, written.base, written.subscript
+        assert subscript is not None
         if isinstance(subscript, ast.Name) and subscript.id in self._at_members:
             return self._at_member(node, base, subscript.id, arguments, scope, ctx)
-        binding = self._family_of(base, scope)
-        if binding is None:
-            return None
+        binding = reading.binding
+        assert isinstance(binding, FunctionBinding)
         family = binding.definition
         assert isinstance(family, Family)
-        name = f"{base}_{written_subscript}"
-        if name in family.fixed:
-            return None
         bound = isinstance(subscript, ast.Name) and scope.lookup(subscript.id) is not None
         own = isinstance(subscript, ast.Name) and subscript.id == family.label
-        if arguments is None and not (own or _a_member(written_subscript, bound)):
-            return None
-        if own and not bound:  # c_n as it stands: at its label, never at i = \sqrt{-1}
+        if own and not bound:  # c_n as it stands: at its label, never at i = \\sqrt{-1}
             point = self._symbol_of(family.label)
         else:
             point = self.value(subscript, scope, ctx)
         args = [self.value(a, scope, ctx) for a in arguments] if arguments is not None else None
         member = f"{_shown(base, ctx.latex)}_{family.label}"
         why = f"{member} is a family in {family.label}, defined on line {family.span.line}"
-        reading = f"{member} at {family.label} = {written_subscript}"
-        self._decide(FAMILY, node.span, reading, why)
+        self._decide(FAMILY, node.span, f"{member} at {family.label} = {written.shown}", why)
         return self._member(binding, point, args, node.span, scope, ctx)
 
     def _at_member(
@@ -531,7 +496,7 @@ class Families(Labels):
         if isinstance(value, sympy.Integer | sympy.Symbol):
             shown = str(value) if isinstance(value, sympy.Integer) else value.name
             named = ast.Name(f"{base}_{shown}", verbatim=True, span=node.span)
-            if scope.lookup(named.id) is not None or self._family_of(base, scope) is None:
+            if scope.lookup(named.id) is not None or family_of(base, scope) is None:
                 if arguments is not None:
                     return self.value(ast.Call(named, tuple(arguments), span=node.span), scope, ctx)
                 return self.value(named, scope, ctx)
@@ -540,7 +505,7 @@ class Families(Labels):
             else:
                 written = ast.Name(shown, span=node.span)
             return self._member_written(node, base, written, arguments, scope, ctx, shown)
-        binding = self._family_of(base, scope)
+        binding = family_of(base, scope)
         if binding is None:
             return None
         args = [self.value(a, scope, ctx) for a in arguments] if arguments is not None else None
@@ -552,13 +517,11 @@ class Families(Labels):
         binding = scope.lookup(node.id)
         if isinstance(binding, FunctionBinding) and isinstance(binding.definition, Family):
             return self._family_alone(node, binding, None, scope, ctx)  # c_n
-        if binding is None:  # c_1, t_i
-            base, underscore, subscript = node.id.partition("_")
-            written = _subscript_written(subscript, node.span) if underscore and base else None
-            if written is not None:
-                member = self._member_written(node, base, written, None, scope, ctx, subscript)
-                if member is not None:
-                    return member
+        written = subscripted(node)
+        if written is not None:  # c_1, t_i, f_x, X_i, H_n, y_t
+            term = self._subscripted_term(written, scope, ctx)
+            if term is not None:
+                return term
         return super()._Name(node, scope, ctx)
 
     def _family_alone(
@@ -582,36 +545,23 @@ class Families(Labels):
         return member
 
     def _labelled(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term | None:
-        """A name with one subscript, as ``a_{n+1}``, ``E_{-1}`` or ``c_{n}``, read as a
-        member of a family, with what is raised on it a power, as ``T_1^2``; or as a name of
-        its own (see :meth:`Labels._labelled`)."""
-        lowered = [s for s in node.scripts if s.kind == "_"]
-        raised = [s for s in node.scripts if s.kind == "^"]
-        base = node.base
+        """A name with one subscript, as ``a_{n+1}``, ``E_{-1}``, ``X_{i}`` or ``f_{xy}``,
+        read as the resolver reads it, with what is raised on a member its power, as
+        ``T_1^2``; or as a name of its own (see :meth:`Labels._labelled`)."""
         if (member := self._ordered_member(node, scope, ctx)) is not None:  # E^{(0)}_1
             return member
-        if len(lowered) != 1 or not isinstance(base, ast.Name) or "_" in base.id:
-            return super()._labelled(node, scope, ctx)
-        name = label_name(node, raised=False)
-        if name is not None and scope.lookup(name) is not None:
-            return super()._labelled(node, scope, ctx)  # E_\pi, defined
-        subscript = lowered[0].body
-        if subscript is None:
-            return super()._labelled(node, scope, ctx)
-        member = self._member_written(node, base.id, subscript, None, scope, ctx)
-        if member is None:
-            return super()._labelled(node, scope, ctx)
-        for script in raised:
-            if script.body is None:
-                return super()._labelled(node, scope, ctx)
-            member = self._power(member, self.value(script.body, scope, ctx), node.span)
-        return member
+        written = subscripted(node)
+        if written is not None:
+            term = self._subscripted_term(written, scope, ctx)
+            if term is not None:
+                return term
+        return super()._labelled(node, scope, ctx)
 
     def _ordered_member(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
         """``E^{(0)}_1`` or ``E_1^{(0)}``: a member of a family with an order raised on it,
         as ``E^{(0)}_n := ...`` defines; ``None`` for any other name."""
         ordered = _ordered(node)
-        if ordered is None or self._family_of(ordered[0], scope) is None:
+        if ordered is None or family_of(ordered[0], scope) is None:
             return None
         base, at = ordered
         if scope.lookup(f"{base}_{at}") is not None:
@@ -626,27 +576,20 @@ class Families(Labels):
         """A call of a member of a family of functions, as ``\\psi_3(x)``, which the parser
         writes ``psi_3(x)``, or ``\\psi_n(x)`` itself; ``None`` for any other call."""
         func = node.func
-        if isinstance(func, ast.Name):
-            binding = scope.lookup(func.id)
+        written = subscripted(func)
+        if written is None or written.raised or not isinstance(func, ast.Name | ast.Scripted):
+            return None
+        reading = self._subscript_reading(written, scope, latex=ctx.latex, called=True)
+        if reading.kind is Kind.DEFINED and reading.name is not None:
+            binding = scope.lookup(reading.name)
             if isinstance(binding, FunctionBinding) and isinstance(binding.definition, Family):
-                return self._family_alone(func, binding, node.args, scope, ctx)
-            base, underscore, subscript = func.id.partition("_")
-            written = _subscript_written(subscript, func.span) if underscore else None
-            if binding is not None or written is None:
-                return None
-            return self._member_written(node, base, written, node.args, scope, ctx, subscript)
-        if not (isinstance(func, ast.Scripted) and isinstance(func.base, ast.Name)):
+                alone = func if isinstance(func, ast.Name) else node
+                return self._family_alone(alone, binding, node.args, scope, ctx)
             return None
-        lowered = [s for s in func.scripts if s.kind == "_"]
-        if len(lowered) != 1 or len(func.scripts) != 1 or lowered[0].body is None:
+        if reading.kind not in (Kind.MEMBER, Kind.RECURRENCE) or reading.refusal is not None:
             return None
-        name = label_name(func, raised=False)
-        binding = scope.lookup(name) if name is not None else None
-        if isinstance(binding, FunctionBinding) and isinstance(binding.definition, Family):
-            return self._family_alone(node, binding, node.args, scope, ctx)
-        if binding is not None:
-            return None
-        return self._member_written(node, func.base.id, lowered[0].body, node.args, scope, ctx)
+        called = replace(reading, written=replace(written, node=node))
+        return self._member_read(called, node.args, scope, ctx)
 
     def _calls_of_names(self, factors: list[ast.Expr], scope: Scope) -> list[ast.Expr]:
         """Factors with a name written with scripts and, right after it, its arguments in
@@ -691,7 +634,7 @@ class Families(Labels):
         lowered = [s for s in node.scripts if s.kind == "_"]
         if len(lowered) != 1 or len(node.scripts) != 1 or "_" in node.base.id:
             return False
-        binding = self._family_of(node.base.id, scope)
+        binding = family_of(node.base.id, scope)
         family = binding.definition if binding is not None else None
         return isinstance(family, Family) and bool(family.parameters)
 
@@ -763,6 +706,6 @@ class Families(Labels):
             if named is None or named[1] != label:
                 continue
             base = named[0]
-            if scope.lookup(base) is None and self._family_of(base, scope) is None:
+            if scope.lookup(base) is None and family_of(base, scope) is None:
                 found.append(base)
         return list(dict.fromkeys(found))

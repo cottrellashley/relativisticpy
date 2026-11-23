@@ -54,7 +54,6 @@ from relativisticpy.reading.names import (
     _STATISTIC_ALIASES,
     _STATISTICS,
     _TRANSPOSES,
-    _a_member,
     _a_name,
     _a_pair,
     _a_word,
@@ -122,6 +121,20 @@ class BookCall:
     capability: Capability
     arguments: tuple[ast.Expr, ...]
     keywords: ops.Attributes = ()
+
+
+@dataclass(frozen=True)
+class BookReading:
+    """How a form books write is read, before it is said: the ``call`` it is read as,
+    ``None`` where it is read as something else, as a function of the coordinates; the
+    ``reading`` and ``why``, as a decision records them; the ``note`` it is said with; and
+    the ``refusal`` of a name that is reserved, and that no integration provides."""
+
+    call: BookCall | None
+    reading: str
+    why: str
+    note: str | None = None
+    refusal: CompileError | None = None
 
 
 #: What follows a numerator over a differential, as D^2 is in \frac{D^2}{d\tau^2} and
@@ -517,13 +530,6 @@ class Reader(Typer):
             if kept is not None and kept is not binding.node:  # kept in another algebra
                 return kept
             return binding.node
-        if binding is None and (indexed := _indexed_name(node, scope)) is not None:
-            tensor = name.partition("_")[0]
-            why = f"{tensor} is a tensor, and {node.span.text} names nothing"
-            self._decide("index or power", node.span, f"{tensor} with its indices", why)
-            return self.term(indexed, scope, ctx)  # y_t, where y is a tensor: y_{t}
-        if binding is None:  # c_1 after c_n := ..., or x_i of a list x: never a new symbol
-            self._check_member(node, scope, ctx)
         if isinstance(binding, FunctionBinding):
             self._resolve(node.span, f"a function, defined on line {binding.definition.span.line}")
             return FunctionReference(node.span, name)
@@ -932,72 +938,6 @@ class Reader(Typer):
         why = f"{node.base.span.text} is a derivative only with an index"
         self._decide("index or power", node.span, f"{node.base.span.text} to a power", why)
         return False
-
-    def _check_member(self, node: ast.Name, scope: Scope, ctx: Context) -> None:
-        """Refuse a subscripted name nothing defines whose base is defined so that it means
-        a member or an element: ``c_1`` after ``c_n := ...``, a family in n, or ``x_i`` of
-        a list x summed over i. Read as written, it would be a symbol of its own, silently
-        (guard 3 of wave 0, curriculum/ROADMAP.md)."""
-        base, underscore, subscript = node.id.partition("_")
-        if not (underscore and base and subscript):
-            return
-        written, shown = node.span.text, _shown(base, ctx.latex)
-        bound = scope.lookup(subscript)
-        summed = isinstance(bound, VariableBinding) and isinstance(bound.node.op, ops.Const)
-        if not _a_member(subscript, summed):
-            return
-        within = scope.lookup(base)
-        if isinstance(within, VariableBinding) and (size := _elements(within.node)) is not None:
-            if _mentions_symbol(within.node, node.id):  # p := (p_x, p_y): p_x is a name
-                return
-            label = subscript if len(subscript) == 1 and subscript.isalpha() else "i"
-            self._decide("index or power", node.span, f"the symbol {node.id}", f"{shown} is a list")
-            raise CompileError(
-                f"{written} names nothing, and {shown} is a list, whose elements are not "
-                "written with a subscript yet",
-                span=node.span,
-                notes=[f"read as written, {written} would be a symbol of its own"],
-                hint="give the list an index over a space: "
-                f"\\mathcal{{N}} := \\mathbb{{R}}^{{{size}}}, {label} \\in \\mathcal{{N}} and "
-                f"{shown}^{label} := [...]; then {shown}^{label} 1_{label} is the sum of its "
-                "elements",
-            )
-        letter = self._family(base, node.id, scope)
-        if letter is None:
-            return
-        family = f"{shown}_{_shown(letter, ctx.latex)}"
-        why = f"{family} is a family in {letter}, which is not supported yet"
-        self._decide("index or power", node.span, f"the symbol {node.id}", why)
-        raise CompileError(
-            f"{written} names nothing, and {family} is a family in {letter}, which is not "
-            "supported yet",
-            span=node.span,
-            notes=[
-                f"read as written, {written} would be a symbol of its own, not {family} at "
-                f"{letter} = {subscript}"
-            ],
-            hint=f"define {shown} as a function of {letter}, as in {shown}({letter}) := ..., "
-            f"and write {shown}({subscript}) for {written}",
-        )
-
-    def _family(self, base: str, used: str, scope: Scope) -> str | None:
-        """The label of a family the name ``base`` is defined as, as n of ``c_n := 1/n^2``:
-        a name of base and one letter, bound to a value written with that letter, and not
-        with ``used``, which is then a symbol the family is written with, as x_0 is of
-        ``x_n := x_0 + n d``."""
-        current: Scope | None = scope
-        while current is not None:
-            for name, binding in current.bindings():
-                prefix, _, label = name.partition("_")
-                single = (len(label) == 1 and label.isalpha()) or label in GREEK
-                if prefix != base or not single or not isinstance(binding, VariableBinding):
-                    continue
-                if _mentions_symbol(binding.node, label) and not _mentions_symbol(
-                    binding.node, used
-                ):
-                    return label
-            current = current.parent
-        return None
 
     def _relate(self, equation: Node, span: Span, scope: Scope) -> None:
         """Remember an equation stated between names nothing defines, as x^3 + y^3 = 6xy,
@@ -1923,7 +1863,7 @@ class Reader(Typer):
         """``(a)_n``, the Pochhammer symbol, written as a bracket with a subscript; and a
         name with indices reserved, as ``\\epsilon_{ijk}``, refused."""
         shape = forms.scripted_shape(node)
-        if shape is None:
+        if shape is None or shape.kind == "subscripted":  # B_{n}: read as every such name is
             return None
         return self._book_name(shape, node, node.span.text, scope)
 
@@ -1931,7 +1871,26 @@ class Reader(Typer):
         self, shape: forms.Shape, node: ast.Expr, written: str, scope: Scope
     ) -> BookCall | None:
         """What a name books write for a function means, written as ``shape``: a call of
-        the capability whose written form it has (``design/notation.md``, 15).
+        the capability whose written form it has (``design/notation.md``, 15), read by
+        :meth:`_book_reading` and said by :meth:`_book_said`."""
+        found = self._book_reading(shape, node, written, scope)
+        return self._book_said(found, node) if found is not None else None
+
+    def _book_said(self, found: BookReading, node: ast.Expr) -> BookCall | None:
+        """Take a reading of a book name: record it, say its note, and refuse a name no
+        integration provides; the call it is read as, if it is one."""
+        if found.refusal is not None:
+            raise found.refusal
+        if found.note is not None:
+            self._note(found.note)
+        self._decide(BOOK, node.span, found.reading, found.why, found.note)
+        return found.call
+
+    def _book_reading(
+        self, shape: forms.Shape, node: ast.Expr, written: str, scope: Scope
+    ) -> BookReading | None:
+        """How a name books write for a function is read, written as ``shape``, before it
+        is said: a call of the capability whose written form it has.
 
         A user's definition always wins: a name the program gives a value, or defines as a
         function, is its own. Index notation wins too: a script that is an index label of
@@ -1941,8 +1900,8 @@ class Reader(Typer):
         function of them, and a letter of a function of integers, as ``\\varphi``, is that
         function only where its arguments are integers (decisions 32 to 35). A name no
         integration provides yet, but reserved, is refused, saying what it is. ``None`` for
-        anything else, and the reading is recorded, with a note where the name is one letter
-        that a program could mean otherwise."""
+        anything else; the reading has a note where the name is one letter that a program
+        could mean otherwise."""
         match = forms.matching(shape)
         if match is None or self._own_book_name(shape, node, scope):
             return None
@@ -1973,17 +1932,17 @@ class Reader(Typer):
                 f"{match.pattern.written} is {meant}"
             )
             why = "it is called with the coordinates, as a function of them is"
-            self._decide(BOOK, node.span, "a function of the coordinates", why, said)
-            self._note(said)
-            return None
+            return BookReading(None, "a function of the coordinates", why, said)
+        why = f"{match.pattern.written} is how books write it, and nothing defines {written}"
         if isinstance(owner, Reservation):
-            raise CompileError(
+            refusal = CompileError(
                 f"{written}, {owner.what}, is not supported yet",
                 span=node.span,
                 hint=owner.instead
                 or "no integration provides it yet; relativisticpy help integrations says "
                 "how to add one",
             )
+            return BookReading(None, owner.what, why, refusal=refusal)
         bound = _bound(owner, match)
         if bound is None:
             return None
@@ -1999,11 +1958,8 @@ class Reader(Typer):
                 f"{written} is read as {owner.brief}, {owner.name}; for a function of your "
                 f"own, define {written} first"
             )
-        if note is not None:
-            self._note(note)
-        why = f"{match.pattern.written} is how books write it, and nothing defines {written}"
-        self._decide(BOOK, node.span, f"{owner.name}, {owner.brief}", why, note)
-        return BookCall(owner, arguments, keywords)
+        call = BookCall(owner, arguments, keywords)
+        return BookReading(call, f"{owner.name}, {owner.brief}", why, note)
 
     def _a_pochhammer(self, shape: forms.Shape, scope: Scope) -> bool:
         """Whether a bracket with a subscript is the Pochhammer symbol, as books write it in

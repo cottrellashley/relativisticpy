@@ -17,7 +17,6 @@ import sympy
 from sympy import Symbol
 
 from relativisticpy.compiler.builtins import BUILTINS, CONSTANTS
-from relativisticpy.compiler.passes import Term
 from relativisticpy.compiler.scope import (
     Binding,
     Context,
@@ -35,6 +34,8 @@ from relativisticpy.lowering.convolutions import Convolutions
 from relativisticpy.reading import probability
 from relativisticpy.reading.probability import DISTRIBUTED, RANDOM, Declaration, Law
 from relativisticpy.reading.quantum import expectation_name
+from relativisticpy.reading.subscripts import SAMPLE as _SAMPLE
+from relativisticpy.reading.subscripts import Reading
 from relativisticpy.typing.syntax import _walk
 
 #: The operation of the IR that computes each operator of random variables.
@@ -59,8 +60,6 @@ _WRITTEN = {
 #: Where a program says which random variables are independent, in its session's
 #: conventions: the names declared together as such.
 _INDEPENDENT = "independent random variables"
-#: The name a sample is bound to, after the name of its members, which no name can be.
-_SAMPLE = "{}_…"
 
 
 class Probability(Convolutions):
@@ -162,30 +161,18 @@ class Probability(Convolutions):
         self._note(note)
         return True
 
-    def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
-        if scope.lookup(node.id) is None and (found := self._sample_member(node, scope, ctx)):
-            return found
-        return super()._Name(node, scope, ctx)
-
-    def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
-        if (found := self._sample_member(node, scope, ctx)) is not None:
-            return found
-        return super()._Scripted(node, scope, ctx)
-
-    def _sample_member(self, node: ast.Expr, scope: Scope, ctx: Context) -> Node | None:
-        """``X_i``, ``X_{i}`` or ``X_1``, of a sample the program declares: its member at the
-        subscript; ``None`` for any other name."""
-        written = _member_of(node)
-        if written is None:
-            return None
-        base, subscript = written
-        binding = scope.lookup(_SAMPLE.format(base))
-        if not isinstance(binding, VariableBinding) or scope.lookup(_name(node) or "") is not None:
-            return None
-        index = self.value(subscript, scope, ctx)
+    def _sample_member(self, reading: Reading, scope: Scope, ctx: Context) -> Node:
+        """``X_i``, ``X_{i}`` or ``X_1``, read by the resolver as a member of a sample the
+        program declares: its member at the subscript."""
+        written, binding = reading.written, reading.binding
+        assert written is not None
+        assert isinstance(binding, VariableBinding)
+        assert written.subscript is not None
+        node = written.node
+        index = self.value(written.subscript, scope, ctx)
         declared = binding.node.span
         where = f", declared on line {declared.line}" if declared is not None else ""
-        self._resolve(node.span, f"a member of the sample {base}{where}")
+        self._resolve(node.span, f"a member of the sample {written.base}{where}")
         return self._call("prob.member", [binding.node, index], SCALAR, node.span)
 
     def _declared_names(self, declared: Declaration) -> list[tuple[str, ast.Expr]] | None:

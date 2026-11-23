@@ -106,6 +106,15 @@ The reader decides
 - what a run of letters means: one name in plain text, a product in LaTeX;
 - what an operator such as `\partial_\mu` or `\frac{d}{dx}` acts on.
 
+What a name with a subscript means, as `c_1`, `x_i`, `f_x`, `H_n` and `X_k`, and a name
+with brackets after it, as `x[n]`, is decided by one resolver,
+`relativisticpy.reading.subscripts`. It lists every reading in the order they are tried, a
+user's definition first: a name the program defines, an index of a tensor, an entry of a
+matrix, a member of a family, an element of a list, a member of a sample, a sequence at a
+point, a partial derivative, a built-in tensor's index, a book name of an integer, and a
+label. Each layer that lowers one of them asks the resolver, and holds no test of its own;
+where the program defines a base as two things, the reading says which was taken.
+
 It checks index notation before anything is computed, so a mistake costs
 milliseconds rather than a Riemann tensor. Every value has a static type,
 `Scalar`, `Tensor[indices]`, `Equation` or `Value`, and the index rules are
