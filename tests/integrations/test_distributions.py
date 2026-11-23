@@ -142,3 +142,53 @@ class TestComputing:
         variable = distributions.variable(sympy.Symbol("T"), StudentTDistribution(1))
         with pytest.raises(EvaluationError, match="SciPy's integral of it does not converge"):
             distributions._numeric_expectation(sympy.Abs(variable), variable)
+
+
+class TestSamples:
+    """The members of a sample at symbols: which are the same one is decided, or said not
+    to be; the language writes them ``X_k``."""
+
+    n, k, i, j = sympy.symbols("n k i j", integer=True, positive=True)
+    sample = distributions.sample("X", NormalDistribution(0, 1), n)
+
+    def member(self, index):
+        return distributions.member(self.sample, sympy.sympify(index))
+
+    def test_two_at_indices_a_number_apart_are_two_members(self):
+        k = self.k
+        assert distributions.variance(self.member(k + 1) - self.member(k)) == 2
+        assert distributions.covariance(self.member(k), self.member(k + 2)) == 0
+        assert distributions.variance(self.member(k) + self.member(k)) == 4  # the same one
+
+    def test_one_at_a_symbol_is_of_the_law(self):
+        assert distributions.expectation(self.member(self.n - 1)) == 0
+        assert distributions.expectation(self.member(self.k) ** 2) == 1
+
+    def test_one_beyond_the_sample_is_refused(self):
+        for index in (self.n + 1, 0):
+            with pytest.raises(EvaluationError, match="is beyond the sample, whose members"):
+                distributions.variance(self.member(index))
+        beyond = sympy.Sum(self.member(self.i), (self.i, 1, self.n + 1))
+        with pytest.raises(EvaluationError, match=r"X_\{n \+ 1\} is beyond the sample"):
+            distributions.expectation(beyond)
+
+    def test_two_that_may_be_the_same_one_are_refused(self):
+        k, j = self.k, self.j
+        for one, other in ((self.member(k), self.member(1)), (self.member(k), self.member(j))):
+            with pytest.raises(EvaluationError, match="may be the same one, which is not decided"):
+                distributions.expectation(one * other)
+            with pytest.raises(EvaluationError, match="may be the same one"):
+                distributions.covariance(one, other)
+        assert distributions.expectation(self.member(1) * self.member(2)) == 0  # numbered
+
+    def test_the_variance_of_a_sum_is_of_independent_terms_alone(self):
+        i, n = self.i, self.n
+        assert distributions.variance(sympy.Sum(self.member(i), (i, 1, n))) == n
+        assert distributions.variance(sympy.Sum(self.member(i), (i, 1, n)) / n) == 1 / n
+        # X_{i+1} - X_i and X_{i+2} - X_{i+1} share X_{i+1}: the sum telescopes to
+        # X_n - X_1, of variance 2, and its terms' variances add up to 2(n - 1)
+        steps = sympy.Sum(self.member(i + 1) - self.member(i), (i, 1, n - 1))
+        with pytest.raises(EvaluationError, match="they share members of the sample"):
+            distributions.variance(steps)
+        squares = sympy.Sum((self.member(i + 1) - self.member(i)) ** 2, (i, 1, n - 1))
+        assert distributions.expectation(squares) == 2 * n - 2  # an expectation is linear

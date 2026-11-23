@@ -352,11 +352,11 @@ def _value_of(variable: RandomSymbol) -> Dummy:
 
 class Sample(Basic):  # type: ignore[misc]
     """A sample of independent random variables of one law, as X_1, ..., X_n
-    iid ~ N(μ, σ²) declares: the name its members are written with, the law, and how
-    many there are, which may be a symbol."""
+    iid ~ N(μ, σ²) declares: the name its members are written with, the law, how many
+    there are, which may be a symbol, and the number of the first, 1 unless it says."""
 
-    def __new__(cls, symbol: Any, law: Any, size: Any) -> Sample:
-        made: Sample = Basic.__new__(cls, symbol, law, sympy.sympify(size))
+    def __new__(cls, symbol: Any, law: Any, size: Any, first: Any = 1) -> Sample:
+        made: Sample = Basic.__new__(cls, symbol, law, sympy.sympify(size), sympy.sympify(first))
         return made
 
     @property
@@ -366,6 +366,16 @@ class Sample(Basic):  # type: ignore[misc]
     @property
     def law(self) -> Any:
         return self.args[1]
+
+    @property
+    def first(self) -> Any:
+        """The number of its first member."""
+        return self.args[3]
+
+    @property
+    def last(self) -> Any:
+        """The number of its last member."""
+        return self.args[3] + self.args[2] - 1
 
 
 class Member(sympy.Function):  # type: ignore[misc]
@@ -377,6 +387,7 @@ class Member(sympy.Function):  # type: ignore[misc]
     @classmethod
     def eval(cls, sample: Any, index: Any) -> Any:
         if isinstance(sample, Sample) and index.is_Integer:
+            _refuse_beyond(sample, index, index)
             symbol = Symbol(f"{sample.name}_{int(index)}")
             return _space(symbol, sample.law).value
         return None
@@ -395,9 +406,10 @@ class Member(sympy.Function):  # type: ignore[misc]
         return Symbol(f"{sample.name}_{index}")
 
 
-def sample(symbol: Any, law: Any, size: Any) -> Sample:
-    """The sample ``symbol``, of ``size`` independent random variables of ``law``."""
-    return Sample(Symbol(str(symbol)), law, size)
+def sample(symbol: Any, law: Any, size: Any, first: Any = 1) -> Sample:
+    """The sample ``symbol``, of ``size`` independent random variables of ``law``, numbered
+    from ``first``."""
+    return Sample(Symbol(str(symbol)), law, size, first)
 
 
 def member(of: Any, index: Any) -> Any:
@@ -430,52 +442,136 @@ def _expect_of_sample(expr: Any) -> Any:
         body, *limits = summed.args
         if len(limits) != 1:
             raise EvaluationError(f"the expectation of {_shown(summed)} is not computed")
+        _within_the_sample(body, limits[0])
         expected = _expect(_at_members(body))
         total += rest * sympy.Sum(expected, *limits).doit()
     return _tidy(total)
 
 
 def _at_members(expr: Any) -> Any:
-    """``expr`` with each member of a sample at a symbol a random variable of its law: one
-    for each symbol, which a term of a sum is written with alone."""
+    """``expr`` with each member of a sample at a symbol a random variable of its law: two
+    at indices that differ by a number are two members, independent, as X_{k+1} and X_k
+    are, and one at the index a numbered member has is that member. An error that says so
+    where it is not decided whether two are the same one, as of X_k and X_1, or where one
+    is beyond its sample, as X_{n+1} is of n."""
+    expr = sympy.sympify(expr)
     found = sorted(_members(expr), key=str)
-    indices = {each.args[1] for each in found}
-    if len(indices) > 1:
-        shown = ", ".join(_shown(each) for each in found)
+    replaced: dict[Any, Any] = {}
+    for position, each in enumerate(found):
+        _within_the_sample(each)
+        of, index = each.args
+        earlier = [(replaced[m], m, m.args[1]) for m in found[:position] if m.args[0] == of]
+        numbered = [(v, v, number) for v, number in _numbered(expr, of).items()]
+        for variable, written, at in [*earlier, *numbered]:
+            apart = sympy.simplify(index - at)
+            if apart == 0:
+                replaced[each] = variable
+            elif not apart.is_nonzero:
+                raise EvaluationError(
+                    f"{_shown(each)} and {_shown(written)} are members of a sample that may be "
+                    "the same one, which is not decided",
+                    hint="say which member it is, or write a sum over the sample, as "
+                    f"\\sum_{{i=1}}^{{n}} {of.name}_i",
+                )
+        replaced.setdefault(each, _space(Symbol(f"{of.name}_{index}"), of.law).value)
+    return expr.xreplace(replaced)
+
+
+def _numbered(expr: Any, of: Sample) -> dict[RandomSymbol, Any]:
+    """The members of a sample at whole numbers that an expression is written with, each
+    with its number: X_1 is the random variable its sample makes at 1, known by its name
+    and its law."""
+    found = {}
+    for each in sorted(_randoms(expr), key=str):
+        name, _, number = str(each.symbol).rpartition("_")
+        declared_so = not _given(each) and not _unknown(each) and _law(each) == of.law
+        if name == of.name and number.isdigit() and declared_so:
+            found[each] = sympy.Integer(int(number))
+    return found
+
+
+def _within_the_sample(written: Any, limits: Any = None) -> None:
+    """Refuse a member beyond its sample, as X_{n+1} is of X_1, ..., X_n, or a sum over
+    members that runs beyond it, where that is decided."""
+    for each in [written] if isinstance(written, Member) else sorted(_members(written), key=str):
+        of, index = each.args
+        ends = [index, index]
+        if limits is not None and index.has(limits[0]):
+            ends = [index.subs(limits[0], limits[1]), index.subs(limits[0], limits[2])]
+        _refuse_beyond(of, *ends)
+
+
+def _refuse_beyond(of: Sample, lowest: Any, highest: Any) -> None:
+    """Refuse members of a sample numbered from ``lowest`` to ``highest`` where one is
+    surely before its first member or after its last."""
+    before = sympy.simplify(of.first - lowest).is_positive
+    after = sympy.simplify(highest - of.last).is_positive
+    if before or after:
+        beyond = highest if after else lowest
         raise EvaluationError(
-            f"{shown} are members of a sample at symbols that may be equal, which is not decided",
-            hint="write them as sums over the sample, as \\sum_{i=1}^{n} X_i",
+            f"{_member_written(of, beyond)} is beyond the sample, whose members are "
+            f"{_member_written(of, of.first)} to {_member_written(of, of.last)}",
         )
-    replaced = {}
-    for each in found:
-        sample_, index = each.args
-        replaced[each] = _space(Symbol(f"{sample_.name}_{index}"), sample_.law).value
-    return sympy.sympify(expr).xreplace(replaced)
+
+
+def _member_written(of: Sample, index: Any) -> str:
+    """A member of a sample as a message writes it: X_1, X_n, or X_{n + 1}."""
+    shown = _shown(index)
+    return f"{of.name}_{shown}" if shown.isalnum() else f"{of.name}_{{{shown}}}"
 
 
 def _variance_of_sample(expr: Any) -> Any:
     """The variance of an expression of the members of a sample: of a sum over the members,
-    ``\\sum_{i=1}^{n} f(X_i)``, times a constant, n times the variance of f(X) of one, as they
-    are independent."""
-    terms = sympy.Add.make_args(sympy.expand(expr))
-    random = [term for term in terms if term.has(Member) or _randoms(term)]
-    if len(random) == 1:
-        (term,) = random
-        factors = sympy.Mul.make_args(term)
-        sums = [factor for factor in factors if isinstance(factor, sympy.Sum)]
-        rest = sympy.Mul(*(f for f in factors if not isinstance(f, sympy.Sum)))
-        if len(sums) == 1 and not rest.has(Member) and not _randoms(rest):
-            body, *limits = sums[0].args
-            if len(limits) == 1:
-                spread = _variance(_at_members(body))
-                return _tidy(rest**2 * sympy.Sum(spread, *limits).doit())
-        if not sums:
-            return _variance(_at_members(term))
-    raise EvaluationError(
-        f"the variance of {_shown(expr)} is not computed: of a sample, the variance of a sum "
-        "over its members, times a constant, is",
-        hint="write it as one sum over the sample, as \\operatorname{Var}(\\sum_{i=1}^{n} X_i)",
+    ``\\sum_{i=1}^{n} f(X_i)``, times a constant, n times the variance of f(X) of one, as
+    its terms are independent, each of a member of its own; of anything written without a
+    sum, as X_{k+1} - X_k, of the members as random variables. Refused, saying why, where
+    the terms of a sum share a member, as those of ``\\sum (X_{i+1} - X_i)`` do, whose
+    variance is not the sum of theirs."""
+    expr = sympy.sympify(expr)
+    sums = sorted(expr.atoms(sympy.Sum), key=str)
+    if not sums:
+        return _variance(_at_members(expr))
+    stand = Dummy("S")
+    try:
+        linear = sympy.Poly(expr.xreplace({sums[0]: stand}), stand)
+    except sympy.PolynomialError:
+        linear = None
+    alone = (
+        len(sums) == 1
+        and linear is not None
+        and linear.degree() == 1
+        and not any(c.has(Member) or _randoms(c) for c in linear.all_coeffs())
+        and len(sums[0].limits) == 1
     )
+    if not alone:
+        raise EvaluationError(
+            f"the variance of {_shown(expr)} is not computed: of a sample, the variance of "
+            "one sum over its members, times a constant, is",
+            hint="write it as one sum over the sample, as \\operatorname{Var}(\\sum_{i=1}^{n} X_i)",
+        )
+    assert linear is not None
+    body, limits = sums[0].function, sums[0].limits[0]
+    _independent_terms(body, limits)
+    _within_the_sample(body, limits)
+    spread = _variance(_at_members(body))
+    return _tidy(linear.all_coeffs()[0] ** 2 * sympy.Sum(spread, limits).doit())
+
+
+def _independent_terms(body: Any, limits: Any) -> None:
+    """Refuse the variance of a sum whose terms are not independent: each is to be of one
+    member of a sample, at the index of the sum, and of nothing else that is random, which
+    every term would share."""
+    index = limits[0]
+    at = {each.args[1] for each in _members(body)}
+    shared = [each for each in _members(body) if not each.args[1].has(index)]
+    if len(at) > 1 or shared or _randoms(body):
+        raise EvaluationError(
+            f"the variance of the sum of {_shown(body)} over {_shown(index)} is not the sum "
+            "of the variances of its terms: they share members of the sample, and so are "
+            "not independent",
+            hint="write the sum out, or as a sum whose terms are each of one member, as a "
+            "sum that telescopes is of its first and last",
+        )
 
 
 # -- what a program computes of random variables -----------------------------------------------

@@ -173,7 +173,7 @@ class Probability(Convolutions):
         one = self.graph.const(sympy.S.One, SCALAR)
         count = self.graph.add(ops.Add((1, -1, 1)), (ends[1], ends[0], one), SCALAR, last.span)
         symbol = self.graph.const(Symbol(base), VALUE, first.span)
-        found = self._call("prob.sample", [symbol, law, count], VALUE, declared.span)
+        found = self._call("prob.sample", [symbol, law, count, ends[0]], VALUE, declared.span)
         scope.bind(_SAMPLE.format(base), VariableBinding(found))
         many = _shown_subscript(last)
         note = (

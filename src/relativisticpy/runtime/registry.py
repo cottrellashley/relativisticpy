@@ -283,7 +283,7 @@ def _core() -> Iterator[Implementation]:
     yield entry("seq.circular", sequences.circular, "argument", 4, 5)
     # random variables: one of a law, or of laws given others, and what is computed of them
     yield entry("prob.variable", distributions.variable, "scalar", 2)
-    yield entry("prob.sample", distributions.sample, "value", 3, 3)
+    yield entry("prob.sample", distributions.sample, "value", 3, 4)
     yield entry("prob.member", distributions.member, "scalar", 2, 2)
     yield entry("prob.probability", distributions.probability, "scalar", 1)
     yield entry("prob.expectation", distributions.expectation, "scalar", 1)
