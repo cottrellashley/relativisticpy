@@ -98,6 +98,69 @@ class TestTheKind:
         assert wb.expr(r"\mathbb{E}[X]") == 6
         assert wb.expr(r"\Gamma(5)") == 24  # Euler's gamma, as before
 
+    def test_a_law_sympy_computes_nothing_of_fails_each_check(self):
+        # SciPy's law is not put for SymPy's: a check of the exact side that passes on the
+        # numeric one alone checks nothing
+        from sympy.stats.crv import SingleContinuousDistribution
+
+        class Broken(SingleContinuousDistribution):
+            _argnames = ("mu",)
+            set = sympy.Interval(-sympy.oo, sympy.oo)
+
+            def pdf(self, x):
+                raise NotImplementedError("no density")
+
+        @distribution(
+            "Brokenlaw",
+            latex=[r"\operatorname{Brk}(\mu)"],
+            summary="a law SymPy computes nothing of",
+            requires="scipy",
+            moments="none",
+            examples=[Example("1", 1, "standard"), Example("2", 2, "standard")],
+            points=[(0,), (1,)],
+        )
+        class BrokenLaw:
+            def exact(self, mu):
+                return Broken(sympy.sympify(mu))
+
+            def numeric(self, xp, mu):
+                from scipy.stats import norm
+
+                return norm(mu, 1)
+
+            def mean(self, mu):
+                return mu
+
+            def variance(self, mu):
+                return 1
+
+        found = integrations.check(BrokenLaw, ["agreement", "density", "moments"])
+        assert found["density"] == [
+            f"Brokenlaw at (mu={mu}): SymPy does not compute what its density integrates to "
+            "(NotImplementedError: no density); fix exact"
+            for mu in (0, 1)
+        ]
+        assert len(found["agreement"]) == 12  # the density and the distribution function
+        assert found["agreement"][0] == (
+            "Brokenlaw at (mu=0): SymPy does not compute its density at -0.67449 "
+            "(NotImplementedError: no density); fix exact"
+        )
+        assert [failure.split(": ")[1].split(" (")[0] for failure in found["moments"]] == [
+            "SymPy does not compute its mean",
+            "SymPy does not compute its variance",
+        ] * 2
+
+    def test_a_check_sympy_is_too_slow_for_fails(self, monkeypatch):
+        import time
+
+        monkeypatch.setattr(distributions, "CHECK_BUDGET", 0.05)
+        monkeypatch.setattr(distributions, "_whole", lambda law, x: time.sleep(5))
+        (failure, *_) = integrations.check(laplace(), ["density"])["density"]
+        assert failure == (
+            "Laplace at (mu=0, b=1): SymPy does not compute what its density integrates to "
+            "within 0.05 s; fix exact, or declare points it computes at"
+        )
+
 
 class TestComputing:
     def test_a_probability_of_one_variable_is_from_its_distribution_function(self):

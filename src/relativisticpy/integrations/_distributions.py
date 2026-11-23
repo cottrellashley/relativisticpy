@@ -48,6 +48,7 @@ SciPy, and that SymPy's density and distribution function agree with SciPy's.
 
 from __future__ import annotations
 
+import functools
 import itertools
 import math
 from collections.abc import Callable, Sequence
@@ -616,8 +617,7 @@ def density(value: Any, at: Any) -> Any:
     parameters = _parameters(variable, at)
 
     def exactly() -> Any:
-        found = stats.density(variable)(at)
-        return found.doit() if isinstance(found, Basic) else found
+        return _exact_density(variable, at)
 
     def numerically() -> Any:
         frozen = _frozen(variable)
@@ -1835,31 +1835,68 @@ def form_failures(capability: Distribution) -> list[str]:
     return failures
 
 
-def density_checks(capability: Capability) -> list[str]:
-    """At each of its points, the density integrates, or sums, to 1: by SymPy, or, where it
-    cannot within the budget, by SciPy."""
+#: How long SymPy may take over each value a check holds it to, in seconds: more than a
+#: program gives it, as a check SymPy is too slow for is a check failed, not passed.
+CHECK_BUDGET = 30.0
+
+
+def _by_sympy(
+    compute: Callable[[], Any], what: str, capability: Distribution, point: Sequence[Any]
+) -> tuple[Any, list[str]]:
+    """What SymPy computes of a distribution at a point it is checked at, as a number; or
+    why there is none, as a failure of the check: SymPy fails, takes longer than checks give
+    it, or gives no number. SciPy is not asked instead: the check is of SymPy's law."""
     from relativisticpy.runtime import core
 
+    where = f"{capability.name}{_at_point(capability, point)}"
+    try:
+        with core._budget(CHECK_BUDGET):
+            found = sympy.sympify(compute())
+            number = complex(sympy.N(found, 30))
+    except core._OverBudget:
+        return None, [
+            f"{where}: SymPy does not compute {what} within {CHECK_BUDGET:g} s; fix exact, or "
+            "declare points it computes at"
+        ]
+    except Exception as error:
+        return None, [
+            f"{where}: SymPy does not compute {what} ({type(error).__name__}: {error}); fix exact"
+        ]
+    if number != number:  # nan
+        return None, [f"{where}: SymPy gives {what} as {found}, no number; fix exact"]
+    return found, []
+
+
+def density_checks(capability: Capability) -> list[str]:
+    """At each of its points, the density of SymPy's law integrates, or sums, to 1, by
+    SymPy: where SymPy does not compute it, the check fails."""
     assert isinstance(capability, Distribution)
     failures = []
     for point in capability.points:
-        law = capability.exact(*point)
         x = Dummy("x", integer=True) if capability.discrete else Dummy("x", real=True)
-        total: Any = None
-        try:
-            with core._budget(BUDGET):
-                total = _whole(law, x)
-        except (Exception, core._OverBudget):
-            total = None
-        if total is None:
-            total = _numeric_whole(capability, point)
-        if abs(complex(sympy.N(total)) - 1) > AGREEMENT:
+        total, failed = _by_sympy(
+            functools.partial(_whole_at, capability, point, x),
+            "what its density " + ("sums" if capability.discrete else "integrates") + " to",
+            capability,
+            point,
+        )
+        failures += failed
+        if total is not None and abs(complex(sympy.N(total)) - 1) > AGREEMENT:
             failures.append(
                 f"{capability.name}{_at_point(capability, point)}: its density "
                 f"{'sums' if capability.discrete else 'integrates'} to {sympy.N(total, 12)}, "
                 "not 1; fix exact, or declare points where its parameters are allowed"
             )
     return failures
+
+
+def _checked_variable(capability: Distribution, point: Sequence[Any]) -> RandomSymbol:
+    """A random variable of SymPy's law of a distribution, at a point it is checked at."""
+    return _space(Symbol("X"), capability.exact(*point)).value
+
+
+def _whole_at(capability: Distribution, point: Sequence[Any], x: Any) -> Any:
+    return _whole(capability.exact(*point), x)
 
 
 def _whole(law: Any, x: Any) -> Any:
@@ -1874,37 +1911,31 @@ def _whole(law: Any, x: Any) -> Any:
     return sympy.summation(law.pdf(x), (x, low, high))
 
 
-def _numeric_whole(capability: Distribution, point: Sequence[Any]) -> float:
-    frozen = capability.frozen(*point)
-    return float(frozen.expect(lambda x: 1.0))
-
-
 def moment_checks(capability: Capability) -> list[str]:
-    """At each of its points, its mean and variance are those it declares: by SymPy, where it
-    computes them within the budget, and by SciPy."""
-    from relativisticpy.runtime import core
-
+    """At each of its points, its mean and variance are those it declares: by SymPy, which
+    fails the check where it does not compute them, and by SciPy."""
     assert isinstance(capability, Distribution)
     failures = []
     for point in capability.points:
         declared_mean = capability.mean(*point)
         declared_variance = capability.variance(*point)
-        variable = _space(Symbol("X"), capability.exact(*point)).value
-        try:
-            with core._budget(BUDGET):
-                found = (stats.E(variable), stats.variance(variable))
-        except (Exception, core._OverBudget):
-            found = None
-        if found is not None:
-            for what, value, expected in zip(
-                ("mean", "variance"), found, (declared_mean, declared_variance), strict=True
-            ):
-                if not _agree(value, expected):
-                    failures.append(
-                        f"{capability.name}{_at_point(capability, point)}: SymPy's {what} is "
-                        f"{sympy.N(value, 12)}, and its declared {what} "
-                        f"{sympy.N(expected, 12)} ({capability.moments}); fix {what}"
-                    )
+        for what, moment, expected in (
+            ("mean", _mean_of_the_law, declared_mean),
+            ("variance", _variance_of_the_law, declared_variance),
+        ):
+            value, failed = _by_sympy(
+                functools.partial(_of_the_law, moment, capability, point),
+                f"its {what}",
+                capability,
+                point,
+            )
+            failures += failed
+            if value is not None and not _agree(value, expected):
+                failures.append(
+                    f"{capability.name}{_at_point(capability, point)}: SymPy's {what} is "
+                    f"{sympy.N(value, 12)}, and its declared {what} "
+                    f"{sympy.N(expected, 12)} ({capability.moments}); fix {what}"
+                )
         frozen = capability.frozen(*point)
         for what, value, expected in (
             ("mean", frozen.mean(), declared_mean),
@@ -1919,16 +1950,41 @@ def moment_checks(capability: Capability) -> list[str]:
     return failures
 
 
-def agreement(capability: Capability) -> list[str]:
-    """At each of its points, the density and the distribution function the language computes
-    exactly agree with SciPy's, at the quartiles of the law."""
-    from relativisticpy.runtime import core
+def _mean_of_the_law(variable: RandomSymbol) -> Any:
+    """The mean of SymPy's law, by SymPy: as its statistics give it, or, where they ask for
+    a moment-generating function the law has none of, as Student's t has none, from its
+    density."""
+    try:
+        return stats.E(variable)
+    except NotImplementedError:
+        return _from_the_density(variable, 1)
 
+
+def _variance_of_the_law(variable: RandomSymbol) -> Any:
+    """The variance of SymPy's law, by SymPy (see :func:`_mean_of_the_law`)."""
+    try:
+        return stats.variance(variable)
+    except NotImplementedError:
+        return _from_the_density(variable, 2) - _from_the_density(variable, 1) ** 2
+
+
+def _from_the_density(variable: RandomSymbol, power: int) -> Any:
+    """A moment of a continuous law, the integral of x^k times its density."""
+    law = _law(variable)
+    if not isinstance(law, SingleContinuousDistribution):
+        raise NotImplementedError(f"SymPy gives no moment of {law}")
+    x = Dummy("x", real=True)
+    return sympy.integrate(x**power * law.pdf(x), (x, law.set.inf, law.set.sup))
+
+
+def agreement(capability: Capability) -> list[str]:
+    """At each of its points, the density and the distribution function SymPy's law gives,
+    as the language computes them exactly, agree with SciPy's, at the quartiles of the law.
+    Where SymPy does not compute one, the check fails: SciPy's value is not put for it."""
     assert isinstance(capability, Distribution)
     failures = []
     for point in capability.points:
         frozen = capability.frozen(*point)
-        variable = _space(Symbol("X"), capability.exact(*point)).value
         for value in _quartiles(frozen):
             pdf = frozen.pmf(value) if capability.discrete else frozen.pdf(value)
             at = (
@@ -1936,23 +1992,43 @@ def agreement(capability: Capability) -> list[str]:
                 if capability.discrete
                 else sympy.Rational(value).limit_denominator(10**9)
             )
-            computed: list[tuple[str, Any, Callable[[Any, Any], Any]]] = [
-                ("density", pdf, density),
-                ("distribution function", frozen.cdf(value), cdf),
+
+            computed: list[tuple[str, Any, Callable[[], Any]]] = [
+                (
+                    "density",
+                    pdf,
+                    functools.partial(_of_the_law, _exact_density, capability, point, at),
+                ),
+                (
+                    "distribution function",
+                    frozen.cdf(value),
+                    functools.partial(_of_the_law, _below, capability, point, at),
+                ),
             ]
-            for what, numeric, function in computed:
-                try:
-                    with core._budget(BUDGET):
-                        found = function(variable, at)
-                except (Exception, core._OverBudget):
-                    continue  # what SymPy cannot compute in time is SciPy's alone
-                if not _agree(found, numeric):
+            for what, numeric, compute in computed:
+                found, failed = _by_sympy(compute, f"its {what} at {value:g}", capability, point)
+                failures += failed
+                if found is not None and not _agree(found, numeric):
                     failures.append(
                         f"{capability.name}{_at_point(capability, point)}: its {what} at "
                         f"{value:g} is {sympy.N(found, 12)} by SymPy and {float(numeric):.12g} "
                         "by SciPy; fix exact or numeric"
                     )
     return failures
+
+
+def _of_the_law(
+    compute: Callable[..., Any], capability: Distribution, point: Sequence[Any], *at: Any
+) -> Any:
+    """What ``compute`` gives of a random variable of SymPy's law of a distribution, at a
+    point it is checked at."""
+    return compute(_checked_variable(capability, point), *at)
+
+
+def _exact_density(variable: RandomSymbol, at: Any) -> Any:
+    """The density of a random variable at a value, or its mass there, by SymPy alone."""
+    found = stats.density(variable)(at)
+    return found.doit() if isinstance(found, Basic) else found
 
 
 def _quartiles(frozen: Any) -> list[float]:
