@@ -402,10 +402,10 @@ def approximate(value: Any) -> bool:
         return approximate(value.components)
     if isinstance(value, TensorEquation):
         return approximate(value.lhs) or approximate(value.rhs)
-    dtypes = getattr(value, "dtypes", None)  # a table of pandas, a dtype for each column
-    if dtypes is not None and not isinstance(value, sympy.Basic):
-        return any(getattr(dtype, "kind", "O") in "fc" for dtype in dtypes)
-    if numerical.is_numerical(value) or (type(value).__module__ or "").startswith("pandas"):
+    tabled = getattr(value, "to_numpy", None)  # a table or a series of pandas: its numbers
+    if (type(value).__module__ or "").startswith("pandas") and callable(tabled):
+        value = tabled()
+    if numerical.is_numerical(value):
         kind = getattr(getattr(value, "dtype", None), "kind", "O")
         if kind == "O":  # numbers of Python's or SymPy's, in an array of objects
             return any(approximate(item) for item in arrays.flatten(value))

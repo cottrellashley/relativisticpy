@@ -224,5 +224,16 @@ class TestWhetherAValueIsAnAnswer:
         assert approximate(numpy.float64(1.0))
         assert approximate(1 + 2j)
         assert not approximate(numpy.array([1, 2]))
+        assert approximate(numpy.array([1, 2.5], dtype=object))  # Python's numbers, held
         assert not approximate(True)
         assert not approximate("text")
+
+    def test_a_table_or_a_series_is_approximate_by_its_numbers(self):
+        pandas = pytest.importorskip("pandas")
+        assert approximate(pandas.Series([1.5, 2.0]))
+        assert not approximate(pandas.Series([1, 2]))
+        assert approximate(pandas.DataFrame({"n": [1, 2], "x": [0.5, 1.5]}))
+        assert not approximate(pandas.DataFrame({"n": [1, 2]}))
+        [step] = Workbook(scope={"s": pandas.Series([1.5, 2.0])}).each(r"\texttt{s}")
+        [value] = as_data(step)["values"]
+        assert (value["complete"], value["approximate"]) == (True, True)
