@@ -138,6 +138,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** An undefined `I`, `\mathbf{1}`, `\mathbb{1}` or 𝟙 in matrix arithmetic is the identity of the matching size, with a note; a defined `I` keeps its value. A number added to a square matrix inside a matrix equation is that multiple of the identity, with a note. Where `\mathbf{1}` meets a vector rather than a matrix, it is the vector of ones (decision 23).
 
+**The capital I of SymPy** (23 November 2026). SymPy writes I for the imaginary unit, and so do agents that know it, in plain text: `(3 + 4*I)^2` was (4I + 3)², silently, I a name. What I means does not change, since physics writes it for a current, an intensity or a moment of inertia; but in plain text an I that nothing defines, beside a number in a product, as in `4*I`, or in a term of a sum, as in `x + y*I`, says in a note that it is a name of its own, and that the imaginary unit is i. `I*R` alone says nothing.
+
 ## 13. Brackets
 
 **Waiting on it:** `dirac-notation` (9), `operators` (7), `poisson-bracket` (3), `anticommutator`, `user-notation`, `kl-divergence`.

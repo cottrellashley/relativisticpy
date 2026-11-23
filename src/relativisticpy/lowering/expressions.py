@@ -283,6 +283,8 @@ class Expressions(LinearAlgebra):
                 pending.append((sign, expr.left))
             else:
                 terms.append((sign, expr))
+        if not ctx.latex:  # x + y*I, in plain text: I is no imaginary unit, said so
+            self._note_capital_i([term for _, term in terms], scope, sum_=True)
         self._sums.append(node)
         try:
             values = self._terms_of_a_sum(terms, scope, ctx)  # A - \lambda I
@@ -327,6 +329,8 @@ class Expressions(LinearAlgebra):
         if ctx.latex:
             factors = _slashed(factors)
         factors = [part for factor in factors for part in _unsigned(factor)]
+        if not ctx.latex:  # 4*I, in plain text: I is no imaginary unit, said so
+            self._note_capital_i(factors, scope, sum_=False)
         self._check_misread_integral(factors, scope)  # integral x^2 dx
         factors = self._compound_names(factors, scope, ctx)  # \Delta x, one name
         factors = self._calls_of_names(factors, scope)  # \psi_n(x), of the program's own

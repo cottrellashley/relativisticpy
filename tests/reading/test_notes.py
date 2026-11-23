@@ -146,6 +146,20 @@ class TestSilentReadingsAreSaid:
             "to a number; define it first, as in lb(x) := ...",
         ]
 
+    def test_a_capital_i_beside_a_number_says_it_is_no_imaginary_unit(self, wb):
+        # (3 + 4*I)^2 was (4I + 3)^2, silently, where SymPy's users mean I for i
+        note = (
+            "I is a name of its own, as nothing defines it, and not the imaginary unit, which "
+            "is i, as in 3 + 4*i"
+        )
+        assert notes(wb, "(3 + 4*I)^2") == [note]
+        assert notes(wb, "(x + y*I)^2") == [note]
+        assert notes(wb, "(sqrt(3)/2)*I") == [note]
+        assert sympy.expand(wb.expr("(3 + 4*i)^2")) == -7 + 24 * sympy.I  # the hint works
+        assert notes(wb, "I*R") == []  # a current times a resistance, as physics writes it
+        wb.exe("I := 2")
+        assert notes(wb, "3 + 4*I") == []  # I has a value
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

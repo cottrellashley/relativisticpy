@@ -673,6 +673,28 @@ class Reader(Typer):
             return "kretschmann"
         return None
 
+    def _note_capital_i(self, operands: Sequence[ast.Expr], scope: Scope, *, sum_: bool) -> None:
+        """In plain text, say that an I that nothing defines is a name of its own where it is
+        written as the imaginary part of a complex number is, as SymPy writes the imaginary
+        unit: beside a number in a product, as in ``4*I``, or in a term of a sum, as in
+        ``x + y*I`` (``sum_``). The imaginary unit is i, and what I means is not changed
+        (design/notation.md, decision 12)."""
+        if self._identity is not None or scope.lookup("I") is not None:
+            return
+        if "I" in self.session.assumptions:
+            return
+        if sum_:
+            written = any(_capital_i(factor) for term in operands for factor in _factors_of(term))
+        else:
+            written = any(_capital_i(factor) for factor in operands) and any(
+                _numeric(factor) for factor in operands
+            )
+        if written:
+            self._note(
+                "I is a name of its own, as nothing defines it, and not the imaginary unit, "
+                "which is i, as in 3 + 4*i"
+            )
+
     def _parameters_product(
         self, node: ast.Name, letters: list[str], scope: Scope, ctx: Context
     ) -> Node:
@@ -2539,6 +2561,29 @@ def _bound(
         elif slot is not None:
             return None
     return tuple(arguments), tuple(keywords)
+
+
+def _capital_i(node: ast.Expr) -> bool:
+    """Whether a node is the name I, written plainly."""
+    return isinstance(node, ast.Name) and node.id == "I" and not node.verbatim
+
+
+def _factors_of(term: ast.Expr) -> list[ast.Expr]:
+    """The factors of a term of a sum, as y and I of ``y*I``, its sign set aside."""
+    while isinstance(term, ast.Unary) and term.op in ("-", "+"):
+        term = term.operand
+    if isinstance(term, ast.Binary) and term.op == "*":
+        return [part for factor in (term.left, term.right) for part in _factors_of(factor)]
+    return [term]
+
+
+def _numeric(node: ast.Expr) -> bool:
+    """Whether what is written is a number, made of numbers alone, as 4, 1/2 and sqrt(3)/2
+    are."""
+    names = [n for n in _walk(node) if isinstance(n, ast.Name)]
+    called = {id(n.func) for n in _walk(node) if isinstance(n, ast.Call)}
+    numbers = any(isinstance(n, ast.Number) for n in _walk(node))
+    return numbers and all(id(name) in called for name in names)
 
 
 def _subscripted_parts(name: str) -> list[str] | None:
