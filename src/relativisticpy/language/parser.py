@@ -2755,7 +2755,7 @@ class Parser:
 
     def _solidus_derivative(self, left: ast.Expr) -> ast.Expr | None:
         """Leibniz's fraction set with a solidus, as a line of text sets it, read after the
-        solidus as ``\\frac`` reads it (design/notation.md, decision 39): ``d/dx``, ``dy/dx``,
+        solidus as ``\\frac`` reads it (design/notation.md, decision 40): ``d/dx``, ``dy/dx``,
         ``d(x^3)/dx``, ``d^2y/dx^2``, ``∂f/∂x``. In a product it is the fraction of the
         factors from its numerator's differential on, as ``x dy/dx`` is ``x \\frac{dy}{dx}``.
         It keeps the quotient as written, which is what it means where the program defines

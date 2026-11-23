@@ -342,7 +342,7 @@ def test_a_decimal_is_the_fraction_it_denotes(pair):
 # -- plain text and Unicode, and the LaTeX they spell -----------------------------------
 #
 # What an agent types for algebra and calculus, in plain text and in Unicode, beside the
-# LaTeX it spells (design/notation.md, decisions 39 and 40). Each was read otherwise, or
+# LaTeX it spells (design/notation.md, decisions 40 and 41). Each was read otherwise, or
 # refused, before: sin²x as c·o·s²·x + i·n²·s·x, int_0^1 x^2 dx as a product of names,
 # d/dx sin(x) as d sin(x)/dx, df/dx as the name df over dx.
 

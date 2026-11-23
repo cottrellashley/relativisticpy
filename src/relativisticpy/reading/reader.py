@@ -671,7 +671,7 @@ class Reader(Typer):
 
     def _note_one_name(self, node: ast.Name, scope: Scope) -> None:
         """Say how a name of several letters that nothing defines is read in plain text,
-        where it could be meant otherwise (design/notation.md, decision 40): as one name,
+        where it could be meant otherwise (design/notation.md, decision 41): as one name,
         where it runs a function's name into its argument, as ``sinx`` does, and where each
         of its letters is a name the statement or the program writes alone, as ``ab`` is in
         ``(a + b)^2 - (a^2 + 2ab + b^2)``."""
@@ -698,7 +698,7 @@ class Reader(Typer):
     def _glued(self, node: ast.Name, glued: tuple[str, str], ctx: Context) -> CompileError:
         """The error for a run of letters, in LaTeX or Unicode, that runs a function's name
         into its argument, as ``sinx`` does: read as letters, as such a run is, its i would
-        be the imaginary unit (design/notation.md, decision 40)."""
+        be the imaginary unit (design/notation.md, decision 41)."""
         function, argument = glued
         shown = _shown(argument, ctx.latex)
         return CompileError(
@@ -1155,7 +1155,7 @@ class Reader(Typer):
 
     def _check_misread_derivative(self, node: ast.Binary, scope: Scope) -> None:
         """Refuse a quotient written as a derivative is, which Leibniz's fraction could not
-        read (design/notation.md, decision 39): below, a differential that nothing defines,
+        read (design/notation.md, decision 40): below, a differential that nothing defines,
         as dx; above, a d that nothing defines, set apart by *, as in d*y/dx, or a name that
         runs d into a function or a value the program defines, as drate/dx does after
         rate(x) := .... Read as written, it would divide by a symbol dx."""
@@ -1193,7 +1193,7 @@ class Reader(Typer):
         """Refuse a product of a name that writes an integral, as integral, int or
         integrate without its brackets, that nothing defines, and a differential at its end
         that nothing defines either, as ``integral x^2 dx`` and ``integrate x^2 dx``: read
-        as written, it would multiply by the symbol dx (design/notation.md, decision 39)."""
+        as written, it would multiply by the symbol dx (design/notation.md, decision 40)."""
         if len(factors) < 2:
             return
         last = _written_differential(factors[-1])

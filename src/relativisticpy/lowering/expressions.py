@@ -1095,7 +1095,7 @@ class Expressions(LinearAlgebra):
     def _note_unbracketed(self, node: ast.Call, ctx: Context) -> None:
         """Say how far a function written in letters without brackets reaches, in plain
         text, where it takes a product of names: ``sin x y`` is sin(x y), as LaTeX reads
-        ``\\sin x y`` (design/notation.md, decisions 11 and 39), where it could be sin(x) y.
+        ``\\sin x y`` (design/notation.md, decisions 11 and 40), where it could be sin(x) y.
         A number before a name, as in ``sin 2x``, is no such product."""
         func = node.func
         if ctx.latex or len(node.args) != 1 or not isinstance(func, ast.Name):
@@ -1922,7 +1922,7 @@ _BIG_OPERATOR_CALLS: Mapping[str, Literal["sum", "prod"]] = {
 def _big_operator_call(node: ast.Call) -> ast.BigOperator:
     """``sum(f, (n, a, b))``, ``summation(...)`` or ``product(...)``, a sum or a product as
     SymPy writes one, as the LaTeX it stands for, so that each is read as
-    ``\\sum_{n=a}^{b} f`` is (design/notation.md, decision 39). With the limits of several
+    ``\\sum_{n=a}^{b} f`` is (design/notation.md, decision 40). With the limits of several
     indices, the first is the innermost, as in SymPy. Anything else is refused."""
     assert isinstance(node.func, ast.Name)
     name, op = node.func.id, _BIG_OPERATOR_CALLS[node.func.id]

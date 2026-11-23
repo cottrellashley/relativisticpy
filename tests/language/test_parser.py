@@ -1836,7 +1836,7 @@ class TestDiracNotation:
 
 class TestPlainTextAndUnicodeSpellLatex:
     """Plain text and Unicode are spellings of the constructs LaTeX writes with commands:
-    each reaches the syntax tree of the LaTeX it spells (design/notation.md, decision 39)."""
+    each reaches the syntax tree of the LaTeX it spells (design/notation.md, decision 40)."""
 
     @pytest.mark.parametrize(
         ("spelled", "latex"),

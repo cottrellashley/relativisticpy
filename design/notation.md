@@ -439,7 +439,7 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11), where it was sin(x) y.
 
-## 40. A run of letters that nothing defines
+## 41. A run of letters that nothing defines
 
 **Added** on 23 November 2026, for agents, which type mathematics in plain text and Unicode.
 

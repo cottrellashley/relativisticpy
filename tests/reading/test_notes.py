@@ -51,7 +51,7 @@ class TestSilentReadingsAreSaid:
         assert wb.expr("dy/dx") == 2
 
     def test_a_name_whose_letters_are_written_alone_is_one_name_and_says_so(self, wb):
-        # (a+b)^2 - (a^2 + 2ab + b^2) was 2ab - 2 ab, without a word (decision 40)
+        # (a+b)^2 - (a^2 + 2ab + b^2) was 2ab - 2 ab, without a word (decision 41)
         assert notes(wb, "(a+b)^2 - (a^2 + 2ab + b^2)") == [
             "ab is one name, as plain text writes names; for the product, write a b or a*b"
         ]

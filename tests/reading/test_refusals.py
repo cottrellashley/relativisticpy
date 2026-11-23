@@ -622,7 +622,7 @@ class TestDependencesAreKept:
 class TestRunsOfLettersThatHoldAFunction:
     """In LaTeX and Unicode a run of letters is a product, so that sinx was s·i·n·x, with
     i the imaginary unit: a run that begins with a function's name and goes on with its
-    argument is refused, saying how to write either reading (decision 40)."""
+    argument is refused, saying how to write either reading (decision 41)."""
 
     @pytest.mark.parametrize("source", ["θ + sinx", r"\alpha + sinx", "sinx²", "2π lnx"])
     def test_it_is_refused(self, wb, source):
@@ -638,7 +638,7 @@ class TestRunsOfLettersThatHoldAFunction:
 class TestQuotientsWrittenAsDerivativesAre:
     """A quotient written as a derivative is, which Leibniz's fraction cannot read, is
     refused rather than divided by a symbol dx; a product of the names int and dx is too
-    (decision 39)."""
+    (decision 40)."""
 
     @pytest.mark.parametrize(
         ("source", "hint"),
