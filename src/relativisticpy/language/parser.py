@@ -2192,6 +2192,13 @@ class Parser:
                 integrand = self.expression(Power.SUM)
                 if not self._at_differential() and not _take_differentials(integrand)[1]:
                     integrand = self._operations(integrand, Power.COMPARISON)
+            elif self.check(K.SLASH):  # \int dx/x is \int \frac{dx}{x}, not (\int dx)/x
+                differentials = self._span(self.tokens[self._significant(start[0])])
+                one = ast.Number("1", span=differentials)
+                self._continue_after(self.advance())
+                below = self.expression(Power.PRODUCT)
+                quotient = ast.Binary("/", one, below, span=differentials.to(below.span))
+                integrand = self._operations(quotient, Power.SUM)
             elif self._starts_operand(self.peek()):
                 integrand = self.expression(Power.SUM)
             elif count == 1 and lower is not None and upper is None:

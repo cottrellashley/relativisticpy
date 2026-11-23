@@ -1941,3 +1941,16 @@ class TestPlainTextAndUnicodeSpellLatex:
     def test_a_parameter_with_a_number_as_its_subscript_is_one_name(self, written):
         # f(x₀) := ... was refused: "function parameters must be names"
         assert program(written) == ["(def f (x_0) (* a (x _[0] ^2)))"]
+
+    @pytest.mark.parametrize(
+        ("written", "latex"),
+        [
+            # \int dx/x was (\int dx)/x, which is 1, in every notation
+            ("int dx/x", r"\int \frac{dx}{x}"),
+            ("∫ dx/x", r"\int \frac{dx}{x}"),
+            (r"\int dx/x", r"\int \frac{dx}{x}"),
+            ("int_1^2 dx/x^2 + 1", r"\int_1^2 \frac{dx}{x^2} + 1"),
+        ],
+    )
+    def test_a_differential_first_over_a_solidus_is_the_numerator(self, written, latex):
+        assert sexpr(written) == sexpr(latex)
