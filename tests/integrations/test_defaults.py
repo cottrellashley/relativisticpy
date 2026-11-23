@@ -8,6 +8,8 @@ program says of a name decides, and nothing is assumed of it.
 """
 
 import json
+import signal
+import time
 
 import pytest
 import sympy
@@ -202,14 +204,36 @@ class TestSums:
         assert not found.has(sympy.nan, sympy.zoo)
         assert sympy.simplify(found - value) == 0
 
-    def test_a_series_that_diverges_says_so(self, wb):
+    def test_a_series_that_diverges_says_so_and_not_that_its_time_ran_out(self, wb):
         step = last(wb, r"\sum_{n=2}^{\infty} \frac{1}{n \ln n}")
         assert isinstance(step.values[0], sympy.Sum)
-        assert "the sum diverges, as SymPy's tests of convergence show" in step.notes
+        assert step.notes == [
+            "the sum diverges, as SymPy's tests of convergence show",
+            "a sum is left as written: SymPy found no closed form for it",
+        ]
+
+    def test_a_series_whose_terms_do_not_tend_to_0_is_infinite(self, wb):
+        step = last(wb, "a < 0\n" r"\sum_{n=0}^{\infty} e^{-a n}")
+        assert step.values == [sympy.oo]
+        assert step.notes == ["the sum diverges: its terms tend to ∞, not to 0"]
+
+    @pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
+    def test_one_past_its_budget_says_that_its_time_ran_out(self, wb, monkeypatch):
+        from relativisticpy.runtime import core
+
+        def searching(*args, **kwargs):
+            time.sleep(2)
+            raise AssertionError("the budget should have stopped this")
+
+        monkeypatch.setattr(core, "_CLOSED_FORM_BUDGET", 0.05)
+        monkeypatch.setattr(core.assumptions, "summed", searching)
+        step = last(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}")
+        assert step.notes == [
+            "SymPy found no closed form of the sum in the 0.05 s it is given",
+            "a sum is left as written: SymPy found no closed form for it",
+        ]
 
     def test_one_with_no_closed_form_is_kept_as_written(self, wb):
         step = last(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}")
         assert isinstance(step.values[0], sympy.Sum)
-        assert step.notes == [
-            "a sum is left as written: SymPy found no closed form for it in the time it was given"
-        ]
+        assert step.notes == ["a sum is left as written: SymPy found no closed form for it"]

@@ -89,23 +89,36 @@ def summation(
         _past_the_budget("sum")
         return written
     if isinstance(found, sympy.Basic) and found.has(sympy.Sum):
-        _say_if_it_diverges(written)
-        return written
+        return _kept(written)
     return found
 
 
-def _say_if_it_diverges(written: Any) -> None:
-    """Say so of a series kept as written that SymPy's tests of convergence show to
-    diverge, as Σ 1/(n ln n) does, whose closed form was not missed for want of time."""
-    if not any(end.is_infinite for end in sympy.sympify(written.limits[0][1:])):
-        return
-    try:
-        with _budget(1.0):
-            verdict = written.is_convergent()
-    except (Exception, _OverBudget):  # what SymPy cannot test says nothing
-        return
-    if verdict in (False, sympy.false):
+def _kept(written: Any) -> Any:
+    """A series SymPy finds no closed form of, kept as written; or ∞, or -∞, where its terms
+    do not tend to 0 and keep one sign, so that it diverges, as that of e^{-an} does where
+    a < 0, which a remark says. Where SymPy's tests of convergence show it to diverge
+    otherwise, as Σ 1/(n ln n) does, a remark says so: no closed form was missed for want
+    of time."""
+    body, (index, lower, upper) = written.function, written.limits[0]
+    if upper != sympy.oo or not sympy.sympify(lower).is_finite:
+        return written
+    tests = (lambda: sympy.limit(body, index, sympy.oo), written.is_convergent)
+    found = []
+    for test in tests:
+        try:
+            with _budget(1.0):
+                found.append(test())
+        except (Exception, _OverBudget):  # what SymPy cannot test says nothing
+            found.append(None)
+    tends, converges = found
+    for sign, infinite in ((1, sympy.oo), (-1, -sympy.oo)):
+        if tends is not None and (tends == infinite or (sign * tends).is_positive):
+            shown = display.unicode(tends)
+            assumptions.remark(f"the sum diverges: its terms tend to {shown}, not to 0")
+            return infinite
+    if converges in (False, sympy.false):
         assumptions.remark("the sum diverges, as SymPy's tests of convergence show")
+    return written
 
 
 def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:

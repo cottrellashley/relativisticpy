@@ -98,7 +98,7 @@ class TestUndoneResultsAreNoted:
 
     def test_a_sum(self, wb):
         assert notes(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}") == [
-            "a sum is left as written: SymPy found no closed form for it in the time it was given"
+            "a sum is left as written: SymPy found no closed form for it"
         ]
         assert wb.expr(r"\sum_{n=1}^{\infty} \frac{1}{n^2}") == sympy.pi**2 / 6  # decision 4
 

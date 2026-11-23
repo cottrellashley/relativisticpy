@@ -1261,9 +1261,7 @@ def _left_undone(value: Any) -> list[str]:
     if value.has(sympy.Integral):
         notes.append("an integral is left as written: SymPy could not compute it")
     if value.has(sympy.Sum, sympy.Product):
-        notes.append(
-            "a sum is left as written: SymPy found no closed form for it in the time it was given"
-        )
+        notes.append("a sum is left as written: SymPy found no closed form for it")
     if value.has(sympy.Limit):
         notes.append("a limit is left as written: SymPy could not compute it")
     if any(not d.expr.has(AppliedUndef) for d in value.atoms(sympy.Derivative)):
