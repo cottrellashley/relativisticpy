@@ -146,7 +146,7 @@ class TestWhetherAValueIsAnAnswer:
         [
             (r"\int_0^1 \sin(\sin x) \, dx", "integral"),
             (r"\sum_{n=1}^{\infty} \frac{1}{n^n}", "sum"),
-            (r"\prod_{n=1}^{\infty} \left(1 + \frac{1}{n^3}\right)", "product"),
+            (r"\prod_{n=2}^{\infty} \left(1 + \frac{1}{n^n}\right)", "product"),
         ],
     )
     def test_what_sympy_left_undone_is_kept_as_written_and_says_so(self, source, reason):
