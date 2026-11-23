@@ -781,6 +781,9 @@ class Families(Labels):
             return None
         if family_of(base, scope) is not None or self._indexes(factor, base):
             return None
+        shape = forms.pair_shape(factor, group)  # J_{\nu}(x), a book name, is read so later
+        if shape is not None and self._book_reading(shape, factor, factor.span.text, scope):
+            return None
         return ast.Name(name, verbatim=True, span=factor.span)
 
     def _defined_function_before(self, factor: ast.Expr, group: ast.Expr, scope: Scope) -> bool:
