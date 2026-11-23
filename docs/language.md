@@ -448,10 +448,11 @@ The variables are real, or whole numbers, as `n \in \mathbb{N}` says. A variable
 vector where its set is `\mathbb{R}^n` or `\{0, 1\}^n`, or a matrix it is multiplied by
 gives its length, as `A \mathbf{x}` does, and its components may be written `x_1, x_2`; a
 tensor, where it is written with an index of a space. What the program assumes of its
-parameters is used, as `a > 0`; where the answer depends on signs it does not say, it is
-found as books find it, with the parameters real and the fewest of them positive, which a
-note says (decision 1 of [notation](notation.md)). A maximum that no point reaches, or that
-is infinite, is refused, and `\sup` gives the bound:
+parameters is used, as `a > 0`, and so is what it assumes of the variables themselves, as
+`x \in [0, 1]` before `\min_x`, which a note says; where the answer depends on signs it does
+not say, it is found as books find it, with the parameters real and the fewest of them
+positive, which a note says (decision 1 of [notation](notation.md)). A maximum that no
+point reaches, or that is infinite, is refused, and `\sup` gives the bound:
 
 ```python
 >>> optima.exe(r"""

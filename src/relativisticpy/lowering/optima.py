@@ -17,11 +17,12 @@ from typing import Any
 
 from sympy import Symbol
 
-from relativisticpy import assumptions
+from relativisticpy import assumptions, display
 from relativisticpy.compiler.scope import Context, Scope, TensorBinding, VariableBinding
 from relativisticpy.errors import CompileError, IndexNotationError
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ops
 from relativisticpy.language import syntax as ast
+from relativisticpy.language.source import Span
 from relativisticpy.lowering.transforms import Transforms
 from relativisticpy.reading import assumptions as reading
 from relativisticpy.tensors import Index, Indices
@@ -177,10 +178,10 @@ class Optima(Transforms):
             for relation, lhs, rhs in self._links(condition, variables, written):
                 relations.append(relation)
                 sides += [self.value(lhs, inner, ctx), self.value(rhs, inner, ctx)]
-        for variable in variables:  # 0 < x and x < 1, of x \in (0, 1)
-            for bound in variable.bounds:
-                relations.append(_RELATIONS[bound.rel_op])
-                sides += [self.graph.const(side, SCALAR) for side in (bound.lhs, bound.rhs)]
+        limits = [bound for variable in variables for bound in variable.bounds]
+        for bound in [*limits, *self._assumed_of(variables, written, node.span)]:
+            relations.append(_RELATIONS[bound.rel_op])  # 0 < x and x < 1, of x \in (0, 1)
+            sides += [self.graph.const(side, SCALAR) for side in (bound.lhs, bound.rhs)]
         unknowns = [self.graph.const(s, SCALAR) for v in variables for s in v.symbols]
         sense, goal = _FINDS[node.op]
         kind, shape = self._answer(goal, variables, node)
@@ -201,6 +202,41 @@ class Optima(Transforms):
         )
         operation = _OPERATIONS.get(shape[0], "optimum.find")
         return self._call(operation, [body, *unknowns, *sides], kind, node.span, attributes)
+
+    def _assumed_of(self, variables: Sequence[_Variable], written: str, span: Span) -> list[Any]:
+        """The bounds the program assumes of the names an optimum is over, as x \\leq 1 of
+        x \\in [0, 1], which SymPy cannot keep on a symbol as it keeps a sign: constraints
+        of the optimum, as relations of its variables' symbols, which a note says. A bound
+        on a vector is on each of its components."""
+        symbols = {variable.name: variable.symbols for variable in variables}
+        found: list[Any] = []
+        kept: list[Any] = []
+        for bound in assumptions.in_force(self.session.bounds, self.session.assumptions):
+            if getattr(bound, "rel_op", None) not in ("<", "<=", ">", ">="):
+                continue
+            named = {s: symbols[s.name] for s in bound.free_symbols if s.name in symbols}
+            if not named:
+                continue
+            if len(named) > 1 and any(len(each) > 1 for each in named.values()):
+                raise CompileError(
+                    f"{written} is over vectors of which the program assumes "
+                    f"{display.unicode(bound)}, which relates more than one of them",
+                    span=span,
+                    hint="state it as a constraint of the optimum, after \\text{subject to}",
+                )
+            kept.append(bound)
+            for k in range(max(len(each) for each in named.values())):
+                found.append(bound.xreplace({s: each[k] for s, each in named.items()}))
+        if kept:
+            names = sorted({s.name for bound in kept for s in bound.free_symbols} & set(symbols))
+            facts = {
+                name: dict(getattr(self.session.assumptions.get(name), "_assumptions_orig", {}))
+                for name in names
+            }
+            shown = assumptions.listed([display.unicode(Symbol(name)) for name in names])
+            said = assumptions.said(facts, kept)
+            self._note(f"{written} keeps what the program assumes of {shown}: {said}")
+        return found
 
     def _variable_name(self, node: ast.Expr, written: str) -> str:
         """The name a variable of an optimum is written as: ``x``, ``x_1``, ``x_{1}``,

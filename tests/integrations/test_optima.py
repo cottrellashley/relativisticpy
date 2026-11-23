@@ -157,6 +157,20 @@ print(wb.expr(r"\arg\max_x \left(-|x-1|-|x+4|\right)"))
         assert done.returncode == 0, done.stderr
         assert done.stdout.split() == ["-1", "-3", "-4"]
 
+    def test_what_the_program_assumes_of_its_variable_bounds_it(self, wb):
+        wb.exe(r"x \in [0, 1]")
+        assert wb.expr(r"\min_x x^2 - 3x") == -2  # at 1, not at 3/2
+        assert wb.expr(r"\max_x x^2 - 3x") == 0
+        assert notes(wb, r"\min_x x^2 - 3x")[0] == (
+            r"\min_x keeps what the program assumes of x: x is zero or positive and x ≤ 1"
+        )
+
+    def test_a_bound_assumed_that_no_point_reaches(self, wb):
+        wb.exe(r"x > 2")
+        with pytest.raises(EvaluationError, match="as near as you like to 1"):
+            wb.expr(r"\min_x (x-1)^2")
+        assert wb.expr(r"\inf_x (x-1)^2") == 1
+
 
 class TestParameters:
     def test_what_the_program_assumes_is_used(self, wb):
