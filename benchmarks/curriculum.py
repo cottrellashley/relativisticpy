@@ -45,7 +45,7 @@ from relativisticpy import Workbook
 from relativisticpy.__main__ import fix_hash_seed
 from relativisticpy.checking import _time_limit
 from relativisticpy.errors import RelativisticPyError
-from relativisticpy.language import Source
+from relativisticpy.language.source import Source
 
 ROOT = Path(__file__).resolve().parent.parent / "curriculum"
 PASSING = ROOT / "passing.txt"
@@ -84,7 +84,9 @@ class Case:
     path: Path
     line: int
     scope: str = ""  # Python run first, whose names the program may read: \texttt{prices}
-    latex: bool = False  # written in a ```latex fence: LaTeX in every statement (decision 10)
+    # written in a ```latex block, and so given as LaTeX, which every statement of it then
+    # is, whatever it is written with (design/notation.md, decision 10)
+    latex: bool = False
 
     @property
     def where(self) -> str:
@@ -240,7 +242,7 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
         return Result(case, "broken", f"the scope fails: {type(error).__name__}: {error}")
     try:
         with _beside(case), workbook, _time_limit(time_limit):
-            values = workbook.exe(Source(case.program, latex=case.latex))
+            values = workbook.exe(_given(case))
     except TimeoutError:
         seconds = time.perf_counter() - start
         return Result(case, "timeout", f"over {time_limit:g} s", seconds=seconds)
@@ -279,6 +281,16 @@ def run(case: Case, time_limit: float | None = TIME_LIMIT) -> Result:
             detail = f"{label}expected {_shown(wanted)}\n{label}got      {_shown(actual)}"
             return Result(case, "wrong", why or "not the answer", detail, seconds)
     return Result(case, "passed", seconds=seconds)
+
+
+def _given(case: Case) -> str | Source:
+    """A case's program as the language is given it: one written in a ```latex block as
+    LaTeX, which every statement of it then is, whatever it is written with, so that
+    ``e^{At}`` is e to the A t, as a ``latex`` fence, a document and ``--latex`` give it
+    (design/notation.md, decision 10); one in plain text as it is typed."""
+    if case.latex and isinstance(case.program, str):
+        return Source(case.program, latex=True)
+    return case.program
 
 
 def _workbook(case: Case) -> Workbook:

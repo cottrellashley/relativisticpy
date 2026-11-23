@@ -83,7 +83,9 @@ section with, in this order:
 2. **A sentence or two saying what the case asks of the language.**
 3. **The program,** in a fenced block marked `latex`, or `relativisticpy` for plain
    text. Write it as the book or paper writes it, not as the language reads it today: a
-   case that fails is a finding, not a mistake.
+   case that fails is a finding, not a mistake. A program in a `latex` block is given to
+   the language as LaTeX, in every statement (`design/notation.md`, decision 10), so that
+   `e^{At}` is e to the A t whether or not its statement has a backslash.
 4. **The oracle,** in a fenced block marked `python`. It computes the answer with SymPy,
    NumPy or SciPy, never with RelativisticPy. SymPy's names are in scope, and NumPy as
    `np`. It sets one of:

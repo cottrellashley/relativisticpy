@@ -134,6 +134,36 @@ def test_other_solutions_are_not():
     assert not curriculum.equal({p: 1}, [(1, 2)])
 
 
+def _case(program: str, oracle: str, *, latex: bool = True):  # type: ignore[no-untyped-def]
+    return curriculum.Case(
+        id="test.case",
+        title="a case of the tests",
+        domain="analysis",
+        topic="test",
+        level=1,
+        source="standard",
+        program=program,
+        oracle=oracle,
+        path=curriculum.ROOT / "analysis" / "test.md",
+        line=1,
+        latex=latex,
+    )
+
+
+def test_a_program_written_in_latex_is_given_as_latex_in_every_statement(tmp_path):
+    # la.eigen.exponential: e^{At} has no backslash, and given as plain text At was one name
+    program = "A := \\begin{pmatrix} 0 & 1 \\\\ -1 & 0 \\end{pmatrix}\ne^{At}"
+    oracle = "t = symbols('t')\nexpected = Matrix([[cos(t), sin(t)], [-sin(t), cos(t)]])"
+    assert curriculum.run(_case(program, oracle)).outcome == "passed"
+    case = "## {0}\n\n**Level 1** · `t.{0}` · standard\n\n```{1}\nx\n```\n\n```python\nx = 1\n```\n"
+    topic = tmp_path / "topic.md"
+    topic.write_text(
+        "# A topic\n\n" + case.format("a", "latex") + case.format("b", "relativisticpy")
+    )
+    read = [(case.id, case.latex) for case in curriculum.read(topic)]
+    assert read == [("t.a", True), ("t.b", False)]
+
+
 def test_a_column_is_the_vector_a_list_writes():
     column = sympy.Matrix([[sympy.Rational(4, 5)], [0], [sympy.Rational(1, 5)]])
     assert curriculum.equal(column, [sympy.Rational(4, 5), 0, sympy.Rational(1, 5)])
