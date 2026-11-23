@@ -267,13 +267,13 @@ def head_of(node: ast.Node) -> Head | None:
     """The head a transform is written with: a name, as ``\\mathcal{L}``, or a name to the
     power -1, as ``\\mathcal{L}^{-1}``; ``None`` for anything else."""
     from relativisticpy.integrations._forms import _style
-    from relativisticpy.typing.syntax import _is_minus_one
+    from relativisticpy.typing.syntax import is_minus_one
 
     inverted = False
     if isinstance(node, ast.Scripted):
         if len(node.scripts) != 1 or node.scripts[0].kind != "^":
             return None
-        if not _is_minus_one(node.scripts[0].body):
+        if not is_minus_one(node.scripts[0].body):
             return None
         node, inverted = node.base, True
     if not isinstance(node, ast.Name):
@@ -726,15 +726,14 @@ def rewrite_checks(capability: Capability) -> list[str]:
     """Each example of a rewrite gives the same numbers rewritten as written, and is
     rewritten: computed by the capability the rewrite names."""
     from relativisticpy import Workbook
-    from relativisticpy.integrations._conformance import _same
-    from relativisticpy.integrations._conformance import _shown as _program
+    from relativisticpy.integrations import _conformance as checks
 
     assert isinstance(capability, Rewrite)
     name, failures = capability.name, []
     if catalogue().get(capability.computes) is None:
         return [f"{name}: it computes with {capability.computes}, which no integration declares"]
     for example in capability.examples:
-        shown = _program(example)
+        shown = checks.program_of(example)
         try:
             with Workbook() as wb:
                 ir = wb.ir(example.program)
@@ -752,7 +751,7 @@ def rewrite_checks(capability: Capability) -> list[str]:
             )
         if f"call {capability.computes}" in kept:
             failures.append(f"{name}'s example {shown} is rewritten even as written")
-        if not rewritten or not written or not _same(rewritten[-1], written[-1], 1e-9):
+        if not rewritten or not written or not checks.same(rewritten[-1], written[-1], 1e-9):
             failures.append(
                 f"{name}'s example {shown} gives other numbers rewritten than written: "
                 f"{_value(rewritten)} and {_value(written)}; fix the rewrite"

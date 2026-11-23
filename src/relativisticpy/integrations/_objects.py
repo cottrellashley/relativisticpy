@@ -928,17 +928,17 @@ def declaration(conversion: ObjectConversion) -> list[str]:
 def _imports(conversion: ObjectConversion) -> list[str]:
     """That a module of object integrations imports no optional library when it is imported:
     an object of the library's types is never made without it."""
-    from relativisticpy.integrations._conformance import _distribution, _optional
+    from relativisticpy.integrations._conformance import distribution_of, optional_libraries
 
     module = sys.modules.get(conversion.module)
     for value in vars(module).values() if module is not None else ():
         owner = getattr(value, "__name__", "") if isinstance(value, type(sys)) else ""
         library = (owner or getattr(value, "__module__", None) or "").split(".")[0]
-        if library in _optional():
+        if library in optional_libraries():
             return [
                 f"{conversion.name}: its module imports {library} when it is imported; import "
                 "it inside becomes, or inside what makes the examples' objects, and declare "
-                f'requires="{_distribution(library)}"'
+                f'requires="{distribution_of(library)}"'
             ]
     return []
 
@@ -947,7 +947,7 @@ def examples(conversion: ObjectConversion) -> list[str]:
     """Each example, given its objects, reads one this integration takes, and gives its
     answer. An example whose objects need a library not installed is checked where it is."""
     from relativisticpy import Workbook
-    from relativisticpy.integrations._conformance import _from, _same, _value
+    from relativisticpy.integrations._conformance import as_shown, from_source, same
 
     name, failures = conversion.name, []
     with usable(conversion):
@@ -970,10 +970,11 @@ def examples(conversion: ObjectConversion) -> list[str]:
                 continue
             if not values:
                 failures.append(f"{name}'s example {program} shows nothing")
-            elif not _same(_listed(values[-1]), example.answer, example.tolerance):
+            elif not same(_listed(values[-1]), example.answer, example.tolerance):
                 failures.append(
-                    f"{name}'s example {program} gives {_value(values[-1])}, not "
-                    f"{_value(example.answer)}{_from(example)}: fix becomes, or the example's "
+                    f"{name}'s example {program} gives {as_shown(values[-1])}, not "
+                    f"{as_shown(example.answer)}{from_source(example)}: fix becomes, or the "
+                    "example's "
                     "answer"
                 )
     return failures

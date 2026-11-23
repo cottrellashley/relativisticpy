@@ -130,9 +130,10 @@ def declaration(capability: Capability) -> list[str]:
     """Names of its own, a summary, examples with sources, the library it needs declared
     and imported only when used, and the plain text it is called with."""
     from relativisticpy.compiler.builtins import CONSTANTS
-    from relativisticpy.reading.names import _DECLARATIONS
+    from relativisticpy.compiler.session import ASSUMPTION_STATEMENTS, RENAMING_STATEMENTS
 
     name, failures = capability.name, []
+    declaring = {"Coordinates", *ASSUMPTION_STATEMENTS, *RENAMING_STATEMENTS}
     for written in capability.names:
         if not _one_name(written):
             failures.append(
@@ -145,7 +146,7 @@ def declaration(capability: Capability) -> list[str]:
                 f"{name}: {written!r} is already declared by {other.module}; choose another "
                 "name, or extend that capability"
             )
-        if written in CONSTANTS or written in _DECLARATIONS:
+        if written in CONSTANTS or written in declaring:
             failures.append(
                 f"{name}: {written!r} is a name the language gives a meaning of its own; "
                 "choose another name"
@@ -165,7 +166,7 @@ def declaration(capability: Capability) -> list[str]:
     for example in capability.examples:
         if not isinstance(example, Example) or not example.source.strip():
             failures.append(
-                f"{name}: the example {_shown(example)} says not where its answer comes from: "
+                f"{name}: the example {program_of(example)} says not where its answer comes from: "
                 'give its source, a book and equation, "DLMF 10.8.1", or the library called '
                 'directly, "scipy.special.jv(0, 1.5)"'
             )
@@ -212,10 +213,10 @@ def _dependencies(capability: Capability) -> list[str]:
     for value in vars(module).values() if module is not None else ():
         owner = getattr(value, "__name__", "") if isinstance(value, type(sys)) else ""
         library = (owner or getattr(value, "__module__", None) or "").split(".")[0]
-        if library in _optional():
+        if library in optional_libraries():
             failures.append(
                 f"{name}: its module imports {library} when it is imported; import it inside "
-                f'exact or numeric, and declare requires="{_distribution(library)}", so that '
+                f'exact or numeric, and declare requires="{distribution_of(library)}", so that '
                 "the language runs without it"
             )
             break
@@ -226,7 +227,7 @@ def _dependencies(capability: Capability) -> list[str]:
     numeric = capability.numeric
     if point and numeric is not None:
         calls.append(("numeric", lambda: numeric(np, *map(np.asarray, point[0]))))
-    with _without(*(library for library in _optional() if library not in declared)):
+    with _without(*(library for library in optional_libraries() if library not in declared)):
         for method, call in calls:
             try:
                 call()
@@ -234,7 +235,7 @@ def _dependencies(capability: Capability) -> list[str]:
                 library = (error.name or "").split(".")[0]
                 failures.append(
                     f"{name}: {method} imports {library}, which is optional: declare "
-                    f'requires="{_distribution(library)}", so that a missing one is said'
+                    f'requires="{distribution_of(library)}", so that a missing one is said'
                 )
             except Exception:
                 pass  # only a missing library is this check's
@@ -331,7 +332,7 @@ def examples(capability: Capability) -> list[str]:
     failures = []
     with usable(capability):
         for example in capability.examples:
-            shown = _shown(example)
+            shown = program_of(example)
             try:
                 with Workbook() as wb, _optimizers.answering() as answers:
                     used = _uses(wb.ir(example.program), capability)
@@ -359,15 +360,15 @@ def examples(capability: Capability) -> list[str]:
                 continue
             if capability.gives_form and not _alike(values[-1], example.answer):
                 failures.append(
-                    f"{capability.name}'s example {shown} gives {_value(values[-1])}, not "
-                    f"{_value(example.answer)} as it is written{_from(example)}: it gives a "
-                    "form, which is shown as it is computed; fix exact, or the example's answer"
+                    f"{capability.name}'s example {shown} gives {as_shown(values[-1])}, not "
+                    f"{as_shown(example.answer)} as it is written{from_source(example)}: it gives "
+                    "a form, which is shown as it is computed; fix exact, or the example's answer"
                 )
-            elif not _same(values[-1], example.answer, example.tolerance):
+            elif not same(values[-1], example.answer, example.tolerance):
                 failures.append(
-                    f"{capability.name}'s example {shown} gives {_value(values[-1])}, not "
-                    f"{_value(example.answer)}{_from(example)}: fix exact, or the example's "
-                    "answer"
+                    f"{capability.name}'s example {shown} gives {as_shown(values[-1])}, not "
+                    f"{as_shown(example.answer)}{from_source(example)}: fix exact, or the "
+                    "example's answer"
                 )
     return failures
 
@@ -524,7 +525,7 @@ def _lifted(capability: Capability, points: list[tuple[Any, ...]], place: int) -
         except RelativisticPyError as error:
             return [*failures, f"{name} applied to {data} fails: {error.kind}: {error.message}"]
         if not isinstance(result, Tensor):
-            return [*failures, f"{name} applied to {data} gives no tensor: {_value(result)}"]
+            return [*failures, f"{name} applied to {data} gives no tensor: {as_shown(result)}"]
         failures += _components(capability, result, expected, data, over)
     return failures
 
@@ -620,7 +621,7 @@ def _of_data(capability: Capability, point: tuple[Any, ...], place: int, values:
         except RelativisticPyError as error:
             return f"is refused at {values}: {error.message}"
     if not _data(result):
-        return f"gives no data at {values}: {_value(result)}"
+        return f"gives no data at {values}: {as_shown(result)}"
     return np.asarray(result.to_numpy(), dtype=complex).ravel()
 
 
@@ -644,7 +645,7 @@ def _components(
     name = capability.name
     if not isinstance(result, Tensor):
         return [
-            f"{name} applied to {what} gives {_value(result)}, not a tensor of its values at "
+            f"{name} applied to {what} gives {as_shown(result)}, not a tensor of its values at "
             "each component; declare it lifts=True, as a function of numbers does"
         ]
     if [s.name for s in result.spaces or ()] != [space]:
@@ -655,10 +656,10 @@ def _components(
         else [result.components[k] for k in range(len(expected))]
     )
     if len(values) != len(expected) or not all(
-        _same(a, b, 1e-9) for a, b in zip(values, expected, strict=False)
+        same(a, b, 1e-9) for a, b in zip(values, expected, strict=False)
     ):
-        shown = ", ".join(_value(_evaluated(v)) for v in values)
-        wanted = ", ".join(_value(_evaluated(v)) for v in expected)
+        shown = ", ".join(as_shown(_evaluated(v)) for v in values)
+        wanted = ", ".join(as_shown(_evaluated(v)) for v in expected)
         return [
             f"{name} applied to {what} gives [{shown}], not its value at each component, "
             f"[{wanted}]; {_FROM_DATA if what.startswith('data') else _FROM_TENSOR}"
@@ -776,13 +777,13 @@ def _over_the_map(capability: Capability, result: Any, expected: Any, what: str)
     name = capability.name
     if not capability.scalar:
         if not isinstance(result, Tensor):
-            return [f"{name} applied to {what} gives {_value(result)}, not a map over its space"]
+            return [f"{name} applied to {what} gives {as_shown(result)}, not a map over its space"]
         if [space.name for space in result.spaces or ()] != ["V", "V"]:
             return [f"{name} applied to {what} loses its space: its value is over {result.spaces}"]
         result = result.to_numpy() if _data(result) else result.components
     found, wanted = _entries(result), _entries(expected)
     if found is None or wanted is None or found.shape != wanted.shape:
-        return [f"{name} applied to {what} gives {_value(result)}, not {_value(expected)}"]
+        return [f"{name} applied to {what} gives {as_shown(result)}, not {as_shown(expected)}"]
     if not _close_entries(found, wanted, 1e-9):
         return [
             f"{name} applied to {what} gives {_shown_entries(found)}, not its value at the map's "
@@ -937,20 +938,20 @@ def display(capability: Capability) -> list[str]:
                     back = wb.expr(shown)
             except RelativisticPyError as error:
                 failures.append(
-                    f"{name}: {_value(value)} prints in {form} as {shown}, which does not read "
+                    f"{name}: {as_shown(value)} prints in {form} as {shown}, which does not read "
                     f"back: {error.message}; {_to_read(capability, value, form)}"
                 )
                 continue
-            if not _same(back, value, 1e-12):
+            if not same(back, value, 1e-12):
                 failures.append(
-                    f"{name}: {_value(value)} prints in {form} as {shown}, which reads back as "
+                    f"{name}: {as_shown(value)} prints in {form} as {shown}, which reads back as "
                     f"{_read_as(back)}; {_to_read(capability, value, form)}"
                 )
         described = show.data(value)
         try:
             json.dumps(described)
         except TypeError as error:
-            failures.append(f"{name}: the data form of {_value(value)} is not JSON: {error}")
+            failures.append(f"{name}: the data form of {as_shown(value)} is not JSON: {error}")
     return failures
 
 
@@ -1100,7 +1101,7 @@ def _at(capability: Capability, point: tuple[Any, ...]) -> str:
     return "(" + ", ".join(f"{n}={v}" for n, v in zip(names, point, strict=False)) + ")"
 
 
-def _same(value: Any, answer: Any, tolerance: float) -> bool:
+def same(value: Any, answer: Any, tolerance: float) -> bool:
     """Whether the language's value is the answer: a truth value as an equation that holds
     or not; text as text; lists, arrays and matrices item by item; numbers to
     ``tolerance``, relatively; and expressions where their difference simplifies to 0."""
@@ -1114,10 +1115,10 @@ def _same(value: Any, answer: Any, tolerance: float) -> bool:
             mine is not None
             and theirs is not None
             and len(mine) == len(theirs)
-            and all(_same(a, b, tolerance) for a, b in zip(mine, theirs, strict=True))
+            and all(same(a, b, tolerance) for a, b in zip(mine, theirs, strict=True))
         )
     if isinstance(answer, sympy.Equality) and isinstance(value, sympy.Equality):
-        return _same(value.lhs, answer.lhs, tolerance) and _same(value.rhs, answer.rhs, tolerance)
+        return same(value.lhs, answer.lhs, tolerance) and same(value.rhs, answer.rhs, tolerance)
     try:
         value, answer = sympy.sympify(value), sympy.sympify(answer)
     except (sympy.SympifyError, TypeError):
@@ -1154,7 +1155,7 @@ def _holds(value: Any) -> bool | None:
     return None
 
 
-def _shown(example: Any) -> str:
+def program_of(example: Any) -> str:
     program = getattr(example, "program", example)
     return " ".join(str(program).split())
 
@@ -1166,7 +1167,7 @@ _FROM_DATA = (
 _FROM_TENSOR = "each component is computed by exact: fix exact, or declare lifts=False"
 
 
-def _from(example: Example) -> str:
+def from_source(example: Example) -> str:
     return f" ({example.source})" if example.source.strip() else ""
 
 
@@ -1191,11 +1192,11 @@ def _read_as(value: Any) -> str:
     )
     if unknown:
         named = ", ".join(unknown)
-        return f"{_value(value)}, in which {named} is a function the language does not know"
-    return _value(value)
+        return f"{as_shown(value)}, in which {named} is a function the language does not know"
+    return as_shown(value)
 
 
-def _value(value: Any) -> str:
+def as_shown(value: Any) -> str:
     from relativisticpy import display as show
 
     try:
@@ -1211,7 +1212,7 @@ def _written_value(value: Any) -> str:
 
 
 @functools.cache
-def _optional() -> tuple[str, ...]:
+def optional_libraries() -> tuple[str, ...]:
     """The libraries an extra of RelativisticPy installs, by the names they are imported
     by, but NumPy, which the engines compute numbers with."""
     try:
@@ -1237,7 +1238,7 @@ def _imported_as(distribution: str) -> frozenset[str]:
 
 
 @functools.cache
-def _distribution(module: str) -> str:
+def distribution_of(module: str) -> str:
     """The library, as pip installs it, that a module is imported from."""
     found = importlib.metadata.packages_distributions().get(module)
     return found[0] if found else module

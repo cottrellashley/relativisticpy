@@ -253,7 +253,7 @@ def translate(error: BaseException, *, span: Span | None = None) -> Relativistic
         if error.span is None:
             error.span = span
         return error
-    known = _known_failure(error)
+    known = known_failure(error)
     library = _library(error)
     failure: RelativisticPyError
     if known is not None:  # in RelativisticPy's words, with the library's as its cause
@@ -365,7 +365,7 @@ _KNOWN: tuple[tuple[frozenset[str], re.Pattern[str], str, str | None], ...] = tu
 )
 
 
-def _known_failure(error: BaseException) -> tuple[str, str | None] | None:
+def known_failure(error: BaseException) -> tuple[str, str | None] | None:
     """The message and hint for a failure RelativisticPy knows, or ``None``."""
     name = type(error).__name__
     for kinds, pattern, message, hint in _KNOWN:

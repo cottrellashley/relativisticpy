@@ -29,7 +29,7 @@ from typing import Any
 
 import sympy
 
-from relativisticpy.errors import EvaluationError, RelativisticPyError, _known_failure
+from relativisticpy.errors import EvaluationError, RelativisticPyError, known_failure
 from relativisticpy.integrations._declarations import Capability, Function, Reservation
 from relativisticpy.integrations._objects import ObjectConversion
 
@@ -209,7 +209,7 @@ class Exactly:
             raise missing(self.name, capability, error) from None
         except (TypeError, AttributeError) as error:
             refused = wrong_kind(self.name, capability, args)
-            if refused is None or _known_failure(error) is not None:
+            if refused is None or known_failure(error) is not None:
                 raise  # said in RelativisticPy's words where the error is translated
             raise refused from error
 

@@ -186,13 +186,17 @@ def _bracket_groups(
     return groups
 
 
-def _is_minus_one(node: ast.Expr | None) -> bool:
+def is_minus_one(node: ast.Expr | None) -> bool:
+    """Whether a script is -1, the power an inverse is written with, as in ``f^{-1}``."""
     return (
         isinstance(node, ast.Unary)
         and node.op == "-"
         and isinstance(node.operand, ast.Number)
         and node.operand.text == "1"
     )
+
+
+_is_minus_one = is_minus_one  # the name the typer and the lowerer call it by
 
 
 def _written(scripts: Sequence[ast.Script]) -> str:
