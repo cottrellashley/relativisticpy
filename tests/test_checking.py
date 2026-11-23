@@ -194,6 +194,30 @@ class TestScalarEquations:
             "differs in 1 of 2 components: at 1, 2 ≠ 3",
         )
 
+    def test_a_value_beside_an_equation_of_unknowns_relates(self):
+        # arXiv 2611.26585 (12, 13): H_1 is defined as a chain, so its value is an
+        # equation, which the conformal invariance of H_1 then compares with a value. The
+        # sides are not equal, and every quantity in them is one nothing defines: they
+        # relate, as a law does, rather than differ.
+        report = Workbook().check(
+            Document(r"""\begin{equation}
+            \mathcal{H}_1(\lambda):=\mathcal{H}_\mathrm{c}+\mathcal{N}(\lambda)\,\mathcal{C}
+            =\mathcal{N}(\lambda)\,\mathcal{C},
+            \end{equation}
+            \begin{equation}
+            \hat{\mathcal{H}}_1(\lambda)=\mathcal{H}_1(\lambda),
+            \end{equation}""")
+        )
+        assert [finding.verdict for finding in report] == ["defines", "relates"]
+        hat = display.unicode(sympy.Symbol("Hhat_1"))
+        assert report.findings[1].detail.startswith(f"nothing defines C, H_c, {hat}, λ and N(λ): ")
+        # with every quantity known, a value beside an equation still differs
+        report = Workbook().check(
+            Document(r"""\begin{equation} f(x) := x = 1 \end{equation}
+            \begin{equation} 2 = f(3) \end{equation}""")
+        )
+        assert [finding.verdict for finding in report][-1] == "differs"
+
     def test_quantities_the_metric_is_written_with_are_known(self):
         # Carroll's Kretschmann scalar (7.30) and the sphere's curvature are mistakes
         report = Workbook().check(

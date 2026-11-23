@@ -657,6 +657,9 @@ def _finding(step: Step, session: Workbook, state: _State) -> Finding:
             detail = "the inequality does not hold"
         elif difference is not None:
             verdict, detail = _differs_or_relates(difference, session, state)
+        elif _false(step.values[-1]) and step.sides is not None:
+            # sides of other kinds, as a value beside an equation a definition gave
+            verdict, detail = _sides_differ_or_relate(lhs, rhs, session, state)
     return Finding(verdict, step.span, detail, notes=notes, difference=difference)
 
 
@@ -699,7 +702,7 @@ def _judge(value: Any, session: Workbook, state: _State) -> tuple[Verdict, str, 
     value; why; and the difference of an equation's sides, where it has one."""
     if value is True or value is sympy.true:
         return Verdict.HOLDS, "", None
-    if value is False or value is sympy.false:
+    if _false(value):
         return Verdict.DIFFERS, "the two sides are not equal", None
     if isinstance(value, IndexEquation):  # a law, such as Einstein's, need not be an identity
         if value.holds():
@@ -746,6 +749,25 @@ def _differs_or_relates(difference: Any, session: Workbook, state: _State) -> tu
     if not unknown:
         return Verdict.DIFFERS, shown
     return Verdict.RELATES, f"nothing defines {_listed(unknown)}: {shown}"
+
+
+def _false(value: Any) -> bool:
+    """Whether a value is the falsehood a comparison gives, and no more."""
+    return value is False or value is sympy.false
+
+
+def _sides_differ_or_relate(
+    lhs: Any, rhs: Any, session: Workbook, state: _State
+) -> tuple[Verdict, str]:
+    """An equation whose sides are not equal, and have no difference to show, as a value
+    beside an equation that a definition gave: it differs if each side is known, and
+    relates quantities nothing defines otherwise, as :func:`_differs_or_relates` says."""
+    sides = [side for side in (lhs, rhs) if isinstance(side, sympy.Basic)]
+    unknown = _unknowns(sympy.Tuple(*sides), session, state) if sides else []
+    if not unknown:
+        return Verdict.DIFFERS, "the two sides are not equal"
+    relation = f"{_shown(lhs)} and {_shown(rhs)} are related, not shown equal"
+    return Verdict.RELATES, f"nothing defines {_listed(unknown)}: {relation}"
 
 
 def _tensor_differs(
