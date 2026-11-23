@@ -219,14 +219,27 @@ class TestSums:
         assert step.notes == ["the sum diverges: its terms tend to ∞, not to 0"]
 
     @pytest.mark.parametrize("terms", ["(-1)^n", r"\cos n"])
-    def test_a_series_whose_terms_tend_to_no_limit_diverges(self, wb, terms):
-        # Grandi's series: said to diverge only where SymPy's own test did in its second
-        step = last(wb, rf"\sum_{{n=0}}^{{\infty}} {terms}")
-        assert isinstance(step.values[0], sympy.Sum)
-        assert step.notes == [
-            "the sum diverges: its terms do not tend to 0",
-            "a sum is left as written: SymPy found no closed form for it",
-        ]
+    def test_a_series_whose_terms_tend_to_no_limit_has_no_value(self, wb, terms):
+        # Grandi's series: no value, not even ∞, as a limit that does not exist has none
+        with pytest.raises(EvaluationError, match="the sum diverges: its terms do not tend"):
+            wb.expr(rf"\sum_{{n=0}}^{{\infty}} {terms}")
+
+    @pytest.mark.parametrize(
+        "source", ["1/0", r"\frac{1}{0}", r"\Gamma(0)", r"\tan(\pi/2)", "(-1)!", "[1/0, 2]"]
+    )
+    def test_complex_infinity_is_no_value(self, wb, source):
+        with pytest.raises(EvaluationError, match="has no value: SymPy gives complex infinity"):
+            wb.expr(source)
+
+    def test_a_limit_at_a_pole_of_a_complex_variable_is_the_point_at_infinity(self, wb):
+        assert wb.expr("z \\in \\mathbb{C}\n" r"\lim_{z \to 0} \frac{1}{z}") == sympy.zoo
+
+    @pytest.mark.parametrize(
+        "source", [r"\int_0^\infty \sin x \, dx", r"\int_{x=0}^{x=\infty} \sin x \, dx"]
+    )
+    def test_what_keeps_oscillating_has_no_value(self, wb, source):
+        with pytest.raises(EvaluationError, match="has no value: it keeps between 0 and 2"):
+            wb.expr(source)
 
     def test_a_series_that_converges_under_a_condition_is_given_under_it(self, wb):
         # as docs/language.md says, and as books give it: 1/(1 - r) for |r| < 1

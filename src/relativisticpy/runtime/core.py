@@ -120,9 +120,10 @@ def summation(
 def _kept(written: Any) -> Any:
     """A series SymPy finds no closed form of, kept as written; or ∞, or -∞, where its terms
     do not tend to 0 and keep one sign, so that it diverges, as that of e^{-an} does where
-    a < 0, which a remark says. Where its terms tend to no limit, as (-1)^n do, or where
-    SymPy's tests of convergence show it to diverge otherwise, as Σ 1/(n ln n) does, a
-    remark says it diverges: no closed form was missed for want of time."""
+    a < 0, which a remark says. Where its terms tend to no limit, as (-1)^n do, it has no
+    value, and is refused; where SymPy's tests of convergence show it to diverge otherwise,
+    as Σ 1/(n ln n) does, a remark says it diverges: no closed form was missed for want of
+    time."""
     body, (index, lower, upper) = written.function, written.limits[0]
     if upper != sympy.oo or not sympy.sympify(lower).is_finite:
         return written
@@ -140,9 +141,9 @@ def _kept(written: Any) -> Any:
             shown = display.unicode(tends)
             assumptions.remark(f"the sum diverges: its terms tend to {shown}, not to 0")
             return infinite
-    if _no_limit(tends) and _not_small(body, index):
-        assumptions.remark("the sum diverges: its terms do not tend to 0")
-    elif converges in (False, sympy.false):
+    if _no_limit(tends) and _not_small(body, index):  # (-1)^n: no value, not even ∞
+        raise ValueError("the sum diverges: its terms do not tend to 0, so it has no value")
+    if converges in (False, sympy.false):
         assumptions.remark("the sum diverges, as SymPy's tests of convergence show")
     return written
 

@@ -1259,6 +1259,25 @@ _STATISTICS = {"prob.probability": 1, "prob.expectation": 1, "prob.variance": 1}
 _STATISTICS["prob.covariance"] = 2
 
 
+def _bounds_kept_between(values: Sequence[Any]) -> Any:
+    """The bounds SymPy gives of what keeps oscillating, as AccumBounds(0, 2) of the integral
+    of sin x to ∞, which is no value, in any of ``values``; ``None`` where there are none."""
+    for each in values:
+        if isinstance(each, sympy.Basic) and (found := each.atoms(sympy.AccumBounds)):
+            return next(iter(found))
+    return None
+
+
+def _complex_infinity(output: Output, values: Sequence[Any]) -> bool:
+    """Whether a value holds complex infinity, zoo, as 1/0, Γ(0) and tan(π/2) do, which
+    is no number. A limit gives it only of a complex variable, at a pole, where it is the
+    point at infinity: that one is an answer."""
+    op = output.node.op
+    if isinstance(op, ops.Call | ops.Map) and getattr(op, "name", None) == "core.limit":
+        return False
+    return any(isinstance(each, sympy.Basic) and each.has(sympy.zoo) for each in values)
+
+
 def _no_answer(
     output: Output, value: Any, evaluate: Callable[[Node], Any]
 ) -> EvaluationError | None:
@@ -1271,6 +1290,23 @@ def _no_answer(
 
     written = " ".join(output.span.text.split())
     values = value if isinstance(value, list | tuple) else [value]
+    if (bounds := _bounds_kept_between(values)) is not None:
+        low, high = (display.unicode(end) for end in (bounds.min, bounds.max))
+        return EvaluationError(
+            f"{written} has no value: it keeps between {low} and {high}, as SymPy finds",
+            span=output.span,
+            notes=["shown as it is, the bounds would read as an answer"],
+            hint="an integral or a sum of what keeps oscillating does not converge; one "
+            "over a finite range, or with a factor that decays, may",
+        )
+    if _complex_infinity(output, values):
+        return EvaluationError(
+            f"{written} has no value: SymPy gives complex infinity, as for 1/0 or at a pole",
+            span=output.span,
+            notes=["shown as it is, zoo would read as an answer"],
+            hint="where it is ∞ from one side, take the limit from that side, as in "
+            "\\lim_{x \\to 0^+} \\frac{1}{x}",
+        )
     if any(isinstance(each, sympy.Basic) and each.has(sympy.nan) for each in values):
         return EvaluationError(
             f"SymPy gives nan, which is no number, for {written}",
