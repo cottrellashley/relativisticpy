@@ -23,7 +23,7 @@ from sympy import (
 )
 
 from relativisticpy import EvaluationError
-from relativisticpy.errors import CompileError
+from relativisticpy.errors import NO_INVERSE, CompileError
 
 x, y = Symbol("x"), Symbol("y")
 f, P, Q = Function("f"), Function("P"), Function("Q")
@@ -173,6 +173,13 @@ def test_lists_are_vectors_and_matrices(wb, source, expected):
             "Coordinates := [x, y]\nT_{ab} := diag(1, 2)\ndiag(1, 2) T_{ab}",
             "a tensor can be multiplied by scalars, not by an array",
         ),
+        # SymPy gives 1/0 for each 0 of a diagonal, as [[1, 0], [0, zoo]]
+        (r"A := \begin{pmatrix} 1 & 0 \\ 0 & 0 \end{pmatrix}" "\nA^{-1}", NO_INVERSE),
+        ("[[0, 0], [0, 0]]^{-1}", NO_INVERSE),
+        ("diag(1, 0)^{-2}", NO_INVERSE),
+        ("matrix_power([[1, 0], [0, 0]], -1)", NO_INVERSE),
+        ("matrix_power([[1, 2], [2, 4]], -1/2)", NO_INVERSE),
+        ("matrix_power([[1.0, 2.0], [2.0, 4.0]], -1/2)", NO_INVERSE),  # SciPy gives nan
     ],
 )
 def test_arithmetic_errors(wb, source, message):

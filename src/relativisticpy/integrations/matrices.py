@@ -140,6 +140,17 @@ def _numeric_eigenvalues(xp: Any, matrix: Any) -> Any:
     return xp.sort_complex(values) if xp.iscomplexobj(values) else xp.sort(values)
 
 
+def _no_inverse(matrix: sympy.Matrix) -> bool:
+    """Whether a square matrix is known to have no inverse: its determinant is 0, exactly,
+    or, of decimals, to rounding error."""
+    if matrix.has(sympy.Float) and not matrix.free_symbols:
+        return _singular(_numbers(matrix))
+    determinant = matrix.det()
+    if determinant.is_zero is None:
+        determinant = sympy.simplify(determinant)
+    return bool(determinant.is_zero)
+
+
 def _inverse(matrix: sympy.Matrix) -> sympy.Matrix:
     """The inverse of a square matrix; an error where it has none."""
     try:
@@ -749,6 +760,8 @@ class MatrixSquareRoot:
 class MatrixPower:
     def exact(self, A: Any, p: Any) -> Any:
         matrix, power = _square(A, "a power of a matrix"), sympy.sympify(p)
+        if power.is_negative and _no_inverse(matrix):  # SymPy gives 1/0 of each 0 of a diagonal
+            raise EvaluationError(NO_INVERSE)
         if power.is_number and (power.is_Float or matrix.has(sympy.Float)):
             decimals = _of_decimals(matrix, "fractional_matrix_power", float(power))
             if decimals is not None:
@@ -757,6 +770,8 @@ class MatrixPower:
 
     def numeric(self, xp: Any, A: Any, p: Any) -> Any:
         number = float(p)
+        if number < 0 and not traced(A) and _singular(A):  # SciPy gives inf and nan
+            raise EvaluationError(NO_INVERSE)
         if number.is_integer():
             return xp.linalg.matrix_power(A, int(number))
         if xp.__name__.startswith("jax"):

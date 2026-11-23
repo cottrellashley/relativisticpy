@@ -23,7 +23,7 @@ from sympy.polys.monomials import itermonomials
 from relativisticpy import display
 from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
-from relativisticpy.errors import EvaluationError, MetricError
+from relativisticpy.errors import NO_INVERSE, EvaluationError, MetricError
 from relativisticpy.ir import Node, ops
 from relativisticpy.runtime import registry
 from relativisticpy.tensors import arrays, linalg, numerical
@@ -152,7 +152,10 @@ def _pow(op: ops.Pow, args: list[Any], executor: Executor) -> Any:
         return base**exponent
     square = len(_shape(base)) == 2 and base.shape[0] == base.shape[1]
     if square and not _shape(exponent) and sympy.sympify(exponent).is_integer:
-        return arrays.to_array(base.tomatrix() ** exponent)
+        power = base.tomatrix() ** exponent
+        if sympy.sympify(exponent).is_negative and power.has(sympy.zoo, sympy.nan):
+            raise EvaluationError(NO_INVERSE)  # SymPy gives 1/0 for each 0 of a diagonal
+        return arrays.to_array(power)
     raise EvaluationError("only a square matrix can be raised to a power, and only an integer one")
 
 

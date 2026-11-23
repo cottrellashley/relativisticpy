@@ -272,6 +272,15 @@ def test_lists_and_sympy_matrices_are_vectors_and_matrices():
     assert wb["w"].to_numpy().tolist() == [1.0, 2.0]
 
 
+def test_a_negative_power_of_singular_data_is_refused_as_its_exact_value_is():
+    # SciPy's fractional power of a singular matrix is a matrix of nan, shown as a value
+    wb = Workbook(scope={"M": np.array([[1.0, 2.0], [2.0, 4.0]])})
+    wb.exe(r"A^{a}{}_{b} := \texttt{M}")
+    for power in ("-1/2", "-1"):
+        with pytest.raises(EvaluationError, match="this matrix has no inverse"):
+            wb.exe(f"matrix_power(A^{{a}}{{}}_{{b}}, {power})")
+
+
 def test_a_python_list_is_a_list_to_the_reader_as_the_languages_own_are():
     """Finding 21 of the review of the reading stack: a Python list or matrix bound from
     the scope was a constant array, which nothing that reads a list recognised: a sum
