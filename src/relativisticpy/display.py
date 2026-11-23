@@ -2266,8 +2266,12 @@ def _describe(value: Any) -> dict[str, Any]:
     if isinstance(value, sympy.Basic) and value.is_Relational:
         from relativisticpy.tensors.equation import holds
 
-        return {"kind": "relation", "relation": value.rel_op, "holds": holds(value),
-                "lhs": text(value.lhs), "rhs": text(value.rhs)}  # fmt: skip
+        # Of a function nothing defines, an equation that is no identity is one for the
+        # function, as 0 = δ(x) is: whether it holds is not decided, never false.
+        identity = holds(value)
+        claim = None if identity is False and value.atoms(AppliedUndef) else identity
+        return {"kind": "relation", "relation": value.rel_op, "holds": claim,
+                "identity": identity, "lhs": text(value.lhs), "rhs": text(value.rhs)}  # fmt: skip
     if isinstance(value, sympy.Basic):
         symbols = sorted(str(s) for s in getattr(value, "free_symbols", ()))
         return {"kind": "expression", "symbols": symbols}

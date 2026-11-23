@@ -11,6 +11,8 @@ from pathlib import Path
 import pytest
 import sympy
 
+from relativisticpy import display
+
 BENCHMARKS = Path(__file__).parent.parent / "benchmarks"
 
 
@@ -160,6 +162,15 @@ def test_a_value_kept_as_written_where_a_note_says_so_is_kept():
         "and J_{5}, which may be matrices of any size, not numbers"
     )
     assert curriculum.kept(sympy.Eq(det, 1296), True, [unknown_value]) == unknown_value
+
+
+def test_a_claim_left_undecided_is_kept():
+    # de.pde.heat-kernel: the limit of the kernel is 0 = δ(x), with δ a function nothing
+    # defines, which the program does not decide, and its data says so
+    delta = sympy.Function("delta")
+    said = curriculum.kept(sympy.Eq(0, delta(x)), True, [])
+    assert said == f"{display.unicode(sympy.Eq(0, delta(x)))} is not decided"
+    assert curriculum.kept(sympy.Eq(25.0, 24, evaluate=False), True, []) is None  # decided
 
 
 def test_a_function_called_inside_a_sum_kept_as_written_is_kept_with_it():

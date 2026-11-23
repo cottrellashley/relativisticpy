@@ -461,6 +461,18 @@ def test_data_describes_a_tensor_by_its_components(schwarzschild):
     assert display.data(sympy.Eq(25.0, 24, evaluate=False))["holds"] is False
 
 
+def test_data_leaves_undecided_an_equation_for_a_function_nothing_defines():
+    # Strauss's heat kernel tends to δ(x): read with δ a function nothing defines, the
+    # claim is 0 = δ(x), no identity, but true of the Dirac delta; holds false called it
+    # untrue, where verify says it relates
+    x = sympy.Symbol("x")
+    equation = display.data(sympy.Eq(0, sympy.Function("delta")(x)))
+    assert (equation["holds"], equation["identity"]) == (None, False)
+    identity = display.data(sympy.Eq(sympy.Function("f")(x) * 2, 2 * sympy.Function("f")(x)))
+    assert identity["kind"] == "boolean"  # SymPy decides it
+    assert display.data(sympy.Eq(x**2, 4))["holds"] is False  # no function: as before
+
+
 def test_other_results_show_themselves_through_hooks():
     class Shown:
         def _display_unicode(self):

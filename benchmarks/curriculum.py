@@ -548,8 +548,19 @@ def kept(actual: Any, expected: Any, notes: Sequence[str]) -> str | None:
     as the answer: the note of the program that says what it holds and the answer does
     not, an integral, a sum, a product, a limit or a derivative not carried out, or a
     function nothing defines, as ReLU(3) where nothing defines ReLU. A function called
-    only inside what is not carried out is kept with it. ``None`` where the value holds
-    none of these, or where no note says so of each: a value given as the answer."""
+    only inside what is not carried out is kept with it. A claim the program leaves as a
+    relation whose data says it is not decided, as 0 = δ(x) of a δ nothing defines, is
+    kept too. ``None`` where the value holds none of these, or where no note says so of
+    each: a value given as the answer."""
+    said = _said_kept(actual, expected, notes)
+    if said is None and isinstance(expected, bool) and _undecided(actual):
+        return f"{display.unicode(actual)} is not decided"
+    return said
+
+
+def _said_kept(actual: Any, expected: Any, notes: Sequence[str]) -> str | None:
+    """Why ``actual`` is kept as written, as the notes of the program say, as
+    :func:`kept` describes."""
     mine, theirs = _expressions(actual), _expressions(expected)
     said: list[str] = []
     for kind, words in _NOT_CARRIED_OUT:
@@ -568,6 +579,13 @@ def kept(actual: Any, expected: Any, notes: Sequence[str]) -> str | None:
             return None
         said.append(note)
     return "; ".join(dict.fromkeys(said)) if said else None
+
+
+def _undecided(value: Any) -> bool:
+    """Whether a value is a relation the program says it did not decide, by its data."""
+    if not (isinstance(value, sympy.Basic) and value.is_Relational):
+        return False
+    return display.data(value).get("holds", False) is None
 
 
 def _kept_whole(*args: Any) -> Any:
