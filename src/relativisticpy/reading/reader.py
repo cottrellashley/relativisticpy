@@ -837,15 +837,18 @@ class Reader(Typer):
             self._note(f"{said}; for the power, write ({written}){script.span.text}")
         return ast.Name(name, verbatim=True, span=node.span)
 
-    def _index_written(self, script: ast.Script) -> str | None:
+    def _index_written(self, script: ast.Script, scope: Scope) -> str | None:
         """The label of a superscript that the statement shows to be an index: one it
         also writes as a subscript, as in x^\\mu x_\\mu, or on a tensor, or a Greek
         letter it raises on more than one name, as in p^\\mu N^\\nu = n m U^\\mu U^\\nu.
-        A Greek superscript written once is a power, as in t^\\alpha."""
+        A Greek superscript written once is a power, as in t^\\alpha; and so is a label
+        with a value here, as the parameter of a family is in a_{n} := x^n."""
         items = script.indices.items if script.indices is not None else ()
         if len(items) != 1 or not _plain_label(items[0]):
             return None
         label = str(items[0].label)
+        if scope.lookup(label) is not None:
+            return None
         lowered, raised = self._scripts["_"][label], self._scripts["^"][label]
         index = lowered or label in self._labels or (label in GREEK and raised > 1)
         return label if index else None
@@ -1673,7 +1676,7 @@ class Reader(Typer):
         for script in powers:
             if script.body is None or isinstance(script.body, ast.Equation):
                 raise CompileError(f"{written_base} is not a tensor", span=script.span)
-            if isinstance(base, ast.Name) and (label := self._index_written(script)):
+            if isinstance(base, ast.Name) and (label := self._index_written(script, scope)):
                 shown = self._written_label(label)
                 raise CompileError(
                     f"{written_base} is not a tensor, so {shown} on it is not an index",

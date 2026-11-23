@@ -1372,7 +1372,7 @@ class Expressions(LinearAlgebra):
         if not items or not all(_plain_label(item) for item in items):
             return False
         greek = any(str(item.label) in GREEK for item in items)
-        return greek or self._index_written(script) is not None
+        return greek or self._index_written(script, scope) is not None
 
     def _time_derivative(self, value: Node, accent: str, span: Span) -> Node:
         order = self.graph.const(1 if accent == "dot" else 2, VALUE)

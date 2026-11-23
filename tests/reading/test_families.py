@@ -31,6 +31,15 @@ class TestFamilies:
         assert wb.expr("c_1 + c_2") == sympy.Rational(5, 4)
         assert wb.expr("c_n") == 1 / n**2  # the family at its label
 
+    def test_a_family_with_its_label_in_an_exponent(self, wb):
+        # a_{n} := \frac{x^n}{n!} was refused: the label written as the subscript of the
+        # name being defined made the n of x^n an index, where it is a power
+        wb.exe(r"a_{n} := \frac{x^n}{n!}")
+        assert wb.expr("a_3") == x**3 / 6
+        assert wb.expr(r"\sum_{n=0}^{3} a_n") == 1 + x + x**2 / 2 + x**3 / 6
+        wb.exe(r"b_{k} := r^k")
+        assert wb.expr("b_2") == sympy.Symbol("r") ** 2
+
     def test_members_written_in_latex(self, wb):
         wb.exe(r"E_k := \alpha + 2\beta \cos\frac{2\pi k}{6}")
         wb.exe(r"E_\pi := 2E_0 + 2E_1 + 2E_{-1}")  # E_\pi is a name of its own
