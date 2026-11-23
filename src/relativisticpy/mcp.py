@@ -1239,7 +1239,8 @@ The language in brief:
 - := defines. = defines only what has no meaning yet; otherwise it is a claim, which is \
 checked, or an equation.
 - In LaTeX a run of letters is a product, as typeset: \\frac{{2GM}}{{r}} is 2 G M / r. \
-Write \\mathrm{{name}} for a name of several letters.
+Write \\mathrm{{name}} for a name of several letters. In plain text a run of letters is \
+one name, as in Python: 2GM/r is 2·GM/r; write 2*G*M/r, or 2 G M / r, for the product.
 - A script without braces takes one letter: write \\Gamma^{{r}}_{{tt}}, not \\Gamma^r_tt.
 - A name right before a bracket calls it, as A(r); to multiply, leave a space.
 - g_{{\\mu\\nu}} := Schwarzschild(M) defines a metric (also Kerr, ReissnerNordstrom, \
@@ -1258,7 +1259,8 @@ Notation: LaTeX (\\frac{{1}}{{2}}, \\int_0^1 x^2 \\, dx, \\Gamma^{{r}}_{{tt}}), 
 text (x**2, diff(sin(x), x), g_{{mu nu}}) or Unicode (θ, ∂), mixed freely; a statement \
 on each line, or separated by ;. := defines; = defines only what has no meaning yet, and \
 is otherwise a claim, which is checked, or an equation. In LaTeX a run of letters is a \
-product, as typeset: write \\mathrm{{mass}} for a name of several letters. A script \
+product, as typeset: write \\mathrm{{mass}} for a name of several letters. In plain text \
+it is one name, as in Python: write x*y, or x y, for a product. A script \
 without braces takes one character: \\Gamma^{{r}}_{{tt}}, not \\Gamma^r_tt. A name \
 right before a bracket calls it, as f(x); to multiply, leave a space. help with topic \
 reference gives the whole language.
