@@ -232,6 +232,30 @@ class TestPairsAreNotScalars:
         assert found.notes == ["sin applies to a number or an expression, not to a pair or a list"]
         assert found.hint == "apply it to each item, as in sin(1)"
 
+    def test_a_relation_given_to_a_function_of_numbers(self, wb):
+        # the review's programs, each an internal error: P(X < 0) of the program's own P
+        wb.exe("P(x) := x^2 + 1\n" r"X \sim \mathcal{N}(0,1)")
+        found = error(wb, "P(X < 0)")
+        assert found.message == "P(X < 0) gives P the relation X < 0, and P takes a number"
+        assert found.notes == [
+            "P is the function defined on line 1",
+            "a relation, as X < 0 is, is true or false, not a number",
+        ]
+        assert found.hint == r"for the probability of the event, write \Pr(X < 0)"
+        assert wb.expr(found.hint.removeprefix("for the probability of the event, write ")) == (
+            sympy.Rational(1, 2)
+        )  # the hint works
+        wb.exe("f(x) := x^2")
+        assert error(wb, "f(1 < 2)").message == (
+            "f(1 < 2) gives f the relation 1 < 2, and f takes a number"
+        )
+        assert error(wb, r"\sin(1 < 2)").hint is None
+
+    def test_a_relation_a_function_hands_on_is_as_it_was(self, wb):
+        # a function of an equation is none of numbers: it computes nothing with it
+        wb.exe("S(e) := solve(e, x)")
+        assert wb.expr("S(x^2 = 4)") == [-2, 2]
+
     def test_angle_brackets_around_what_is_no_vector(self, wb):
         assert wb.expr(r"\langle (1, 2), (3, 4) \rangle") == 11  # an inner product, now read
         found = error(wb, r"\sqrt{\langle p, p \rangle}")

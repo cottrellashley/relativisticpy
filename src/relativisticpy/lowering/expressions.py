@@ -522,10 +522,15 @@ class Expressions(LinearAlgebra):
         name = func.id
         binding = scope.lookup(name)
         if isinstance(binding, FunctionBinding):
-            why = f"{name} is a function, defined on line {binding.definition.span.line}"
+            line = binding.definition.span.line
+            why = f"{name} is a function, defined on line {line}"
             self._decide(CALL, node.span, f"a call of {name}", why)
             args = [self.value(a, scope, ctx) for a in node.args]
-            return self._inline(binding, args, node.span, ctx)
+            value = self._inline(binding, args, node.span, ctx)
+            if not ctx.calls:  # the call that is written, not those of its body
+                defined = f"{func.span.text} is the function defined on line {line}"
+                self._check_numbers(func.span.text, args, value, node.span, defined)
+            return value
         trace = binding is None and name in ("trace", "tr", "Tr") and len(node.args) == 1
         if trace and (traced := self._metric_trace(node.args[0], scope, ctx)) is not None:
             return traced
@@ -641,6 +646,8 @@ class Expressions(LinearAlgebra):
         pair = next((arg for arg in args if _a_pair(arg)), None)
         if pair is not None and builtin.name in _of_numbers():  # \sqrt{(a, b)}
             raise self._function_of_a_pair(builtin.name, pair, span)
+        if any(_a_relation(arg) for arg in args) and builtin.name in _of_numbers():
+            self._check_numbers(builtin.name, args, None, span)  # \sin(1 < 2)
         if (function := self._function_of_a_matrix(builtin.name, args, span)) is not None:
             return function  # \exp, \log or \sqrt of a matrix
         self._check_unknown_matrix(builtin.name, args, span)  # solve(A^T P + P A = -I, P)
@@ -655,6 +662,47 @@ class Expressions(LinearAlgebra):
         args = [self._as_object(arg) for arg in args]
         kind = SCALAR if builtin.scalar and all(a.type == SCALAR for a in args) else VALUE
         return self._call(builtin.name, args, kind, span, attributes)
+
+    def _check_numbers(
+        self,
+        function: str,
+        args: Sequence[Node],
+        value: Node | None,
+        span: Span,
+        defined: str | None = None,
+    ) -> None:
+        """Refuse a relation given to a function of numbers, as ``f(1 < 2)`` of
+        ``f(x) := x^2``: true or false, it is no number, and computing with it would fail.
+        ``value`` is what a function the program defines makes of its arguments: it is one of
+        numbers where it does arithmetic with them, while a relation it only hands on, as
+        to ``solve``, is as it was; ``defined`` says where. Of a random variable, as
+        ``P(X < 0)`` of a P the program defines, the probability of the event is meant, as
+        the hint says."""
+        relations = [arg for arg in args if _a_relation(arg)]
+        if relations and value is not None:
+            numbers = _of_numbers()
+            computed = {
+                arg.id
+                for node in dependencies([value])
+                if _arithmetic(node, numbers)
+                for arg in node.args
+            }
+            relations = [relation for relation in relations if relation.id in computed]
+        if not relations:
+            return
+        relation = relations[0]
+        written = relation.span.text if relation.span is not None else "a relation"
+        notes = [defined] if defined is not None else []
+        notes.append(f"a relation, as {written} is, is true or false, not a number")
+        hint = None
+        if _random(relation):
+            hint = f"for the probability of the event, write \\Pr({written})"
+        raise CompileError(
+            f"{span.text} gives {function} the relation {written}, and {function} takes a number",
+            span=span,
+            notes=notes,
+            hint=hint,
+        )
 
     def _capability(self, book: BookCall, span: Span, scope: Scope, ctx: Context) -> Node:
         """A call written as books write a capability, as ``J_{\\nu}(x)``, lowered as a
@@ -1470,12 +1518,40 @@ _COMPARE = {
     "!=": "core.ne",
 }
 
+#: The operations whose value is a relation, true or false.
+_RELATIONS = frozenset({*_COMPARE.values(), "core.and", "core.or", "core.not"})
+
 #: The comparisons that order what they compare, which no tuple or matrix is.
 _ORDERS = frozenset({"<", ">", "<=", ">="})
 
 #: What a list of names before a relation, as a, b in ``a, b > 0``, does not hold: a number,
 #: or a tuple, a list or a matrix written out, as 1 and 2 in ``(1, 2) < 3``.
 _WRITTEN_OUT = (ast.Number, ast.Tuple, ast.List, ast.Matrix)
+
+
+def _a_relation(value: Node) -> bool:
+    """Whether a value is a relation, true or false, as ``X < 0`` and ``x = 2`` are, known
+    from how it is written."""
+    if isinstance(value.op, ops.Equation):
+        return True
+    return isinstance(value.op, ops.Call) and value.op.name in _RELATIONS
+
+
+def _arithmetic(node: Node, numbers: frozenset[str]) -> bool:
+    """Whether an operation computes with numbers: arithmetic, or one of the functions
+    called ``numbers``, as the elementary functions are."""
+    op = node.op
+    if isinstance(op, ops.Add | ops.Mul | ops.Pow | ops.Scale):
+        return True
+    return isinstance(op, ops.Call | ops.Map) and op.name in numbers
+
+
+def _random(value: Node) -> bool:
+    """Whether a value is written with a random variable, as ``X < 0`` is, of X ~ N(0, 1)."""
+    return any(
+        isinstance(node.op, ops.Call) and node.op.name == "prob.variable"
+        for node in dependencies([value])
+    )
 
 
 def _unordered(value: Node) -> str | None:
