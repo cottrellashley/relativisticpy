@@ -190,7 +190,12 @@ It starts with `# Title` and a paragraph that names its books, then has these se
   a cell is written `\|`. An operand not written in a notation has no cell of its forms.
 - **`## Oracle`:** Python that computes the answer from the operand's slots alone, as
   `python` writes them, and sets `expected`, as a case's oracle does. It never imports
-  RelativisticPy, and never sees the form.
+  RelativisticPy, and never sees the form. Of an operand that has no answer, as the
+  inverse of a singular matrix, it sets `error` instead, as `"RelativisticPyError"`: every
+  form of it must be refused. Two more names say how an answer is compared:
+  `in_any_order = True`, where `expected` is a list whose items the answer may hold in any
+  order, as the eigenvalues of a matrix; and `up_to_a_constant = x`, where the answer may
+  differ from `expected` by a constant in x, as an antiderivative may.
 - **`## Second route`:** Python run after the oracle, which computes the answer another
   way and asserts that the two agree.
 - **`## Setup`,** if needed: the lines every form's program starts with, a fenced block

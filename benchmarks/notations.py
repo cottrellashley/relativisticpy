@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import ast
 import collections
+import contextlib
 import functools
 import importlib.util
 import multiprocessing
@@ -42,6 +43,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import unittest.mock
 import zlib
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -49,6 +51,8 @@ from multiprocessing.connection import Connection, wait
 from pathlib import Path
 from types import ModuleType
 from typing import Any
+
+import sympy
 
 from relativisticpy import errors
 from relativisticpy.__main__ import fix_hash_seed
@@ -586,8 +590,118 @@ def run(cell: Cell, time_limit: float | None = TIME_LIMIT) -> Outcome:
 
 
 def _ran(cell: Cell, time_limit: float | None) -> _Said:
-    result = curriculum.run(cell.case(), time_limit)
+    with _compared(cell):
+        result = curriculum.run(cell.case(), time_limit)
     return result.outcome, result.reason, result.detail, result.seconds
+
+
+# -- how an answer is compared --------------------------------------------------------------
+
+#: What an oracle may set, beside the curriculum's names, to say how an answer is compared
+#: with ``expected``: ``in_any_order = True``, of a list whose items the answer may hold in
+#: any order, as a spectrum is a set; ``up_to_a_constant = x``, of an answer that may differ
+#: from ``expected`` by a constant in x, as an antiderivative may.
+COMPARISONS = ("in_any_order", "up_to_a_constant")
+
+
+def _oracle_names(source: str, where: str) -> dict[str, Any]:
+    """What an oracle sets, run as the curriculum runs one: with SymPy's names in scope, and
+    NumPy as ``np``."""
+    namespace: dict[str, Any] = {}
+    exec("from sympy import *\nimport numpy as np", namespace)
+    exec(compile(source, where, "exec"), namespace)
+    return namespace
+
+
+@contextlib.contextmanager
+def _compared(cell: Cell) -> Iterator[None]:
+    """While the curriculum runs a cell, compare its answer as its oracle says: as the
+    curriculum compares, unless the oracle sets one of :data:`COMPARISONS`."""
+    said = {}
+    if not cell.form.refused and any(name in cell.oracle for name in COMPARISONS):
+        try:
+            names = _oracle_names(cell.oracle, cell.where)
+        except Exception:  # the curriculum runs the oracle again, and says how it fails
+            names = {}
+        said = {name: names[name] for name in COMPARISONS if name in names}
+    if not said:
+        yield
+        return
+    with unittest.mock.patch.object(curriculum, "equal", _comparison(curriculum.equal, **said)):
+        yield
+
+
+def _comparison(
+    equal: Callable[[Any, Any, float], bool],
+    in_any_order: bool = False,
+    up_to_a_constant: Any = None,
+) -> Callable[[Any, Any, float], bool]:
+    """The comparison an oracle asks for, made of the curriculum's, ``equal``."""
+
+    def compare(actual: Any, expected: Any, tolerance: float = 1e-9) -> bool:
+        if in_any_order:
+            return _in_any_order(equal, actual, expected, tolerance)
+        if up_to_a_constant is not None:
+            return _up_to_a_constant(equal, actual, expected, up_to_a_constant, tolerance)
+        return equal(actual, expected, tolerance)
+
+    return compare
+
+
+def _items(value: Any) -> list[Any] | None:
+    """The items of an answer that is a list, a set or a vector, a value repeated as often
+    as a mapping to multiplicities says; ``None`` of anything else."""
+    if isinstance(value, dict):
+        counts = list(value.values())
+        if not all(isinstance(n, int | sympy.Integer) and n > 0 for n in counts):
+            return None
+        return [key for key, n in value.items() for _ in range(int(n))]
+    if isinstance(value, set | frozenset | sympy.FiniteSet):
+        return list(value)
+    flat = curriculum._flat(value) if curriculum._is_array(value) else None
+    if flat is None or len(curriculum._vector_shape(flat[0])) > 1:
+        return None
+    return flat[1]
+
+
+def _in_any_order(
+    equal: Callable[[Any, Any, float], bool], actual: Any, expected: Any, tolerance: float
+) -> bool:
+    """Whether an answer holds the items of ``expected``, each as often, in any order."""
+    mine, theirs = _items(actual), _items(expected)
+    if mine is None or theirs is None or len(mine) != len(theirs):
+        return False
+    for wanted in theirs:
+        found = next((item for item in mine if equal(item, wanted, tolerance)), None)
+        if found is None:
+            return False
+        mine.remove(found)
+    return True
+
+
+def _up_to_a_constant(
+    equal: Callable[[Any, Any, float], bool],
+    actual: Any,
+    expected: Any,
+    variable: Any,
+    tolerance: float,
+) -> bool:
+    """Whether an answer is ``expected`` plus a constant in ``variable``: their difference
+    has no derivative in it. An integral left as written is not its value."""
+    if equal(actual, expected, tolerance):
+        return True
+    if not curriculum._is_scalar(actual) or not curriculum._is_scalar(expected):
+        return False
+    mine, theirs = curriculum._plain(actual), curriculum._plain(expected)
+    if curriculum._left_undone(mine, theirs):
+        return False
+    slope = sympy.diff(mine - theirs, sympy.Symbol(str(variable)))
+    try:
+        if sympy.simplify(slope) == 0:
+            return True
+    except Exception:  # SymPy could not simplify it: decide by numbers
+        pass
+    return bool(curriculum._agrees_numerically(slope, tolerance))
 
 
 def run_all(
@@ -716,8 +830,17 @@ def _checked(construct: Construct, operand: Operand) -> _Said:
         reason = f"the oracle fails: {type(error).__name__}: {error}".splitlines()[0]
         return "broken", reason, "", time.perf_counter() - start
     seconds = time.perf_counter() - start
-    if not any(name in expectation for name in ("expected", "outputs")):
-        return "broken", "the oracle sets neither expected nor outputs", "", seconds
+    if not any(name in expectation for name in curriculum._EXPECTATIONS):
+        return "broken", "the oracle sets none of expected, outputs and error", "", seconds
+    if "error" in expectation and not _is_an_error(str(expectation["error"])):
+        return "broken", f"the oracle's error {expectation['error']} is no error", "", seconds
+    if any(name in source for name in COMPARISONS):
+        names = _oracle_names(source, construct.where)
+        if names.get("in_any_order") and not isinstance(names.get("expected"), list | tuple):
+            return "broken", "in_any_order is set, but expected is no list", "", seconds
+        constant = names.get("up_to_a_constant")
+        if constant is not None and not isinstance(constant, sympy.Symbol):
+            return "broken", "up_to_a_constant is set, but to no symbol", "", seconds
     return "passed", "", "", seconds
 
 

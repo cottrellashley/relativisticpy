@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 
 import pytest
+import sympy
 
 BENCHMARKS = Path(__file__).parent.parent / "benchmarks"
 SAMPLE = int(os.environ.get("RELATIVISTICPY_NOTATIONS_SAMPLE", "1"))
@@ -242,6 +243,108 @@ def test_forms_that_disagree_are_grouped_by_the_answer_they_gave(halves):
     assert found.operand.name == "x"
     assert found.answers == {None: ("frac",), "2/x": ("slash",)}
     assert found.expected == "x/2"
+
+
+RECIPROCALS = r"""# Reciprocals
+
+One over a number, and a set of two numbers.
+
+## Operands
+
+| operand | written in | `n` | separates |
+|---|---|---|---|
+| `two` | latex, text | `2` | |
+| | python | `2` | |
+| `physics` | latex | `\dd{x}` | a command the language refuses, so the cell must be refused |
+| | python | `None` | |
+
+## Oracle
+
+```python
+if n is None:
+    error = "ParseError"
+else:
+    expected = [Rational(1, n), n]
+    in_any_order = True
+```
+
+## Second route
+
+```python
+assert n is None or expected[0] * n == 1
+```
+
+## Forms
+
+### Built up
+
+**Form** · `frac` · Lamport (1994), §3.3.1
+
+```latex
+[\frac{1}{«n»}, «n»]
+```
+
+### A list in plain text, the other way round
+
+**Form** · `slash` · the solidus of plain text
+
+```text
+[«n», 1/«n»]
+```
+"""
+
+
+@pytest.fixture
+def reciprocals(tmp_path, monkeypatch):
+    """A construct in a curriculum of its own, which its cells are run in."""
+    monkeypatch.setattr(notations.curriculum, "ROOT", tmp_path / "curriculum")
+    folder = tmp_path / "curriculum" / "notations" / "algebra"
+    folder.mkdir(parents=True)
+    (folder / "reciprocal.md").write_text(RECIPROCALS, encoding="utf-8")
+    return notations.read(folder / "reciprocal.md")
+
+
+def test_an_operand_whose_oracle_sets_an_error_must_be_refused(reciprocals):
+    assert notations.problems([reciprocals]) == []
+    checked = [notations.check(reciprocals, operand) for operand in reciprocals.operands]
+    assert [each.outcome for each in checked] == ["passed", "passed"]
+    outcomes = {cell.id: notations.run(cell).outcome for cell in reciprocals.cells()}
+    assert outcomes == {
+        "algebra.reciprocal/frac/two": "passed",
+        "algebra.reciprocal/frac/physics": "passed",  # refused, with a ParseError
+        "algebra.reciprocal/slash/two": "passed",  # the same items, in the other order
+    }
+
+
+def test_an_oracle_may_compare_in_any_order_or_up_to_a_constant():
+    x, y = sympy.symbols("x y")
+    equal = notations.curriculum.equal
+    in_any_order = notations._comparison(equal, in_any_order=True)
+    assert in_any_order([2, 1], [1, 2])
+    assert in_any_order({2: 1, 1: 2}, [1, 1, 2])  # a value repeated as often as it counts
+    assert not in_any_order([1, 1], [1, 2])
+    assert not in_any_order([1, 2, 3], [1, 2])
+    assert not equal([2, 1], [1, 2])  # without it, the order is the answer's
+    antiderivative = notations._comparison(equal, up_to_a_constant=x)
+    assert antiderivative(x**3 / 3 + 5 * y, x**3 / 3)
+    assert not antiderivative(x**3 / 3 + x, x**3 / 3)
+    assert not antiderivative(sympy.Integral(x**2, x), x**3 / 3)  # left undone
+
+
+def test_an_oracle_that_asks_for_a_comparison_it_cannot_have_is_broken(tmp_path, monkeypatch):
+    monkeypatch.setattr(notations.curriculum, "ROOT", tmp_path / "curriculum")
+    folder = tmp_path / "curriculum" / "notations" / "algebra"
+    folder.mkdir(parents=True)
+    for wrong, said in (
+        ("in_any_order = True", "in_any_order is set, but expected is no list"),
+        ("up_to_a_constant = 2", "up_to_a_constant is set, but to no symbol"),
+        ('error = "Oops"', "the oracle's error Oops is no error"),
+    ):
+        written = SPECIFICATION.replace("expected = S(top) / 2", f"expected = S(top) / 2\n{wrong}")
+        (folder / "half.md").write_text(written, encoding="utf-8")
+        construct = notations.read(folder / "half.md")
+        checked = notations.check(construct, construct.operands[0])
+        assert (checked.outcome, checked.reason) == ("broken", said)
 
 
 def test_the_sample_is_chosen_by_identifier_alone():
