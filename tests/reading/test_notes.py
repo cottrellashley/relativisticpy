@@ -42,6 +42,16 @@ class TestSilentReadingsAreSaid:
         wb.exe("f(x) := x^2")
         assert notes(wb, "f(x + 1)") == []  # a function defined
 
+    def test_a_function_nothing_defines_at_a_number_is_said_to_be_left_as_written(self, wb):
+        # Black-Scholes, as Hull writes it: N(d_1) at the number d_1 is no value, and a
+        # result that holds it said nothing (design/notation.md, 26)
+        wb.exe(r"d_1 := \frac{1}{2}")
+        assert notes(wb, r"42 \cdot N(d_1)") == [
+            "N is a function nothing defines, so it is left as written where it is applied "
+            "to a number; define it first, as in N(x) := ..."
+        ]
+        assert notes(wb, r"42 \cdot N(x)") == []  # a function of x, as meant
+
     def test_a_label_written_up_and_down_on_a_name_that_means_nothing(self, wb):
         assert notes(wb, "u^a u_a = -1") == [
             "u is not defined, so u^a is a power and u_a one symbol; to use a tensor, define "

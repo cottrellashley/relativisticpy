@@ -284,7 +284,7 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Why it is open.** σ(x) is the logistic function in machine learning, but σ is a standard deviation or a cross-section elsewhere. Books disagree on whether sinc x is sin(x)/x or sin(πx)/(πx). ReLU, softmax and fl(x) are defined where they are used.
 
-**Recommendation.** A name with one meaning wherever it is written, as ReLU, softplus and softmax have, is a book name, provided by an integration. σ and sinc are not book names, since books disagree on them. A program defines them, as the book does where it introduces them: `\sigma(a) := \frac{1}{1 + e^{-a}}`. Calling one that is not defined leaves an unknown function, and a result that holds one carries a note saying so, so that it is never mistaken for a value.
+**Recommendation.** A name with one meaning wherever it is written, as ReLU, softplus and softmax have, is a book name, provided by an integration. σ and sinc are not book names, since books disagree on them. A program defines them, as the book does where it introduces them: `\sigma(a) := \frac{1}{1 + e^{-a}}`. Calling one that is not defined leaves an unknown function, and a result that holds one carries a note saying so, so that it is never mistaken for a value. *(23 November 2026)* A result that holds such a function at a number, as N(0.77) of Hull's N(d_1), says so, whatever the function's name and however its argument is written.
 
 ## 27. `*` between signals
 

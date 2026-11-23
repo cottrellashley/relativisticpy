@@ -1327,6 +1327,16 @@ def _left_undone(value: Any) -> list[str]:
             "this holds under the conditions SymPy gives, as it takes every symbol to be "
             "complex; saying what the parameters are, as in a > 0, may remove them"
         )
+    at_numbers = {  # N(0.77), of N nothing defines (design/notation.md, 26)
+        applied.func.__name__
+        for applied in value.atoms(AppliedUndef)
+        if applied.args and all(arg.is_number for arg in applied.args)
+    }
+    notes.extend(
+        f"{name} is a function nothing defines, so it is left as written where it is "
+        f"applied to a number; define it first, as in {name}(x) := ..."
+        for name in sorted(at_numbers)
+    )
     return notes
 
 
