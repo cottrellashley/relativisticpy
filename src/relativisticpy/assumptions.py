@@ -563,7 +563,40 @@ def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:
         if not _undone(found):
             return _defined(found, body, (whole, lower, upper))
     found = _computed(_sum, body, [(whole, lower, upper)], bounds)
+    found = _where_it_converges(found, bounds)
     return _defined(found, body, (whole, lower, upper))
+
+
+def _where_it_converges(found: Any, bounds: Sequence[Any]) -> Any:
+    """A series SymPy sums only under a condition on its parameters that no sign of theirs
+    settles, as Σ rⁿ under |r| < 1, as books give it: its value under that condition, which
+    a remark says, unless what the program assumes contradicts it, as a < 0 does |e^{-a}| <
+    1; anything else as it is."""
+    conditions: list[Any] = []
+
+    def value(piecewise: Any) -> Any:
+        (summed, condition), _ = piecewise.args
+        conditions.append(condition)
+        return summed
+
+    def converging(node: Any) -> bool:
+        if not (isinstance(node, sympy.Piecewise) and len(node.args) == 2):
+            return False
+        (summed, condition), (otherwise, condition_otherwise) = node.args
+        undone = otherwise.has(sympy.Sum) and not _undone(summed)
+        return condition_otherwise is sympy.true and undone and holds(condition, bounds) is None
+
+    if not isinstance(found, sympy.Basic) or not found.has(sympy.Piecewise):
+        return found
+    given = found.replace(converging, value)
+    if given.has(sympy.Sum) or not conditions:
+        return found
+    said = [display.unicode(condition) for condition in dict.fromkeys(conditions)]
+    remark(
+        f"assuming {listed(said)}, where the series converges; the program does not say",
+        assuming=said,
+    )
+    return given
 
 
 def _defined(found: Any, body: Any, limits: tuple[Any, Any, Any]) -> Any:

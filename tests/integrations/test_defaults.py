@@ -228,6 +228,21 @@ class TestSums:
             "a sum is left as written: SymPy found no closed form for it",
         ]
 
+    def test_a_series_that_converges_under_a_condition_is_given_under_it(self, wb):
+        # as docs/language.md says, and as books give it: 1/(1 - r) for |r| < 1
+        r = sympy.Symbol("r")
+        step = last(wb, r"\sum_{n=0}^{\infty} r^n")
+        assert step.values == [1 / (1 - r)]
+        assert step.notes == [
+            "assuming |r| < 1, where the series converges; the program does not say"
+        ]
+        assert step.assuming == ["|r| < 1"]
+        step = last(wb, "0 < r < 1\n" r"\sum_{n=0}^{\infty} r^n")  # assumed: no note
+        assert [str(value) for value in step.values] == ["1/(1 - r)"]
+        assert step.notes == []
+        step = last(wb, r"\sum_{n=0}^{\infty} 2^n")  # no parameter: nothing to assume
+        assert step.values == [sympy.oo]
+
     @pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
     def test_one_past_its_budget_says_that_its_time_ran_out(self, wb, monkeypatch):
         from relativisticpy.runtime import core
