@@ -470,12 +470,15 @@ class Expressions(LinearAlgebra):
 
     def _Comparison(self, node: ast.Comparison, scope: Scope, ctx: Context) -> Node:
         first = node.operands[0]
-        if isinstance(first, ast.Tuple):  # a, b > 0 is a > 0 and b > 0
+        if isinstance(first, ast.Tuple) and not any(
+            isinstance(item, _WRITTEN_OUT) for item in first.items
+        ):  # a, b > 0 is a > 0 and b > 0
             each = [replace(node, operands=(name, *node.operands[1:])) for name in first.items]
             return self._call(
                 "core.and", [self.value(c, scope, ctx) for c in each], SCALAR, node.span
             )
         operands = [self.value(o, scope, ctx) for o in node.operands]
+        self._check_ordered(node, operands)
         relations = [
             self._call(_COMPARE[op], [a, b], SCALAR, node.span)
             for op, a, b in zip(node.ops, operands, operands[1:], strict=False)
@@ -483,6 +486,22 @@ class Expressions(LinearAlgebra):
         if len(relations) == 1:
             return relations[0]
         return self._call("core.and", relations, SCALAR, node.span)
+
+    def _check_ordered(self, node: ast.Comparison, operands: Sequence[Node]) -> None:
+        """Refuse an inequality of a tuple or a matrix, as ``(1, 2) < 3``, or ``x < 3`` of
+        ``x := (1, 2)``: an inequality orders numbers, and computing it of what has no order
+        would fail (guard 4 of wave 0)."""
+        for position, op in enumerate(node.ops):
+            for side in (position, position + 1):
+                kind = _unordered(operands[side]) if op in _ORDERS else None
+                if kind is not None:
+                    shown = node.operands[side].span.text
+                    raise CompileError(
+                        f"{node.span.text} is an inequality, which orders numbers, and "
+                        f"{shown} is {kind}",
+                        span=node.span,
+                        hint=f"compare each of its items, or its length, |{shown}|",
+                    )
 
     def _Call(self, node: ast.Call, scope: Scope, ctx: Context) -> Node:
         func = node.func
@@ -1378,6 +1397,24 @@ _COMPARE = {
     "==": "core.eq",
     "!=": "core.ne",
 }
+
+#: The comparisons that order what they compare, which no tuple or matrix is.
+_ORDERS = frozenset({"<", ">", "<=", ">="})
+
+#: What a list of names before a relation, as a, b in ``a, b > 0``, does not hold: a number,
+#: or a tuple, a list or a matrix written out, as 1 and 2 in ``(1, 2) < 3``.
+_WRITTEN_OUT = (ast.Number, ast.Tuple, ast.List, ast.Matrix)
+
+
+def _unordered(value: Node) -> str | None:
+    """What a value is, where it is a tuple or a matrix, known without computing it, of
+    which an inequality fails: ``a tuple``; ``None`` for anything else, as a number, or a
+    list, whose inequality says that it is not defined."""
+    if _a_matrix(value):
+        return "a matrix"
+    if isinstance(value.op, ops.Call) and value.op.name == "core.tuple":
+        return "a tuple"
+    return None
 
 
 _INTEGER = re.compile(r"\d+")

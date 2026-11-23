@@ -44,7 +44,7 @@ from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import GREEK
 from relativisticpy.lowering.definitions import Definitions
 from relativisticpy.lowering.expressions import _written_names
-from relativisticpy.reading.names import _elements
+from relativisticpy.reading.names import _a_matrix, _elements
 from relativisticpy.reading.subscripts import Kind
 from relativisticpy.tensors import Index, Indices
 from relativisticpy.tensors.spaces import Space
@@ -212,6 +212,21 @@ class Transforms(Definitions):
                 f"{head} acts on a function of a variable, not on a tensor",
                 span=span,
                 hint="for data, the discrete Fourier transform is \\operatorname{fft}(x_t)",
+            )
+        if _elements(operand) is not None or _a_matrix(operand):  # \mathcal{Z}\{x\}, x a list
+            tuple_ = isinstance(operand.op, ops.Call) and operand.op.name == "core.tuple"
+            what = "a matrix" if _a_matrix(operand) else "a tuple" if tuple_ else "a list"
+            hint = (
+                "for a sequence, write it with its index, as x[n] := ..., and transform that"
+                if capability.name in ("ZTransform", "InverseZTransform")
+                else "transform each of its entries; for data, the discrete Fourier transform "
+                "is \\operatorname{fft}(x_t)"
+            )
+            raise CompileError(
+                f"{head} acts on a function of a variable, not on {what}",
+                span=span,
+                notes=[f"{operand.span.text if operand.span else 'its operand'} is {what}"],
+                hint=hint,
             )
         given, taken = self._transform_variables(capability, operand, variable, point, span, head)
         attributes: ops.Attributes = ()

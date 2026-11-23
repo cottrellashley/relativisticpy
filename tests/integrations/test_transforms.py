@@ -91,6 +91,20 @@ class TestLaplace:
         assert sympy.simplify(wb.expr(r"\mathcal{L}\{f\}") - s / (s**2 + a**2)) == 0
         assert sympy.simplify(wb.expr(r"\mathcal{L}\{f(t)\}") - s / (s**2 + a**2)) == 0
 
+    def test_a_transform_of_a_list_is_refused(self, wb):
+        # the review's program: \mathcal{Z}\{x\} of a list was an internal error
+        wb.exe("x := [1, 2, 3]")
+        with pytest.raises(CompileError) as refused:
+            wb.expr(r"\mathcal{Z}\{x\}")
+        assert refused.value.message == (
+            r"\mathcal{Z} acts on a function of a variable, not on a list"
+        )
+        assert refused.value.hint == (
+            "for a sequence, write it with its index, as x[n] := ..., and transform that"
+        )
+        with pytest.raises(CompileError, match="not on a tuple"):
+            wb.expr(r"\mathcal{L}\{(1, 2)\}")
+
 
 class TestFourier:
     def test_the_letters_choose_the_variables_and_the_convention(self, wb):

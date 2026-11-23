@@ -339,6 +339,25 @@ class TestOperatorsReadWithAnotherMeaning:
         assert list(wb.expr(r"\mathbf{E} \times \mathbf{B}")) == [0, 0, E0 * B0]
         assert wb.expr(r"2 \times 10^{-5}") == sympy.Rational(1, 50000)  # numbers multiply
 
+    def test_a_tuple_compared_with_a_number(self, wb):
+        # the review's program: x < 3 of x := (1, 2) was an internal error, and (1, 2) < 3 True
+        wb.exe("x := (1, 2)")
+        found = error(wb, "x < 3")
+        assert found.message == "x < 3 is an inequality, which orders numbers, and x is a tuple"
+        assert found.hint == "compare each of its items, or its length, |x|"
+        assert error(wb, "(1, 2) < 3").message.endswith("and (1, 2) is a tuple")
+        assert wb.expr("|x| < 3") is sympy.true  # the hint works
+        (step,) = list(wb.each("a, b > 0"))  # names, distributed: an assumption, as before
+        assert step.error is None
+
+    def test_a_matrix_compared_with_a_number(self, wb):
+        # an internal error of SymPy's before, as the tuple's was
+        wb.exe(r"A := \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}")
+        assert error(wb, r"A \le 3").message == (
+            r"A \le 3 is an inequality, which orders numbers, and A is a matrix"
+        )
+        assert wb.expr("A = A").holds()  # an equation of matrices, as before
+
     def test_a_solid_angle(self, wb):
         found = error(wb, r"\int d\Omega \, \frac{\alpha^2}{4s} \left(1 + \cos^2\theta\right)")
         assert found.message == (
