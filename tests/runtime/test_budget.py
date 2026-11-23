@@ -191,9 +191,9 @@ def test_an_inner_budget_that_runs_out_first_is_its_own():
 
 
 def test_an_integral_past_its_budget_is_kept_as_written(monkeypatch):
-    # SymPy's heuristics take fourteen minutes to give it up; the budget, of 25 s, is made
+    # SymPy's heuristics take fourteen minutes to give it up; the budget, of 60 s, is made
     # shorter here, for the suite's sake
-    assert core._INTEGRAL_BUDGET == 25
+    assert core._INTEGRAL_BUDGET == 60
     monkeypatch.setattr(core, "_INTEGRAL_BUDGET", 2.0)
     started = time.monotonic()
     with Workbook() as wb:

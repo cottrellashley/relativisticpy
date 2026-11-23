@@ -67,8 +67,9 @@ def piecewise(*args: Any) -> Any:
 _CLOSED_FORM_BUDGET = 5.0
 #: How long finding the closed form of an integral may take, in seconds, past which it is
 #: kept as written: longer than a sum, as SymPy takes a dozen seconds over integrals it
-#: does find, as the area of a Kerr horizon, and over another before one it can do.
-_INTEGRAL_BUDGET = 25.0
+#: does find, as the area of a Kerr horizon, and over another before one it can do; and
+#: several times that, as a machine half as fast must find them too.
+_INTEGRAL_BUDGET = 60.0
 
 
 def summation(

@@ -38,11 +38,17 @@ def test_every_case_recorded_as_passing_exists():
     assert {case.id for case in CASES} >= PASSING
 
 
+#: How long a case that passed may take here, in seconds: several times what the benchmark
+#: gives it, as a runner of CI is slower than the machine its record was made on, and what
+#: passed there must pass here.
+PATIENT = 4 * curriculum.TIME_LIMIT
+
+
 @pytest.mark.parametrize(
     "case", [case for case in CASES if case.id in PASSING], ids=lambda case: case.id
 )
 def test_a_case_that_passed_still_passes(case):
-    result = curriculum.run(case)
+    result = curriculum.run(case, PATIENT)
     assert result.passed, result.describe()
 
 

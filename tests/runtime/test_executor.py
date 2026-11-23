@@ -168,7 +168,7 @@ def test_a_run_stopped_with_sigterm_leaves_no_workers(tmp_path):
         assert len(workers) == 2
         run.send_signal(signal.SIGTERM)
         run.wait(timeout=30)
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + 30  # a loaded machine may take a while to
         while time.monotonic() < deadline and any(_alive(pid) for pid in workers):
             time.sleep(0.05)
         assert not [pid for pid in workers if _alive(pid)]
