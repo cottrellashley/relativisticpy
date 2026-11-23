@@ -2706,16 +2706,19 @@ class Parser:
         """Arguments in parentheses or square brackets (``\\exp[-x^2]``), or (as typeset
         maths reads it) the factors that follow, up to explicit spacing, an operator,
         another function, a fraction or a differential: ``\\sin\\omega t`` is sin(ωt)
-        but ``\\sin\\theta\\, d\\phi`` and ``\\sin\\theta \\frac{a}{b}`` are not."""
+        but ``\\sin\\theta\\, d\\phi`` and ``\\sin\\theta \\frac{a}{b}`` are not. Empty
+        brackets are no arguments, as in a call, which says how many it takes."""
         token = self.peek()
         if token.kind in (K.LPAREN, K.LBRACKET):
             opener = self.advance()
+            closer = K.RPAREN if token.kind is K.LPAREN else K.RBRACKET
             args: list[ast.Expr] = []
             with self._nested():
-                args.append(self.expression())
-                while self.accept(K.COMMA):
+                if not self.check(closer):
                     args.append(self.expression())
-                self.expect(K.RPAREN if token.kind is K.LPAREN else K.RBRACKET, opener=opener)
+                    while self.accept(K.COMMA):
+                        args.append(self.expression())
+                self.expect(closer, opener=opener)
             return tuple(args)
         if token.kind is K.LBRACE:
             opener = self.advance()

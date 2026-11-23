@@ -1971,3 +1971,8 @@ class TestPlainTextAndUnicodeSpellLatex:
         assert found.hint is not None
         assert "f(x) := x^2, then f'(x)" in found.hint
         assert program("where := 2") == ["(:= where 2)"]  # a name may still be defined
+
+    @pytest.mark.parametrize("text", ["sin()", r"\sin()", "max()"])
+    def test_a_function_with_empty_brackets_is_a_call_of_nothing(self, text):
+        # \sin() was "expected an expression", where sin() is refused for its count
+        assert program(text) == [f"(call {text.removeprefix(chr(92)).removesuffix('()')})"]
