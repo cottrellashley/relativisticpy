@@ -144,9 +144,9 @@ def _past_the_budget(what: str) -> None:
     )
 
 
-#: How soon, in seconds, a budget's exception is raised again, where it ran out in a
-#: callback of the garbage collector, as JAX gives it one, in which Python would lose the
-#: exception, or where the computation lost it.
+#: How soon, in seconds, the exception of a budget, or of a time limit, is raised again,
+#: where it ran out in a callback of the garbage collector, as JAX gives it one, in which
+#: Python would lose the exception, or where the computation lost it.
 _AGAIN = 0.5
 
 
@@ -180,11 +180,13 @@ class _Limit:
 
 @dataclass(eq=False)
 class _Around:
-    """What was in force before the first budget: the handler of ``SIGALRM``, and when a
-    time limit set with it ends, if one was running."""
+    """What was in force before the first budget: the handler of ``SIGALRM``, when a time
+    limit set with it ends, if one was running, and how often that one rings ``again``
+    once it has, 0 for never."""
 
     handler: Any
     end: float | None
+    again: float
 
 
 #: The budgets in force, the outermost first, and what was in force around them.
@@ -207,12 +209,12 @@ def _budget(seconds: float) -> Iterator[None]:
         return
     now = time.monotonic()
     if not _LIMITS:
-        outer = signal.getitimer(signal.ITIMER_REAL)[0]
+        outer, again = signal.getitimer(signal.ITIMER_REAL)
         if outer and outer <= seconds:  # a time limit around it ends first, and decides
             yield
             return
         handler = signal.signal(signal.SIGALRM, _ring)
-        _AROUND.append(_Around(handler, now + outer if outer else None))
+        _AROUND.append(_Around(handler, now + outer if outer else None, again))
     limit = _Limit(now + seconds, object())
     _LIMITS.append(limit)
     _arm()
@@ -250,8 +252,9 @@ def _ring(signum: int, frame: FrameType | None) -> None:
     time limit around them all, where that has ended, as its own handler raises it."""
     now = time.monotonic()
     around = _AROUND[-1] if _AROUND else None
-    if around is not None and around.end is not None and now >= around.end:
-        around.end = None  # it rings once, as it would have alone
+    if around is not None and around.end is not None and now >= around.end - 1e-3:
+        # it rings as it would have alone: once, or again as often as it was set to
+        around.end = now + around.again if around.again else None
         if callable(around.handler):
             around.handler(signum, frame)
         return
@@ -271,7 +274,8 @@ def _leave() -> None:
     around = _AROUND.pop()
     signal.signal(signal.SIGALRM, around.handler)
     if around.end is not None:
-        signal.setitimer(signal.ITIMER_REAL, max(around.end - time.monotonic(), 1e-6))
+        remaining = max(around.end - time.monotonic(), 1e-6)
+        signal.setitimer(signal.ITIMER_REAL, remaining, around.again)
 
 
 def _collecting(frame: FrameType | None) -> bool:

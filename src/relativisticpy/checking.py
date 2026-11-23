@@ -56,6 +56,7 @@ from relativisticpy.errors import (
 )
 from relativisticpy.language import Source, Span, parse
 from relativisticpy.language import syntax as ast
+from relativisticpy.runtime import core
 from relativisticpy.runtime.kernels import differs
 from relativisticpy.tensors.equation import TensorEquation, UndecidedError
 from relativisticpy.tensors.simplification import tidy
@@ -1108,22 +1109,27 @@ class _Expired(BaseException):
 
 @contextlib.contextmanager
 def _time_limit(seconds: float | None) -> Iterator[None]:
-    """Raise :class:`TimeoutError` if the block runs longer than ``seconds``. Only on
-    platforms with ``SIGALRM``, in the main thread; elsewhere there is no limit."""
+    """Raise :class:`TimeoutError` if the block runs longer than ``seconds``, and again
+    every :data:`core._AGAIN` seconds until it ends: Python loses an exception raised in a
+    callback of a weak reference or in a finalizer, and a statement that lost the only one
+    would run for ever. Only on platforms with ``SIGALRM``, in the main thread; elsewhere
+    there is no limit."""
     usable = hasattr(signal, "SIGALRM") and threading.current_thread() is threading.main_thread()
     if seconds is None or not usable:
         yield
         return
 
     def expire(signum: int, frame: Any) -> None:
-        raise _Expired
+        if not core._collecting(frame):  # where it would be lost, the next alarm raises it
+            raise _Expired
 
     previous = signal.signal(signal.SIGALRM, expire)
-    signal.setitimer(signal.ITIMER_REAL, seconds)
+    signal.setitimer(signal.ITIMER_REAL, seconds, core._AGAIN)
     try:
-        yield
+        try:
+            yield
+        finally:  # an alarm that rings in here is the block's too
+            signal.setitimer(signal.ITIMER_REAL, 0)
+            signal.signal(signal.SIGALRM, previous)
     except _Expired:
         raise TimeoutError from None
-    finally:
-        signal.setitimer(signal.ITIMER_REAL, 0)
-        signal.signal(signal.SIGALRM, previous)

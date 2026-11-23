@@ -421,9 +421,9 @@ def _shorten_alarm(deadline: float) -> None:
     ):
         return
     remaining = deadline - time.monotonic()
-    current, _ = signal.getitimer(signal.ITIMER_REAL)
+    current, again = signal.getitimer(signal.ITIMER_REAL)
     if 0 < remaining < current:
-        signal.setitimer(signal.ITIMER_REAL, remaining)
+        signal.setitimer(signal.ITIMER_REAL, remaining, again)
 
 
 class _Engine:

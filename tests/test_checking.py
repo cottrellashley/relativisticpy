@@ -1,9 +1,11 @@
 r"""Checking documents: every statement gets a verdict, in the document's order."""
 
+import gc
 import io
 import json
 import re
 import runpy
+import signal
 import sys
 import tarfile
 import time
@@ -17,7 +19,7 @@ from relativisticpy.checking import STRICT, Verdict, _time_limit, line_range
 from relativisticpy.cli import main
 from relativisticpy.documents import Document
 from relativisticpy.errors import FileError, NotComputedError, UsageError
-from relativisticpy.runtime import executor
+from relativisticpy.runtime import core, executor
 from relativisticpy.tensors.equation import UndecidedError
 
 BENCHMARKS = Path(__file__).parent.parent / "benchmarks"
@@ -481,6 +483,11 @@ def test_the_table_of_the_corpus_agrees_with_its_prose():
     assert f"The other {relate} relate" in text
 
 
+#: A time limit is an alarm, where there is one.
+ALARM = pytest.mark.skipif(not hasattr(signal, "SIGALRM"), reason="no SIGALRM here")
+
+
+@ALARM
 def test_a_statement_can_be_given_a_time_limit():
     def spin() -> None:
         start = time.monotonic()
@@ -491,6 +498,64 @@ def test_a_statement_can_be_given_a_time_limit():
         spin()
     with _time_limit(None):  # no limit
         pass
+
+
+@ALARM
+def test_a_time_limit_the_statement_lost_is_raised_again():
+    # As Python loses an exception raised in a callback of a weak reference or in a
+    # finalizer: a statement that lost the first goes on only until the next.
+    lost = []
+
+    def losing_the_first() -> None:
+        try:
+            time.sleep(1)
+        except checking._Expired:
+            lost.append(time.monotonic())
+        time.sleep(5)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError), _time_limit(0.05):
+        losing_the_first()
+    assert lost
+    assert time.monotonic() - started < 4  # well before the five seconds it would sleep
+
+
+@ALARM
+def test_a_time_limit_ends_after_a_callback_of_the_garbage_collector():
+    # JAX gives the garbage collector one: an exception raised in it would be lost, as
+    # unraisable, and the statement would go on for ever.
+    held = []
+
+    def callback(phase: str, info: dict) -> None:
+        if phase == "start" and not held:
+            held.append(phase)
+            time.sleep(0.2)  # the time limit ends in here
+
+    def collecting_then_computing() -> None:
+        gc.collect()
+        while True:
+            time.sleep(0.01)
+
+    gc.callbacks.append(callback)
+    try:
+        started = time.monotonic()
+        with pytest.raises(TimeoutError), _time_limit(0.05):
+            collecting_then_computing()
+    finally:
+        gc.callbacks.remove(callback)
+    assert held
+    # without raising again it would never end; a loaded machine may take a while to
+    assert time.monotonic() - started < 10
+
+
+@ALARM
+def test_after_a_time_limit_nothing_of_it_remains():
+    handler = signal.getsignal(signal.SIGALRM)
+    with pytest.raises(TimeoutError), _time_limit(0.05):
+        time.sleep(1)
+    assert signal.getitimer(signal.ITIMER_REAL) == (0.0, 0.0)
+    assert signal.getsignal(signal.SIGALRM) == handler
+    time.sleep(core._AGAIN + 0.1)  # nothing is raised after it
 
 
 class TestVerdicts:

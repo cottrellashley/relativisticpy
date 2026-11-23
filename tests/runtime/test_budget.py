@@ -9,7 +9,7 @@ import time
 import pytest
 import sympy
 
-from relativisticpy import Workbook
+from relativisticpy import Workbook, checking
 from relativisticpy.checking import _time_limit
 from relativisticpy.runtime import core
 
@@ -30,8 +30,33 @@ def test_a_time_limit_around_it_keeps_what_remains_of_it():
     with _time_limit(10):
         with pytest.raises(core._OverBudget):
             sleep_within(0.05)
-        remaining, _ = signal.getitimer(signal.ITIMER_REAL)
+        remaining, again = signal.getitimer(signal.ITIMER_REAL)
     assert 9 < remaining < 10
+    assert again == core._AGAIN  # and it still rings again where its alarm is lost
+
+
+def test_a_time_limit_that_ends_in_a_budget_is_raised_again():
+    # The computation loses the alarm of its budget, time after time, and the first of the
+    # time limit around it, which ends while the budget is in force: the next is raised.
+    seen = []
+
+    def losing_them() -> None:
+        with core._budget(0.05):
+            while True:
+                try:
+                    time.sleep(0.05)
+                except core._OverBudget:
+                    pass
+                except checking._Expired:
+                    seen.append(time.monotonic())
+                    if len(seen) > 1:
+                        raise
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError), _time_limit(0.3):
+        losing_them()
+    assert len(seen) == 2
+    assert time.monotonic() - started < 10  # without raising again it would never end
 
 
 def test_a_time_limit_that_ends_first_decides():
