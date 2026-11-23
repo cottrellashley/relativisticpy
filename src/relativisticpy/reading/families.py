@@ -693,8 +693,10 @@ class Families(Labels):
                 following is not None
                 and group is not None
                 and arguments is not None
-                and factor.span.end == group.span.start
-                and self._names_a_function(factor, scope)
+                and (
+                    (factor.span.end == group.span.start and self._names_a_function(factor, scope))
+                    or self._defined_function_before(factor, group, scope)
+                )
             ):
                 call: ast.Expr = ast.Call(factor, arguments, span=factor.span.to(group.span))
                 if scripts:
@@ -705,6 +707,19 @@ class Families(Labels):
             merged.append(factor)
             position += 1
         return merged
+
+    def _defined_function_before(self, factor: ast.Expr, group: ast.Expr, scope: Scope) -> bool:
+        """Whether a factor is a name the program defines as a function, written before
+        brackets with nothing but spaces between, as ``f (3)``, which TeX sets as it sets
+        ``f(3)``, or in brackets of its own, as ``(f)(3)``: a call of it, as a definition
+        wins (design/notation.md, decision 28)."""
+        if not isinstance(factor, ast.Name):
+            return False
+        binding = scope.lookup(factor.id)
+        if not isinstance(binding, FunctionBinding) or isinstance(binding.definition, Family):
+            return False
+        between = factor.span.source.text[factor.span.end : group.span.start]
+        return factor.span.source is group.span.source and not between.strip()
 
     def _names_a_function(self, node: ast.Expr, scope: Scope) -> bool:
         """Whether a name with scripts is a function the program defines under that name,

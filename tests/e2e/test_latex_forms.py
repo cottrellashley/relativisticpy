@@ -58,6 +58,12 @@ BRACKETS = [
     (r"2(\beta)", 2 * beta),
     (r"\alpha (\beta)", alpha * beta),
     (r"(\zeta)(2)", 2 * sympy.Symbol("zeta")),
+    # a function the program defines is called by the brackets after it, whatever spaces
+    # TeX does not show are between them (3 x^2 before)
+    ("f(x) := x^2\nf (3)", 9),
+    ("f(x) := x^2\n(f)(3)", 9),
+    ("f(x) := x^2\nf \\left(3\\right)", 9),
+    ("y(x) := x^3\ny (x + 1)", (x + 1) ** 3),
 ]
 
 PRIMES = [

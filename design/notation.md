@@ -306,7 +306,7 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** A name followed by brackets is a call when the name is a function: defined as one, declared as one, or written elsewhere only with arguments. It is a product when the name is used as a variable in the same statement or in an earlier one, as x is inside its own bracket here. Say which in a note when the name is undefined.
 
-**A name in brackets of its own** (23 November 2026). Brackets around a name alone set it apart as a factor, so that the brackets after them multiply it: `(a)(b)` is ab and `(\alpha)(\beta)` αβ, where they were a(b) and α(β), calls. A Greek letter in brackets of its own stays a letter, as `2(\beta)` is 2β, where β was taken for the beta function and refused.
+**A name in brackets of its own** (23 November 2026). Brackets around a name alone set it apart as a factor, so that the brackets after them multiply it: `(a)(b)` is ab and `(\alpha)(\beta)` αβ, where they were a(b) and α(β), calls. A Greek letter in brackets of its own stays a letter, as `2(\beta)` is 2β, where β was taken for the beta function and refused. A function the program defines is called by the brackets after it, in brackets of its own, `(f)(3)`, or with spaces between, `f (3)` and `f \left(3\right)`, which TeX sets as it sets `f(3)`: they were f(x) times 3 in LaTeX, silently. A spacing command, as in `f\,(3)`, still sets them apart.
 
 ## 29. `\log` without a base
 
