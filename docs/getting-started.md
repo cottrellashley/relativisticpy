@@ -21,6 +21,7 @@ add what numerical work needs:
 | `numeric` | NumPy and SciPy | numbers, NumPy functions and geodesics: [Numerics](numerics.md) |
 | `data` | NumPy, SciPy, pandas and scikit-learn | data in index notation: [Beyond spacetime](spaces.md) |
 | `jax` | NumPy, SciPy and JAX | computing with JAX, on a GPU, and gradients |
+| `mcp` | the MCP SDK | serving RelativisticPy to AI agents, `relativisticpy mcp`: [MCP server](mcp.md) |
 | `live` | anywidget | the editor, which computes as you type: [Live mathematics in notebooks](live.md) |
 
 ```bash
@@ -43,6 +44,43 @@ the value of every expression.
 ```python
 >>> from relativisticpy import Workbook
 >>> wb = Workbook()
+>>> wb.exe(r"""
+...     f(x) := x^2 e^{-x}
+...     f'(x)
+...     \int_0^\infty f(x) \, dx
+... """)
+[(-x**2 + 2*x)*exp(-x), 2]
+
+```
+
+Plain text and Unicode say the same, and mix with LaTeX:
+
+```python
+>>> wb.expr("integrate(f(x), (x, 0, oo))"), wb.expr("∫_0^∞ f(x) dx")
+(2, 2)
+
+```
+
+`:=` defines. `=` defines too, but only what has no meaning yet: with f defined,
+`f(1) = e^{-1}` is a claim, and is decided:
+
+```python
+>>> wb.expr("f(1) = e^{-1}"), wb.expr("f(1) = 1")
+(True, False)
+
+```
+
+Results come back as SymPy values. [The language](language.md) has the rest: matrices,
+vectors, probability, sequences, optima, number theory and quantum notation, each as its
+books write it.
+
+## Tensors
+
+Index notation computes over any space. Over spacetime, with a metric, it is General
+Relativity:
+
+```python
+>>> wb = Workbook()
 >>> wb.expr(r"""
 ...     Coordinates := [t, r, \theta, \phi]
 ...     g_{\mu\nu} := diag(-(1 - 2M/r), 1/(1 - 2M/r), r^2, r^2 \sin^2\theta)
@@ -55,10 +93,9 @@ the value of every expression.
 
 ```
 
-`:=` defines. `=` defines too, but only what has no meaning yet: with a metric in force,
-`R = 0` asks whether the Ricci scalar vanishes, and says so. Scalars come back as SymPy
-expressions. Tensors come back as [`Tensor`](python.md#tensor) values, which know their
-indices and coordinates:
+With a metric in force, `R = 0` asks whether the Ricci scalar vanishes, and says so.
+Tensors come back as [`Tensor`](python.md#tensor) values, which know their indices and
+coordinates:
 
 ```python
 >>> christoffel = wb.expr(r"\Gamma^{a}_{bc}")
@@ -179,8 +216,10 @@ From Python, `wb.check` takes a file, or the text of a document:
 
 ## Where next
 
-- [The language](language.md): statements, `:=` and `=`, functions, equations and
-  calculus; and the [language reference](reference.md), all of it on one page.
+- [The language](language.md): statements, `:=` and `=`, functions, equations,
+  calculus and every field; and the [language reference](reference.md), all of it on
+  one page.
+- [The MCP server](mcp.md), to give the language to an AI agent.
 - [Tensors and geometry](tensors.md), for General Relativity.
 - [Beyond spacetime](spaces.md), for data.
 - [Checking papers](checking.md), for LaTeX documents.
