@@ -338,8 +338,10 @@ class Found:
     it is where the value is known as a closed form, as min(1 - 2p, 5p - 2), and the point
     is not. ``how`` it was found, in words, as a note gives it, and whether it is
     ``proven`` the global optimum; ``numeric`` where its numbers were found numerically;
-    ``ties``, how many points share it, where that is known; and ``by``, the optimizer that
-    found it, which the framework sets."""
+    ``tied``, where more points than the one given reach it and that is known, the set of
+    them, of points of one variable or of tuples of several, as [-1, 1] or {(0, 1), (1, 0)},
+    or the condition every point of a family of them keeps, as x² + y² = 1; and ``by``,
+    the optimizer that found it, which the framework sets."""
 
     value: Any
     point: tuple[Any, ...] | None
@@ -347,7 +349,7 @@ class Found:
     proven: bool
     attained: bool = True
     numeric: bool = False
-    ties: int = 1
+    tied: Any = None
     by: str = ""
 
     def note(self, sense: str) -> str:
@@ -362,9 +364,46 @@ class Found:
             scope = f"the {what}, which no point reaches"
             scope += "" if self.proven else ", not proven"
         text = f"{scope}, found {exactness} {self.how} ({self.by})"
-        if self.ties > 1 and self.point is not None:
-            text += f"; {self.ties} points reach it, and the first is given"
+        if self.tied is not None and self.point is not None:
+            text += f"; {_reached(self.tied, self.point)}"
         return text
+
+
+#: The most points that reach an optimum a note lists; of more, it says how many.
+_MOST_LISTED = 6
+
+
+def _reached(tied: Any, point: tuple[Any, ...]) -> str:
+    """Where an optimum is reached, as a note says it: ``it is reached at -1 and 1, and
+    -1 is given``, or ``every point of [-1, 1] reaches it, and -1 is given``."""
+    given = _shown(point[0] if len(point) == 1 else sympy.Tuple(*point))
+    if isinstance(tied, sympy.FiniteSet) and len(tied.args) > _MOST_LISTED:
+        return f"{len(tied.args)} points reach it, and {given} is given"
+    if isinstance(tied, sympy.FiniteSet):
+        points = [_shown(each) for each in tied.args]
+        return f"it is reached at {assumptions.listed(points)}, and {given} is given"
+    if isinstance(tied, sympy.Interval):
+        return f"every point of {_set_shown(tied)} reaches it, and {given} is given"
+    if isinstance(tied, sympy.Set):
+        return f"it is reached at {_set_shown(tied)}, and {given} is given"
+    return f"every point where {_shown(tied)} reaches it, and {given} is given"
+
+
+def _set_shown(found: Any) -> str:
+    """A set of points as a note says it: ``[-1, 1]``, or ``π/2 + 2πn, of every integer
+    n``, or several, listed."""
+    if isinstance(found, sympy.Interval):
+        left, right = "(" if found.left_open else "[", ")" if found.right_open else "]"
+        return f"{left}{_shown(found.start)}, {_shown(found.end)}{right}"
+    if isinstance(found, sympy.FiniteSet):
+        return assumptions.listed([_shown(each) for each in found.args])
+    if isinstance(found, sympy.ImageSet) and found.base_sets == (sympy.S.Integers,):
+        (label,) = found.lamda.variables
+        return f"{_shown(found.lamda.expr)}, of every integer {_shown(label)}"
+    if isinstance(found, sympy.Intersection | sympy.Union):
+        parts = [_set_shown(each) for each in found.args]
+        return (" within " if isinstance(found, sympy.Intersection) else " and ").join(parts)
+    return _shown(found)
 
 
 class Undecided(Exception):

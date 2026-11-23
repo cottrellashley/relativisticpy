@@ -5,6 +5,10 @@ conformance suite says of an optimizer that breaks the pattern."""
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 import sympy
@@ -63,6 +67,95 @@ class TestOneVariable:
         assert wb.expr(rf"\max_{{0 \leq p \leq 1}} \min_{{0 \leq q \leq 1}} {payoff}") == (
             sympy.Rational(1, 7)
         )
+
+    @pytest.mark.parametrize(
+        ("source", "value"),
+        [
+            (r"\max_{5 \leq x \leq 10} \sin(x)", 1),  # at 5π/2, no principal root of cos x
+            (r"\min_{4 \leq x \leq 7} \cos(x)", sympy.cos(4)),  # 2π is a maximum
+            (r"\max_x \sin x", 1),
+            (r"\max_{0 \leq x \leq 20} \sin(x) e^{-x/10}",
+             sympy.sin(sympy.atan(10)) * sympy.exp(-sympy.atan(10) / 10)),
+        ],
+    )  # fmt: skip
+    def test_every_stationary_point_of_a_periodic_function_is_tried(self, wb, source, value):
+        assert sympy.simplify(wb.expr(source) - value) == 0
+
+    @pytest.mark.parametrize(
+        ("source", "bound"),
+        [
+            (r"\max_{0 \leq x \leq 3} \tan(x)", "∞"),
+            (r"\max_{-1 \leq x \leq 1} \frac{1}{x}", "∞"),
+            (r"\min_{-1 \leq x \leq 1} \frac{1}{x}", "−∞"),
+            (r"\min_{x} \frac{1}{x^2 - 1}", "−∞"),
+            (r"\max_x \tan x", "∞"),  # toward each of its poles
+        ],
+    )
+    def test_toward_a_point_where_it_is_not_defined_it_is_not_reached(self, wb, source, bound):
+        with pytest.raises(EvaluationError, match=f"grows without bound, to {bound}"):
+            wb.expr(source)
+
+    def test_a_note_says_the_points_where_it_is_not_defined_were_tried(self, wb):
+        source = r"\sup_{0 \leq x \leq 3} \tan(x)"
+        assert wb.expr(source) == sympy.oo
+        assert notes(wb, source) == [
+            "the supremum, which no point reaches, found exactly by SymPy, from its stationary "
+            "points, the ends of its domain, and the points where it is not defined (extrema)"
+        ]
+        with pytest.raises(EvaluationError, match="as near as you like to 2, which no point"):
+            wb.expr(r"\max_{0 \leq x \leq 1} \frac{x^2 - 1}{x - 1}")  # not defined at 1
+
+    def test_one_whose_poles_sympy_does_not_give_is_left_to_a_numeric_optimizer(self, wb):
+        with integrations._optimizers.answering() as answers:
+            wb.expr(r"\min_{1 \leq x \leq 3} \Gamma(x)")
+        assert [found.by for found in answers] == ["minimize"]
+
+    def test_every_point_of_an_interval_that_reaches_it_is_said(self, wb):
+        source = r"\arg\min_x \left(|x-1|+|x+1|\right)"
+        assert wb.expr(source) == -1
+        assert notes(wb, source)[-1].endswith(
+            "(extrema); every point of [−1, 1] reaches it, and −1 is given"
+        )
+        assert notes(wb, r"\max_{-1 \leq x \leq 1} x^2")[-1].endswith(
+            "(extrema); it is reached at −1 and 1, and −1 is given"
+        )
+        assert notes(wb, r"\max_x \sin x")[-1].endswith(
+            "(extrema); it is reached at 2n π + π/2, of every integer n, and π/2 is given"
+        )
+        assert notes(wb, r"\max_{0 \leq x \leq 40} \sin(x)")[-1].endswith(
+            "(extrema); 7 points reach it, and π/2 is given"
+        )
+
+    def test_a_periodic_function_has_no_limit_toward_infinity(self, wb):
+        # the bounds SymPy gives sin x cos x there, -1 and 1, are no values it comes near
+        assert wb.expr(r"\max_x \sin(x)\cos(x)") == sympy.Rational(1, 2)
+        assert wb.expr(r"\max_x a \sin(x)") == sympy.Max(a, -a)
+
+    def test_where_a_case_begins_with_a_jump_its_value_is_approached(self, wb):
+        wb.exe(r"f(x) := \begin{cases} x & x < 0 \\ x - 5 & x \geq 0 \end{cases}")
+        with pytest.raises(EvaluationError, match="as near as you like to 0, which no point"):
+            wb.expr(r"\max_{-1 \leq x \leq 1} f(x)")
+        assert wb.expr(r"\sup_{-1 \leq x \leq 1} f(x)") == 0
+
+    @pytest.mark.parametrize("seed", ["0", "1", "2", "3"])
+    def test_where_it_is_is_the_same_under_every_hash_seed(self, seed):
+        program = r"""
+from relativisticpy import Workbook
+wb = Workbook()
+print(wb.expr(r"\arg\min_x \left(|x-1|+|x+1|\right)"))
+print(wb.expr(r"\arg\min_x \left(|x-2|+|x+3|\right)"))
+print(wb.expr(r"\arg\max_x \left(-|x-1|-|x+4|\right)"))
+"""
+        done = subprocess.run(
+            [sys.executable, "-c", program],
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONHASHSEED": seed},
+            timeout=120,
+            check=False,
+        )
+        assert done.returncode == 0, done.stderr
+        assert done.stdout.split() == ["-1", "-3", "-4"]
 
 
 class TestParameters:
@@ -159,6 +252,56 @@ class TestSeveralVariables:
         source = r"\arg\max_{n \in \mathbb{N}} \frac{\pi^{n/2}}{\Gamma\left(\frac{n}{2} + 1\right)}"
         assert wb.expr(source) == 5
         assert "not proven global" in notes(wb, source)[-1]
+
+    @pytest.mark.parametrize(
+        ("source", "value"),
+        [
+            (r"\max_{x, y} \left(x^2 + y^2\right) \quad \text{subject to} \quad x^2 + y^2 \leq 1",
+             1),
+            (r"\max_{x, y, z} \left(x^2 + y^2 + z^2\right) \quad \text{subject to} \quad "
+             r"x^2 + y^2 + z^2 \leq 1", 1),
+            (r"\min_{x, y} \left(-(x^2 + y^2)\right) \quad \text{subject to} \quad "
+             r"x^2 + y^2 \leq 1", -1),
+            (r"\max_{x, y} \left(x^2 + 2 y^2\right) \quad \text{subject to} \quad "
+             r"x^2 + y^2 \leq 1", 2),
+        ],
+    )  # fmt: skip
+    def test_an_optimum_reached_along_a_curve_is_found_there(self, wb, source, value):
+        # the centre keeps the first-order conditions too, and is the least, not the greatest
+        with integrations._optimizers.answering() as answers:
+            assert wb.expr(source) == value
+        assert [(found.by, found.proven) for found in answers] == [("kkt", True)]
+
+    def test_a_note_says_the_curve_it_is_reached_along(self, wb):
+        source = (
+            r"\arg\max_{x, y} \left(x^2 + y^2\right) \quad \text{subject to} \quad x^2 + y^2 \leq 1"
+        )
+        assert wb.expr(source) == [-1, 0]
+        assert notes(wb, source)[-1].endswith(
+            "(kkt); every point where x = √(1 − y²) or x = −√(1 − y²) reaches it, and (−1, 0) "
+            "is given"
+        )
+
+    def test_a_point_the_second_order_conditions_rule_out_is_no_optimum(self):
+        kkt = integrations.find("kkt").exact
+        saddle = Problem("min", x**2 - y**2, (x, y), inequalities=(1 - x**2 - y**2,))
+        found = kkt(saddle)
+        assert (found.value, found.proven) == (-1, True)  # at (0, ±1), not the saddle at 0
+        assert found.tied == sympy.FiniteSet(sympy.Tuple(0, -1), sympy.Tuple(0, 1))
+
+    def test_a_periodic_function_between_constraints_is_left_to_a_numeric_optimizer(self, wb):
+        # SymPy solves cos x = 0 for its principal roots alone, neither of them in the box
+        source = (
+            r"\max_{x, y} \; \sin(x) + \sin(y) \quad \text{subject to} \quad "
+            r"5 \leq x \leq 10, \quad 5 \leq y \leq 10"
+        )
+        with integrations._optimizers.answering() as answers:
+            assert wb.expr(source) == pytest.approx(2)
+        assert [found.by for found in answers] == ["minimize"]
+
+    def test_one_that_falls_without_bound_along_no_axis(self, wb):
+        with pytest.raises(EvaluationError, match="grows without bound, to −∞"):
+            wb.expr(r"\min_{x, y} \; (x - y)^2 - x - y")
 
 
 class TestOverAnIndex:

@@ -18,6 +18,14 @@ from typing import Any
 
 import sympy
 from sympy import Symbol
+from sympy.functions.elementary.hyperbolic import (
+    HyperbolicFunction,
+    InverseHyperbolicFunction,
+)
+from sympy.functions.elementary.trigonometric import (
+    InverseTrigonometricFunction,
+    TrigonometricFunction,
+)
 
 from relativisticpy import assumptions
 from relativisticpy.errors import EvaluationError
@@ -37,6 +45,8 @@ _MOST_VARIABLES = 8
 _MOST_ACTIVE = 10
 #: The most smooth pieces a function with a modulus or extremes is taken apart into.
 _MOST_PIECES = 16
+#: The most candidates compared with each other, for the same point written two ways.
+_FEW = 64
 
 
 # -- comparing values ------------------------------------------------------------------------
@@ -115,33 +125,79 @@ def _at_least(one: Any, other: Any, bounds: Sequence[Any] = ()) -> bool | None:
 @dataclass(frozen=True)
 class _Candidate:
     """A value an optimum may be: at a ``point``, or, where it is not ``attained``, as a
-    limit, toward an end of the domain or a point where the function is not defined."""
+    limit, toward an end of the domain or a point where the function is not defined. Where
+    it is the value at infinitely many points, the ``family`` of them: a set, as of the
+    points π/2 + 2πn, or a condition, as x² + y² = 1, of which the point is one."""
 
     value: Any
     point: tuple[Any, ...] | None
     attained: bool = True
+    family: Any = None
 
 
 def _best(
     candidates: Sequence[_Candidate], greatest: bool, bounds: Sequence[Any]
-) -> tuple[_Candidate, int] | None:
-    """The greatest or least of the candidates, the first of those that share its value,
-    with how many share it; ``None`` where comparing them is not decided. A limit beats
-    a point only where it is strictly better."""
-    for candidate in candidates:
-        verdicts = [
-            _at_least(candidate.value, other.value, bounds)
-            if greatest
-            else _at_least(other.value, candidate.value, bounds)
-            for other in candidates
-        ]
-        if not all(verdicts):
+) -> tuple[_Candidate, list[_Candidate]] | None:
+    """The greatest or least of the candidates, with those reached that share its value, in
+    order (see :func:`_in_order`): the first of them, where one is reached; ``None`` where
+    comparing them is not decided. A limit beats a point only where it is strictly
+    better."""
+
+    def beats(one: _Candidate, other: _Candidate) -> bool | None:
+        if greatest:
+            return _at_least(one.value, other.value, bounds)
+        return _at_least(other.value, one.value, bounds)
+
+    ordered = _in_order(candidates)
+    front: list[_Candidate] = []  # those no other is known to be at least as good as
+    for candidate in ordered:
+        if any(beats(other, candidate) for other in front):
             continue
-        ties = [c for c in candidates if _compare(candidate.value, c.value, bounds) == 0]
-        attained = [c for c in ties if c.attained]
-        chosen = attained[0] if attained else candidate
-        return chosen, max(len(attained), 1)
-    return None
+        front = [other for other in front if not beats(candidate, other)]
+        front.append(candidate)
+    if not front or any(_compare(front[0].value, other.value, bounds) != 0 for other in front):
+        return None
+    ties = [c for c in ordered if _compare(front[0].value, c.value, bounds) == 0]
+    attained = [c for c in ties if c.attained]
+    return (attained[0] if attained else front[0]), attained
+
+
+def _in_order(candidates: Sequence[_Candidate]) -> list[_Candidate]:
+    """The candidates without those at the same point twice, in an order that depends on
+    nothing but them: by their points, the least first where they are numbers, then the
+    limits. The first of several points that reach an optimum is so the same every time,
+    whatever order SymPy found them in."""
+    distinct = list({(c.value, c.point, c.attained, c.family): c for c in candidates}.values())
+    if len(distinct) <= _FEW:  # the same point written two ways, as SymPy may find it twice
+        kept: list[_Candidate] = []
+        for candidate in distinct:
+            twin = next((k for k, other in enumerate(kept) if _same(candidate, other)), None)
+            if twin is None:
+                kept.append(candidate)
+            elif kept[twin].family is None:  # the one that stands for a family of them
+                kept[twin] = candidate
+        distinct = kept
+    return sorted(distinct, key=_place)
+
+
+def _same(one: _Candidate, other: _Candidate) -> bool:
+    if one.point is None or other.point is None or one.attained != other.attained:
+        return False
+    return all(_compare(p, q) == 0 for p, q in zip(one.point, other.point, strict=True))
+
+
+def _place(candidate: _Candidate) -> tuple[Any, ...]:
+    """Where a candidate comes in order: points before limits, by their coordinates, as
+    numbers where they are numbers."""
+    if candidate.point is None:
+        return (1, (), sympy.default_sort_key(sympy.sympify(candidate.value)))
+    numbers = []
+    for coordinate in candidate.point:
+        coordinate = sympy.sympify(coordinate)
+        if not coordinate.is_number or not coordinate.is_extended_real:
+            return (0, (), sympy.default_sort_key(sympy.Tuple(*candidate.point)))
+        numbers.append(float(sympy.N(coordinate, 30)))
+    return (0, tuple(numbers), ())
 
 
 # -- one variable ----------------------------------------------------------------------------
@@ -274,7 +330,8 @@ def _within(point: Any, part: Any, bounds: Sequence[Any]) -> bool | None:
 
 
 def _without(domain: Any, point: Any, bounds: Sequence[Any]) -> Any:
-    """A set of real numbers without a point."""
+    """A set of real numbers without a point: an interval it is inside in two, and one it
+    ends open at it."""
     parts = []
     for part in _parts(domain):
         if isinstance(part, sympy.FiniteSet):
@@ -289,8 +346,12 @@ def _without(domain: Any, point: Any, bounds: Sequence[Any]) -> Any:
                 sympy.Interval(part.start, point, part.left_open, True),
                 sympy.Interval(point, part.end, True, part.right_open),
             ]
-        else:
-            parts.append(part)
+            continue
+        at_start, at_end = (_compare(point, end, bounds) == 0 for end in (part.start, part.end))
+        if at_start or at_end:
+            part = sympy.Interval(part.start, part.end, at_start or part.left_open,
+                                  at_end or part.right_open)  # fmt: skip
+        parts.append(part)
     return _union(parts)
 
 
@@ -333,11 +394,93 @@ def _pieces(f: Any, variable: Symbol) -> list[Any]:
     return found
 
 
-def _stationary(piece: Any, variable: Symbol, bounds: Sequence[Any]) -> list[Any]:
-    """The stationary points of a smooth function of a variable: none of a straight one,
-    whose optimum is at an end."""
-    slope = sympy.diff(piece, variable)
-    return _roots(slope, variable, bounds) if slope.has(variable) else []
+@dataclass(frozen=True)
+class _Zeros:
+    """Where an expression of a variable is 0 within an interval: at ``points``, and at
+    every point of each of the ``families``, sets of infinitely many, as π/2 + 2πn."""
+
+    points: tuple[Any, ...] = ()
+    families: tuple[Any, ...] = ()
+
+    def __add__(self, other: _Zeros) -> _Zeros:
+        return _Zeros(self.points + other.points, self.families + other.families)
+
+
+def _stationary(piece: Any, variable: Symbol, part: Any, bounds: Sequence[Any]) -> _Zeros | None:
+    """The stationary points of a smooth function of a variable within an interval: none
+    of a straight one, whose optimum is at an end (see :func:`_zeros`)."""
+    return _zeros(sympy.diff(piece, variable), variable, part, bounds)
+
+
+def _zeros(expr: Any, variable: Symbol, part: Any, bounds: Sequence[Any]) -> _Zeros | None:
+    """Where an expression of a variable is 0 within an interval, every point of it: those
+    SymPy's solveset finds on the interval, the infinitely many of a periodic function, as
+    cos x has, as families of them. Of a rational function, and of one written with
+    parameters that is not periodic, whose solutions solveset leaves under conditions, the
+    finitely many SymPy solves for. ``None`` where SymPy does not find every one, as of
+    4x³ + sinh x - 3, or where it finds infinitely many on an interval with ends that are
+    no numbers."""
+    expr = sympy.sympify(expr)
+    if not expr.has(variable):
+        return _Zeros()
+    periodic = any(each.has(variable) for each in expr.atoms(TrigonometricFunction))
+    parameters = expr.free_symbols - {variable}
+    if expr.is_rational_function(variable) or (parameters and not periodic):
+        return _Zeros(tuple(_roots(expr, variable, bounds)))
+    numbers = all(end.is_number for end in (part.start, part.end))
+    try:
+        found = sympy.solveset(expr, variable, part if numbers else sympy.S.Reals)
+    except (NotImplementedError, ValueError, TypeError):
+        return None
+    zeros = _solutions(found, expr, variable, bounds)
+    if zeros is not None and zeros.families and not numbers:
+        return None
+    return zeros
+
+
+def _solutions(found: Any, expr: Any, variable: Symbol, bounds: Sequence[Any]) -> _Zeros | None:
+    """The solutions solveset found, as points and families of them: those of a set it
+    gives within another, as the points that are real, or the multiples of 2π past 0, kept
+    for the domain to decide; ``None`` where it does not list them, as a ConditionSet."""
+    if found is sympy.S.EmptySet:
+        return _Zeros()
+    if isinstance(found, sympy.FiniteSet):
+        return _Zeros(tuple(p for p in found.args if _real_root(p, expr, variable, bounds)))
+    if isinstance(found, sympy.ImageSet):
+        return _Zeros(families=(found,))
+    if isinstance(found, sympy.Union):
+        parts = [_solutions(each, expr, variable, bounds) for each in found.args]
+        if any(each is None for each in parts):
+            return None
+        return sum((each for each in parts if each is not None), _Zeros())
+    if isinstance(found, sympy.Complement):
+        kept, apart = found.args
+        within = _solutions(kept, expr, variable, bounds)
+        if within is None or within.families or not isinstance(apart, sympy.FiniteSet):
+            return None
+        return _Zeros(tuple(p for p in within.points if p not in apart))
+    if isinstance(found, sympy.Intersection):  # of the real line, or an interval
+        listed = [each for each in found.args if not isinstance(each, sympy.Interval)]
+        if len(listed) != 1:
+            return None
+        if isinstance(listed[0], sympy.ImageSet):
+            return _Zeros(families=(found,))
+        within = _solutions(listed[0], expr, variable, bounds)
+        return None if within is None or within.families else within
+    return None
+
+
+def _real_root(point: Any, expr: Any, variable: Symbol, bounds: Sequence[Any]) -> bool:
+    """Whether a solution solveset found is real, and a root whatever the parameters are
+    (see :func:`_a_root`)."""
+    point = sympy.sympify(point)
+    if point.is_extended_real is False:
+        return False
+    if point.is_number:
+        number = complex(sympy.N(point, 30))
+        if abs(number.imag) > 1e-12 * max(1.0, abs(number.real)):
+            return False
+    return _a_root(expr.subs(variable, point), bounds)
 
 
 def _interior(
@@ -358,11 +501,13 @@ def _interior(
     raise Undecided(f"whether {point} is in the domain depends on the parameters")
 
 
-def _breaks(f: Any, variable: Symbol, bounds: Sequence[Any] = ()) -> list[Any]:
-    """Where a function has no derivative for a modulus, extremes or cases of the
-    variable: where the modulus is of 0, two extremes are equal, or a case begins."""
-    found: list[Any] = []
-    for each in sympy.sympify(f).atoms(sympy.Abs, sympy.Min, sympy.Max, sympy.Piecewise):
+def _breaks(f: Any, variable: Symbol, part: Any, bounds: Sequence[Any] = ()) -> _Zeros | None:
+    """Where a function has no derivative for a modulus, extremes or cases of the variable,
+    within an interval: where the modulus is of 0, two extremes are equal, or a case begins
+    (see :func:`_zeros`)."""
+    found = _Zeros()
+    rough = sympy.sympify(f).atoms(sympy.Abs, sympy.Min, sympy.Max, sympy.Piecewise)
+    for each in sorted(rough, key=sympy.default_sort_key):
         if not each.has(variable):
             continue
         if isinstance(each, sympy.Abs):
@@ -376,7 +521,53 @@ def _breaks(f: Any, variable: Symbol, bounds: Sequence[Any] = ()) -> list[Any]:
         else:
             zeros = [p - q for p, q in itertools.combinations(each.args, 2)]
         for zero in zeros:
-            found.extend(_roots(zero, variable, bounds))
+            where = _zeros(zero, variable, part, bounds)
+            if where is None:
+                return None
+            found += where
+    return found
+
+
+#: What a function of one variable may be built of for the points where it is not defined to
+#: be found: the elementary functions, whose poles are where they divide by 0.
+_ELEMENTARY = (
+    sympy.exp,
+    sympy.log,
+    TrigonometricFunction,
+    HyperbolicFunction,
+    InverseTrigonometricFunction,
+    InverseHyperbolicFunction,
+    sympy.Abs,
+    sympy.Piecewise,
+    sympy.erf,
+    sympy.erfc,
+)
+#: The functions that divide by a cosine, as tan x is sin x / cos x.
+_OVER_A_COSINE = ([sympy.tan, sympy.cot, sympy.sec, sympy.csc], sympy.cos)
+_OVER_A_COSH = ([sympy.tanh, sympy.coth, sympy.sech, sympy.csch], sympy.cosh)
+
+
+def _undefined(f: Any, variable: Symbol, part: Any, bounds: Sequence[Any]) -> _Zeros | None:
+    """Where a function of a variable is not defined within an interval, as tan is not at
+    π/2, nor 1/x at 0: where it divides by 0. An optimum near such a point is approached,
+    never reached there. ``None`` where that is not found: of a function built of more than
+    the elementary ones, as Γ is, whose poles SymPy does not give, or where the zeros of
+    what it divides by are not all found."""
+    functions = [each for each in f.atoms(sympy.Function) if each.has(variable)]
+    if not all(isinstance(each, _ELEMENTARY) for each in functions):
+        return None
+    written = f.rewrite(*_OVER_A_COSINE).rewrite(*_OVER_A_COSH)
+    found = _Zeros()
+    divided_by = [
+        power.base
+        for power in written.atoms(sympy.Pow)
+        if power.base.has(variable) and power.exp.is_negative
+    ]
+    for base in sorted(set(divided_by), key=sympy.default_sort_key):
+        zeros = _zeros(base, variable, part, bounds)
+        if zeros is None:
+            return None
+        found += zeros
     return found
 
 
@@ -482,6 +673,10 @@ class OneVariable:
         return len(problem.variables) == 1 and problem.continuous()
 
     def optimum(self, problem: Problem) -> Found | None:
+        """The optimum, from every stationary point and point without a derivative inside
+        the domain, as SymPy's solveset finds them on each interval of it, and the ends of
+        each, or the limits toward them where they are open, as at a point where the
+        function is not defined; ``None`` where those points are not all found."""
         (variable,) = problem.variables
         f = sympy.sympify(problem.objective)
         greatest = problem.sense == "max"
@@ -493,42 +688,66 @@ class OneVariable:
             raise EvaluationError(f"no value of {variable} keeps the constraints of {problem}")
         kept = [*((g, False) for g in problem.inequalities), *((g, True) for g in problem.strict)]
         kept += list(_natural(f, variable))
-        smooth = problem.smooth()
-        breaks = _breaks(f, variable, bounds)
-        points = [r for piece in _pieces(f, variable) for r in _stationary(piece, variable, bounds)]
-        parts = _parts(domain)
+        undefined = _Zeros()
+        for part in _parts(domain):
+            where = _undefined(f, variable, part, bounds) if _an_interval(part) else _Zeros()
+            if where is None:
+                return None
+            undefined += where
+        if undefined.families:  # infinitely many: decided only where it is unbounded at one
+            toward = _toward_a_pole(f, variable, undefined.families, domain, kept, problem)
+            if toward is None:
+                return None
+            return Found(toward, None, _how(False, True), proven=True, attained=False)
+        defined = domain
+        for point in dict.fromkeys(undefined.points):
+            defined = _without(defined, point, bounds) if _surely_real(point) else None
+            if defined is None:
+                raise Undecided(f"whether {point} is in the domain depends on the parameters")
+        parts = _parts(defined)
+        pieces = _pieces(f, variable)
         candidates: list[_Candidate] = []
+        rough = False
         for part in parts:
             if isinstance(part, sympy.FiniteSet):
                 candidates += [_Candidate(f.subs(variable, p), (p,)) for p in part.args]
                 continue
-            for point in [*points, *breaks]:
+            breaks = _breaks(f, variable, part, bounds)
+            stationary = [_stationary(piece, variable, part, bounds) for piece in pieces]
+            if breaks is None or any(each is None for each in stationary):
+                return None  # not every point an optimum may be at is found
+            rough = rough or bool(breaks.points or breaks.families)
+            zeros = sum((each for each in stationary if each is not None), breaks)
+            for point in zeros.points:
                 if _interior(point, part, kept, variable, bounds):
                     candidates.append(_Candidate(f.subs(variable, point), (point,)))
-            for end, closed, direction in (
-                (part.start, not part.left_open, "+"),
-                (part.end, not part.right_open, "-"),
-            ):
-                if end.is_finite and closed:
-                    candidates.append(_Candidate(f.subs(variable, end), (end,)))
-                    continue
-                limit = sympy.limit(f, variable, end, direction)
-                if isinstance(limit, sympy.AccumBounds):
-                    limit = limit.max if greatest else limit.min
-                if limit.has(sympy.Limit, sympy.nan, sympy.zoo) or limit.is_extended_real is False:
+            for point in breaks.points if f.has(sympy.Piecewise) else ():
+                beside = _beside(f, variable, point)  # a case may begin with a jump
+                if beside is None:
                     return None
-                candidates.append(_Candidate(limit, None, attained=False))
-        if not candidates:
+                if _interior(point, part, kept, variable, bounds):
+                    candidates += beside
+            for family in zeros.families:
+                candidate = _of_family(f, variable, family, part, kept, bounds)
+                if candidate is None:
+                    return None
+                candidates.append(candidate)
+            ends = _at_the_ends(f, variable, part)
+            if ends is None:
+                return None
+            candidates += ends
+        if not candidates or any(c.value.has(sympy.nan, sympy.zoo) for c in candidates):
             return None
-        how = "by SymPy, from its stationary points"
-        how += ", the points where it has no derivative," if breaks else ""
-        how += " and the ends of its domain"
+        how = _how(rough, defined != domain)
         best = _best(candidates, greatest, bounds)
         if best is not None:
-            chosen, ties = best
+            chosen, tied = best
+            reached = _tied_set(tied, f, variable, parts) if chosen.attained else None
             return Found(
-                chosen.value, chosen.point, how, proven=True, attained=chosen.attained, ties=ties
-            )
+                chosen.value, chosen.point, how, proven=True, attained=chosen.attained,
+                tied=reached,
+            )  # fmt: skip
+        smooth = problem.smooth()
         return self._undecided(f, variable, parts, candidates, smooth, greatest, how, bounds)
 
     def _undecided(
@@ -579,6 +798,198 @@ def _at_an_end(point: Any, parts: Sequence[Any]) -> bool:
     )
 
 
+def _an_interval(part: Any) -> bool:
+    return isinstance(part, sympy.Interval)
+
+
+def _how(rough: bool, undefined: bool) -> str:
+    """How the optimum of a function of one variable was found, in words."""
+    sources = ["its stationary points"]
+    if rough:
+        sources.append("the points where it has no derivative")
+    sources.append("the ends of its domain")
+    if undefined:
+        sources.append("the points where it is not defined")
+    if len(sources) == 2:
+        return "by SymPy, from " + " and ".join(sources)
+    return "by SymPy, from " + ", ".join(sources[:-1]) + ", and " + sources[-1]
+
+
+def _surely_real(point: Any) -> bool:
+    """Whether a point is a real number, whatever its parameters are."""
+    point = sympy.sympify(point)
+    if not point.is_number:
+        return point.is_real is True
+    number = complex(sympy.N(point, 30))
+    return abs(number.imag) <= 1e-12 * max(1.0, abs(number.real))
+
+
+def _at_the_ends(f: Any, variable: Symbol, part: Any) -> list[_Candidate] | None:
+    """The values a function of a variable takes at the ends of an interval: at an end it
+    holds, the value there; toward one it does not, as an end at infinity or a point where
+    the function is not defined, the limit, which no point reaches. Toward infinity a
+    periodic function has no limit, and takes there no value it does not take at its
+    stationary points. ``None`` where SymPy finds no limit otherwise."""
+    found = []
+    for end, closed, direction in (
+        (part.start, not part.left_open, "+"),
+        (part.end, not part.right_open, "-"),
+    ):
+        if end.is_finite and closed:
+            found.append(_Candidate(f.subs(variable, end), (end,)))
+            continue
+        try:
+            limit = sympy.limit(f, variable, end, direction)
+            periodic = end.is_infinite and sympy.periodicity(f, variable) is not None
+        except (NotImplementedError, ValueError, TypeError):
+            return None
+        if limit.has(sympy.AccumBounds) and periodic:
+            continue  # the bounds SymPy gives its values there are no values it comes near
+        if limit.has(sympy.AccumBounds, sympy.Limit, sympy.nan, sympy.zoo):
+            return None
+        if limit.is_extended_real is False:
+            return None
+        found.append(_Candidate(limit, None, attained=False))
+    return found
+
+
+def _beside(f: Any, variable: Symbol, point: Any) -> list[_Candidate] | None:
+    """The values a function written in cases comes near on each side of a point where a
+    case begins, which it need not take there, as it jumps: its limits from above and from
+    below, which no point reaches. ``None`` where SymPy finds no limit."""
+    step = sympy.Dummy("h", positive=True)
+    found = []
+    for side in (1, -1):
+        try:
+            limit = sympy.limit(f.subs(variable, point + side * step), step, 0, "+")
+        except (NotImplementedError, ValueError, TypeError):
+            return None
+        if limit.has(sympy.AccumBounds, sympy.Limit, sympy.nan, sympy.zoo):
+            return None
+        if limit.is_extended_real is False:
+            return None
+        found.append(_Candidate(limit, None, attained=False))
+    return found
+
+
+#: The most whole numbers tried, either side of 0, for a point of a family inside an
+#: interval.
+_MOST_TRIED = 8
+
+
+def _member(
+    family: Any,
+    part: Any,
+    kept: Sequence[tuple[Any, bool]],
+    variable: Symbol,
+    bounds: Sequence[Any],
+) -> tuple[Any, Any, Any]:
+    """Of a family of points, as π/2 + 2πn of every integer n: its point as written with n,
+    the n, and the point of it inside an interval at the whole number nearest 0, ``None``
+    where none of the few tried is inside."""
+    image = (
+        family
+        if isinstance(family, sympy.ImageSet)
+        else next(each for each in family.args if isinstance(each, sympy.ImageSet))
+    )
+    (label,) = image.lamda.variables
+    whole = sympy.Dummy(label.name, integer=True)
+    point = image.lamda.expr.xreplace({label: whole})
+    for k in sorted(range(-_MOST_TRIED, _MOST_TRIED + 1), key=lambda k: (abs(k), -k)):
+        at = sympy.simplify(point.xreplace({whole: k}))
+        if _interior(at, part, kept, variable, bounds):
+            return point, whole, at
+    return point, whole, None
+
+
+def _of_family(
+    f: Any,
+    variable: Symbol,
+    family: Any,
+    part: Any,
+    kept: Sequence[tuple[Any, bool]],
+    bounds: Sequence[Any],
+) -> _Candidate | None:
+    """The value of a function at every point of a family of them, as sin x is 1 at each
+    π/2 + 2πn, with the point of it at the whole number nearest 0 inside the interval as
+    its point; ``None`` where the value is not the same at each, or no point of it is
+    found inside."""
+    point, whole, inside = _member(family, part, kept, variable, bounds)
+    value = sympy.simplify(f.subs(variable, point))
+    if value.has(whole) or inside is None:
+        return None
+    return _Candidate(value, (inside,), family=family)
+
+
+def _toward_a_pole(
+    f: Any,
+    variable: Symbol,
+    families: Sequence[Any],
+    domain: Any,
+    kept: Sequence[tuple[Any, bool]],
+    problem: Problem,
+) -> Any:
+    """∞ or -∞, where a function grows without bound, the way its optimum is sought, toward
+    a point of a family of points where it is not defined, as tan does toward π/2: no other
+    point then matters. ``None`` where it does not."""
+    wanted = sympy.oo if problem.sense == "max" else -sympy.oo
+    for family in families:
+        for part in filter(_an_interval, _parts(domain)):
+            _, _, pole = _member(family, part, kept, variable, problem.bounds)
+            if pole is None:
+                continue
+            for direction in "+-":
+                try:
+                    limit = sympy.limit(f, variable, pole, direction)
+                except (NotImplementedError, ValueError, TypeError):
+                    continue
+                if limit == wanted:
+                    return wanted
+    return None
+
+
+def _tied_set(tied: Sequence[_Candidate], f: Any, variable: Symbol, parts: Sequence[Any]) -> Any:
+    """The points that reach an optimum, where more than one does, as a set: the families of
+    them, and each run of points with the function the same at every point between each
+    two, in one interval of the domain, as the interval they span, as |x - 1| + |x + 1| is
+    2 on [-1, 1]; ``None`` where one alone reaches it."""
+    families = [c.family for c in tied if c.family is not None]
+    points = [c.point[0] for c in tied if c.family is None and c.point is not None]
+    if not families and len(points) < 2:
+        return None
+    value = tied[0].value
+    runs: list[list[Any]] = []
+    for point in points:  # in order, the least first
+        if runs and _constant_between(f, variable, runs[-1][-1], point, value, parts):
+            runs[-1].append(point)
+        else:
+            runs.append([point])
+    spans = [
+        sympy.Interval(run[0], run[-1]) if len(run) > 1 else sympy.FiniteSet(run[0]) for run in runs
+    ]
+    return sympy.Union(*spans, *families)
+
+
+def _constant_between(
+    f: Any, variable: Symbol, one: Any, other: Any, value: Any, parts: Sequence[Any]
+) -> bool:
+    """Whether a function is ``value`` at every point between two, in one interval of the
+    domain: at one + (other - one)/(1 + s), of every positive s."""
+    if _compare(one, other) != -1:
+        return False
+    if not any(
+        isinstance(part, sympy.Interval) and _within(one, part, ()) and _within(other, part, ())
+        for part in parts
+    ):
+        return False
+    step = sympy.Dummy("s", positive=True)
+    between = f.subs(variable, one + (other - one) / (1 + step))
+    try:
+        return bool(sympy.simplify(between - value) == 0)
+    except (TypeError, ValueError, NotImplementedError):
+        return False
+
+
 # -- several variables -----------------------------------------------------------------------
 
 
@@ -616,36 +1027,39 @@ class Stationary:
         )
 
     def optimum(self, problem: Problem) -> Found | None:
+        """The optimum, from the points where the KKT conditions hold, at each set of
+        constraints that hold with equality, but those the second-order conditions show
+        to be no optimum of the kind; and from each family of such points, a curve or a
+        surface, on which the function is one value. It is proven global of a convex
+        problem, and of a polynomial one over a bounded region, where every such point is
+        found. ``None`` where they are not all found, as of a periodic function between
+        constraints, of whose stationary points SymPy gives the principal ones alone."""
         variables = problem.variables
         sign = 1 if problem.sense == "min" else -1
         least = sign * sympy.sympify(problem.objective)  # what is made least
-        complete = True
-        candidates: list[tuple[Any, ...]] = []
-        for active in _active_sets(problem):
-            points, whole = _kkt_points(problem, least, active)
-            complete = complete and whole
-            for point in points:
-                if not any(_same_point(point, other) for other in candidates):
-                    candidates.append(point)
-        if not problem.inequalities and not problem.equalities:
-            candidates = [p for p in candidates if not _wrong_kind(least, variables, p, problem)]
-        if not candidates:
+        if _constrained(problem) and _periodic(problem):
             return None
-        found = [
-            _Candidate(least.xreplace(dict(zip(variables, p, strict=True))), p) for p in candidates
-        ]
-        best = _best(found, False, problem.bounds)
+        found: list[_Candidate] = []
+        for active in _active_sets(problem):
+            points = _kkt_points(problem, least, active)
+            if points is None:
+                return None  # not every point the optimum may be at is found
+            found += points
         how = "by SymPy, from " + _conditions(problem)
-        convex, bounded = problem.convex(), problem.bounded()
-        proven = complete and (convex or bounded)
-        if not proven and not _constrained(problem):
-            unbounded = _unbounded(least, variables, candidates[0])
+        convex = problem.convex()
+        bounded = problem.bounded() and _polynomial(problem)
+        proven = convex or bounded
+        if not _constrained(problem) and not (proven and found):
+            origin = tuple(sympy.S.Zero for _ in variables)
+            through = (found[0].point if found else None) or origin
+            unbounded = _unbounded(least, variables, through)
             if unbounded is not None:
                 return Found(sign * unbounded, None, how, proven=True, attained=False)
+        if not found:
+            return None
+        best = _best(found, False, problem.bounds)
         if best is None:
-            if len(found) == 1:
-                best = (found[0], 1)
-            else:
+            if len(_in_order(found)) > 1:
                 values = list(dict.fromkeys(sign * c.value for c in found))
                 value = sympy.Max(*values) if sign < 0 else sympy.Min(*values)
                 if not proven:
@@ -653,12 +1067,30 @@ class Stationary:
                         "which of the stationary points is best depends on the parameters"
                     )
                 return Found(value, None, how, proven=True)
-        chosen, ties = best
+            best = (found[0], [found[0]])
+        chosen, tied = best
         if convex:
             how += "; the problem is convex"
-        elif bounded and proven:
+        elif bounded:
             how += "; the constraints bound the region"
-        return Found(sign * chosen.value, chosen.point, how, proven=proven, ties=ties)
+        reached = _tied_points(tied)
+        return Found(sign * chosen.value, chosen.point, how, proven=proven, tied=reached)
+
+
+def _periodic(problem: Problem) -> bool:
+    """Whether a problem is written with a trigonometric function of its variables."""
+    return any(
+        each.has(*problem.variables)
+        for expr in problem.expressions
+        for each in sympy.sympify(expr).atoms(TrigonometricFunction)
+    )
+
+
+def _polynomial(problem: Problem) -> bool:
+    """Whether what a problem is of and its constraints are polynomials in its variables:
+    SymPy then finds every point where the KKT conditions hold, and what it is of is
+    defined at every point."""
+    return all(sympy.sympify(e).is_polynomial(*problem.variables) for e in problem.expressions)
 
 
 def _conditions(problem: Problem) -> str:
@@ -677,13 +1109,14 @@ def _active_sets(problem: Problem) -> Iterator[tuple[int, ...]]:
         yield from itertools.combinations(range(len(problem.inequalities)), size)
 
 
-def _kkt_points(
-    problem: Problem, least: Any, active: tuple[int, ...]
-) -> tuple[list[tuple[Any, ...]], bool]:
-    """The points where the KKT conditions hold with the inequalities ``active`` held at
+def _kkt_points(problem: Problem, least: Any, active: tuple[int, ...]) -> list[_Candidate] | None:
+    """The candidates where the KKT conditions hold with the inequalities ``active`` held at
     0: the gradient of what is made least a combination of the gradients of the
     constraints, the multipliers of the inequalities not negative, and every constraint
-    kept; and whether SymPy found every solution."""
+    kept; each point the second-order conditions do not rule out (see
+    :func:`_not_a_minimum`), and each family of them, a line or a curve of points, where what
+    is made least is one value along it (see :func:`_along`). ``None`` where SymPy cannot
+    solve the conditions, or the value along a family is not one."""
     variables = problem.variables
     held = [problem.inequalities[k] for k in active]
     lagrange = [sympy.Dummy(f"lambda{k}") for k in range(len(problem.equalities))]
@@ -698,21 +1131,124 @@ def _kkt_points(
     try:
         solutions = sympy.solve(equations, unknowns, dict=True)
     except NotImplementedError:
-        return [], False
-    points: list[tuple[Any, ...]] = []
-    whole = True
+        return None
+    found: list[_Candidate] = []
     for solution in solutions:
         point = tuple(sympy.sympify(solution.get(v, v)) for v in variables)
-        if any(p.has(*variables) for p in point):  # a line or a plane of them
-            whole = False
-            continue
         if any(p.is_real is False for p in point):
             continue
         if any(_sign(solution.get(m, 0), problem.bounds) == -1 for m in kuhn):
             continue
-        if _kept(problem, point):
-            points.append(point)
-    return points, whole
+        if any(p.has(*variables) for p in point):  # a line or a curve of them
+            along = _along(problem, least, solution, point)
+            if along is None:
+                return None
+            found += along
+            continue
+        if not _kept(problem, point):
+            continue
+        multipliers = [solution.get(m, m) for m in (*lagrange, *kuhn)]
+        if _not_a_minimum(problem, least, point, held, multipliers):
+            continue
+        found.append(_Candidate(least.xreplace(dict(zip(variables, point, strict=True))), point))
+    return found
+
+
+#: The values tried for the variables a family of points is written with, for a point of
+#: it that keeps the constraints.
+_TRIED = (0, 1, -1, sympy.Rational(1, 2), sympy.Rational(-1, 2), 2, -2)
+
+
+def _along(
+    problem: Problem, least: Any, solution: dict[Any, Any], point: tuple[Any, ...]
+) -> list[_Candidate] | None:
+    """A family of points where the KKT conditions hold, as the circle where x² + y² ≤ 1
+    holds with equality is of x² + y²: what is made least there, where it is one value
+    along it, at a point of it that keeps the constraints, which stands for all; nothing
+    of a family a constraint rules out whole. ``None`` where the value is not one along
+    it, or no point of it that keeps the constraints is found among the few tried."""
+    variables = problem.variables
+    along = dict(zip(variables, point, strict=True))
+    for g in problem.inequalities:
+        if _sign(sympy.simplify(sympy.sympify(g).xreplace(along)), problem.bounds) == -1:
+            return []
+    free = sorted(set().union(*(p.free_symbols for p in point)) & set(variables), key=str)
+    value = sympy.simplify(least.xreplace(along))
+    if value.has(*free):
+        return None
+    family = sympy.And(*(sympy.Eq(v, solution[v]) for v in variables if v in solution))
+    for values in itertools.product(_TRIED, repeat=len(free)):
+        at = dict(zip(free, values, strict=True))
+        chosen = tuple(sympy.simplify(p.xreplace(at)) for p in point)
+        if all(_real_number(p) for p in chosen) and _kept(problem, chosen):
+            return [_Candidate(value, chosen, family=family)]
+    return None
+
+
+def _real_number(value: Any) -> bool:
+    """Whether a value is a real number, or real for its symbols' facts."""
+    value = sympy.sympify(value)
+    if value.has(sympy.nan, sympy.zoo, sympy.oo, -sympy.oo):
+        return False
+    if not value.is_number:
+        return value.is_real is not False
+    number = complex(sympy.N(value, 30))
+    return abs(number.imag) <= 1e-12 * max(1.0, abs(number.real))
+
+
+def _not_a_minimum(
+    problem: Problem,
+    least: Any,
+    point: tuple[Any, ...],
+    held: Sequence[Any],
+    multipliers: Sequence[Any],
+) -> bool:
+    """Whether a point where the KKT conditions hold is surely no minimum of what is made
+    least, by the second-order conditions: the Hessian of the Lagrangian, on the directions
+    along which every constraint that holds with equality stays so, has a direction of
+    negative curvature, as the centre of x² + y² ≤ 1 has of -(x² + y²). Not where another
+    constraint holds with equality there too, which the conditions with it held judge, nor
+    where the multipliers, or the curvature, are not numbers."""
+    variables = list(problem.variables)
+    constraints = [*problem.equalities, *held]
+    at = dict(zip(variables, point, strict=True))
+    others = [g for g in problem.inequalities if not any(g is each for each in held)]
+    if any(_sign(sympy.sympify(g).xreplace(at), problem.bounds) != 1 for g in others):
+        return False
+    if any(sympy.sympify(m).free_symbols for m in multipliers):
+        return False
+    lagrangian = least - sum(
+        (m * c for m, c in zip(multipliers, constraints, strict=True)), sympy.Integer(0)
+    )
+    hessian = sympy.hessian(lagrangian, variables).xreplace(at)
+    if constraints:
+        gradients = [[sympy.diff(c, v).xreplace(at) for v in variables] for c in constraints]
+        directions = sympy.Matrix(gradients).nullspace()
+        if not directions:
+            return False  # a vertex: no direction keeps every constraint that holds
+        along = sympy.Matrix.hstack(*directions)
+        hessian = along.T * hessian * along
+    if hessian.free_symbols:
+        return False
+    try:
+        curvatures = [complex(sympy.N(e)).real for e in hessian.eigenvals(multiple=True)]
+        scale = max([1.0, *(abs(complex(sympy.N(e))) for e in hessian)])
+    except (TypeError, ValueError, NotImplementedError):
+        return False
+    return min(curvatures) < -1e-12 * scale
+
+
+def _tied_points(tied: Sequence[_Candidate]) -> Any:
+    """The points that reach an optimum, where more than one does: the condition the points
+    of each family of them keep, or the set of them, each a number, of one variable, or
+    the values of several; ``None`` where one alone reaches it."""
+    families = [c.family for c in tied if c.family is not None]
+    points = [c.point for c in tied if c.family is None and c.point is not None]
+    if families:
+        return sympy.Or(*families) if len(families) > 1 else families[0]
+    if len(points) < 2:
+        return None
+    return sympy.FiniteSet(*(p[0] if len(p) == 1 else sympy.Tuple(*p) for p in points))
 
 
 def _kept(problem: Problem, point: tuple[Any, ...]) -> bool:
@@ -727,36 +1263,24 @@ def _kept(problem: Problem, point: tuple[Any, ...]) -> bool:
     return True
 
 
-def _same_point(one: tuple[Any, ...], other: tuple[Any, ...]) -> bool:
-    return all(_compare(p, q) == 0 for p, q in zip(one, other, strict=True))
-
-
-def _wrong_kind(
-    least: Any, variables: Sequence[Symbol], point: tuple[Any, ...], problem: Problem
-) -> bool:
-    """Whether a stationary point of what is made least, with no constraints, is surely no
-    minimum: where its Hessian has a negative eigenvalue."""
-    hessian = sympy.hessian(least, list(variables)).xreplace(
-        dict(zip(variables, point, strict=True))
-    )
-    if hessian.free_symbols:
-        return False
-    try:
-        eigenvalues = [complex(sympy.N(e)).real for e in hessian.eigenvals(multiple=True)]
-    except (TypeError, ValueError, NotImplementedError):
-        return False
-    return min(eigenvalues) < -1e-12
-
-
 def _unbounded(least: Any, variables: Sequence[Symbol], point: tuple[Any, ...]) -> Any:
-    """-∞, where what is made least falls without bound along an axis through a point;
-    ``None`` where it does not, or that is not decided."""
+    """-∞, where what is made least falls without bound along a line through a point: an
+    axis, or the way it falls fastest there; ``None`` where it does not, or that is not
+    decided."""
+    at = dict(zip(variables, point, strict=True))
+    step = sympy.Dummy("t", real=True)
+    lines = []
     for k, variable in enumerate(variables):
         others = {v: p for j, (v, p) in enumerate(zip(variables, point, strict=True)) if j != k}
-        line = least.xreplace(others)
+        lines.append((least.xreplace(others), variable))
+    slope = [sympy.diff(least, v).xreplace(at) for v in variables]
+    if all(each.is_number for each in slope) and any(each != 0 for each in slope):
+        down = {v: p - step * s for v, p, s in zip(variables, point, slope, strict=True)}
+        lines.append((least.xreplace(down), step))
+    for line, along in lines:
         for end in (sympy.oo, -sympy.oo):
             try:
-                found = sympy.limit(line, variable, end)
+                found = sympy.limit(line, along, end)
             except (NotImplementedError, ValueError):
                 continue
             if found == -sympy.oo:
@@ -883,6 +1407,6 @@ class Enumeration:
         best = _best(found, problem.sense == "max", ())
         if best is None:
             return None
-        chosen, ties = best
+        chosen, tied = best
         how = f"by SymPy, trying each of the {count} points of its domain"
-        return Found(chosen.value, chosen.point, how, proven=True, ties=ties)
+        return Found(chosen.value, chosen.point, how, proven=True, tied=_tied_points(tied))
