@@ -652,19 +652,29 @@ def test_a_claim_is_judged_as_sympy_judges_it(agent, claim, context, expected):
 @pytest.mark.parametrize(
     ("claim", "verdict", "kind"),
     [
-        pytest.param(r"\pi \approx 3.14", "not decided", "NotComputedError", id="approximately"),
+        pytest.param(
+            r"\pi \approx 3.14",
+            "not decided",
+            "NotComputedError",
+            id="approximately",
+            marks=xfail(
+                "lowering/expressions.py: a relation read but not computed, as ≈, is refused "
+                "with no hint, as to write the difference of its sides"
+            ),
+        ),
         pytest.param(r"e^x \geq 1 + x", "not decided", "UndecidedError", id="an-inequality"),
         pytest.param("x^2 + 1", "error", "UsageError", id="an-expression"),
         pytest.param(r"\frac{1}{2 = x", "error", "ParseError", id="a-claim-unread"),
     ],
 )
-def test_a_claim_not_decided_or_refused_says_why(agent, claim, verdict, kind):
+def test_a_claim_not_decided_or_refused_says_why_and_what_to_write(agent, claim, verdict, kind):
     result = agent.verify(claim)
     [link] = result["links"]
     assert (result["verdict"], link["verdict"]) == (verdict, verdict)
     assert link["error"]["type"] == kind
     assert link["error"]["message"]
     assert link["error"]["line"] is not None
+    assert link["error"]["hint"]
 
 
 def test_a_claim_about_what_nothing_defines_relates_and_says_by_how_much(agent):
