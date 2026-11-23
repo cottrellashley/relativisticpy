@@ -614,12 +614,15 @@ def _counted(k: Any, count: int) -> int:
 
 @map_function(
     "spec",
-    summary="the spectrum of a matrix, `\\operatorname{spec}(A)`: its eigenvalues, each as "
-    "often as it is one, from the smallest",
+    latex=(r"\operatorname{spec}(A)", r"\sigma(A)"),
+    summary="the spectrum of a matrix, `\\operatorname{spec}(A)` or `\\sigma(A)`: its "
+    "eigenvalues, each as often as it is one, from the smallest; σ of anything else is not",
     examples=[
         Example(r"\operatorname{spec}\begin{pmatrix} 2 & 1 \\ 1 & 2 \end{pmatrix}", [1, 3],
                 "numpy.linalg.eigvalsh([[2, 1], [1, 2]])"),
         Example("spec([[a, 0], [0, a]])", [a, a], "standard"),
+        Example(r"A := \begin{pmatrix} 3 & 1 \\ 0 & 2 \end{pmatrix}" "\n" r"\sigma(A)", [2, 3],
+                "Horn and Johnson (2013), section 1.1: the spectrum σ(A) of a triangular A"),
     ],
     points=_SQUARE,
     lifts=False,
@@ -802,6 +805,82 @@ class KroneckerProduct:
 
     def numeric(self, xp: Any, A: Any, B: Any) -> Any:
         return xp.kron(A, B)
+
+
+@map_function(
+    "dot",
+    summary="the dot product of two vectors, `u \\cdot v`, the sum of the products of their "
+    "entries, conjugating neither, as numpy.dot does",
+    examples=[
+        Example("dot((1, 2, 3), (4, 5, 6))", 32, "numpy.dot([1, 2, 3], [4, 5, 6])"),
+        Example("dot([a, b], [1, -1])", a - b, "standard"),
+    ],
+    points=[([[1], [2], [3]], [[4], [5], [6]]), ([[1, -2]], [[3, 0.5]])],
+    lifts=False,
+    scalar=True,
+)  # fmt: skip
+class DotProduct:
+    def exact(self, u: Any, v: Any) -> Any:
+        left, right = _paired(u, v, "dot")
+        return sympy.Add(*(x * y for x, y in zip(left, right, strict=True)))
+
+    def numeric(self, xp: Any, u: Any, v: Any) -> Any:
+        left, right = xp.ravel(u), xp.ravel(v)
+        _same_length(left.shape[0], right.shape[0], "dot")
+        return xp.sum(left * right)
+
+
+@map_function(
+    "cross",
+    summary="the cross product of two vectors of three components, `u \\times v`",
+    examples=[
+        Example("cross((1, 2, 3), (4, 5, 6))", [-3, 6, -3], "numpy.cross([1, 2, 3], [4, 5, 6])"),
+        Example("cross((1, 0, 0), (0, 1, 0))", [0, 0, 1], "standard: x times y is z"),
+    ],
+    points=[([[1], [2], [3]], [[4], [5], [6]]), ([[0.5, -1, 2]], [[3, 0, 1]])],
+    lifts=False,
+)  # fmt: skip
+class CrossProduct:
+    def exact(self, u: Any, v: Any) -> Any:
+        left, right = _paired(u, v, "cross", size=3)
+        product = sympy.Matrix(left).cross(sympy.Matrix(right))
+        return sympy.ImmutableDenseNDimArray(list(product))
+
+    def numeric(self, xp: Any, u: Any, v: Any) -> Any:
+        left, right = xp.ravel(u), xp.ravel(v)
+        _same_length(left.shape[0], right.shape[0], "cross", size=3)
+        return xp.cross(left, right)
+
+
+def _paired(u: Any, v: Any, what: str, size: int | None = None) -> tuple[list[Any], list[Any]]:
+    """The entries of two vectors, each written as a list, a row or a column, of one length,
+    and of ``size`` where it is given; an error for anything else, saying what to write."""
+    vectors = []
+    for value in (u, v):
+        matrix = _matrix(value, what)
+        if not _vector(matrix):
+            raise EvaluationError(
+                f"{what} takes two vectors, and a {matrix.rows} × {matrix.cols} matrix is no "
+                "vector",
+                hint=f"for example {what}((1, 2, 3), (4, 5, 6))",
+            )
+        vectors.append(list(matrix))
+    _same_length(len(vectors[0]), len(vectors[1]), what, size)
+    return vectors[0], vectors[1]
+
+
+def _same_length(left: int, right: int, what: str, size: int | None = None) -> None:
+    """That two vectors are of one length, and of ``size`` where it is given."""
+    if size is not None and (left, right) != (size, size):
+        raise EvaluationError(
+            f"{what} is a product of vectors of {size} components, not of {left} and {right}",
+            hint=f"for example {what}((1, 2, 3), (4, 5, 6))",
+        )
+    if left != right:
+        raise EvaluationError(
+            f"{what} takes two vectors of one length, not of {left} and {right} components",
+            hint=f"for example {what}((1, 2, 3), (4, 5, 6))",
+        )
 
 
 @map_function(

@@ -279,6 +279,19 @@ class TestHypergeometric:
 
 
 class TestMatrices:
+    def test_the_products_and_the_spectrum_agents_write(self):
+        # dot(u, v), cross(u, v) and \sigma(A) were unknown functions, refused of vectors
+        with Workbook() as wb:
+            wb.exe("u := (1, 2, 3)\nv := (4, 5, 6)")
+            assert wb.expr("dot(u, v)") == int(np.dot([1, 2, 3], [4, 5, 6]))
+            assert list(wb.expr("cross(u, v)")) == list(np.cross([1, 2, 3], [4, 5, 6]))
+            wb.exe(r"A := \begin{pmatrix} 2 & 1 \\ 1 & 3 \end{pmatrix}")
+            spectrum = wb.expr(r"\sigma(A)")
+            assert np.allclose([float(e) for e in spectrum], np.linalg.eigvalsh([[2, 1], [1, 3]]))
+            assert wb.expr(r"\sigma(x)") == sympy.Function("sigma")(sympy.Symbol("x"))
+        assert refused("dot((1, 2), (3, 4, 5))").startswith("dot takes two vectors of one length")
+        assert refused("cross((1, 2), (3, 4))").startswith("cross is a product of vectors of 3")
+
     def test_an_eigenvalue_of_data_is_counted_as_exact_counts_it(self):
         # 10: of data, lambda_0 was the largest, lambda_{3/2} the first, lambda_3 an IndexError
         data = np.array([[2.0, 1.0], [1.0, 3.0]])
