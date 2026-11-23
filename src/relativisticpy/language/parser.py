@@ -2360,8 +2360,12 @@ class Parser:
     def _limit(self) -> ast.Limit:
         command = self.advance()
         if self.tokens[self.pos].kind is not K.UNDERSCORE:
+            written = command.span.text
+            example = "\\lim_{x \\to 0}" if written.startswith("\\") else "lim_(x->0) f(x)"
             raise ParseError(
-                "\\lim needs a subscript", span=command.span, hint="for example \\lim_{x \\to 0}"
+                f"{written} needs a subscript that says what tends to what",
+                span=command.span,
+                hint=f"for example {example}",
             )
         self.pos += 1
         tokens = [t for t in self._script_tokens(command) if t.kind is not K.NEWLINE]

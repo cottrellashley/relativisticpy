@@ -540,9 +540,11 @@ class Lexer:
             applies = self._applies(
                 end, power=True, subscript=name in vocab.SCRIPTED_WORDS, operand=True
             )
+        elif name == "lim":  # lim x->0 is \lim refused, saying how; lim(f, x, 0) a call
+            applies = self._applies(end, subscript=True, operand=True, bracket=False)
         elif name in vocab.LIMITS_WORDS:
             operand = name in vocab.UNSCRIPTED_WORDS
-            applies = self._applies(end, power=name != "lim", subscript=True, operand=operand)
+            applies = self._applies(end, power=True, subscript=True, operand=operand)
         elif name in vocab.SCRIPTED_WORDS:  # sup_x, argmax_x
             applies = self._applies(end, subscript=True)
         else:
@@ -550,11 +552,18 @@ class Lexer:
         return name if applies else None
 
     def _applies(
-        self, at: int, *, power: bool = False, subscript: bool = False, operand: bool = False
+        self,
+        at: int,
+        *,
+        power: bool = False,
+        subscript: bool = False,
+        operand: bool = False,
+        bracket: bool = True,
     ) -> bool:
         """Whether what follows ``at``, after spacing, is what a word before it applies to:
         a ``power``, a ``subscript``, or an ``operand``, as a name, a number, a bracket,
-        a command that writes one, or a Greek letter or a sign of Unicode's."""
+        unless not ``bracket``, a command that writes one, or a Greek letter or a sign of
+        Unicode's."""
         while True:
             while at < len(self.text) and self.text[at] in _SPACE:
                 at += 1
@@ -572,7 +581,9 @@ class Lexer:
         if char.isascii() and char.isalpha():
             letters = _LETTERS.match(self.text, at)
             return letters is not None and letters.group() not in _NOT_OPERANDS
-        if char in _DIGITS or char in "({|":
+        if char == "(":
+            return bracket
+        if char in _DIGITS or char in "{|":
             return True
         if char == "\\":
             command = _COMMAND_NAME.match(self.text, at + 1)

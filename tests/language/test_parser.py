@@ -1956,3 +1956,10 @@ class TestPlainTextAndUnicodeSpellLatex:
     )
     def test_a_differential_first_over_a_solidus_is_the_numerator(self, written, latex):
         assert sexpr(written) == sexpr(latex)
+
+    def test_a_limit_without_its_subscript_says_how_to_write_one(self):
+        # lim x->0 sin(x)/x was refused for its arrow, read but not computed
+        found = error("lim x->0 sin(x)/x")
+        assert found.message == "lim needs a subscript that says what tends to what"
+        assert found.hint == "for example lim_(x->0) f(x)"
+        assert program("lim(sin(x)/x, x, 0)") == ["(call lim (/ (call sin x) x) x 0)"]
