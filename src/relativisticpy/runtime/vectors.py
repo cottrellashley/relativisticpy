@@ -251,7 +251,30 @@ def norm(vector: Any) -> sympy.Expr:
     real, so only i is conjugated, and a symbol the program declares complex."""
     values = [sympy.sympify(value) for value in arrays.flatten(arrays.to_array(vector))]
     square = sum(value * _conjugate_as_written(value) for value in values)
+    _say_what_is_taken_real(values)
     return sympy.sqrt(simplify_component(square))
+
+
+def _say_what_is_taken_real(values: Sequence[sympy.Basic]) -> None:
+    """Say which names a length takes as real, where the vector is written with i and so
+    may be complex: |(E₀, iE₀, 0)|² is 2E₀² only if E₀ is real."""
+    if not any(value.has(sympy.I) for value in values):
+        return
+    taken = sorted(
+        {
+            symbol
+            for value in values
+            for symbol in value.free_symbols
+            if isinstance(symbol, Symbol) and symbol.is_real is None and symbol.is_complex is None
+        },
+        key=str,
+    )
+    if taken:
+        names = ", ".join(display.unicode(symbol) for symbol in taken)
+        assumptions.remark(
+            f"the length takes {names} as real, as books do; declare a name complex, as with "
+            f"Complex := [{', '.join(str(symbol) for symbol in taken)}], to conjugate it"
+        )
 
 
 def _conjugate_as_written(value: sympy.Basic) -> sympy.Basic:

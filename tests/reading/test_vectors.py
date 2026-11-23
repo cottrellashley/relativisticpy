@@ -76,6 +76,15 @@ class TestAlgebra:
         assert wb.expr(r"|\mathbf{u}|") == sympy.sqrt(2)
         assert same(wb.expr(r"|\mathbf{E}|^2"), 2 * sympy.Symbol("E_0") ** 2)
 
+    def test_a_length_says_which_names_it_takes_as_real(self, wb):
+        # |(E₀, iE₀, 0)|² is 2E₀² only if E₀ is real: written with i, it may not be
+        wb.exe(r"\mathbf{E} := (E_0, i E_0, 0)")
+        (step,) = wb.each(r"|\mathbf{E}|^2")
+        assert any("takes E₀ as real" in note for note in step.notes)
+        wb.exe(r"\mathbf{r} := (x, y, z)")  # nothing in it is complex: nothing to say
+        (step,) = wb.each(r"|\mathbf{r}|")
+        assert not any("as real" in note for note in step.notes)
+
     def test_a_row_and_a_column_have_one_length(self, wb):
         row = r"\left\| \begin{pmatrix} 1 & i \end{pmatrix} \right\|"
         column = r"\left\| \begin{pmatrix} 1 \\ i \end{pmatrix} \right\|"
