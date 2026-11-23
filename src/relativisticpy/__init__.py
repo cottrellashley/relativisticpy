@@ -1,6 +1,6 @@
 r"""RelativisticPy reads mathematics as it is written, in LaTeX, plain text or Unicode,
-and computes it: General Relativity with SymPy, numerical data in index notation over any
-space, and the equations of LaTeX papers, which it checks.
+and computes it: each field in the notation of its books, data from NumPy and pandas in
+index notation, and the equations of LaTeX papers, which it checks.
 
 It is a language. A :class:`Workbook` runs programs written in it::
 
