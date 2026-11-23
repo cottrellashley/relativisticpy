@@ -146,16 +146,18 @@ class Relation(Expr):
 
 @dataclass(frozen=True)
 class Chain(Expr):
-    """Relations in a row, as in a derivation: ``a = b = c`` or ``a \\approx b = c``.
-    Each link is a statement of its own. ``written`` is each relation as it was written."""
+    """Relations in a row, as in a derivation: ``a = b = c``, ``a \\approx b = c`` or
+    ``a = b \\geq c``. Each link is a statement of its own. ``written`` is each relation as
+    it was written."""
 
     operands: tuple[Expr, ...]
     relations: tuple[str, ...]
     written: tuple[str, ...] = field(default=(), compare=False)
 
-    def links(self) -> list[Equation | Relation]:
-        """Each relation with its two operands: ``a = b`` and ``b = c``."""
-        links: list[Equation | Relation] = []
+    def links(self) -> list[Equation | Relation | Comparison]:
+        """Each relation with its two operands: ``a = b`` and ``b = c``; ``b \\geq c`` a
+        comparison."""
+        links: list[Equation | Relation | Comparison] = []
         written = self.written or ("",) * len(self.relations)
         for left, op, right, spelling in zip(
             self.operands, self.relations, self.operands[1:], written, strict=False
@@ -163,9 +165,22 @@ class Chain(Expr):
             span = left.span.to(right.span)
             if op == "=":
                 links.append(Equation(left, right, span=span))
+            elif op in COMPARISONS:
+                links.append(Comparison((left, right), (COMPARISONS[op],), span=span))
             else:
                 links.append(Relation(left, op, right, spelling, span=span))
         return links
+
+
+#: The comparisons, by their symbol, as a chain of relations holds them.
+COMPARISONS: dict[str, Literal["<", ">", "<=", ">=", "==", "!="]] = {
+    "<": "<",
+    ">": ">",
+    "<=": "<=",
+    ">=": ">=",
+    "==": "==",
+    "!=": "!=",
+}
 
 
 @dataclass(frozen=True)

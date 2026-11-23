@@ -943,6 +943,7 @@ class Parser:
         span = left.span.to(operands[-1].span)
         if "∣" in relations:  # \Pr(X = 2 \mid N = 3), X \mid Y = 0 \sim \mathcal{N}(0, 1)
             return _given(operands, relations, written)
+        operands, relations, written = _with_comparisons(operands, relations, written)
         if len(relations) > 1:
             return ast.Chain(tuple(operands), tuple(relations), tuple(written), span=span)
         if relations[0] == "=":
@@ -3740,6 +3741,40 @@ def _is_numeral(node: ast.Expr) -> bool:
     if isinstance(node, ast.Unary) and node.op in ("-", "+"):
         node = node.operand
     return isinstance(node, ast.Number | ast.Dots)
+
+
+def _with_comparisons(
+    operands: list[ast.Expr], relations: list[str], written: list[str]
+) -> tuple[list[ast.Expr], list[str], list[str]]:
+    """Equalities in a row with comparisons among them, as ``a = b \\geq c`` and
+    ``a \\leq b = c``: a comparison binds tighter than =, so that ``b \\geq c`` was one
+    operand, and ``a`` equal to a truth value. Written without brackets of its own, each
+    comparison is links of the chain, b \\geq c beside a = b. ``(x \\geq 0)`` in brackets
+    stays one operand."""
+    if not set(relations) <= {"=", "≈"}:
+        return operands, relations, written
+    spliced: list[ast.Expr] = []
+    linked: list[str] = []
+    spelled: list[str] = []
+    for position, operand in enumerate(operands):
+        if position:
+            linked.append(relations[position - 1])
+            spelled.append(written[position - 1])
+        if not (
+            isinstance(operand, ast.Comparison)
+            and operand.span.start == operand.operands[0].span.start  # not in brackets
+        ):
+            spliced.append(operand)
+            continue
+        spliced.append(operand.operands[0])
+        for op, before, after in zip(
+            operand.ops, operand.operands, operand.operands[1:], strict=False
+        ):
+            between = Span(after.span.source, before.span.end, after.span.start)
+            linked.append(op)
+            spelled.append(between.text.strip())
+            spliced.append(after)
+    return spliced, linked, spelled
 
 
 def _relation(token: Token) -> str:

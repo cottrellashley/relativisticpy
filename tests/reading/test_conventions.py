@@ -7,7 +7,7 @@ product because ``r`` is a coordinate. These tests pin each convention down.
 """
 
 import pytest
-from sympy import Eq, Function, Symbol, diff, exp, pi, sympify, true
+from sympy import Eq, Function, Symbol, diff, exp, false, pi, sympify, true
 
 from helpers import same, zero
 from relativisticpy import CompileError, IndexNotationError
@@ -239,6 +239,14 @@ class TestLatexReading:
 class TestRelations:
     def test_a_chain_is_one_result_per_link(self, wb):
         assert wb.exe("x = x = 2 - 2 + x") == [true, true]
+
+    def test_a_chain_of_an_equality_and_a_comparison_is_one_result_per_link(self, wb):
+        # 1 + 1 = 2 > 3 was False, 2 equal to a truth value, and so was 1 + 1 = 2 < 3
+        assert wb.exe("1 + 1 = 2 > 3") == [true, false]
+        assert wb.exe(r"1 + 1 \leq 2 = 2") == [true, true]
+        x = Symbol("x")
+        equation, comparison = wb.exe(r"\mathcal{F} = 1 + x^{-1} \geq 1")
+        assert (equation.rhs, comparison) == (1 + 1 / x, 1 + 1 / x >= 1)
 
     def test_an_identity_is_true_whatever_its_form(self, wb):
         assert wb.expr(r"e^{2a}(1 + b) = e^{2a} + b e^{2a}") is true

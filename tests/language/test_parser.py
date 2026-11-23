@@ -373,6 +373,12 @@ class TestRelations:
                 r"x^\mu \rightarrow x^{\mu'} = x^\mu + a^\mu",
                 "(chain (x ^[mu]) → (x ^[mu']) = (+ (x ^[mu]) (a ^[mu])))",
             ),
+            # a comparison among equalities is links of the chain, never one operand: a
+            # = b \geq c was a = (b >= c), an expression equal to a truth value
+            (r"a = b \geq c", "(chain a = b >= c)"),
+            (r"a \leq b = c", "(chain a <= b = c)"),
+            ("a = 0 < b < c", "(chain a = 0 < b < c)"),
+            (r"y = (x \geq 0)", "(= y (>= x 0))"),  # in brackets, one operand
         ],
     )
     def test_relations_chain(self, text, expected):
