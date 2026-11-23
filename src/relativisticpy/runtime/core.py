@@ -32,7 +32,7 @@ from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.tensors import Indices, Tensor, arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.indices import latex_label
-from relativisticpy.tensors.simplification import is_zero
+from relativisticpy.tensors.simplification import LARGE, is_zero, normal_trig
 
 # Spaces up to this size get SymPy's identity and ones, which stay exact with symbols.
 _SMALL = 16
@@ -457,9 +457,22 @@ def time_derivative(expr: Any, order: int) -> Any:
 
 def substitute(expr: Any, *pairs: Any) -> Any:
     """An evaluation bar, ``x - y |_{x=y, y=x}``: every substitution at once, as a
-    change of variables is, rather than one after another."""
+    change of variables is, rather than one after another. An expression may be 0/0 at
+    the point as it stands, as (x^2 - 1)/(x - 1) is at x = 1, and as a scalar of the
+    Schwarzschild metric is at r = 2M in the form it was computed in, which no one wrote:
+    its value there is that of the form with what is common cancelled, as it is shown."""
     rules = list(zip(pairs[::2], pairs[1::2], strict=True))
-    return sympy.sympify(expr).subs(rules, simultaneous=True)
+    expr = sympy.sympify(expr)
+    value = expr.subs(rules, simultaneous=True)
+    undefined = _is_no_number(value) and not _is_no_number(expr)
+    if undefined and isinstance(expr, sympy.Expr) and sympy.count_ops(expr) <= LARGE:
+        cancelled = sympy.cancel(normal_trig(expr)).subs(rules, simultaneous=True)
+        return value if _is_no_number(cancelled) else cancelled
+    return value
+
+
+def _is_no_number(value: Any) -> bool:
+    return isinstance(value, sympy.Basic) and value.has(sympy.nan)
 
 
 # -- functions and relations -------------------------------------------------------------

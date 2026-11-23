@@ -61,6 +61,19 @@ def test_an_evaluation_bar_substitutes_at_once(wb):
     assert same(boosted, (gamma * (t - v * x)) ** 2 - (gamma * (x - v * t)) ** 2)
 
 
+def test_a_bar_where_the_form_is_zero_over_zero_evaluates_it_cancelled(wb):
+    assert wb.expr(r"\left. \frac{x^2 - 1}{x - 1} \right|_{x = 1}") == 2
+    assert wb.expr(r"\left. \frac{1}{x - 1} - \frac{2}{x^2 - 1} \right|_{x = 1}") == pi**0 / 2
+    assert wb.expr(r"\left. \tan(x) \cos(x) \right|_{x = \pi/2}") == 1
+    # in a form no one wrote: the surface gravity of the Schwarzschild horizon, 1/(4M),
+    # which the curriculum had counted as right while it was nan
+    wb.exe(r"g_{\mu\nu} := Schwarzschild(M)" "\n" r"\xi^\mu := [1, 0, 0, 0]")
+    gravity = wb.expr(
+        r"\left. \sqrt{-\frac{1}{2} (\nabla_\mu \xi_\nu)(\nabla^\mu \xi^\nu)} \right|_{r = 2M}"
+    )
+    assert same(gravity**2, 1 / (16 * Symbol("M") ** 2))
+
+
 def test_fractions_and_roots(wb):
     assert wb.expr(r"\frac{x}{10} * 1/x") == pi**0 / 10
     assert wb.expr(r"\frac{x}{oo} * x**2") == 0

@@ -568,7 +568,7 @@ def _agrees_numerically(difference: Any, tolerance: float) -> bool:
             {f: sympy.Rational(rng.randrange(300, 2000), 997) for f in functions}
         )
         number = complex(sympy.N(concrete.subs(values), 30))
-        if abs(number) > tolerance:
+        if not abs(number) <= tolerance:  # nan, which is no answer, is within no tolerance
             return False
     return True
 

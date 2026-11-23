@@ -79,6 +79,13 @@ def test_a_result_left_undone_is_not_its_value():
     assert curriculum.equal(sympy.Integral(x, (x, 0, 1)), sympy.Integral(x, (x, 0, 1)))
 
 
+def test_nan_is_no_answer():
+    # compared at random points, nan was within every tolerance, as no number is beyond one
+    assert not curriculum.equal(sympy.nan, 1 / (4 * sympy.Symbol("M")))
+    assert not curriculum.equal(sympy.nan + x, x)
+    assert not curriculum.equal(sympy.nan, sympy.Integer(1))
+
+
 def test_solutions_are_compared_in_any_form_and_order():
     p, K, w = sympy.symbols("p K omega")
     third = sympy.Rational(2, 3)
