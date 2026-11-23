@@ -149,6 +149,12 @@ def _roots(H: Any, z: Any, part: Callable[[Any], Any], what: str) -> list[Any]:
             hint=f"for example {what}(1/(1 - z^{{-1}}/2))",
         )
     polynomial = sympy.Poly(part(sympy.fraction(sympy.cancel(rational))), variable)
+    if polynomial.is_zero:  # 0 is 0 at every point
+        raise EvaluationError(
+            f"{H} is 0 for every {variable}, so every {variable} is one of its {what}, "
+            "which no list can give",
+            hint=f"{what} takes a rational function that is not 0",
+        )
     if polynomial.degree() <= 0:
         return []
     found = sympy.roots(polynomial, multiple=True)

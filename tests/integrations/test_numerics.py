@@ -358,6 +358,15 @@ class TestRefusals:
         # 27: each was an internal error, with SymPy's TypeError in its notes
         assert refused(program).startswith(said)
 
+    def test_the_zeros_of_zero_are_refused(self):
+        # every z is a zero of 0: zeros(0) gave [], the list of a function with none
+        said = "0 is 0 for every z, so every z is one of its zeros, which no list can give"
+        assert refused("zeros(0)") == said
+        assert refused("zeros(z - z, z)").startswith("0 is 0 for every z")
+        with Workbook() as wb:
+            assert wb.expr("zeros(5)") == []  # a constant that is not 0 has none
+            assert wb.expr("poles(0)") == []
+
     def test_the_poles_of_a_quintic(self):
         # 27: its roots were sorted by their real parts, which of CRootOf are no numbers
         with Workbook() as wb:
