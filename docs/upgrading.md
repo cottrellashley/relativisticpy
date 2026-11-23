@@ -40,6 +40,16 @@ pip install "relativisticpy @ git+https://github.com/cottrellashley/relativistic
   in the source and a hint, rather than returned as text.
 - **LaTeX** runs as well as plain text: `\Gamma^{\lambda}_{\mu\nu}`, `\frac{1}{2}`,
   `\partial_\mu`, line elements and whole environments.
+- **Built-in names.** A bare `g` is the determinant of the metric, and `R` is the
+  Riemann tensor, the Ricci tensor or the Ricci scalar by its number of indices, unless
+  the metric is written with them as symbols.
+- **Letters.** In LaTeX a run of letters is a product, as it is typeset: `2GM` is
+  2·G·M. In plain text it is one name.
+- **Lists** are vectors and matrices in arithmetic: `2 [1, 2]` is `[2, 4]`.
+- **Identities.** An equation that is an identity, such as
+  `e^{2a}(1 + b) = e^{2a} + b e^{2a}`, evaluates to `True`.
+- **Notebooks.** `Workbook.markdown` takes the text of a document, not its path, and
+  returns it with the results typeset. `Workbook.run_file` runs a file.
 - **Modules.** The modules of 1.x, such as `relativisticpy.core`,
   `relativisticpy.gr` and `relativisticpy.symengine`, are gone. Import from
   `relativisticpy` itself; [the Python API](python.md) lists what it holds.
