@@ -8,7 +8,7 @@ from __future__ import annotations
 import contextlib
 import itertools
 import re
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import replace
 from typing import Any
 
@@ -71,6 +71,7 @@ from relativisticpy.reading.names import (
     _subscripted_name,
     _symbols_written,
     _unprimed,
+    _written_with,
     accented,
 )
 from relativisticpy.reading.reader import BookCall
@@ -368,7 +369,8 @@ class Expressions(LinearAlgebra):
         # term (d/dx x² y³ is d/dx (x² y³), and \hat{p} x ψ is \hat{p} (x ψ)).
         stack: list[Node] = []
         selected: list[list[Node]] = []
-        for term, selections in zip(reversed(terms), reversed(chosen), strict=True):
+        for position in reversed(range(len(terms))):
+            term, selections = terms[position], chosen[position]
             if isinstance(term, Operator):
                 alone = None
                 if not stack and isinstance(term, FunctionReference):
@@ -381,6 +383,8 @@ class Expressions(LinearAlgebra):
                     raise self._nothing_to_act_on(term, scope)
                 if term.reach == "term":
                     rest = self._multiply(stack[::-1], node.span)
+                    after = grouped[position + 1 :]
+                    self._check_operand(term, after, rest, node.span, scope, ctx)
                     stack = [self._apply(term, rest, node.span, scope, ctx)]
                     selected = [[s for group in selected for s in group]]
                 else:
@@ -838,15 +842,17 @@ class Expressions(LinearAlgebra):
             )
         variables = tuple((self.value(v, scope, ctx), order) for v, order in node.variables)
         if node.expr is None:
-            return LeibnizDerivative(node.span, variables)
+            return LeibnizDerivative(node.span, variables, node.partial)
         expr = node.expr
         binding = scope.lookup(expr.id) if isinstance(expr, ast.Name) else None
+        alone = isinstance(expr, ast.Name) and self._undefined(expr, scope)
         if isinstance(binding, FunctionBinding) and isinstance(expr, ast.Name):
             # \frac{d^2 f}{dx^2}, with f(x) defined: the derivative of f(x)
             expr = self._applied(expr, binding, node)
-        elif isinstance(expr, ast.Name) and self._undefined(expr, scope):
+        elif isinstance(expr, ast.Name) and alone:
             by = [v for v, _ in node.variables if isinstance(v, ast.Name)]
-            self._check_tied(expr, by, node.span)  # dy/dx after x^3 + y^3 = 6xy
+            names, variables_written = {expr.id: expr.span.text}, {v.id: v.span.text for v in by}
+            self._check_tied(names, variables_written, node.span, alone=expr.span)  # dy/dx
             written = list(dict.fromkeys(v.span.text for v in by))
             if written and expr.id not in {v.id for v in by}:
                 shown = expr.span.text
@@ -854,7 +860,73 @@ class Expressions(LinearAlgebra):
                     f"{shown} does not depend on {_listed(written)}, so its derivative is 0; "
                     f"for a function, write {shown}({', '.join(written)})"
                 )
-        return self._differentiate(self.value(expr, scope, ctx), variables, node.span)
+        value = self.value(expr, scope, ctx)
+        if not alone:  # \frac{d(y^2)}{dx}, of what is written with y
+            self._check_differentiated(
+                [node.expr],
+                value,
+                self._differentiated_by(variables),
+                node.span,
+                scope,
+                ctx,
+                partial=node.partial,
+            )
+        return self._differentiate(value, variables, node.span)
+
+    def _differentiated_by(self, variables: Sequence[tuple[Node, int]]) -> dict[str, str]:
+        """The names of the variables a derivative is by, each as the statement writes it."""
+        return {
+            variable.op.value.name: self._written_label(variable.op.value.name)
+            for variable, _ in variables
+            if isinstance(variable.op, ops.Const) and isinstance(variable.op.value, Symbol)
+        }
+
+    def _check_operand(
+        self,
+        operator_: Operator,
+        written: Sequence[ast.Expr | Node],
+        operand: Node,
+        span: Span,
+        scope: Scope,
+        ctx: Context,
+    ) -> None:
+        """Check what an operator that reaches the rest of its term is applied to, as it is
+        ``written``, before it is applied: a derivative keeps guard 6, so that
+        ``\\frac{d}{dx} y`` after x^3 + y^3 = 6xy is refused as ``\\frac{dy}{dx}`` is."""
+        if isinstance(operator_, LeibnizDerivative):
+            by = self._differentiated_by(operator_.variables)
+            partial = operator_.partial
+            self._check_differentiated(written, operand, by, span, scope, ctx, partial=partial)
+
+    def _check_differentiated(
+        self,
+        written: Sequence[ast.Expr | Node],
+        operand: Node,
+        by: Mapping[str, str],
+        span: Span,
+        scope: Scope,
+        ctx: Context,
+        *,
+        partial: bool,
+    ) -> None:
+        """Refuse the derivative, by the variables ``by`` names, of what is ``written`` with a
+        name nothing defines that an earlier equation ties to one of them, as
+        ``\\frac{d}{dx} y`` and ``\\frac{d}{dx}(x y)`` after x^3 + y^3 = 6xy (guard 6), as
+        ``\\frac{dy}{dx}`` is refused. Only the names written count, not those of the values
+        of what they name, nor y of y(x), a function of x. A ``partial`` derivative of what
+        is written with its variable holds the other names constant, as it says:
+        ``\\frac{\\partial}{\\partial x}(x y)`` is y."""
+        if not self.session.relations or not by:
+            return
+        symbols = set(_symbols_written(operand))
+        names = {
+            name: self._written_label(name)
+            for name in _written_names(written, latex=ctx.latex)
+            if name in symbols and name not in by and scope.lookup(name) is None
+        }
+        constant = not set(by) & _written_with(operand)
+        if names and (constant or not partial):
+            self._check_tied(names, by, span, constant=constant)
 
     @staticmethod
     def _applied(name: ast.Name, binding: FunctionBinding, node: ast.Derivative) -> ast.Expr:

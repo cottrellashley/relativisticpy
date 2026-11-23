@@ -12,7 +12,7 @@ from __future__ import annotations
 import inspect
 import itertools
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from functools import reduce
 from typing import Any, Literal
@@ -35,7 +35,7 @@ from relativisticpy.compiler.session import GEOMETRY_POSITIONS, describe
 from relativisticpy.errors import CompileError, IndexNotationError, ParseError, RelativisticPyError
 from relativisticpy.integrations import Capability, MapFunction, Reservation
 from relativisticpy.integrations import _forms as forms
-from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, ops
+from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, dependencies, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
@@ -75,6 +75,7 @@ from relativisticpy.reading.names import (
     _named,
     _names_builtin,
     _names_inside,
+    _names_written,
     _often,
     _operators_written,
     _other_names,
@@ -941,43 +942,77 @@ class Reader(Typer):
 
     def _relate(self, equation: Node, span: Span, scope: Scope) -> None:
         """Remember an equation stated between names nothing defines, as x^3 + y^3 = 6xy,
-        by the names it relates: it ties each to the others (guard 6 of wave 0)."""
+        by the names it relates: it ties each to the others (guard 6 of wave 0). What a
+        derivative in it is by is no name it relates, unless it writes it as one too:
+        ``\\frac{d}{dt}(\\rho a^3) = -3 p a^2 \\dot{a}`` states a rate, and gives no a for
+        each t."""
         coordinates = {c.name for c in self.session.coordinates or ()}
         names = frozenset(
             name
-            for name in _written_with(equation)
+            for name in _related(equation)
             if scope.lookup(name) is None and name not in coordinates
         )
         if len(names) > 1:
             self.session.relations.append((names, span))
 
-    def _check_tied(self, expr: ast.Name, by: Sequence[ast.Name], span: Span) -> None:
-        """Refuse the derivative of a name nothing defines by one an earlier equation ties
-        it to, as dy/dx after x^3 + y^3 = 6xy: read as written, y is a constant, and the
-        derivative 0, where the book means y as the function of x the equation makes it."""
-        for names, where in reversed(self.session.relations):
-            own = where.source is span.source and where.start <= span.start <= where.end
-            if expr.id not in names or own:  # its own equation is no earlier one
-                continue
-            tied = [variable for variable in by if variable.id in names and variable.id != expr.id]
-            if not tied:
-                continue
-            shown, variable = expr.span.text, tied[0].span.text
-            written = span.text.removeprefix("\\left.").removesuffix("\\right|").strip()
-            why = f"the equation on line {where.line} ties {shown} to {variable}"
-            self._decide("constant or symbol", expr.span, f"a function of {variable}", why)
-            raise CompileError(
-                f"{written} is not 0: {shown} is tied to {variable} by the equation on line "
-                f"{where.line}, {' '.join(where.text.split())}",
-                span=span,
-                notes=[
-                    f"read as written, {shown} would be a constant, and its derivative 0; "
-                    "differentiating a name an equation defines implicitly is not supported yet"
-                ],
-                hint=f"write {shown}({variable}) for {shown} in the equation, and solve its "
-                f"derivative, as in solve(\\frac{{d}}{{d{variable}}}(...) = 0, "
-                f"{shown}'({variable}))",
-            )
+    def _check_tied(
+        self,
+        names: Mapping[str, str],
+        variables: Mapping[str, str],
+        span: Span,
+        *,
+        alone: Span | None = None,
+        constant: bool = True,
+    ) -> None:
+        """Refuse a derivative by ``variables`` of what is written with ``names`` that
+        nothing defines, each with how it is written, where an earlier equation ties one of
+        them to a variable, as dy/dx and \\frac{d}{dx}(x y) after x^3 + y^3 = 6xy (guard 6
+        of wave 0): read as written, y is a constant, where the book means y as the function
+        of x the equation makes it. ``alone`` is where the name is written, where it is
+        differentiated alone, as in dy/dx; ``constant`` says that what is differentiated
+        depends on no variable, so that, as written, its derivative is 0."""
+        written = span.text.removeprefix("\\left.").removesuffix("\\right|").strip()
+        for related, where in reversed(self.session.relations):
+            if where.source is span.source and where.start <= span.start <= where.end:
+                continue  # its own equation is no earlier one
+            for name, shown in names.items():
+                tied = [label for label in variables if label in related and label != name]
+                if name not in related or not tied:
+                    continue
+                variable = variables[tied[0]]
+                why = f"the equation on line {where.line} ties {shown} to {variable}"
+                if alone is not None:
+                    self._decide("constant or symbol", alone, f"a function of {variable}", why)
+                else:
+                    reading = f"a derivative of {shown} as a function of {variable}"
+                    self._decide("constant or symbol", span, reading, why)
+                equation = f"the equation on line {where.line}, {' '.join(where.text.split())}"
+                message = (
+                    f"{written} is not 0: {shown} is tied to {variable} by {equation}"
+                    if constant
+                    else f"{written} takes {shown} as a constant, but {shown} is tied to "
+                    f"{variable} by {equation}"
+                )
+                read = f"read as written, {shown} would be a constant" + (
+                    ", and its derivative 0" if constant else ""
+                )
+                hint = (
+                    f"write {shown}({variable}) for {shown} in the equation, and solve its "
+                    f"derivative, as in solve(\\frac{{d}}{{d{variable}}}(...) = 0, "
+                    f"{shown}'({variable}))"
+                )
+                if not constant:  # a partial derivative holds the other names constant
+                    held = f"\\frac{{\\partial}}{{\\partial {variable}}}"
+                    hint = f"to hold {shown} constant, write {held}; for a function, {hint}"
+                raise CompileError(
+                    message,
+                    span=span,
+                    notes=[
+                        f"{read}; differentiating a name an equation defines implicitly is not "
+                        "supported yet"
+                    ],
+                    hint=hint,
+                )
 
     def _closed_integral(self, node: ast.Integral) -> CompileError:
         """``\\oint p\\, dq``: an integral around a closed path, which none is given for;
@@ -2190,6 +2225,21 @@ def _argument_run(factors: Sequence[ast.Expr]) -> int:
             break
         run += 1
     return run
+
+
+def _related(equation: Node) -> frozenset[str]:
+    """The names an equation relates: those it is written with (see
+    :func:`~relativisticpy.reading.names._written_with`), but for what a derivative in it
+    is by, which is no name of it unless it is written as one too, as t is not in
+    ``\\frac{d}{dt}(\\rho a^3) = -3 p a^2 \\dot{a}``."""
+    found: dict[int, frozenset[str]] = {}
+    for node in dependencies([equation]):
+        op = node.op
+        if isinstance(op, ops.Call | ops.Map) and op.name == "core.diff":
+            found[node.id] = found[node.args[0].id]  # what is differentiated, not by what
+        else:
+            found[node.id] = _names_written(node, found)
+    return found[equation.id]
 
 
 def _times(left: ast.Expr, right: ast.Expr) -> ast.Expr:

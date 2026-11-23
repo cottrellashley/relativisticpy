@@ -154,9 +154,11 @@ class IndexDerivative(Operator):
 @dataclass(frozen=True)
 class LeibnizDerivative(Operator):
     """``\\frac{d}{dx}`` or ``\\frac{\\partial^2}{\\partial x \\partial y}``, which acts on the
-    rest of the term."""
+    rest of the term; ``partial`` where it is written with ∂, and so holds the other names
+    constant."""
 
     variables: tuple[tuple[Node, int], ...] = ()
+    partial: bool = False
     reach: ClassVar[Literal["factor", "term"]] = "term"
 
 

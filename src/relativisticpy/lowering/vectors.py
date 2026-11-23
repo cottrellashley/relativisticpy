@@ -680,19 +680,23 @@ class VectorCalculus(Vectors, Probability):
             else:
                 terms.append(item)
         values: list[Node] = []
-        for term in reversed(terms):  # an operator acts on what follows it
+        last = _span_of(run[-1], None)
+        for position in reversed(range(len(terms))):
+            term = terms[position]  # an operator acts on what follows it, as far as it reaches
             if isinstance(term, Operator):
                 if not values:
                     raise self._nothing_to_act_on(term, scope)
                 if term.reach == "term":
                     rest = self._multiply(values[::-1], term.span)
+                    after = [item for item in run[position + 1 :] if isinstance(item, ast.Expr)]
+                    written_span = _span_of(run[position], None).to(last)
+                    self._check_operand(term, after, rest, written_span, scope, ctx)
                     values = [self._apply(term, rest, term.span, scope, ctx)]
                 else:
                     values[-1] = self._apply(term, values[-1], term.span, scope, ctx)
             else:
                 values.append(term)
-        span = _span_of(run[0], None).to(_span_of(run[-1], None))
-        return self._multiply(values[::-1], span)
+        return self._multiply(values[::-1], _span_of(run[0], None).to(last))
 
     def _written_term(self, written: ast.Expr, scope: Scope, ctx: Context) -> Term:
         """What is written, as a value, or an operator other than a function named alone,

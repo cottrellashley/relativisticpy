@@ -13,7 +13,7 @@ is. A claim between operators is decided by applying both sides to a test functi
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -85,6 +85,9 @@ class Quantum(Optima):
         super().__init__(session)
         # The labels of a rule's kets that stand for any label, while the rule is read.
         self._patterns: frozenset[str] = frozenset()
+        # The claims about operators, by their nodes: each relates operators on a test
+        # function, and ties no names, as [x, \hat{p}] = i\hbar ties no \hbar to x.
+        self._claims: set[int] = set()
 
     # -- statements -------------------------------------------------------------------------
 
@@ -313,6 +316,27 @@ class Quantum(Optima):
                 return self._operate(operator_.expression, operand, operator_.scope, inner)
         return super()._apply(operator_, operand, span, scope, ctx)
 
+    def _check_operand(
+        self,
+        operator_: Operator,
+        written: Sequence[ast.Expr | Node],
+        operand: Node,
+        span: Span,
+        scope: Scope,
+        ctx: Context,
+    ) -> None:
+        if not isinstance(operator_, Operation):
+            super()._check_operand(operator_, written, operand, span, scope, ctx)
+            return
+        # an operator differentiates as the derivatives it is written with do (guard 6)
+        derivatives = self._derivatives_of(operator_.expression, operator_.scope)
+        by = {
+            name: self._written_label(name)
+            for name in self._variables_of(operator_.expression, operator_.scope)
+        }
+        partial = all(derivative.partial for derivative in derivatives)
+        self._check_differentiated(written, operand, by, span, scope, ctx, partial=partial)
+
     def _acts_in_vain(self, operator_: Operation, free: list[str], span: Span) -> CompileError:
         """The error for an operator applied to names nothing defines, which do not depend
         on what it differentiates by."""
@@ -419,7 +443,13 @@ class Quantum(Optima):
         self._note(note)
         why = "a side of it is an operator, which acts on what follows it"
         self._decide(QUANTUM, node.span, f"a claim about operators, on {shown}", why, note)
-        return self.graph.add(ops.Equation(), sides, EquationType(SCALAR), node.span)
+        claim = self.graph.add(ops.Equation(), sides, EquationType(SCALAR), node.span)
+        self._claims.add(claim.id)
+        return claim
+
+    def _relate(self, equation: Node, span: Span, scope: Scope) -> None:
+        if equation.id not in self._claims:  # a claim about operators ties no names
+            super()._relate(equation, span, scope)
 
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         variable = self._position(node, scope, ctx)

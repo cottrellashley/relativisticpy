@@ -430,6 +430,59 @@ class TestConstrainedSymbols:
         expected = (2 * y - x**2) / (y**2 - 2 * x)
         assert sympy.simplify(slope.subs(sympy.Function("y")(x), y) - expected) == 0
 
+    def test_the_derivative_written_as_an_operator(self, wb):
+        # the review's program: d/dx y, d/dx y^2 and d/dx(x y) gave 0, 0 and y
+        wb.exe("x^3 + y^3 = 6 x y")
+        for written in (r"\frac{d}{dx} y", r"\frac{d}{dx} y^2", r"\frac{d (y^2)}{dx}"):
+            assert error(wb, written).message == (
+                f"{written} is not 0: y is tied to x by the equation on line 1, x^3 + y^3 = 6 x y"
+            )
+        found = error(wb, r"\frac{d}{dx}(x y)")
+        assert found.message == (
+            r"\frac{d}{dx}(x y) takes y as a constant, but y is tied to x by the equation on "
+            "line 1, x^3 + y^3 = 6 x y"
+        )
+        assert found.notes == [
+            "read as written, y would be a constant; differentiating a name an equation "
+            "defines implicitly is not supported yet"
+        ]
+        assert found.hint == (
+            r"to hold y constant, write \frac{\partial}{\partial x}; for a function, write "
+            r"y(x) for y in the equation, and solve its derivative, as in "
+            r"solve(\frac{d}{dx}(...) = 0, y'(x))"
+        )
+        assert wb.expr(r"\frac{d}{dx} x^2") == 2 * x
+        assert wb.expr(r"\frac{d}{dx} z") == 0  # no equation ties z to x
+
+    def test_a_partial_derivative_holds_the_other_names_constant(self, wb):
+        # as it says: after a constraint, \partial_x (x y) is y, where d/dx (x y) is refused
+        wb.exe("x^2 + y^2 = 1")
+        y = sympy.Symbol("y")
+        assert wb.expr(r"\frac{\partial}{\partial x} (x y)") == y
+        assert wb.expr(r"\pdv{x^2 y}{y}") == x**2
+        assert error(wb, r"\frac{\partial}{\partial x} y").message.startswith(
+            r"\frac{\partial}{\partial x} y is not 0: y is tied to x"
+        )  # but what is written with no x at all would be 0, as \frac{\partial y}{\partial x}
+
+    def test_an_operator_written_with_a_derivative(self, wb):
+        wb.exe("x^2 + y^2 = 1\n" r"\hat{p} := -i\hbar \frac{d}{dx}")
+        found = error(wb, r"\hat{p} (x y)")
+        assert found.message == (
+            r"\hat{p} (x y) takes y as a constant, but y is tied to x by the equation on "
+            "line 1, x^2 + y^2 = 1"
+        )
+        assert error(wb, r"\left(\frac{d}{dx}\right) (x y)").message.startswith(
+            r"\left(\frac{d}{dx}\right) (x y) takes y as a constant"
+        )
+        hbar = sympy.Symbol("hbar")
+        assert wb.expr(r"\hat{p} x^2") == -2 * sympy.I * hbar * x
+
+    def test_an_equation_that_states_a_rate_ties_nothing_to_its_variable(self, wb):
+        # Carroll's (8.43) and (8.44): d/dt (\rho a^3) = ... gives no a for each t, so the
+        # claim after it is read as it was, and holds as written
+        wb.exe(r"\frac{d}{dt}(\rho a^3) = a^3\left(\dot\rho + 3\rho\frac{\dot a}{a}\right)")
+        assert wb.expr(r"\frac{d}{dt}(\rho a^3) \leq 0") is sympy.true
+
     def test_a_derivative_at_a_point(self, wb):
         wb.exe(r"m = \tanh\left(\frac{z J m + h}{k T}\right)")
         found = error(wb, r"\left. \frac{\partial m}{\partial h} \right|_{h = 0, m = 0}")

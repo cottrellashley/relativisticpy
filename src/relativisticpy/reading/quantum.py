@@ -332,22 +332,32 @@ class QuantumNotation(Functions):
     def _variables_of(self, expr: ast.Expr, scope: Scope) -> list[str]:
         """The variables an operator differentiates by, those of the operators it is written
         with too, in order of their names: x, y and z of the angular momentum."""
-        found: set[str] = set()
+        return sorted(
+            {
+                variable.id
+                for derivative in self._derivatives_of(expr, scope)
+                for variable, _ in derivative.variables
+                if isinstance(variable, ast.Name)
+            }
+        )
+
+    def _derivatives_of(self, expr: ast.Expr, scope: Scope) -> list[ast.Derivative]:
+        """The derivatives an operator is written with, those of the operators it is written
+        with too."""
+        found: list[ast.Derivative] = []
         pending: list[tuple[ast.Node, Scope]] = [(expr, scope)]
         seen: set[int] = set()
         while pending:
             node, where = pending.pop()
             for current in _nodes(node):
                 if isinstance(current, ast.Derivative):
-                    for variable, _ in current.variables:
-                        if isinstance(variable, ast.Name):
-                            found.add(variable.id)
+                    found.append(current)
                 if isinstance(current, ast.Expr):
                     binding = self._operator_binding(current, where)
                     if binding is not None and id(binding) not in seen:
                         seen.add(id(binding))
                         pending.append((binding.expression, binding.closure))
-        return sorted(found)
+        return found
 
     def _vacuous(self, expression: ast.Expr, operand: Node, scope: Scope) -> list[str]:
         """The names an operator would act on in vain: those its operand is written with,
