@@ -211,6 +211,8 @@ class TestWhetherAValueIsAnAnswer:
             (r"\frac{1}{3}", False),
             (r"\sqrt{2}", False),
             ("[1, 2]", False),
+            ("solve([x + y = 1.5, x - y = 0], [x, y])", True),  # by unknown
+            ("solve([x + y = 1, x - y = 0], [x, y])", False),
         ],
     )
     def test_a_value_with_a_decimal_in_it_is_approximate(self, source, approximate):

@@ -35,7 +35,7 @@ numbers::
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -367,9 +367,9 @@ def incomplete(value: Any, notes: Sequence[str] = ()) -> list[str]:
 def left_undone(value: Any) -> list[str]:
     """What of a value SymPy left undone, kept as written, by its reason in
     :data:`LEFT_UNDONE`: an integral, a sum, a product or a limit it did not carry out, and
-    a derivative of what is no function; in a list, in a tensor's components, or in the
-    sides of a tensor equation too. The derivative of an unknown function, as f'(x), is
-    the answer, not something left undone."""
+    a derivative of what is no function; in a list or a mapping, in a tensor's
+    components, or in the sides of a tensor equation too. The derivative of an unknown
+    function, as f'(x), is the answer, not something left undone."""
     found: dict[str, None] = {}
     for part in _symbolic(value):
         if part.has(sympy.Integral):
@@ -398,6 +398,8 @@ def approximate(value: Any) -> bool:
         return True
     if isinstance(value, list | tuple):
         return any(approximate(item) for item in value)
+    if isinstance(value, Mapping):  # the solutions of a system, by unknown
+        return any(approximate(item) for pair in value.items() for item in pair)
     if isinstance(value, Tensor):
         return approximate(value.components)
     if isinstance(value, TensorEquation):
@@ -414,10 +416,13 @@ def approximate(value: Any) -> bool:
 
 
 def _symbolic(value: Any) -> list[Any]:
-    """The values of SymPy a value holds: itself, the items of a list, a tensor's
-    components or the sides of a tensor equation, where they are SymPy's."""
+    """The values of SymPy a value holds: itself, the items of a list, the keys and the
+    values of a mapping, a tensor's components or the sides of a tensor equation, where
+    they are SymPy's."""
     if isinstance(value, list | tuple):
         return [part for item in value for part in _symbolic(item)]
+    if isinstance(value, Mapping):
+        return [part for pair in value.items() for item in pair for part in _symbolic(item)]
     if isinstance(value, Tensor):
         return [] if value.numerical else _symbolic(value.components)
     if isinstance(value, TensorEquation):
