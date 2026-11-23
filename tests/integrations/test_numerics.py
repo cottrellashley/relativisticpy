@@ -6,6 +6,7 @@ wrong, by the number of its finding."""
 import mpmath
 import numpy as np
 import pytest
+import scipy.linalg
 import sympy
 
 from relativisticpy import Workbook, integrations
@@ -302,6 +303,35 @@ class TestMatrices:
         assert said in refused("logm([[1.0, 2.0], [2.0, 4.0]])")
         with Workbook() as wb:  # and a matrix that has one keeps it
             assert wb.expr("logm([[1, 0], [0, e^2]])") == sympy.Array([[0, 0], [0, 2]])
+
+    @pytest.mark.parametrize(
+        ("program", "computed"),
+        [
+            (r"\exp(A)", scipy.linalg.expm),
+            (r"\sqrt{A}", scipy.linalg.sqrtm),
+            (r"\log(A)", scipy.linalg.logm),
+        ],
+    )
+    def test_a_function_of_a_map_of_decimals_is_computed_at_once(self, program, computed):
+        # 24: by the capability that is it, as expm(A) is, where SymPy took over a minute
+        rows = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6], [0.7, 0.8, 1.1]]
+        with Workbook() as wb:
+            wb.exe(r"\mathcal{V} := \mathbb{R}^{3}" "\n" r"a, b \in \mathcal{V}")
+            wb.exe(f"A^{{a}}{{}}_{{b}} := {rows}")
+            found = np.array(wb.expr(program).components.tolist(), dtype=complex)
+        assert np.allclose(found, computed(np.array(rows)), rtol=1e-9)
+
+    def test_a_function_of_a_map_is_the_function_of_its_matrix(self):
+        t = sympy.Symbol("t")
+        with Workbook() as wb:
+            wb.exe(MAP + "\nA^{a}{}_{b} := [[0, t], [-t, 0]]")
+            rotation = wb.expr(r"\exp(A)").components
+            assert rotation == sympy.Array(
+                [[sympy.cos(t), sympy.sin(t)], [-sympy.sin(t), sympy.cos(t)]]
+            )
+            wb["B^{a}{}_{b}"] = np.array([[4.0, 0.0], [0.0, 9.0]])
+            assert np.allclose(wb.expr(r"\sqrt{B}").to_numpy(), [[2, 0], [0, 3]])
+            assert np.allclose(wb.expr(r"\log(B)").to_numpy(), np.diag(np.log([4, 9])))
 
 
 class TestRefusals:

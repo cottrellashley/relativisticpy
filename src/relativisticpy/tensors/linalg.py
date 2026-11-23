@@ -335,21 +335,25 @@ def trace(components: Any, rows: int) -> Any:
     return matrix.trace()
 
 
+#: The capability of the matrices integration that is each function of a matrix.
+_OF_A_MATRIX = {"exp": "expm", "sqrt": "sqrtm", "log": "logm"}
+
+
 def function(name: str, components: Any, rows: int) -> Any:
     """A function of a matrix, as of a map: ``exp`` (:math:`e^{-iHt}`), ``sqrt`` or
-    ``log``; not of its components one by one."""
-    matrix, row_shape, column_shape = _square(components, rows)
-    shape = (*row_shape, *column_shape)
-    if numerical.is_numerical(matrix):
-        import scipy.linalg
+    ``log``; not of its components one by one. Computed by the capability that is it,
+    ``expm``, ``sqrtm`` or ``logm``: with arrays where its components are numbers, and
+    otherwise with SymPy, or with SciPy where one of them is a decimal."""
+    from relativisticpy import integrations
 
-        compute = {"exp": scipy.linalg.expm, "sqrt": scipy.linalg.sqrtm, "log": scipy.linalg.logm}
-        return compute[name](numerical.dense(matrix)).reshape(shape)
-    if name == "exp":
-        return _array(sympy.simplify(matrix.exp()), shape)
-    if name == "log":
-        return _array(sympy.simplify(matrix.log()), shape)
-    return _array(sympy.simplify(matrix.pow(sympy.Rational(1, 2))), shape)
+    capability = _OF_A_MATRIX[name]
+
+    def compute(matrix: Any) -> Any:
+        if numerical.is_numerical(matrix):
+            return integrations.Numerically(capability)(numerical.xp(matrix), matrix)
+        return integrations.Exactly(capability)(matrix)
+
+    return of_a_map(components, rows, compute, scalar=False)
 
 
 def of_a_map(components: Any, rows: int, compute: Callable[[Any], Any], *, scalar: bool) -> Any:
