@@ -219,6 +219,18 @@ class TestSilentReadingsAreSaid:
         # y(0) = 1 said y(0) is an unknown function, and how to write a product
         assert notes(wb, r"dsolve(y''(t) = -\omega^2 y(t), y(0) = 1, y'(0) = 0)") == []
 
+    def test_brackets_after_a_name_with_a_number_say_they_multiply(self, wb):
+        # \\delta := 0.1, then h[n] := \\delta[n] + \\delta[n-1], multiplied by n, silently
+        wb.exe(r"\delta := 0.1")
+        assert notes(wb, r"\delta[n-1]") == [
+            r"\delta[n-1] is read as \delta times (n-1), as \delta has a value, defined on "
+            "line 1; for a sequence, give it a name of its own, or write the unit impulse, "
+            "impulse(n-1)"
+        ]
+        assert wb.expr("impulse(0) + impulse(1)") == 1  # the hint works
+        wb.exe("x := [1, 2, 3]")
+        assert wb.expr(r"\sum_{n=1}^{3} x[n]") == 6  # a list, read as before
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

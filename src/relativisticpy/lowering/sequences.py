@@ -143,6 +143,18 @@ class Sequences(Arithmetic):
         shown = f"{name.span.text}[{point.span.text}]"
         why = f"{name.span.text} is {what}, not a sequence"
         self._decide(SAMPLE, name.span, "as before", why, written=shown)
+        if node.type == SCALAR:  # \delta[n] after \delta := 0.1: a product, said so
+            written, at = name.span.text, point.span.text
+            times = at if isinstance(point, ast.Name | ast.Number) else f"({at})"
+            note = (
+                f"{shown} is read as {written} times {times}, as {written} has a value, defined "
+                f"on line {node.span.line if node.span is not None else '?'}; for a sequence, "
+                f"give it a name of its own"
+            )
+            if name.id in BRACKET_BOOKS:  # the unit impulse or step, which a value hides
+                book = BRACKET_BOOKS[name.id]
+                note += f", or write the unit {book}, {book}({at})"
+            self._note(note)
 
     def _subscripted_brackets(self, name: ast.Name, point: ast.Expr, scope: Scope) -> bool:
         """Whether ``name[point]`` is read as ``name_{point}`` is: an element of a list, or
