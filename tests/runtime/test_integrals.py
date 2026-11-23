@@ -1,5 +1,8 @@
 r"""Integrals SymPy cannot do as they are written, computed all the same: under the bounds the
-program assumes, where SymPy fails without them."""
+program assumes, where SymPy fails without them; and with the integrand simplified where the
+variable lies, as \sqrt{1 + \sinh^2 x} is \cosh x for a real x."""
+
+import sympy
 
 from relativisticpy import Workbook
 from relativisticpy.language.source import Source
@@ -24,3 +27,8 @@ ds^2 = r^2 d\theta^2 + (a + r\cos\theta)^2 d\phi^2
 K := \frac{R}{2}
 \int_0^{2\pi} \int_0^{2\pi} K \sqrt{g} \, d\theta \, d\phi"""
     assert value(program) == 0
+
+
+def test_an_integrand_is_simplified_where_its_variable_lies():
+    # geom.curves.catenary-length: the arc length of the catenary, kept as written before
+    assert value(r"\int_0^1 \sqrt{1 + \sinh^2 x} \, dx") == sympy.sinh(1)

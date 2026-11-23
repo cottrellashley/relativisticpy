@@ -360,20 +360,76 @@ def integrated(f: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any
     conditions on its parameters, or a modulus of one, or be left undone for one, it is the
     value under the assumption books make, which a remark says: the variable of an integral
     over real limits is real, and a parameter a scale, positive (design/notation.md,
-    decision 1). Nothing is assumed of a symbol the program said something of. Where SymPy
-    finds no closed form in the time an integral is given, it is kept as written, as a
-    remark says (decision 4)."""
+    decision 1). Nothing is assumed of a symbol the program said something of. An integral
+    SymPy leaves undone is computed another way, where one applies (see :func:`_otherwise`).
+    Where no closed form is found in the time an integral is given, it is kept as written,
+    as a remark says (decision 4)."""
     from relativisticpy.runtime import core
 
+    f = sympy.sympify(f)
     try:
         with core._budget(core._INTEGRAL_BUDGET):
-            return _computed(sympy.integrate, sympy.sympify(f), limits, bounds)
+            found = _computed(sympy.integrate, f, limits, bounds)
+            if isinstance(found, sympy.Basic) and found.has(sympy.Integral):
+                found = _otherwise(f, limits, bounds, found)
+            return found
     except core._OverBudget:
         remark(
             f"SymPy found no closed form of the integral in the {core._INTEGRAL_BUDGET:g} s it "
             "is given"
         )
         return sympy.Integral(f, *limits)
+
+
+#: How long simplifying the integrand of an integral SymPy left undone may take, in seconds.
+_SIMPLIFYING = 5.0
+
+
+def _otherwise(f: Any, limits: Sequence[Any], bounds: Sequence[Any], found: Any) -> Any:
+    """An integral SymPy left undone, computed another way where one applies: with its
+    integrand simplified where its variables lie (:func:`_where_it_lies`); as SymPy left
+    it, ``found``, where that gives no value."""
+    for route in (_where_it_lies,):
+        try:
+            value = route(f, limits, bounds)
+        except Exception:  # a way that fails says nothing of the integral
+            continue
+        if isinstance(value, sympy.Basic) and not value.has(sympy.Integral, sympy.nan):
+            return value
+    return found
+
+
+def _where_it_lies(f: Any, limits: Sequence[Any], bounds: Sequence[Any]) -> Any:
+    """The integral of ``f`` with its integrand simplified where each variable lies: real,
+    between real limits, and zero or positive, or zero or negative, where both its limits
+    are, as √(1 + sinh² x) is cosh x for a real x, and √(x²) is x from 0 on. ``None`` where
+    that changes nothing, or where a limit is not real."""
+    from relativisticpy.runtime import core
+
+    lying: dict[Any, Any] = {}
+    for limit in reversed(list(limits)):  # the outermost first: an inner limit may hold it
+        if not (isinstance(limit, tuple) and len(limit) == 3):
+            return None
+        variable = sympy.sympify(limit[0])
+        ends = [sympy.sympify(end).xreplace(lying) for end in limit[1:]]
+        if not isinstance(variable, Symbol) or not all(end.is_extended_real for end in ends):
+            return None
+        facts = {"real": True}
+        if all(end.is_nonnegative for end in ends):
+            facts["nonnegative"] = True
+        elif all(end.is_nonpositive for end in ends):
+            facts["nonpositive"] = True
+        lying[variable] = sympy.Dummy(variable.name, **facts)
+    integrand = f.xreplace(lying)
+    try:
+        with core._budget(_SIMPLIFYING):
+            simpler = sympy.simplify(integrand)
+    except core._OverBudget:
+        return None
+    if simpler == integrand:
+        return None
+    value = _computed(sympy.integrate, simpler, _put(limits, lying), bounds)
+    return value.xreplace({each: variable for variable, each in lying.items()})
 
 
 def summed(body: Any, limits: Sequence[Any], bounds: Sequence[Any] = ()) -> Any:

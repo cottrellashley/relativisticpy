@@ -199,6 +199,7 @@ fluid.vorticity.shear-flow
 geom.balls.five-ball
 geom.balls.largest
 geom.balls.sphere-area
+geom.curves.catenary-length
 geom.curves.ellipse-vertex
 geom.curves.frenet-helix
 geom.curves.helix-curvature
