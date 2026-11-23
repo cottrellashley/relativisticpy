@@ -1169,8 +1169,9 @@ class Parser:
                 kind is K.LPAREN
                 and not token.space_before
                 and isinstance(node, ast.Name | ast.Prime)
+                and not (grouped and not braced and isinstance(node, ast.Name))
                 and (not self._function_argument or _plain_call(node, token))
-            ):
+            ):  # a(b) is a call, but (a)(b) a product: a name in brackets is called by none
                 node = self._call(node)
             elif (
                 kind is K.LPAREN

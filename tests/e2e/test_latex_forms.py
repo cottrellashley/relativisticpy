@@ -50,6 +50,14 @@ BRACKETS = [
     (r"\pi(x + 1)^2", pi * (x + 1) ** 2),
     (r"x(x + 1)^2 + \alpha", x * (x + 1) ** 2 + alpha),
     (r"(xy)(x + 1)", x * y * (x + 1)),
+    # a name in brackets of its own multiplies the brackets after it (a(b) and an error
+    # that \beta is a function before)
+    (r"(a)(b)", a * b),
+    (r"(\alpha)(\beta)", alpha * beta),
+    (r"(a)(b)(c)", a * b * c),
+    (r"2(\beta)", 2 * beta),
+    (r"\alpha (\beta)", alpha * beta),
+    (r"(\zeta)(2)", 2 * sympy.Symbol("zeta")),
 ]
 
 PRIMES = [

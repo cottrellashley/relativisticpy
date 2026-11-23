@@ -86,6 +86,14 @@ class TestArithmetic:
         assert sexpr("f()") == "(call f)"
         assert sexpr("f (x)") == "(* f x)"
 
+    def test_a_name_in_brackets_of_its_own_is_called_by_none(self):
+        # (a)(b) was a(b), a call: the brackets set the name apart as a factor
+        assert sexpr("(a)(b)") == "(* a b)"
+        assert sexpr(r"(\alpha)(\beta)") == "(* alpha beta)"
+        assert sexpr(r"\left(a\right)(b)") == "(* a b)"
+        assert sexpr("{f}(x)") == "(call f x)"  # braces do not show, as TeX sets them
+        assert sexpr("(f')(x)") == "(call f' x)"
+
     @pytest.mark.parametrize(
         ("text", "expected"),
         [

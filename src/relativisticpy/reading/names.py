@@ -300,11 +300,24 @@ def _letter(label: str, span: Span, *, first: bool) -> ast.Name:
 
 def _written_as_letter(node: ast.Name) -> bool:
     """Whether a name is a Greek letter written as one, ``\\gamma`` or ``γ``, rather than
-    spelled out as a function's name is, as in ``gamma(x)``."""
+    spelled out as a function's name is, as in ``gamma(x)``; in brackets of its own too, as
+    in ``(\\beta)``."""
     if node.id not in GREEK:
         return False
-    written = node.span.text
+    written = _without_brackets(node)
     return written == "\\" + node.id or len(written) == 1  # the command, or the character
+
+
+#: The commands that size a bracket, as \left( and \bigl( do.
+_SIZES = re.compile(r"\\(?:left|right|[bB]igg?[lr]?)(?![A-Za-z])")
+
+
+def _without_brackets(node: ast.Name) -> str:
+    """A name as it is written, without the brackets of its own it is written in: ``\\beta``
+    of ``(\\beta)`` and of ``\\left(\\beta\\right)``."""
+    if not _in_brackets(node):
+        return node.span.text
+    return _SIZES.sub("", node.span.text).strip(" ()[]")
 
 
 def accented(name: str, accent: str) -> str:

@@ -2107,7 +2107,8 @@ class Reader(Typer):
         while position < len(factors):
             factor = factors[position]
             following = factors[position + 1] if position + 1 < len(factors) else None
-            if isinstance(factor, ast.Name | ast.Scripted) and following is not None:
+            alone = isinstance(factor, ast.Name) and _in_brackets(factor)  # (a)(b): a product
+            if isinstance(factor, ast.Name | ast.Scripted) and following is not None and not alone:
                 shape = forms.pair_shape(factor, following)
                 if shape is None and _side_by_side(factor, following):  # not \mathrm{p} \cdot x
                     shape = forms.operator_shape(factor, following)
