@@ -875,19 +875,28 @@ class Subscripts(Matrices):
 
     def _reads_as_sample(self, written: Subscripted, scope: Scope) -> Reading | None:
         """A member of a sample the program declares, written with its capital letter and
-        a subscript, as ``X_i`` and ``X_1``."""
+        a subscript that is written as an integer is, as ``X_i``, ``X_1`` and ``X_{k+1}``
+        are: whole numbers and names, in sums, differences and products. Any other
+        subscript is refused: read as written, it would be a symbol of its own."""
         base, subscript = written.base, written.subscript
         if not (written.plain and len(base) == 1 and base.isascii() and base.isupper()):
             return None
-        if written.raised or not isinstance(subscript, ast.Name | ast.Number):
-            return None
-        label = subscript.id if isinstance(subscript, ast.Name) else subscript.text
-        if not (label.isdigit() or (len(label) == 1 and label.isalpha())):
+        if written.raised or subscript is None:
             return None
         binding = scope.lookup(SAMPLE.format(base))
         if not isinstance(binding, VariableBinding):
             return None
-        return Reading(Kind.SAMPLE, written, binding=binding)
+        if sequences.integral(subscript, lambda label: self._integral_name(label, scope)):
+            return Reading(Kind.SAMPLE, written, binding=binding)
+        text = written.node.span.text
+        refusal = CompileError(
+            f"{text} is no member of the sample {base}: its members are numbered by integers, "
+            f"and {written.shown} is not written as one",
+            span=written.node.span,
+            hint=f"write a member with a whole number or a name, as {base}_1 or {base}_{{k+1}}",
+        )
+        why = f"{base} is a sample, declared on line {_line_of(binding)}"
+        return Reading(Kind.SAMPLE, written, binding=binding, refusal=refusal, why=why)
 
     def _reads_as_sequence(self, written: Subscripted, scope: Scope) -> Reading | None:
         """A sequence the program defines with brackets, ``x[n] := ...``, written with its
@@ -1050,6 +1059,11 @@ class Subscripts(Matrices):
         coordinates = {c.name for c in self.session.coordinates or ()}
         session = self.session
         return name in coordinates or name in session.functions or name in session.assumptions
+
+
+def _line_of(binding: VariableBinding) -> int | str:
+    """The line a value was defined on, where it is known."""
+    return binding.node.span.line if binding.node.span is not None else "?"
 
 
 def _has_a_binding(scope: Scope, summed: frozenset[str]) -> Callable[[str], bool]:

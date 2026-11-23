@@ -292,3 +292,37 @@ class TestFunctionsOfARandomVariable:
     def test_of_a_name_that_is_no_random_variable_they_are_as_before(self, wb):
         assert isinstance(wb.expr("f_0(x)"), sympy.Expr)
         assert not str(wb.expr("f_0(x)")).startswith("exp")
+
+
+class TestMembersOfASampleAtAnIntegerSubscript:
+    """Finding 18 of the review of the reading stack: only a subscript that was one name
+    or one number made a member of a sample, so that ``\\mathbb{E}[X_{n-1}]`` was the symbol
+    ``X_n-1`` and ``X_{k+1}`` in ``\\operatorname{Var}(X_{k+1} - X_k)`` a random variable
+    of its own. Any subscript written as an integer is, of whole numbers and names in
+    sums, differences and products, is lowered as a member; how members at symbols compare
+    is the engine's."""
+
+    SAMPLE = r"X_1, \ldots, X_n \overset{\text{iid}}{\sim} \mathcal{N}(0, 1)"
+
+    def test_a_computed_subscript_is_a_member(self, wb):
+        wb.exe(self.SAMPLE)
+        assert wb.expr(r"\mathbb{E}[X_{n-1}]") == 0
+        assert wb.expr(r"\mathbb{E}[X_{2k} + X_{n-1}]") == 0
+        assert notes(wb, r"\mathbb{E}[X_{n-1}]") == []  # no random variable X of its own
+
+    def test_each_member_is_lowered_as_one(self, wb):
+        wb.exe(self.SAMPLE)
+        lowered = wb.ir(r"\operatorname{Var}(X_{k+1} - X_k)")
+        assert lowered.count("call prob.member") == 2
+        reading = wb.explain(r"\operatorname{Var}(X_{k+1} - X_k)")[-1]
+        meanings = {name.written: name.meaning for name in reading.names}
+        assert meanings["X_{k+1}"] == "a member of the sample X, declared on line 1"
+
+    def test_a_subscript_that_is_no_integer_is_refused(self, wb):
+        wb.exe(self.SAMPLE)
+        with pytest.raises(CompileError) as raised:
+            wb.expr(r"\mathbb{E}[X_{k/2}]")
+        assert raised.value.message == (
+            "X_{k/2} is no member of the sample X: its members are numbered by integers, and "
+            "k/2 is not written as one"
+        )

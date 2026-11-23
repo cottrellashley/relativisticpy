@@ -29,6 +29,7 @@ from relativisticpy.integrations._discovery import on_change
 from relativisticpy.integrations._distributions import Distribution, distributions
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
+from relativisticpy.reading import sequences
 
 #: The decision of what ``\sim`` declares.
 DISTRIBUTED = "distributed as"
@@ -327,25 +328,29 @@ def squared(call: ast.Call) -> bool:
 
 def capital(node: ast.Expr) -> str | None:
     """The name of a random variable written as probability writes one, a capital Latin
-    letter, maybe with a subscript, as X, Y and X_1 are; ``None`` for any other name."""
+    letter, maybe with a subscript that is written as an integer is, as X, Y, X_1 and
+    X_{k+1} are; ``None`` for any other name."""
     if isinstance(node, ast.Name):
         base, _, label = node.id.partition("_")
         if len(base) == 1 and base.isascii() and base.isupper() and _label(label):
             return node.id
         return None
-    if (
+    if not (
         isinstance(node, ast.Scripted)
         and isinstance(node.base, ast.Name)
         and len(node.scripts) == 1
         and node.scripts[0].kind == "_"
-        and isinstance(node.scripts[0].body, ast.Name | ast.Number)
     ):
-        base = node.base.id
-        body = node.scripts[0].body
+        return None
+    base, body = node.base.id, node.scripts[0].body
+    if not (len(base) == 1 and base.isascii() and base.isupper()) or body is None:
+        return None
+    if isinstance(body, ast.Name | ast.Number):
         label = body.id if isinstance(body, ast.Name) else body.text
-        if len(base) == 1 and base.isascii() and base.isupper() and _label(label):
-            return f"{base}_{label}"
-    return None
+        return f"{base}_{label}" if _label(label) else None
+    if not sequences.integral(body, lambda label: None):
+        return None
+    return f"{base}_{body.span.text.replace(' ', '')}"  # X_{k+1}, X_{n-1}
 
 
 def _label(label: str) -> bool:
