@@ -4,7 +4,8 @@ reads them (design/notation.md, 8, 9, 16 and 25):
 - the algebra of vectors, component by component: ``\mathbf{v} \cdot \mathbf{w}``,
   ``\mathbf{v} \times \mathbf{w}``, ``|\mathbf{v}|`` and ``\|\mathbf{v}\|``, the root of
   the sum of each component times its conjugate, and ``\mathbf{p}^2``, which is
-  \mathbf{p} \cdot \mathbf{p};
+  \mathbf{p} \cdot \mathbf{p}; beside ``\cdot`` or ``\times``, ``\mathbf{1}`` is the vector
+  of ones as long as the vector it meets (decision 23);
 - the calculus of vectors, component by component: ``\frac{d\mathbf{r}}{dt}``,
   ``\partial_\theta \mathbf{x}``, ``\mathbf{r}'(t)``, ``\int \mathbf{v}\,dt``, an
   evaluation bar and a limit; a field at a point, ``\mathbf{v}(\mathbf{r}(t))``, and a
@@ -46,7 +47,15 @@ from relativisticpy.language.source import Span
 from relativisticpy.lowering.probability import Probability
 from relativisticpy.reading.families import Family
 from relativisticpy.reading.labels import label_name
-from relativisticpy.reading.names import _a_pair, _matrix_shape, _written_as_letter, _written_with
+from relativisticpy.reading.matrices import MATRIX
+from relativisticpy.reading.names import (
+    BOLD_ONE,
+    _a_pair,
+    _bold_one,
+    _matrix_shape,
+    _written_as_letter,
+    _written_with,
+)
 from relativisticpy.reading.subscripts import Reading
 from relativisticpy.reading.vectors import (
     BOLD,
@@ -100,9 +109,21 @@ class _Along:
     span: Span
 
 
+@dataclass(frozen=True)
+class _Ones:
+    """``\\mathbf{1}`` alone beside ``\\cdot`` or ``\\times``, which nothing defines: the
+    vector of ones as long as the vector it meets (decision 23 of design/notation.md)."""
+
+    span: Span
+
+
 #: What a product of vectors is made of: what is written, a value, an operator, or the
 #: derivative of a vector waiting for the vector it is along.
 _Item = ast.Expr | Node | Operator | _Along
+
+#: What a run of factors between the signs of a product of vectors is: a value, an operator,
+#: a derivative waiting for its vector, or the vector of ones waiting for its length.
+_Run = Term | _Along | _Ones
 
 
 @dataclass(frozen=True)
@@ -606,20 +627,39 @@ class VectorCalculus(Vectors, Probability):
         self, items: list[tuple[str, _Item]], scope: Scope, ctx: Context
     ) -> list[tuple[str, Term | _Along]]:
         """The factors between the signs of a product of vectors, each run of them side by
-        side multiplied, with the sign written before it."""
+        side multiplied, with the sign written before it; ``\\mathbf{1}`` alone, the vector
+        of ones as long as the vector of the run beside it."""
         runs: list[tuple[str, list[_Item]]] = []
         for joint, item in items:
             if joint or not runs:
                 runs.append((joint, [item]))
             else:
                 runs[-1][1].append(item)
-        return [(joint, self._run_value(run, scope, ctx)) for joint, run in runs]
+        values = [(joint, self._run_value(run, scope, ctx)) for joint, run in runs]
+        found: list[tuple[str, Term | _Along]] = []
+        for position, (joint, value) in enumerate(values):
+            if isinstance(value, _Ones):
+                beside = position + 1 if position + 1 < len(values) else position - 1
+                other = values[beside][1] if beside >= 0 else None
+                written = runs[beside][1] if beside >= 0 else []
+                value = self._ones_beside(value, other, written)
+            found.append((joint, value))
+        return found
 
-    def _run_value(self, run: list[_Item], scope: Scope, ctx: Context) -> Term | _Along:
+    def _run_value(self, run: list[_Item], scope: Scope, ctx: Context) -> _Run:
         """Factors written side by side: what is written, read as a product is, and the
         values and operators of vector calculus among it, multiplied in turn."""
         if len(run) == 1 and not isinstance(run[0], ast.Expr):
             return run[0]
+        first = run[0]
+        if (
+            len(run) == 1
+            and isinstance(first, ast.Expr)
+            and _bold_one(first)
+            and scope.lookup(BOLD_ONE) is None
+            and self._identity is None
+        ):
+            return _Ones(first.span)  # \mathbf{1} \cdot \mathbf{w}: sized by what it meets
         bracketed = any(
             isinstance(item, ast.Expr) and _an_operator_in_brackets(item) for item in run
         )
@@ -683,6 +723,22 @@ class VectorCalculus(Vectors, Probability):
                 span=result.span,
             )
         return result
+
+    def _ones_beside(self, ones: _Ones, other: _Run | None, written: Sequence[_Item]) -> Node:
+        """``\\mathbf{1}`` beside ``\\cdot`` or ``\\times``: the vector of ones as long as the
+        vector it meets, ``other``, as it is ``written``, said in a note (decision 23 of
+        design/notation.md); beside anything else, the number 1, as before."""
+        components = self._vector_components(other) if isinstance(other, Node) else None
+        if components is None or not isinstance(other, Node) or not written:
+            return self.graph.const(sympy.Integer(1), SCALAR, ones.span)
+        shown, met = ones.span.text, " ".join(_written(item) for item in written)
+        reading = f"the vector of ones as long as {met}"
+        note = f"{shown} is read as {reading}; to name it, define it"
+        self._note(note)
+        why = f"nothing defines it, and it meets the vector {met}"
+        self._decide(MATRIX, ones.span, reading, why, note)
+        one = self.graph.const(sympy.Integer(1), SCALAR, ones.span)
+        return self._vector_like(other, [one] * len(components), ones.span)
 
     def _cross(
         self, left: Term | _Along, right: Term | _Along, span: Span, *, chained: bool

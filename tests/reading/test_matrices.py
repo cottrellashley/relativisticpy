@@ -179,6 +179,24 @@ class TestTheVectorOfOnes:
     def test_beside_no_matrix_it_is_the_number_one(self, wb):
         assert wb.expr(r"\mathbf{1} + x") == 1 + x
 
+    def test_beside_a_dot_or_a_cross_it_is_sized_by_the_vector_it_meets(self, wb):
+        # the review's programs: \mathbf{1} \cdot \mathbf{w} was w, as if 1 times w
+        wb.exe(r"\mathbf{w} := (1, 2, 3)")
+        assert wb.expr(r"\mathbf{1}\cdot\mathbf{w}") == 6
+        assert wb.expr(r"\mathbf{w} \cdot \mathbf{1}") == 6
+        assert list(wb.expr(r"\mathbf{1} \times \mathbf{w}")) == [1, -2, 1]
+        (step,) = list(wb.each(r"\mathbf{1}\cdot\mathbf{w}"))
+        assert step.notes[0].split("\n")[0] == (
+            r"\mathbf{1} is read as the vector of ones as long as \mathbf{w}; to name it, "
+            "define it"
+        )
+        assert wb.expr(r"\mathbf{1} \cdot 3") == 3  # beside a number, the number 1
+
+    def test_a_dot_with_it_agrees_with_its_transpose(self, wb):
+        wb.exe(r"w := \begin{pmatrix} 0.2 \\ 0.3 \\ 0.5 \end{pmatrix}")
+        assert wb.expr(r"\mathbf{1}^T w") == pytest.approx(1.0)
+        assert wb.expr(r"\mathbf{1} \cdot w") == pytest.approx(1.0)
+
     def test_a_definition_of_it_wins(self, wb):
         # the portfolio's \mathbf{1}^T \Sigma^{-1} \mathbf{1}, with a bold one of its own
         wb.exe(A + "\n" + r"\mathbf{1} := \begin{pmatrix} 1 \\ 2 \end{pmatrix}")
