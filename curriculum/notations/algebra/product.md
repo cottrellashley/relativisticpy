@@ -3,8 +3,8 @@
 Two quantities multiplied, written side by side, with a dot, with a cross and with a
 star. Knuth (1984) is *The TeXbook*; the SI Brochure is *The International System of
 Units*, 9th edition (BIPM, 2019); ISO 80000-2:2019 is the standard for mathematical signs
-and symbols; Stewart (2015) is *Calculus: Early Transcendentals*, 8th edition; the
-Unicode Standard is version 15.0.
+and symbols; Graham, Knuth and Patashnik (1994) is *Concrete Mathematics*, 2nd edition;
+the Unicode Standard is version 15.0.
 
 `«(left)»` and `«(right)»` are the factors as a product written with no sign between them writes
 them: a sum in brackets.
@@ -95,7 +95,7 @@ assert simplify(expected / S(right) - S(left)) == 0
 
 ### A centred dot
 
-**Form** · `cdot` · the SI Brochure (2019), §5.4.6: `a \cdot b`, of quantities; ISO 80000-2:2019, multiplication; Stewart (2015), §11.10, of numbers: `n! = 1 \cdot 2 \cdot 3 \cdot \cdots \cdot n`
+**Form** · `cdot` · the SI Brochure (2019), §5.4.6: `a \cdot b`, of quantities; ISO 80000-2:2019, multiplication; Graham, Knuth and Patashnik (1994), §4.4, of numbers: `n! = 1 \cdot 2 \cdot \ldots \cdot n`
 
 ```latex
 «(left)» \cdot «(right)»
