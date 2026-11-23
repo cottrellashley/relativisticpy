@@ -790,7 +790,12 @@ class Reader(Typer):
                 span = Span(node.span.source, offset, offset + len(label))
                 offset += len(label)
             factors.append(self.value(_letter(label, span, first=position == 0), scope, ctx))
-        return self._multiply(factors, node.span)
+        return self._one_by_one(self._multiply(factors, node.span), node.span)  # AB, x^T x
+
+    def _one_by_one(self, product: Node, span: Span) -> Node:
+        """A product, or the number it holds where it is a 1 × 1 matrix (see
+        :meth:`~relativisticpy.reading.matrices.Matrices._one_by_one`)."""
+        return product
 
     def _tensor_meaning(self, name: str, binding: object, rank: int | None) -> str:
         """What a name with ``rank`` indices is, as a tensor: one the program defined, or a

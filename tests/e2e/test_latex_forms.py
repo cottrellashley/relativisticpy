@@ -343,8 +343,24 @@ TRANSPOSES = [
 ]
 
 
+ROW_COLUMN = (
+    "A := \\begin{bmatrix} 1 & 2 & 3 \\end{bmatrix}\n"
+    "B := \\begin{bmatrix} 4 \\\\ 5 \\\\ 6 \\end{bmatrix}\n"
+)
+
+TRANSPOSES += [
+    # a row times a column is the number it holds, however the product is written (AB and
+    # A \cdot B were the 1 x 1 matrix, and \cdot said a side was a number)
+    (ROW_COLUMN + "A B", 32),
+    (ROW_COLUMN + "AB", 32),
+    (ROW_COLUMN + "A \\cdot B", 32),
+    (ROW_COLUMN + "B A", sympy.Matrix([[4, 8, 12], [5, 10, 15], [6, 12, 18]])),
+    (ROW_COLUMN + "2 \\cdot B", sympy.Matrix([[8], [10], [12]])),
+]
+
+
 @pytest.mark.parametrize(("source", "expected"), case(TRANSPOSES))
-def test_a_transpose_is_read_as_books_write_it(source, expected):
+def test_a_transpose_or_a_product_of_matrices_is_read_as_books_write_it(source, expected):
     found = value(source)
     assert not isinstance(found, RelativisticPyError), f"{source}: {found}"
     if isinstance(expected, sympy.Matrix):

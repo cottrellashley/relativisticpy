@@ -835,14 +835,16 @@ class VectorCalculus(Vectors, Probability):
         span: Span,
     ) -> Node:
         """``\\cdot`` or ``\\times`` where one side is no vector: multiplication, said in a
-        note beside a vector, where a product of vectors may have been meant."""
-        if a is not None or b is not None:
+        note beside a vector and a number, where a product of vectors may have been meant;
+        of a row and a column, their product, the number it holds, as ``A B`` is."""
+        number = SCALAR in (left.type, right.type)
+        if (a is not None or b is not None) and number:
             note = f"{sign} beside a number is read as multiplying the vector by it"
             self._note(note)
             self._decide(
                 VECTOR, span, "a vector times a number", f"one side of {sign} is a number", note
             )
-        return self._multiply([left, right], span)
+        return self._one_by_one(self._multiply([left, right], span), span)
 
     def _along(self, along: Node, operand: Node, span: Span) -> Node:
         """``(\\mathbf{a} \\cdot \\nabla) f``: the derivative of ``f`` along ``a``; of a
