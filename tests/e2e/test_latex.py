@@ -286,6 +286,8 @@ def test_unicode_fractions_divide(wb):
     assert wb.expr("(x + 1)⁄(x − 1)") == (x + 1) / (x - 1)
     assert wb.expr("rₛ/(2r)") == Symbol("r_s") / (2 * Symbol("r"))  # a letter as a subscript
     assert wb.expr("eˣ") == exp(x)
+    assert wb.expr("∛8 + ∜16") == 4
+    assert wb.expr("∑ₙ₌₁^∞ 1/n²") == pi**2 / 6  # its = written as a subscript too
 
 
 def test_unicode_spells_latexs_functions_in_letters(wb):

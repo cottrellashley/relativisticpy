@@ -676,6 +676,14 @@ class Lexer:
             self._script_run(vocab.UNICODE_SUBSCRIPTS, TokenKind.UNDERSCORE)
         elif (fraction := _vulgar_fraction(char)) is not None:
             self._vulgar_fraction(char, *fraction)
+        elif (degree := vocab.UNICODE_ROOTS.get(char)) is not None:  # ∛8 is \sqrt[3]{8}
+            for kind, value in (
+                (TokenKind.COMMAND, "sqrt"),
+                (TokenKind.LBRACKET, "["),
+                (TokenKind.NUMBER, degree),
+                (TokenKind.RBRACKET, "]"),
+            ):
+                self._emit(kind, value, start, start + 1)
         else:
             raise self._unexpected(char, start)
 
