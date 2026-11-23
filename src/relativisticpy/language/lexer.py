@@ -212,6 +212,15 @@ def _script_letters(text: str, start: int) -> int:
     return 1
 
 
+def _vulgar_fraction(char: str) -> tuple[str, str] | None:
+    """The numerator and denominator of one of Unicode's vulgar fractions, as ½ and ¾."""
+    plain = unicodedata.normalize("NFKC", char)
+    numerator, slash, denominator = plain.partition(_FRACTION_SLASH)
+    if plain == char or not slash or not (numerator.isdigit() and denominator.isdigit()):
+        return None
+    return numerator, denominator
+
+
 def tokenize(source: str | Source, *, recover: bool = False) -> list[Token]:
     """Split source text into tokens. The last token is always ``EOF``.
 
@@ -659,8 +668,33 @@ class Lexer:
             self._script_run(vocab.UNICODE_SUPERSCRIPTS, TokenKind.CARET)
         elif char in vocab.UNICODE_SUBSCRIPTS:
             self._script_run(vocab.UNICODE_SUBSCRIPTS, TokenKind.UNDERSCORE)
+        elif (fraction := _vulgar_fraction(char)) is not None:
+            self._vulgar_fraction(char, *fraction)
         else:
             raise self._unexpected(char, start)
+
+    def _vulgar_fraction(self, char: str, numerator: str, denominator: str) -> None:
+        """A vulgar fraction, ``½``, lexes as ``(1/2)``. After a number it would be a mixed
+        number, as 2½ is two and a half, which a product of the two is not: refused."""
+        start = self.pos
+        previous = self.tokens[-1] if self.tokens else None
+        if previous is not None and previous.kind is TokenKind.NUMBER:
+            written = f"{previous.span.text}{' ' if self.space_before else ''}{char}"
+            raise self._error(
+                f"{written} is a whole number and a fraction side by side",
+                previous.span.start,
+                start + 1,
+                hint=f"for the mixed number, write {previous.value} + {numerator}/{denominator}; "
+                f"for the product, {previous.value} \\cdot {numerator}/{denominator}",
+            )
+        for kind, value in (
+            (TokenKind.LPAREN, "("),
+            (TokenKind.NUMBER, numerator),
+            (TokenKind.SLASH, "/"),
+            (TokenKind.NUMBER, denominator),
+            (TokenKind.RPAREN, ")"),
+        ):
+            self._emit(kind, value, start, start + 1)
 
     def _unexpected(self, char: str, start: int) -> ParseError:
         """The error for a character the language has no use for: named by its code

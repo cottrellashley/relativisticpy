@@ -5,6 +5,7 @@ from sympy import (
     Array,
     Function,
     Integral,
+    Rational,
     Sum,
     Symbol,
     cos,
@@ -277,6 +278,12 @@ def test_accents(wb):
 def test_unicode(wb):
     assert wb.expr("θ² + π") == theta**2 + pi
     assert wb.expr("√(x + 1) · 2") == 2 * sqrt(x + 1)
+
+
+def test_unicode_fractions_divide(wb):
+    # ½ and the fraction slash of 3⁄4 were refused
+    assert wb.expr("½ + ⅓") == Rational(5, 6)
+    assert wb.expr("(x + 1)⁄(x − 1)") == (x + 1) / (x - 1)
 
 
 def test_unicode_spells_latexs_functions_in_letters(wb):

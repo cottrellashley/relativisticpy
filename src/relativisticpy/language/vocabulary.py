@@ -370,6 +370,7 @@ UNICODE_OPERATORS: Mapping[str, TokenKind] = MappingProxyType(
         "∗": TokenKind.STAR,
         "×": TokenKind.STAR,
         "÷": TokenKind.SLASH,
+        "⁄": TokenKind.SLASH,  # the fraction slash, as in 3⁄4
         "−": TokenKind.MINUS,
         "≤": TokenKind.LESS_EQ,
         "≥": TokenKind.GREATER_EQ,

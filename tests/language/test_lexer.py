@@ -496,6 +496,18 @@ class TestUnicode:
     def test_prime_symbol(self):
         assert lex("f′(x)") == "f ' ( x )"
 
+    def test_vulgar_fractions_and_the_fraction_slash_divide(self):
+        # ½ and 3⁄4 were refused as characters the language had no use for
+        assert lex("x + ½") == "x + ( 1 / 2 )"
+        assert lex("3⁄4 + ¾") == "3 / 4 + ( 3 / 4 )"
+
+    @pytest.mark.parametrize("text", ["2½", "2 ½"])
+    def test_a_number_before_a_vulgar_fraction_is_refused(self, text):
+        # 2½ is two and a half, and the product of 2 and ½ is 1
+        error = lexing_error(text)
+        assert error.message == f"{text} is a whole number and a fraction side by side"
+        assert error.hint == "for the mixed number, write 2 + 1/2; for the product, 2 \\cdot 1/2"
+
     def test_greek_capitals_that_look_latin_are_latin(self):
         assert lex("Α Μ") == "A M"
 
@@ -648,7 +660,6 @@ class TestCharacters:
     @pytest.mark.parametrize(
         ("text", "message", "hint"),
         [
-            ("x + ½", "unexpected character '½' (U+00BD VULGAR FRACTION ONE HALF)", r"\frac{1}{2}"),
             ("𝒜 + 1", "unexpected character '𝒜' (U+1D49C MATHEMATICAL SCRIPT CAPITAL A)",
              r"\mathcal{A}"),
             ("Ｘ + 1", "unexpected character 'Ｘ' (U+FF38 FULLWIDTH LATIN CAPITAL LETTER X)", "X"),
