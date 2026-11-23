@@ -102,6 +102,15 @@ def test_equations_are_compared_by_the_difference_of_their_sides():
     assert not curriculum.equal(sympy.Eq(y(t), sympy.Symbol("C1") * sympy.exp(2 * t)), solved)
 
 
+def test_derivatives_of_unknown_functions_are_compared_as_values_of_their_own():
+    # cm.lagrangian.index-form: comparing failed, "Cannot convert expression to float"
+    theta = sympy.Function("theta")(t)
+    given = sympy.Derivative(theta, (t, 2))
+    expected = sympy.Derivative(theta, (t, 2)) - sympy.sin(theta) * sympy.cos(theta)
+    assert not curriculum.equal(given, expected)
+    assert curriculum.equal(sympy.sin(theta) ** 2 * given, given - sympy.cos(theta) ** 2 * given)
+
+
 def test_a_result_left_undone_is_not_its_value():
     assert not curriculum.equal(sympy.Integral(x, (x, 0, 1)), sympy.Rational(1, 2))
     assert curriculum.equal(sympy.Integral(x, (x, 0, 1)), sympy.Integral(x, (x, 0, 1)))

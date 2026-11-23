@@ -680,13 +680,19 @@ def _points(condition: Any) -> list[tuple[Any, Any]] | None:
 
 def _agrees_numerically(difference: Any, tolerance: float) -> bool:
     """Whether a difference vanishes at several random points, for every function of the
-    symbols too: strong evidence of an identity where simplification gives up."""
+    symbols too, and every derivative of one, each a value of its own, as θ(t), θ'(t) and
+    θ''(t) are independent at a point: strong evidence of an identity where simplification
+    gives up."""
     rng = random.Random(0)
     symbols = sorted(difference.free_symbols, key=str)
     functions = sorted(difference.atoms(sympy.core.function.AppliedUndef), key=str)
+    derivatives = sorted(
+        (d for d in difference.atoms(sympy.Derivative) if d.expr in functions), key=str
+    )
     for _ in range(3):
         values = {s: sympy.Rational(rng.randrange(300, 2000), 1009) for s in symbols}
-        concrete = difference.xreplace(
+        jet = {d: sympy.Rational(rng.randrange(300, 2000), 983) for d in derivatives}
+        concrete = difference.xreplace(jet).xreplace(
             {f: sympy.Rational(rng.randrange(300, 2000), 997) for f in functions}
         )
         number = complex(sympy.N(concrete.subs(values), 30))
