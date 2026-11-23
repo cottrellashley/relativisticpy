@@ -206,8 +206,9 @@ The `verdict`, on the claim and on each of its `links`:
 | `not decided` | not proven equal, though numbers do not show that the sides differ; or a relation such as `\approx`; or over the time limit |
 | `error` | the claim could not be read or computed, or is not a claim; its `detail`, place, `notes` and `hint` say why |
 
-Each link also has `check`, the verdict `relativisticpy check` would give it. Statements of
-the context that fail are listed in `context`. A step with its sign wrong:
+Each link also has `check`, the verdict `relativisticpy check` would give it, and, where
+it is an error or not decided for one, `error`, as `compute` gives a statement's error.
+Statements of the context that fail are listed in `context`. A step with its sign wrong:
 
 ```python
 >>> step = call(

@@ -154,8 +154,9 @@ as only mistakes. `report.to_dict()` gives the whole report as data, for JSON:
 ```
 
 Each finding, as data, has its verdict, its file, line and column, the statement
-as written, the reason, the hint and notes, and the difference of the sides in each
-of the forms results are shown in.
+as written, the reason, the hint and notes, the difference of the sides in each of
+the forms results are shown in, and the `error` the statement raised, if it raised one,
+as `error.to_dict()` gives it.
 
 ## Part of a document
 

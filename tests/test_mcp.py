@@ -310,6 +310,46 @@ def test_verify_says_whether_a_claim_holds():
     assert broken["notes"]
 
 
+def test_compute_verify_and_check_give_an_error_alike():
+    claims = [r"\frac{1}{2 = x", r"\lim_{x \to \infty} \sin(x) = 0", r"e^x \geq 1 + x"]
+    notebook = "\n\n".join(f"$${claim}$$" for claim in claims)
+
+    async def test(client, pool):
+        computed = await call(client, "compute", source="\n".join(claims))
+        verified = [await call(client, "verify", claim=claim) for claim in claims]
+        checked = await call(client, "check", document=notebook, format="markdown", all=True)
+        return computed, verified, checked
+
+    computed, verified, checked = serve(test)
+
+    def essence(error):
+        return {key: error[key] for key in ("type", "message", "text", "notes", "hint")}
+
+    errors = [essence(entry["error"]) for entry in computed["statements"]]
+    assert [error["type"] for error in errors] == [
+        "ParseError",
+        "EvaluationError",
+        "UndecidedError",
+    ]
+    assert [essence(result["links"][0]["error"]) for result in verified] == errors
+    assert [essence(finding["error"]) for finding in checked["findings"]] == errors
+    assert [result["verdict"] for result in verified] == ["error", "error", "not decided"]
+
+
+def test_verify_refuses_what_is_no_claim_with_an_error_as_well():
+    async def test(client, pool):
+        expression = await call(client, "verify", claim="x^2 + 1")
+        definition = await call(client, "verify", claim="E = m c^2")
+        return expression, definition
+
+    for result in serve(test):
+        [link] = result["links"]
+        assert result["verdict"] == "error"
+        assert link["error"]["type"] == "UsageError"
+        assert (link["error"]["message"], link["error"]["hint"]) == (link["detail"], link["hint"])
+        assert link["error"]["column"] == 1
+
+
 # -- check ---------------------------------------------------------------------------------------
 
 PAPER = r"""\documentclass{article}

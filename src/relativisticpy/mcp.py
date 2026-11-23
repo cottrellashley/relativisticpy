@@ -230,9 +230,10 @@ class Computed(TypedDict):
 
 class Judgement(TypedDict):
     """The verdict on one statement of a claim, or of its context: where it is, the
-    statement, the verdict, the verdict ``relativisticpy check`` gives it, why, and the
+    statement, the verdict, the verdict ``relativisticpy check`` gives it, why, the
     left side minus the right, where it differs or relates, in each form of
-    ``relativisticpy.display``."""
+    ``relativisticpy.display``, and, where it is an error or not decided for one, the
+    error, as ``compute`` gives a statement's: type, message, place, notes and hint."""
 
     verdict: str
     check: str
@@ -247,6 +248,7 @@ class Judgement(TypedDict):
     hint: str | None
     notes: list[str]
     difference: dict[str, Any] | None
+    error: dict[str, Any] | None
 
 
 class Verified(TypedDict):
@@ -735,7 +737,8 @@ def _not_run(source: str, name: str, done: int, limit: float) -> list[str]:
 
 
 def _judgement(finding: checking.Finding) -> dict[str, Any]:
-    """A finding as ``verify`` gives it: its own verdict, and the check's."""
+    """A finding as ``verify`` gives it: its own verdict, and the check's; and the error,
+    as ``compute`` gives a statement's, of what it refuses."""
     data = finding.to_dict()
     judged: dict[str, Any] = {"verdict": _VERIFIED[finding.verdict], "check": data["verdict"]}
     judged.update((key, value) for key, value in data.items() if key != "verdict")
@@ -743,6 +746,7 @@ def _judgement(finding: checking.Finding) -> dict[str, Any]:
         judged["detail"] = "this is an expression, not a claim: write an equation, lhs = rhs"
         judged["notes"] = [*judged["notes"], f"its value is {finding.detail}"]
         judged["hint"] = judged["hint"] or "to claim it has a value, write = and the value"
+        judged["error"] = _no_claim(finding, judged)
     return judged
 
 
@@ -757,7 +761,18 @@ def _nothing_to_verify(finding: checking.Finding) -> dict[str, Any]:
         "to claim something about it, define it first, in the context; or claim an "
         "equation between quantities the context defines"
     )
+    judged["error"] = _no_claim(finding, judged)
     return judged
+
+
+def _no_claim(finding: checking.Finding, judged: dict[str, Any]) -> dict[str, Any]:
+    """The error of a statement ``verify`` refuses as no claim, as the other errors are
+    given: a :class:`~relativisticpy.errors.UsageError`, as the tool was given what it
+    does not take."""
+    refused = UsageError(
+        judged["detail"], span=finding.span, hint=judged["hint"], notes=judged["notes"]
+    )
+    return refused.to_dict()
 
 
 def _bounded(deadline: float, cut: list[Source]) -> type[Workbook]:

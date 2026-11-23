@@ -168,7 +168,8 @@ class Finding:
     does at the token it is about. ``detail`` says why, ``hint`` how to fix it and
     ``notes`` give context. ``difference`` is the left side minus the right, as a
     SymPy value, for an equation that differs or relates; ``reason`` is why a
-    statement is not understood, or ``time limit``."""
+    statement is not understood, or ``time limit``; ``error`` is the error the
+    statement raised, if it raised one, as running it would give it."""
 
     verdict: Verdict
     span: Span
@@ -178,6 +179,7 @@ class Finding:
     at: Span | None = field(default=None, compare=False)
     difference: Any = field(default=None, compare=False)
     reason: str | None = field(default=None, compare=False)
+    error: RelativisticPyError | None = field(default=None, compare=False)
 
     @property
     def file(self) -> str:
@@ -231,8 +233,9 @@ class Finding:
 
     def to_dict(self) -> dict[str, Any]:
         """The finding as data: its verdict, where it points, the statement as written,
-        why, and the difference of the sides, in each of the forms of
-        :mod:`relativisticpy.display`."""
+        why, the difference of the sides, in each of the forms of
+        :mod:`relativisticpy.display`, and the error the statement raised, as
+        ``RelativisticPyError.to_dict()`` gives it, or ``None``."""
         where = place(self.at or self.span)
         return {
             "verdict": self.verdict.value,
@@ -247,6 +250,7 @@ class Finding:
             "hint": self.hint,
             "notes": list(self.notes),
             "difference": None if self.difference is None else _data(self.difference),
+            "error": None if self.error is None else self.error.to_dict(),
         }
 
     def __repr__(self) -> str:
@@ -440,7 +444,8 @@ def check(
         report = Report(document.name, 0)
         span = Span(Source(document.text, document.name), 0, 0)
         detail = f"cannot read the document: {_why(error)}"
-        report.findings.append(Finding(Verdict.NOT_PARSED, span, detail))
+        known = error if isinstance(error, RelativisticPyError) else None
+        report.findings.append(Finding(Verdict.NOT_PARSED, span, detail, error=known))
         return report
     report = check_equations(workbook, equations, document.name, lines, time_limit)
     report.warnings += [
@@ -557,13 +562,14 @@ def _check_equation(
         findings.append(_not_parsed(whole, error))
     except TimeoutError:
         state.expired.append(whole.line)
+        over = NotComputedError(
+            f"over the time limit of {time_limit:g} s",
+            span=whole,
+            hint="give it longer, as with --time-limit 120, or inf for no limit",
+        )
         findings.append(
             Finding(
-                Verdict.NOT_COMPUTED,
-                whole,
-                f"over the time limit of {time_limit:g} s",
-                hint="give it longer, as with --time-limit 120, or inf for no limit",
-                reason=TIME_LIMIT,
+                Verdict.NOT_COMPUTED, whole, over.message, over.hint, reason=TIME_LIMIT, error=over
             )
         )
     except Exception as error:  # a failure of RelativisticPy's own: reported, not raised
@@ -591,6 +597,7 @@ def _not_parsed(whole: Span, error: ParseError) -> Finding:
         tuple(error.notes),
         at=at,
         reason="not parsed",
+        error=error,
     )
 
 
@@ -611,6 +618,7 @@ def _finding(step: Step, session: Workbook, state: _State) -> Finding:
                 (*notes, *error.notes),
                 at=at,
                 reason="not computed",
+                error=error,
             )
         coordinates = [coordinate.name for coordinate in session.coordinates or ()]
         broken = broken_rule(step.statement, coordinates)
@@ -623,6 +631,7 @@ def _finding(step: Step, session: Workbook, state: _State) -> Finding:
                 notes,
                 at=broken.span if broken.span != step.span else None,
                 reason="ill-formed",
+                error=error,
             )
         return _not_understood(step.span, error, state, at=at, notes=notes)
     if not step.values:
@@ -674,7 +683,14 @@ def _not_understood(
             f"line {lines} was over the time limit, so what it defines may be unknown here"
         )
     return Finding(
-        Verdict.NOT_UNDERSTOOD, span, detail, error.hint, tuple(context), at=at, reason=reason
+        Verdict.NOT_UNDERSTOOD,
+        span,
+        detail,
+        error.hint,
+        tuple(context),
+        at=at,
+        reason=reason,
+        error=error,
     )
 
 
