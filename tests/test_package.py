@@ -94,3 +94,26 @@ def test_a_name_the_package_does_not_have_is_an_attribute_error():
     with pytest.raises(AttributeError, match="has no attribute 'nothing'"):
         relativisticpy.nothing  # noqa: B018
     assert relativisticpy.checking.Verdict is relativisticpy.Verdict  # a module, by its name
+
+
+# -- the Pythons it supports ----------------------------------------------------------------
+
+
+def test_no_comprehension_calls_super_without_its_class():
+    # Before Python 3.12 a comprehension, like a lambda, is a function of its own, where
+    # super() finds no class: it runs on the newest Python and fails on the oldest.
+    nested = (ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp, ast.Lambda)
+    found = []
+    for path in sorted(Path(relativisticpy.__file__).parent.rglob("*.py")):
+        for outer in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(outer, nested):
+                continue
+            found += [
+                f"{path.name}:{node.lineno}"
+                for node in ast.walk(outer)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "super"
+                and not node.args
+            ]
+    assert not found, f"name the parent's method before the comprehension: {sorted(set(found))}"

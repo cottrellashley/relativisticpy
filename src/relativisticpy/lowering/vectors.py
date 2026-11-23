@@ -1068,7 +1068,8 @@ class VectorCalculus(Vectors, Probability):
     ) -> Node:
         if name in _EACH_COMPONENT and args and (each := self._vector_components(args[0])):
             rest = list(args[1:])
-            parts = [super()._call(name, [part, *rest], SCALAR, span, attributes) for part in each]
+            of_one = super()._call  # named here: a comprehension has no super() before 3.12
+            parts = [of_one(name, [part, *rest], SCALAR, span, attributes) for part in each]
             return self._vector_like(args[0], parts, span)
         return super()._call(name, args, kind, span, attributes)
 
@@ -1078,7 +1079,8 @@ class VectorCalculus(Vectors, Probability):
         if components is None or by_a_list:  # \frac{\partial(x, y)}{\partial(r, \theta)}
             return super()._differentiate(expr, variables, span)
         self._check_fixed_frame(variables, span)
-        parts = [super()._differentiate(part, variables, span) for part in components]
+        of_one = super()._differentiate
+        parts = [of_one(part, variables, span) for part in components]
         return self._vector_like(expr, parts, span)
 
     def _index_derivative(
@@ -1087,9 +1089,8 @@ class VectorCalculus(Vectors, Probability):
         components = self._vector_components(operand)
         if components is None:
             return super()._index_derivative(operand, item, upper, covariant, span)
-        parts = [
-            super()._index_derivative(part, item, upper, covariant, span) for part in components
-        ]
+        of_one = super()._index_derivative
+        parts = [of_one(part, item, upper, covariant, span) for part in components]
         if any(isinstance(part.type, TensorType) for part in parts):
             raise CompileError(
                 f"{span.text} differentiates a vector by a coordinate, which index notation "
