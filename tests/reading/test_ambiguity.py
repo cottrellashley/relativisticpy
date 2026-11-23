@@ -49,6 +49,25 @@ class TestScripts:
         with pytest.raises(CompileError, match="x is not a tensor"):
             wb.expr("x^{a=0}")
 
+    def test_a_superscript_that_is_no_exponent_on_a_new_name_is_a_component(self, wb):
+        # J^0 was 1 and F^{0i} 1, J to the power 0 and F to the power 0i
+        (step,) = list(wb.each("J^0"))
+        assert step.values == [Symbol("J^0")]
+        assert step.notes == [
+            "J is not defined, so J^0 is a component of it, a name of its own; for the power, "
+            "write (J)^0"
+        ]
+        assert wb.expr(r"F^{0i} + \eta^{00}") == Symbol("F^0i") + Symbol("eta^00")
+        assert wb.expr(r"F^{\mu 0} - F^{01}") == Symbol("F^mu0") - Symbol("F^01")
+        assert wb.expr("(J)^0") == 1  # the power, in brackets
+        assert wb.expr("x^{10} + x^2") == x**10 + x**2  # numbers are exponents
+        assert wb.expr("x^{2n}") == x ** (2 * n)  # and so are numbers before letters
+
+    def test_a_letter_of_such_a_superscript_contracted_is_an_index(self, wb):
+        # Carroll (1.76): \partial_i F^{0i} = 4\pi J^0 differed by -4\pi, as 0 = 4\pi
+        with pytest.raises(CompileError, match="F is not a tensor, so i on it is not an index"):
+            wb.expr(r"{\partial}_{i}F^{0i} = 4\pi J^0")
+
 
 class TestBuiltInTensorNames:
     @pytest.fixture

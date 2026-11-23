@@ -279,6 +279,34 @@ def _mark(script: ast.Script) -> str:
     return body.span.text if body is not None else ""
 
 
+def _a_component(script: ast.Script) -> bool:
+    """Whether a superscript can only be an index, never a power: a lone 0, as in J^0, or
+    digits that are no number as numbers are written, as 00 and 01 in \\eta^{00} and
+    F^{01}; or index letters beside a 0, as in F^{0i} and F^{\\mu 0}, or before a digit,
+    as in F^{\\mu 1}. A number written as numbers are, as 2 and 10, is an exponent, and so
+    is a number before letters, as 2n is in x^{2n}."""
+    if script.kind != "^" or script.indices is None or not script.indices.items:
+        return False
+    items = script.indices.items
+    kinds = []  # each item a digit or a letter, in order
+    for item in items:
+        if isinstance(item.value, ast.Number) and item.label is None:
+            if not item.value.text.isdigit():
+                return False
+            kinds.append(item.value.text)
+        elif _plain_label(item):
+            kinds.append("")
+        else:
+            return False
+    digits = [kind for kind in kinds if kind]
+    if not digits:
+        return False
+    if len(digits) == len(kinds):  # 0, 00 and 01, but not 2 or 10
+        return digits[0] == "0"
+    first_letter = kinds.index("")
+    return "0" in digits or any(kinds[first_letter:])  # 0i and \mu 0, \mu 1; not 2n
+
+
 def _decoration(script: ast.Script) -> bool:
     """A script that marks a name rather than raising it to a power: ``r^*``, ``i^+``, or
     an order in brackets, as of a perturbation, ``E^{(2)}``."""

@@ -54,6 +54,7 @@ from relativisticpy.reading.names import (
     _STATISTIC_ALIASES,
     _STATISTICS,
     _TRANSPOSES,
+    _a_component,
     _a_name,
     _a_pair,
     _a_word,
@@ -93,6 +94,7 @@ from relativisticpy.reading.names import (
     _writes_tensor,
     _written_as_letter,
     _written_with,
+    to_text,
 )
 from relativisticpy.reading.readings import Decision, Resolution
 from relativisticpy.tensors import Index, Indices
@@ -800,6 +802,40 @@ class Reader(Typer):
             or name in session.functions
             or self._builtin_scalar(name) is not None
         )
+
+    def _component_named(self, node: ast.Scripted, base: ast.Name, script: ast.Script) -> ast.Name:
+        """``J^0`` or ``F^{0i}``, on a name nothing defines, with a superscript that can only
+        be an index (decision 6): its component, a name of its own, as J_0 is, with a note.
+        Refused where a letter of it is an index the statement contracts, as i is in
+        ``\\partial_i F^{0i}``, which needs F to be a tensor."""
+        assert script.indices is not None
+        items = script.indices.items
+        written = base.span.text
+        labels = [str(item.label) for item in items if _plain_label(item)]
+        contracted = [
+            label for label in labels if self._scripts["_"][label] or label in self._labels
+        ]
+        if contracted:
+            shown = _listed([self._written_label(label) for label in contracted])
+            verb = "is not an index" if len(contracted) == 1 else "are not indices"
+            raise CompileError(
+                f"{written} is not a tensor, so {shown} on it {verb}",
+                span=node.span,
+                hint=f"define it first, for example {written}{script.span.text} := [...]",
+            )
+        mark = "".join(
+            item.label if item.label is not None else to_text(item.value) for item in items
+        )
+        name = f"{base.id}^{mark}"
+        power = f"{written}{script.span.text}"
+        why = f"{written} is not defined, and {script.span.text.lstrip('^ ')} is no exponent"
+        self._decide("index or power", node.span, f"the name {name}", why)
+        said = f"{written} is not defined, so {power} is a component of it, a name of its own"
+        if labels:  # F^{0i}: no power is meant
+            self._note(said)
+        else:
+            self._note(f"{said}; for the power, write ({written}){script.span.text}")
+        return ast.Name(name, verbatim=True, span=node.span)
 
     def _index_written(self, script: ast.Script) -> str | None:
         """The label of a superscript that the statement shows to be an index: one it
@@ -1594,6 +1630,14 @@ class Reader(Typer):
             marks = "".join(_mark(s) for s in decorations)
             base = ast.Name(f"{base.id}^{marks}", verbatim=True, span=base.span)
             scripts = [s for s in scripts if s not in decorations]
+        if (
+            len(scripts) == 1
+            and isinstance(base, ast.Name)
+            and _a_component(scripts[0])
+            and not _in_brackets(base)
+            and self._undefined(base, scope)
+        ):  # J^0 and F^{0i}: an index, never a power
+            return self.value(self._component_named(node, base, scripts[0]), scope, ctx)
         for script in scripts:  # x_{} or x^{}: nothing to read
             if script.body is None and (script.indices is None or not script.indices.items):
                 where = "subscript" if script.kind == "_" else "superscript"
