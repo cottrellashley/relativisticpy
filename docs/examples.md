@@ -289,6 +289,8 @@ $$
 $$
 2 r\left(\tau\right)^{2} \theta''\left(\tau\right) - 2 r\left(\tau\right)^{2} \sin{\left(\theta\left(\tau\right) \right)} \cos{\left(\theta\left(\tau\right) \right)} \left(\phi'\left(\tau\right)\right)^{2} + 4 r\left(\tau\right) r'\left(\tau\right) \theta'\left(\tau\right)
 $$
+
+> note: r and θ are taken along the path, as r(τ) and θ(τ), in g_{\mu\nu} \dot{x}^\mu \dot{x}^\nu
 <!-- /relativisticpy:result -->
 
 Each is twice the geodesic equation
@@ -305,6 +307,10 @@ EL_{\mu} = \left. 2 g_{\mu\nu} \left( \ddot{x}^{\nu} + \Gamma^{\nu}_{\alpha\beta
 $$
 
 > note: EL_{\mu} already has a value, so = compares it; to give EL_{\mu} a new value, write EL_{\mu} := ...
+
+> note: r and θ are taken along the path, as r(τ) and θ(τ), in g_{\mu\nu} \dot{x}^\mu \dot{x}^\nu
+
+> note: r and θ are taken along the path, as r(τ) and θ(τ)
 <!-- /relativisticpy:result -->
 
 ## Light near a black hole
