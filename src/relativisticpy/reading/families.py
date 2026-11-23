@@ -58,6 +58,7 @@ from relativisticpy.reading.subscripts import (
     _WORD,
     Kind,
     Reading,
+    _base_name,
     _numbered_variables,
     _raised,
     family_of,
@@ -173,6 +174,10 @@ def _whole_numbers(node: ast.Expr | None) -> int | None:
         inside = _whole_numbers(node.operand)
         return -inside if inside is not None else None
     return None
+
+
+#: How a name set upright as an operator's or a word is written, as \operatorname{E} is.
+_UPRIGHT = ("\\operatorname", "\\mathrm", "\\text", "\\rm", "{\\rm")
 
 
 class Families(Labels):
@@ -728,6 +733,9 @@ class Families(Labels):
             if isinstance(following, ast.Scripted):  # \psi_n(x)^*: the call's script
                 group, scripts = following.base, following.scripts
             arguments = forms.bracketed(group) if group is not None else None
+            unknown = None
+            if group is not None and arguments is not None:  # \psi_n(x), nothing defining it
+                unknown = self._unknown_labelled(factor, group, arguments, scope)
             if (
                 following is not None
                 and group is not None
@@ -735,9 +743,11 @@ class Families(Labels):
                 and (
                     (factor.span.end == group.span.start and self._names_a_function(factor, scope))
                     or self._defined_function_before(factor, group, scope)
+                    or unknown is not None
                 )
             ):
-                call: ast.Expr = ast.Call(factor, arguments, span=factor.span.to(group.span))
+                head = unknown if unknown is not None else factor
+                call: ast.Expr = ast.Call(head, arguments, span=factor.span.to(group.span))
                 if scripts:
                     call = ast.Scripted(call, scripts, span=factor.span.to(following.span))
                 merged.append(call)
@@ -746,6 +756,32 @@ class Families(Labels):
             merged.append(factor)
             position += 1
         return merged
+
+    def _unknown_labelled(
+        self, factor: ast.Expr, group: ast.Expr, arguments: Sequence[ast.Expr], scope: Scope
+    ) -> ast.Name | None:
+        """``\\psi_n(x)``, ``V_{\\rm eff}(r)`` or ``\\hat{\\mathcal{H}}_1(\\lambda)``: a name with a
+        subscript that labels it, which nothing defines, right before names in brackets,
+        as a function's arguments are written: an unknown function of them, as
+        ``\\psi_1(x)`` and ``E_k(p)`` are, which a note says (decision 28 of
+        design/notation.md), where it was the name times them, silently. The name, as one
+        name, ``psi_n``; ``None`` for anything else, as an index of a tensor in force."""
+        if not isinstance(factor, ast.Scripted) or factor.span.end != group.span.start:
+            return None
+        if any(script.kind != "_" for script in factor.scripts):
+            return None
+        if not all(isinstance(argument, ast.Name) for argument in arguments):
+            return None
+        name, base = label_name(factor), _base_name(factor.base)
+        if name is None or base is None:
+            return None
+        if factor.base.span.text.lstrip().startswith(_UPRIGHT):
+            return None  # \operatorname{E}_t(x): an operator, as a statistic is
+        if scope.lookup(name) is not None or scope.lookup(base) is not None:
+            return None
+        if family_of(base, scope) is not None or self._indexes(factor, base):
+            return None
+        return ast.Name(name, verbatim=True, span=factor.span)
 
     def _defined_function_before(self, factor: ast.Expr, group: ast.Expr, scope: Scope) -> bool:
         """Whether a factor is a name the program defines as a function, written before

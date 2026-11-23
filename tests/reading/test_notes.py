@@ -231,6 +231,13 @@ class TestSilentReadingsAreSaid:
         wb.exe("x := [1, 2, 3]")
         assert wb.expr(r"\sum_{n=1}^{3} x[n]") == 6  # a list, read as before
 
+    def test_a_labelled_name_before_names_in_brackets_is_a_function_and_says_so(self, wb):
+        # \\Phi_N(r) was \\Phi_N times r, and \\hat{\\mathcal{H}}_1(\\lambda) Hhat_1 times
+        # \\lambda, beside \\mathcal{H}_1(\\lambda), a function (decision 28)
+        assert notes(wb, r"\Phi_N(r)") == [
+            r"\Phi_N is not a function RelativisticPy knows, so \Phi_N(r) is an unknown function"
+        ]
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

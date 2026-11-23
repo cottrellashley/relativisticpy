@@ -64,6 +64,14 @@ BRACKETS = [
     ("f(x) := x^2\n(f)(3)", 9),
     ("f(x) := x^2\nf \\left(3\\right)", 9),
     ("y(x) := x^3\ny (x + 1)", (x + 1) ** 3),
+    # a name with a subscript that labels it, nothing defining it, before names in brackets
+    # is an unknown function of them, as \psi_1(x) is (psi_n x and V_eff r before)
+    (r"\psi_n(x)", Function("psi_n")(x)),
+    (r"V_{\rm eff}(r)", Function("V_eff")(r)),
+    (r"\Phi_N(r)", Function("Phi_N")(r)),
+    (r"\hat{\mathcal{H}}_1(\alpha)", Function("Hhat_1")(alpha)),
+    (r"\omega_p(k) - \omega_p(k)", 0),
+    ("\\psi_n(x) := \\sin(n x)\n\\psi_2(\\pi / 4)", 1),  # a family it defines, as before
     # a letter after a subscript of a number starts a factor, as TeX sets it (x_1x_2 was a
     # name of its own)
     (r"x_1x_2", sympy.Symbol("x_1") * sympy.Symbol("x_2")),

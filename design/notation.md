@@ -319,6 +319,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **A name in brackets of its own** (23 November 2026). Brackets around a name alone set it apart as a factor, so that the brackets after them multiply it: `(a)(b)` is ab and `(\alpha)(\beta)` αβ, where they were a(b) and α(β), calls. A Greek letter in brackets of its own stays a letter, as `2(\beta)` is 2β, where β was taken for the beta function and refused. A function the program defines is called by the brackets after it, in brackets of its own, `(f)(3)`, or with spaces between, `f (3)` and `f \left(3\right)`, which TeX sets as it sets `f(3)`: they were f(x) times 3 in LaTeX, silently. A spacing command, as in `f\,(3)`, still sets them apart.
 
+**A name with a subscript that labels it** (23 November 2026). `\psi_1(x)`, `\mathcal{H}_1(\lambda)` and `E_k(p)`, names nothing defines before brackets, were unknown functions, with a note, but `\psi_n(x)`, `V_{\rm eff}(r)`, `\Phi_N(r)`, `\omega_p(k)` and `\hat{\mathcal{H}}_1(\lambda)` were the name times what the brackets hold, silently, by how the subscript is written. One rule reads them all: a name with a subscript that labels it, plain or under an accent, which nothing defines, right before names in brackets, is an unknown function of them, with the note. An index of a tensor in force stays an index, a family the program defines picks its member, a name set upright as an operator's, as `\operatorname{E}_t(x)`, is read as before, and an equation that writes one on its left, `U_{\text{eff}}(r) = \ldots`, still defines it.
+
 ## 29. `\log` without a base
 
 **Added** on 22 November 2026, from chemistry.

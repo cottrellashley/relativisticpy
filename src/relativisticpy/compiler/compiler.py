@@ -288,16 +288,18 @@ class Compiler(VectorCalculus):
         return [Output(node, equation.span, note=note)]
 
     def _read_as_product(self, lhs: ast.Expr, scope: Scope, ctx: Context) -> bool:
-        """Whether the left side of an equation is read as a product, as
-        ``U_{\\text{eff}}(r)`` is, U_eff times r, rather than as a call: compiled in a session
-        of its own, which leaves this one as it was."""
+        """Whether the left side of an equation is read as a product, U_eff times r, or as a
+        function nothing defines, U_eff(r), as ``U_{\\text{eff}}(r)`` is, rather than as a
+        call of one the language provides, as ``J_0(x)`` is: compiled in a session of its
+        own, which leaves this one as it was."""
         checker = Compiler(self.session.fork())
         checker._depth = 1  # its notes are not this statement's
         try:
             node = checker.value(lhs, scope, ctx)
         except RelativisticPyError:
             return False
-        return isinstance(node.op, ops.Mul)
+        unknown = isinstance(node.op, ops.Call) and node.op.name == "core.function"
+        return isinstance(node.op, ops.Mul) or unknown
 
     def _fails_as_function(
         self, definition: ast.FunctionDefinition, scope: Scope, ctx: Context
