@@ -2,8 +2,9 @@ r"""The lowering of vectors and of vector calculus, as :mod:`relativisticpy.read
 reads them (design/notation.md, 8, 9, 16 and 25):
 
 - the algebra of vectors, component by component: ``\mathbf{v} \cdot \mathbf{w}``,
-  ``\mathbf{v} \times \mathbf{w}``, ``|\mathbf{v}|`` and ``\|\mathbf{v}\|``, and
-  ``\mathbf{p}^2``, which is \mathbf{p} \cdot \mathbf{p};
+  ``\mathbf{v} \times \mathbf{w}``, ``|\mathbf{v}|`` and ``\|\mathbf{v}\|``, the root of
+  the sum of each component times its conjugate, and ``\mathbf{p}^2``, which is
+  \mathbf{p} \cdot \mathbf{p};
 - the calculus of vectors, component by component: ``\frac{d\mathbf{r}}{dt}``,
   ``\partial_\theta \mathbf{x}``, ``\mathbf{r}'(t)``, ``\int \mathbf{v}\,dt``, an
   evaluation bar and a limit; a field at a point, ``\mathbf{v}(\mathbf{r}(t))``, and a
@@ -45,7 +46,7 @@ from relativisticpy.language.source import Span
 from relativisticpy.lowering.probability import Probability
 from relativisticpy.reading.families import Family
 from relativisticpy.reading.labels import label_name
-from relativisticpy.reading.names import _a_pair, _written_as_letter, _written_with
+from relativisticpy.reading.names import _a_pair, _matrix_shape, _written_as_letter, _written_with
 from relativisticpy.reading.quantum import OperatorBinding
 from relativisticpy.reading.subscripts import Reading
 from relativisticpy.reading.vectors import (
@@ -998,14 +999,17 @@ class VectorCalculus(Vectors, Probability):
         return self._differentiate(body, variables, node.span)
 
     def _absolute(self, node: ast.Abs, operand: Node) -> Node:
+        """Bars around a vector, a list, a row or a column alike: its length,
+        :math:`\\sqrt{\\sum_i v_i \\bar v_i}`."""
         components = self._vector_components(operand)
-        if components is None:
+        shape = _matrix_shape(operand) if components is None else None
+        row = shape is not None and shape[0] == 1 and shape[1] != 1
+        if components is None and not row:
             return super()._absolute(node, operand)
         why = "bars are written around a vector"
         self._decide(VECTOR, node.span, "its length", why)
-        return self._call(
-            "vectors.norm", [self._vector_of(components, node.span)], SCALAR, node.span
-        )
+        vector = operand if components is None else self._vector_of(components, node.span)
+        return self._call("vectors.norm", [vector], SCALAR, node.span)
 
     def _power(self, base: Node, exponent: Node, span: Span) -> Node:
         components = self._vector_components(base)

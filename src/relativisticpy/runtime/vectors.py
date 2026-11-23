@@ -245,10 +245,25 @@ def component(vector: Any, position: int) -> sympy.Expr:
 
 
 def norm(vector: Any) -> sympy.Expr:
-    """The length of a vector, the square root of the sum of the squares of its components,
-    simplified, as books take a vector's components to be real."""
+    """The length of a vector, a list, a row or a column alike: the square root of the sum of
+    each component times its conjugate, :math:`\\sqrt{\\sum_i v_i \\bar v_i}`, simplified, so
+    that the length of (1, i) is √2. Books take the names a vector is written with to be
+    real, so only i is conjugated, and a symbol the program declares complex."""
     values = [sympy.sympify(value) for value in arrays.flatten(arrays.to_array(vector))]
-    return sympy.sqrt(simplify_component(sum(value**2 for value in values)))
+    square = sum(value * _conjugate_as_written(value) for value in values)
+    return sympy.sqrt(simplify_component(square))
+
+
+def _conjugate_as_written(value: sympy.Basic) -> sympy.Basic:
+    """The conjugate of a component as books take it: i is -i, a symbol declared complex is
+    conjugated, and every other name is real."""
+    conjugated = value.xreplace({sympy.I: -sympy.I})
+    complex_symbols = {
+        symbol: sympy.conjugate(symbol)
+        for symbol in conjugated.free_symbols
+        if isinstance(symbol, Symbol) and symbol.is_complex and symbol.is_real is None
+    }
+    return conjugated.xreplace(complex_symbols) if complex_symbols else conjugated
 
 
 def induced_metric(cartesian: Any, *, coordinates: tuple[Symbol, ...]) -> ImmutableDenseNDimArray:

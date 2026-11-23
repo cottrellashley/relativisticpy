@@ -68,6 +68,26 @@ class TestAlgebra:
         assert wb.expr(r"\|\mathbf{v}\|") == sympy.sqrt(14)
         assert wb.expr(r"\mathbf{v}^2") == 14  # its dot product with itself
 
+    def test_the_length_of_a_complex_vector_takes_the_conjugate(self, wb):
+        # the review's programs, each 0 when the length was the root of the squares
+        wb.exe(r"|\psi\rangle := \frac{1}{\sqrt{2}}\begin{pmatrix} 1 \\ i \end{pmatrix}")
+        assert wb.expr(r"\| |\psi\rangle \|") == 1
+        wb.exe(r"\mathbf{u} := (1, i)" "\n" r"\mathbf{E} := (E_0, i E_0, 0)")
+        assert wb.expr(r"|\mathbf{u}|") == sympy.sqrt(2)
+        assert same(wb.expr(r"|\mathbf{E}|^2"), 2 * sympy.Symbol("E_0") ** 2)
+
+    def test_a_row_and_a_column_have_one_length(self, wb):
+        row = r"\left\| \begin{pmatrix} 1 & i \end{pmatrix} \right\|"
+        column = r"\left\| \begin{pmatrix} 1 \\ i \end{pmatrix} \right\|"
+        assert wb.expr(row) == wb.expr(column) == sympy.sqrt(2)
+        wb.exe(r"\mathbf{r} := (x, y, z)")  # its names are real, as books take them
+        assert same(wb.expr(r"|\mathbf{r}|"), sympy.sqrt(x**2 + y**2 + z**2))
+
+    def test_a_name_declared_complex_is_conjugated_in_a_length(self, wb):
+        wb.exe("Complex := [E_0]\n" r"\mathbf{E} := (E_0, i E_0, 0)")
+        e = sympy.Symbol("E_0")
+        assert same(wb.expr(r"|\mathbf{E}|^2"), 2 * e * sympy.conjugate(e))
+
     def test_unicode_and_arrows_write_them_too(self, wb):
         wb.exe("v := [1, 2, 3]\nw := [4, 5, 6]")
         assert wb.expr("v · w") == 32
