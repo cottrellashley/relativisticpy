@@ -951,7 +951,11 @@ class IndexEquation:
         return self.display("latex")
 
     def _display_data(self) -> dict[str, Any]:
-        return {"kind": "index equation", "holds": self.holds()}
+        """An identity holds; an equation that is none relates tensors, as Einstein's
+        does, which index notation alone does not decide, as a check says: whether it
+        holds is ``None``, never ``False``, which would call it untrue."""
+        identity = self.holds()
+        return {"kind": "index equation", "holds": True if identity else None, "identity": identity}
 
     def __str__(self) -> str:
         return self.latex()  # LaTeX, as it always has been; repr is Unicode

@@ -17,6 +17,7 @@ from sympy.core.function import AppliedUndef
 from sympy.core.relational import Relational
 
 from relativisticpy import checking, display, integrations
+from relativisticpy.abstract import IndexEquation
 from relativisticpy.compiler import Compiler, Session
 from relativisticpy.compiler.binding import (
     bind_data,
@@ -1359,6 +1360,11 @@ def _left_undone(value: Any) -> list[str]:
     :func:`~relativisticpy.steps.left_undone` finds it, in a list, a tensor or a tensor
     equation too; and the conditions SymPy puts on its parameters."""
     notes = [LEFT_UNDONE[reason] for reason in left_undone(value)]
+    if isinstance(value, IndexEquation) and not value.holds():
+        notes.append(
+            "this is no identity of index notation: it relates its tensors, as a law does, "
+            "and nothing here decides it"
+        )
     if _conditional(value):
         notes.append(
             "this holds under the conditions SymPy gives, as it takes every symbol to be "

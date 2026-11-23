@@ -334,6 +334,24 @@ def test_verify_says_whether_a_claim_holds():
     assert broken["notes"]
 
 
+def test_compute_and_verify_agree_on_an_equation_of_index_notation():
+    # R_{ab} = 0 with no metric relates the Ricci tensor of whatever metric there is: verify
+    # says it relates, and compute gave it holds false, which an agent reads as untrue
+    async def test(client, pool):
+        computed = await call(client, "compute", source="R_{ab} = 0; R_{ab} = R_{ba}")
+        verified = await call(client, "verify", claim="R_{ab} = 0")
+        return computed, verified
+
+    computed, verified = serve(test)
+    law, identity = (entry["values"][0] for entry in computed["statements"])
+    assert verified["verdict"] == "relates"
+    assert (law["kind"], law["holds"]) == ("index equation", None)
+    assert law["identity"] is False
+    assert "it relates its tensors, as a law does" in computed["statements"][0]["notes"][0]
+    assert (identity["holds"], identity["identity"]) == (True, True)
+    assert computed["statements"][1]["notes"] == []
+
+
 def test_compute_verify_and_check_give_an_error_alike():
     claims = [r"\frac{1}{2 = x", r"\lim_{x \to \infty} \sin(x) = 0", r"e^x \geq 1 + x"]
     notebook = "\n\n".join(f"$${claim}$$" for claim in claims)
