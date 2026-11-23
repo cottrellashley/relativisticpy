@@ -962,7 +962,11 @@ class Expressions(LinearAlgebra):
             return LeibnizDerivative(node.span, variables, node.partial)
         expr = node.expr
         binding = scope.lookup(expr.id) if isinstance(expr, ast.Name) else None
-        alone = isinstance(expr, ast.Name) and self._undefined(expr, scope)
+        alone = (
+            isinstance(expr, ast.Name)
+            and self._undefined(expr, scope)
+            and not (ctx.latex and _splittable(expr))  # GM in LaTeX is G M, no one name
+        )
         if isinstance(binding, FunctionBinding) and isinstance(expr, ast.Name):
             # \frac{d^2 f}{dx^2}, with f(x) defined: the derivative of f(x)
             expr = self._applied(expr, binding, node)

@@ -493,6 +493,17 @@ class TestConstrainedSymbols:
         assert wb.expr(r"\frac{d}{dx} x^2") == 2 * x
         assert wb.expr(r"\frac{d}{dx} z") == 0  # no equation ties z to x
 
+    def test_a_run_of_letters_differentiated_is_its_letters(self, wb):
+        # \frac{d(xy)}{dx} was y, read as one name xy that no equation ties to x, with a
+        # note that xy does not depend on x; in LaTeX it is x y
+        (step,) = list(wb.each(r"\frac{d(GM)}{dM}"))
+        assert step.values == [sympy.Symbol("G")]
+        assert step.notes == []
+        wb.exe("x^3 + y^3 = 6 x y")
+        assert error(wb, r"\frac{d(xy)}{dx}").message.startswith(
+            r"\frac{d(xy)}{dx} takes y as a constant, but y is tied to x"
+        )
+
     def test_a_partial_derivative_holds_the_other_names_constant(self, wb):
         # as it says: after a constraint, \partial_x (x y) is y, where d/dx (x y) is refused
         wb.exe("x^2 + y^2 = 1")
