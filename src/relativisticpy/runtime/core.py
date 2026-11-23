@@ -150,7 +150,8 @@ def _not_small(body: Any, index: Any) -> bool:
 
 def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
     """A product, carried out as a sum is, where SymPy finds its closed form within a time
-    budget: see :func:`summation`."""
+    budget: see :func:`summation`. An infinite one SymPy leaves undone is the limit of its
+    partial products, where they have a closed form (see :func:`_partial_products`)."""
     written = sympy.Product(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
     if finite is not written:
@@ -158,10 +159,40 @@ def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
     try:
         with _budget(_CLOSED_FORM_BUDGET):
             found = written.doit()
+            if isinstance(found, sympy.Basic) and found.has(sympy.Product):
+                limit = _partial_products(written)
+                found = found if limit is None else limit
     except _OverBudget:
         _past_the_budget("product")
         return written
     return written if isinstance(found, sympy.Basic) and found.has(sympy.Product) else found
+
+
+def _partial_products(written: Any) -> Any:
+    """An infinite product as the limit of its partial products, where SymPy finds them
+    in closed form, as Wallis's product of 4n²/(4n² - 1), whose partial products are of
+    factorials, tends to π/2. Where they tend to 0 or to ∞, the product diverges, as books
+    say, which a remark says. ``None`` where SymPy finds no closed form or no limit."""
+    body, (index, lower, upper) = written.function, written.limits[0]
+    if upper != sympy.oo or not sympy.sympify(lower).is_integer:
+        return None
+    last = sympy.Dummy("N", integer=True, positive=True)
+    try:
+        partial = sympy.Product(body, (index, lower, lower + last)).doit()
+        if partial.has(sympy.Product):
+            return None
+        value = sympy.limit(partial, last, sympy.oo)
+    except (ValueError, TypeError, NotImplementedError):  # SymPy fails: nothing is found
+        return None
+    if value.has(sympy.Limit, sympy.nan, sympy.AccumBounds) or value.free_symbols - {
+        s for s in body.free_symbols if s != index
+    }:
+        return None
+    if value == 0 or value.is_infinite:
+        assumptions.remark(
+            f"the product diverges: its partial products tend to {display.unicode(value)}"
+        )
+    return sympy.gammasimp(value) if value.has(sympy.gamma) else value
 
 
 def _past_the_budget(what: str) -> None:

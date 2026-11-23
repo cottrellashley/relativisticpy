@@ -263,3 +263,37 @@ class TestSums:
         step = last(wb, r"\sum_{n=1}^{\infty} \frac{1}{n^n}")
         assert isinstance(step.values[0], sympy.Sum)
         assert step.notes == ["a sum is left as written: SymPy found no closed form for it"]
+
+
+class TestProducts:
+    """An infinite product SymPy leaves undone is the limit of its partial products."""
+
+    @pytest.mark.parametrize(
+        ("source", "value"),
+        [
+            (r"\prod_{n=2}^{\infty} \left(1 - \frac{1}{n^2}\right)", sympy.Rational(1, 2)),
+            # Wallis's product
+            (r"\prod_{n=1}^{\infty} \frac{4n^2}{4n^2 - 1}", sympy.pi / 2),
+            (
+                r"\prod_{n=1}^{\infty} \left(1 + \frac{1}{n^2}\right)",
+                sympy.sinh(sympy.pi) / sympy.pi,
+            ),
+        ],
+    )
+    def test_its_value_is_the_limit_of_its_partial_products(self, wb, source, value):
+        step = last(wb, source)
+        assert sympy.simplify(step.values[0] - value) == 0
+        assert step.notes == []
+
+    def test_one_whose_partial_products_tend_to_0_or_infinity_diverges(self, wb):
+        step = last(wb, r"\prod_{n=1}^{\infty} \frac{n+1}{n}")
+        assert step.values == [sympy.oo]
+        assert step.notes == ["the product diverges: its partial products tend to ∞"]
+        step = last(wb, r"\prod_{n=2}^{\infty} \left(1 - \frac{1}{n}\right)")
+        assert step.values == [0]
+        assert step.notes == ["the product diverges: its partial products tend to 0"]
+
+    def test_one_kept_as_written_is_called_a_product(self, wb):
+        step = last(wb, r"\prod_{n=1}^{\infty} \left(1 + \frac{1}{n^n}\right)")
+        assert isinstance(step.values[0], sympy.Product)
+        assert step.notes == ["a product is left as written: SymPy found no closed form for it"]
