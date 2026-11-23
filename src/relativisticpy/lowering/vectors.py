@@ -866,12 +866,16 @@ class VectorCalculus(Vectors, Probability):
 
     def _a_position(self, node: ast.Accent, scope: Scope, ctx: Context) -> bool:
         """Whether a plain hat is the position, which acts by multiplying, rather than a
-        unit vector, decided by its letter (:mod:`relativisticpy.reading.quantum`): beside
-        an operator that differentiates by x, as ``\\hat{p} := -i\\hbar \\frac{d}{dx}``,
-        ``\\hat{x}`` is, unless the statement writes it among unit vectors, beside a hat on
-        a coordinate no operator differentiates by, as in ``3\\hat{x} + 4\\hat{y}``."""
-        if self._position(node, scope, ctx) is None:
+        unit vector, decided by its letter (:mod:`relativisticpy.reading.quantum`): inside
+        the angle brackets of a wavefunction of x, ``\\hat{x}`` is; beside an operator that
+        differentiates by x, as ``\\hat{p} := -i\\hbar \\frac{d}{dx}``, it is too, unless the
+        statement writes it among unit vectors, beside a hat on a coordinate no operator
+        differentiates by, as in ``3\\hat{x} + 4\\hat{y}``."""
+        variable = self._position(node, scope, ctx)
+        if variable is None:
             return False
+        if variable in self._state_variables:
+            return True
         return not self._among_unit_vectors(node.span, self._differentiated(scope, ctx), scope)
 
     def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:

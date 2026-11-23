@@ -8,14 +8,16 @@ each reading recorded with why, and a note where another was possible:
   ``|0\rangle \otimes |0\rangle``;
 - a function of one variable named as books name a wavefunction, ``\psi(x) := ...``, or a
   wavefunction defined as ``\langle x|\alpha\rangle := ...``, is a state, whose brackets are
-  integrals, :math:`\int \phi^*\psi\, dx`, over the domain the program states for x;
+  integrals, :math:`\int \phi^*\psi\, dx`, over the domain the program states for x; in
+  them, a hat on x that nothing defines is the position, as in ``\langle \hat{x} \rangle``;
 - a bracket a program defines, ``\langle x|p\rangle := ...``, is a function of the labels its
   value is written with, and written the other way round, ``\langle p|x\rangle``, its
   conjugate; ``\langle j_1, j_2; m_1, m_2|j_1, j_2; j, m\rangle`` is a Clebsch–Gordan
   coefficient;
 - angle brackets without a bar hold what a program defines, ``\langle x^2\rangle := ...`` or
   ``\langle p, q\rangle := ...``; else the inner product of two vectors, or the expectation
-  value of an operator in the state the program names;
+  value of an operator in the state the program names, divided by the square of the state's
+  norm, as a state need not be normalised;
 - an expression that ends in an operator with nothing to act on, as ``-i\hbar\frac{d}{dx}``,
   is an operator: defined, it is a value, applied by juxtaposition to the rest of the term,
   as ``\frac{d}{dx}`` is, composed by products and powers, and a claim between operators is
@@ -69,8 +71,14 @@ QUANTUM = "bracket or operator"
 #: program can write.
 OPERAND = "·operand"
 
-#: The names books give a state, a wavefunction or a spinor.
-STATE_NAMES = frozenset({"psi", "Psi", "phi", "Phi", "chi"})
+#: The names books give a state, a wavefunction or a spinor: a function of one variable, or
+#: a column, so named is the state of angle brackets that name none.
+STATE_NAMES = frozenset({"psi", "Psi", "chi"})
+
+#: The names books give a state, but a potential or a phase as often: a function or a
+#: column so named is a state only where a ket or a subscript names it, as in
+#: ``\langle x \rangle_\phi``.
+NAMED_STATE_NAMES = frozenset({"phi", "Phi"})
 
 #: How brackets of two items are written, by what they are of operators and matrices.
 _COMMUTATORS = (
@@ -282,6 +290,11 @@ def column(node: Node) -> bool:
 class QuantumNotation(Functions):
     """How quantum notation is read: Dirac's, brackets of two items and operators."""
 
+    #: The variables of the wavefunctions whose expectation values or matrix elements are
+    #: being read, along which a hat is the position, as \hat{x} is in
+    #: ``\langle \hat{x} \rangle`` of ψ(x).
+    _state_variables: frozenset[str] = frozenset()
+
     # -- operators -----------------------------------------------------------------------
 
     def _acts(self, expr: ast.Expr, scope: Scope) -> bool:
@@ -362,15 +375,16 @@ class QuantumNotation(Functions):
 
     def _position(self, accent: ast.Accent, scope: Scope, ctx: Context) -> str | None:
         """The variable ``\\hat{x}``, which nothing defines, is the position along, which
-        acts by multiplying, decided by its letter: one an operator in force differentiates
-        by, as x is beside ``\\hat{p} := -i\\hbar \\frac{d}{dx}``; ``None`` for any other, as
-        \\hat{y} is there."""
+        acts by multiplying, decided by its letter: that of the wavefunction it is written in
+        angle brackets of, as in ``\\langle \\hat{x} \\rangle``, or one an operator in force
+        differentiates by, as x is beside ``\\hat{p} := -i\\hbar \\frac{d}{dx}``; ``None``
+        for any other, as \\hat{y} is there."""
         if accent.accent != "hat" or not isinstance(accent.base, ast.Name):
             return None
         variable = accent.base.id
         if scope.lookup(variable + "hat") is not None:
             return None
-        if variable in self._differentiated(scope, ctx):
+        if variable in self._state_variables or variable in self._differentiated(scope, ctx):
             return variable
         return None
 
@@ -389,11 +403,13 @@ class QuantumNotation(Functions):
 
     # -- states ---------------------------------------------------------------------------
 
-    def _states(self, scope: Scope) -> list[tuple[str, Binding]]:
+    def _states(self, scope: Scope, *, named: bool = False) -> list[tuple[str, Binding]]:
         """The states the program defines, in the order it defines them: its kets, the
         wavefunctions it defines as brackets, as ``\\langle x|\\alpha\\rangle := ...``, and the
-        functions of one variable and the columns named as books name a state, ψ, Ψ, φ, Φ
-        or χ."""
+        functions of one variable and the columns named as books name a state, ψ, Ψ or χ;
+        and φ or Φ too among those a subscript may name, with ``named``, as they are
+        potentials and phases as often (see :data:`NAMED_STATE_NAMES`)."""
+        names = STATE_NAMES | NAMED_STATE_NAMES if named else STATE_NAMES
         found = []
         for name, binding in _bindings(scope):
             base = name.partition("_")[0]
@@ -402,7 +418,7 @@ class QuantumNotation(Functions):
             elif isinstance(binding, BracketBinding):
                 if _wavefunction(binding) is not None:
                     found.append((name, binding))
-            elif isinstance(binding, OperatorBinding) or base not in STATE_NAMES:
+            elif isinstance(binding, OperatorBinding) or base not in names:
                 continue
             elif isinstance(binding, FunctionBinding):
                 if len(binding.definition.params) == 1:

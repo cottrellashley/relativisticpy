@@ -10,7 +10,7 @@ import pytest
 import sympy
 
 from relativisticpy import Workbook, holds
-from relativisticpy.errors import CompileError
+from relativisticpy.errors import CompileError, EvaluationError
 
 IMAGINARY = sympy.I
 x, k, a, hbar, m, omega, n = sympy.symbols("x k a hbar m omega n")
@@ -203,13 +203,62 @@ class TestAngleBrackets:
         assert wb.expr(r"\langle Z \rangle") == 0
 
     def test_the_state_a_subscript_names(self, wb):
-        wb.exe(r"\phi(x) := e^{-x^2}" "\n" r"\psi(x) := e^{-2x^2}")
+        wb.exe(r"\chi(x) := e^{-x^2}" "\n" r"\psi(x) := e^{-2x^2}")
         found = error(wb, r"\langle x^2 \rangle")
         assert (
             found.message
-            == r"\langle x^2 \rangle is an expectation value, but in which state: \phi, \psi?"
+            == r"\langle x^2 \rangle is an expectation value, but in which state: \chi, \psi?"
         )
-        assert same(wb.expr(r"\langle x^2 \rangle_\phi"), sympy.sqrt(2 * sympy.pi) / 8)
+        assert same(wb.expr(r"\langle x^2 \rangle_\chi"), sympy.Rational(1, 4))
+
+    def test_a_state_need_not_be_normalised(self, wb):
+        # the review's programs: <x^2> of e^{-x^2} is 1/4, not its integral, sqrt(2 pi)/8
+        wb.exe(r"\psi(x) := e^{-x^2}")
+        assert same(wb.expr(r"\langle x^2 \rangle"), sympy.Rational(1, 4))
+        assert notes(wb, r"\langle x^2 \rangle") == [
+            r"\langle x^2 \rangle is read as the expectation value of x^2 in \psi, an integral "
+            r"over x from (-\infty, \infty), divided by \langle\psi|\psi\rangle, as a state need "
+            "not be normalised"
+        ]
+
+    def test_a_column_need_not_be_normalised(self, wb):
+        wb.exe(
+            r"|\chi\rangle := \begin{pmatrix} 1 \\ 1 \end{pmatrix}" "\n"
+            r"\sigma_x := \begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix}"
+        )  # fmt: skip
+        assert wb.expr(r"\langle \sigma_x \rangle_\chi") == 1  # not <chi|sigma_x|chi>, 2
+
+    def test_a_state_that_cannot_be_normalised_has_no_expectation_values(self, wb):
+        wb.exe(r"\psi(x) := e^{i k x}")
+        with pytest.raises(EvaluationError) as raised:
+            wb.expr(r"\langle x \rangle")
+        assert raised.value.message.startswith("the state cannot be normalised")
+
+    def test_a_hat_on_the_variable_of_the_state_is_the_position(self, wb):
+        wb.exe(r"\psi(x) := \frac{1}{\pi^{1/4}} e^{-(x-2)^2/2}")
+        assert wb.expr(r"\langle \hat{x} \rangle") == 2  # not the unit vector [1, 0, 0]
+        assert wb.expr(r"\langle \hat{x}^2 \rangle") == sympy.Rational(9, 2)  # not xhat^2
+        assert wb.expr(r"\langle\psi|\hat{x}|\psi\rangle") == 2
+        assert notes(wb, r"\langle \hat{x} \rangle")[0] == (
+            r"\hat{x} is read as the position, x, which acts by multiplying: nothing defines "
+            "it, and it is in angle brackets of a wavefunction of x"
+        )
+
+    def test_phi_is_a_state_only_where_it_is_written_as_one(self, wb):
+        # \Phi and \phi name potentials and phases as often as states
+        wb.exe(r"\Phi(x) := \frac{1}{2} k x^2")
+        found = error(wb, r"\langle x^2 \rangle")
+        assert found.message == (
+            r"\langle x^2 \rangle is an expectation value, but the program defines no state"
+        )
+        assert found.notes[-1] == (
+            r"\Phi names a potential or a phase as often as a state, so it is a state only "
+            "where a ket or a subscript names it"
+        )
+        assert found.hint.startswith(r"name the state, as in \langle x^2 \rangle_\Phi, or")
+        wb.exe(r"\phi(x) := e^{-x^2}")
+        assert same(wb.expr(r"\langle x^2 \rangle_\phi"), sympy.Rational(1, 4))
+        assert same(wb.expr(r"\langle\phi|\phi\rangle"), sympy.sqrt(sympy.pi / 2))
 
     def test_without_a_state_an_expectation_value_is_refused(self, wb):
         found = error(wb, r"\langle x \rangle")

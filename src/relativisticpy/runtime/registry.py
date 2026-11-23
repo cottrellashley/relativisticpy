@@ -274,6 +274,7 @@ def _core() -> Iterator[Implementation]:
     yield entry("quantum.conjugate", quantum.conjugate, "argument", 1)
     yield entry("quantum.modulus", quantum.modulus, "scalar", 1)
     yield entry("quantum.inner", quantum.inner, "scalar", 2, 2)
+    yield entry("quantum.expectation", quantum.expectation, "scalar", 2, 2)
     # sequences: sums over their index, difference equations at rest, their transforms, and
     # their circular convolutions
     yield entry("seq.sum", sequences.summation, "argument", 4, 4, componentwise=True)

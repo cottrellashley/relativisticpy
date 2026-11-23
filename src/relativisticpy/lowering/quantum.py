@@ -12,6 +12,8 @@ is. A claim between operators is decided by applying both sides to a test functi
 
 from __future__ import annotations
 
+import contextlib
+from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from typing import Literal
 
@@ -422,15 +424,31 @@ class Quantum(Optima):
     def _Accent(self, node: ast.Accent, scope: Scope, ctx: Context) -> Node:
         variable = self._position(node, scope, ctx)
         if variable is not None:  # \hat{x} beside \hat{p} := -i\hbar \frac{d}{dx}
-            note = (
-                f"{node.span.text} is read as the position, {variable}, which acts by "
-                f"multiplying: nothing defines it, and an operator differentiates by {variable}"
-            )
+            if variable in self._state_variables:
+                why = (
+                    f"nothing defines it, and it is in angle brackets of a wavefunction of "
+                    f"{variable}"
+                )
+            else:
+                why = f"nothing defines it, and an operator differentiates by {variable}"
+            reading = f"the position, {variable}, which acts by multiplying"
+            note = f"{node.span.text} is read as {reading}: {why}"
             self._note(note)
-            why = f"nothing defines it, and an operator differentiates by {variable}"
             self._decide(QUANTUM, node.span, f"the position {variable}", why, note)
             return self.value(ast.Name(variable, span=node.span), scope, ctx)
         return super()._Accent(node, scope, ctx)
+
+    @contextlib.contextmanager
+    def _positioned(self, variable: str | None) -> Iterator[None]:
+        """Read a hat on ``variable`` as the position while the block runs, as in the angle
+        brackets of a wavefunction of it."""
+        saved = self._state_variables
+        if variable is not None:
+            self._state_variables = saved | {variable}
+        try:
+            yield
+        finally:
+            self._state_variables = saved
 
     def _Scripted(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Term:
         if self._patterns and (delta := self._delta(node, scope, ctx)) is not None:
@@ -771,7 +789,8 @@ class Quantum(Optima):
         assert bra.binding is not None
         at = self.graph.const(self.session.symbol(variable), SCALAR, node.span)
         phi = self._inline(bra.binding, [at], node.span, ctx)
-        applied = self._acted(node.operator, ket.node, scope, ctx)
+        with self._positioned(variable):  # \langle\psi|\hat{x}|\psi\rangle: \hat{x} is x
+            applied = self._acted(node.operator, ket.node, scope, ctx)
         integrand = self._multiply(
             [self._conjugated(phi, [variable], node.span), applied], node.span
         )
@@ -785,18 +804,26 @@ class Quantum(Optima):
             return self._operate(operator_, operand, scope, ctx)
         return self._multiply([self.value(operator_, scope, ctx), operand], operator_.span)
 
-    def _integral(self, integrand: Node, variable: str, node: ast.Expr, what: str) -> Node:
-        """The integral of ``integrand`` over the domain of ``variable``, said in a note."""
+    def _integral(
+        self, integrand: Node, variable: str, node: ast.Expr, what: str, then: str = ""
+    ) -> Node:
+        """The integral of ``integrand`` over the domain of ``variable``, said in a note, and
+        what is ``then`` done with it."""
         lower, upper = self._domain(variable)
-        symbol = self.session.symbol(variable)
         shown = f"({sympy.latex(lower)}, {sympy.latex(upper)})"
-        note = f"{node.span.text} is read as {what}, an integral over {variable} from {shown}"
+        note = f"{node.span.text} is read as {what}, an integral over {variable} from {shown}{then}"
         self._note(note)
         why = f"its states are wavefunctions of {variable}"
         self._decide(QUANTUM, node.span, f"{what}, an integral over {variable}", why, note)
+        return self._over_the_domain(integrand, variable, node.span)
+
+    def _over_the_domain(self, integrand: Node, variable: str, span: Span) -> Node:
+        """The integral of ``integrand`` over the domain of ``variable``."""
+        lower, upper = self._domain(variable)
+        symbol = self.session.symbol(variable)
         ends = [self.graph.const(end, SCALAR) for end in (symbol, lower, upper)]
-        limits = self._call("core.limits", ends, VALUE, node.span)
-        return self._call("integrate", [integrand, limits], SCALAR, node.span)
+        limits = self._call("core.limits", ends, VALUE, span)
+        return self._call("integrate", [integrand, limits], SCALAR, span)
 
     def _abstract_element(
         self,
@@ -961,9 +988,11 @@ class Quantum(Optima):
         ctx: Context,
     ) -> Node:
         """``\\langle A \\rangle``: the expectation value of A in the state a subscript names,
-        or in the one state the program defines."""
+        or in the one state the program defines, :math:`\\langle\\psi|A|\\psi\\rangle /
+        \\langle\\psi|\\psi\\rangle`, as a state need not be normalised. In a wavefunction of
+        x, a hat on x is the position, as in ``\\langle \\hat{x}^2 \\rangle``."""
         operand, written = node.operand, node.span.text
-        states = self._states(scope)
+        states = self._states(scope, named=named is not None)
         if named is not None:
             label = named.body if named.body is not None else ast.Name("", span=named.span)
             chosen = [
@@ -984,16 +1013,27 @@ class Quantum(Optima):
             states = chosen[-1:]
         if len(states) != 1:
             shown = ", ".join(_state_shown(name, binding) for name, binding in states)
+            notes = ["an expectation value is taken in a state, a wavefunction or a ket"]
+            example = "\\psi"
+            if not states and (nameable := self._states(scope, named=True)):
+                example = _state_shown(*nameable[-1])  # \phi(x) := ..., a state if named
+                notes.append(
+                    f"{example} names a potential or a phase as often as a state, so it is a "
+                    "state only where a ket or a subscript names it"
+                )
             raise CompileError(
                 f"{written} is an expectation value, but "
                 + ("the program defines no state" if not states else f"in which state: {shown}?"),
                 span=node.span,
-                notes=["an expectation value is taken in a state, a wavefunction or a ket"],
-                hint=f"name the state, as in {written}_\\psi, or define {written} itself, as in "
-                f"{written} := \\int x |\\psi(x)|^2 \\, dx",
+                notes=notes,
+                hint=f"name the state, as in {written}_{example}, or define {written} itself, "
+                f"as in {written} := \\int x |\\psi(x)|^2 \\, dx",
             )
         name, binding = states[0]
         where = _state_shown(name, binding)
+        label_shown = _label_shown(name, binding)
+        bracket = f"\\langle{label_shown}|{label_shown}\\rangle"
+        normalised = f", divided by {bracket}, as a state need not be normalised"
         if isinstance(binding, FunctionBinding):
             variable = (
                 _wavefunction(binding)
@@ -1002,23 +1042,30 @@ class Quantum(Optima):
             ) or "x"
             at = self.graph.const(self.session.symbol(variable), SCALAR, span)
             psi = self._inline(binding, [at], span, ctx)
-            applied = self._acted(operand, psi, scope, ctx)
-            integrand = self._multiply([self._conjugated(psi, [variable], span), applied], span)
-            return self._integral(
-                integrand,
-                variable,
-                node,
-                f"the expectation value of {operand.span.text} in {where}",
-            )
+            with self._positioned(variable):  # \langle \hat{x} \rangle: \hat{x} is x
+                applied = self._acted(operand, psi, scope, ctx)
+            conjugate = self._conjugated(psi, [variable], span)
+            integrand = self._multiply([conjugate, applied], span)
+            what = f"the expectation value of {operand.span.text} in {where}"
+            value = self._integral(integrand, variable, node, what, normalised)
+            norm = self._over_the_domain(self._multiply([conjugate, psi], span), variable, span)
+            return self._call("quantum.expectation", [value, norm], SCALAR, span)
         assert isinstance(binding, VariableBinding)
         state = State(binding.node, "column" if column(binding.node) else "abstract")
-        note = f"{written} is read as the expectation value of {operand.span.text} in {where}"
+        note = (
+            f"{written} is read as the expectation value of {operand.span.text} in {where}"
+            f"{normalised}"
+        )
         self._note(note)
         why = f"{where} is the state the program defines"
         self._decide(QUANTUM, span, f"the expectation value in {where}", why, note)
         if state.kind == "column":
-            return self._matrix_element(state, operand, state, span, scope, ctx)
-        return self._abstract_element(state, operand, state, span, scope, ctx)
+            value = self._matrix_element(state, operand, state, span, scope, ctx)
+            norm = self._matrix_element(state, None, state, span, scope, ctx)
+        else:
+            value = self._abstract_element(state, operand, state, span, scope, ctx)
+            norm = self._abstract_element(state, None, state, span, scope, ctx)
+        return self._call("quantum.expectation", [value, norm], SCALAR, span)
 
 
 def _operator_names(target: ast.Expr) -> list[tuple[str, bool | None]]:
@@ -1094,3 +1141,12 @@ def _state_shown(name: str, binding: object) -> str:
         return f"|{binding.ket.span.text}\\rangle"
     shown = getattr(binding, "shown", None)
     return str(shown) if shown is not None else latex_label(name)
+
+
+def _label_shown(name: str, binding: object) -> str:
+    """The label of a state as a bracket writes it: ``\\chi`` of ``|\\chi\\rangle``, and
+    ``\\psi`` of a wavefunction ψ."""
+    shown = _state_shown(name, binding)
+    if shown.startswith("|") and shown.endswith("\\rangle"):
+        return shown[1 : -len("\\rangle")]
+    return shown

@@ -22,6 +22,7 @@ from sympy.physics.quantum.cg import CG
 from sympy.physics.quantum.state import KetBase
 
 from relativisticpy import assumptions, display
+from relativisticpy.errors import EvaluationError
 
 #: The most rewrites a value is given, past which what is left is kept as it is.
 _MOST = 2000
@@ -144,6 +145,24 @@ def _conjugated_parameters(value: Any) -> list[Any]:
         if isinstance(symbol, sympy.Symbol) and assumptions._general(symbol)
     }
     return sorted(found, key=str)
+
+
+def expectation(value: Any, norm: Any) -> Any:
+    """An expectation value in a state that need not be normalised: ``value``,
+    :math:`\\langle\\psi|A|\\psi\\rangle`, divided by ``norm``, :math:`\\langle\\psi|\\psi\\rangle`;
+    refused where the state cannot be normalised, its norm 0 or infinite. Where an integral
+    is left undone, so is the quotient."""
+    norm = sympy.sympify(norm)
+    if norm.is_zero or norm.is_infinite or norm is sympy.nan:
+        raise EvaluationError(
+            f"the state cannot be normalised: the square of its norm is "
+            f"{display.unicode(norm)}, so it has no expectation values",
+            hint="take the expectation value in a state of finite norm, as a bound state is",
+        )
+    if norm == 1:
+        return value
+    quotient = sympy.sympify(value) / norm
+    return quotient if quotient.has(sympy.Integral) else sympy.simplify(quotient)
 
 
 def inner(first: Any, second: Any) -> Any:
