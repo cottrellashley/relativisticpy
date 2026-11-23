@@ -9,6 +9,7 @@ import signal
 import sys
 import tarfile
 import time
+import weakref
 from pathlib import Path
 
 import pytest
@@ -545,6 +546,50 @@ def test_a_time_limit_ends_after_a_callback_of_the_garbage_collector():
         gc.callbacks.remove(callback)
     assert held
     # without raising again it would never end; a loaded machine may take a while to
+    assert time.monotonic() - started < 10
+
+
+@ALARM
+def test_a_time_limit_that_ends_in_a_finalizer_is_raised_after_it():
+    # Python ignores an exception raised in a finalizer, and says that it did: the alarm
+    # waits for the finalizer to end.
+    class Slow:
+        def __del__(self) -> None:
+            time.sleep(0.2)  # the time limit ends in here
+
+    def finalizing_then_computing() -> None:
+        Slow()
+        while True:
+            time.sleep(0.01)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError), _time_limit(0.05):
+        finalizing_then_computing()
+    assert time.monotonic() - started < 10
+
+
+@ALARM
+def test_a_time_limit_that_ends_in_a_callback_of_a_weak_set_is_raised_after_it():
+    # As a statement's did, in WeakSet._remove: Python ignored its only alarm, and it ran
+    # for ever.
+    class Slow(set):
+        def discard(self, item: object) -> None:
+            time.sleep(0.2)  # the time limit ends in here
+            super().discard(item)
+
+    class Thing:
+        pass
+
+    def freeing_then_computing() -> None:
+        things: weakref.WeakSet[Thing] = weakref.WeakSet()
+        things.data = Slow()
+        things.add(Thing())  # freed at once, and the set's callback runs
+        while True:
+            time.sleep(0.01)
+
+    started = time.monotonic()
+    with pytest.raises(TimeoutError), _time_limit(0.05):
+        freeing_then_computing()
     assert time.monotonic() - started < 10
 
 

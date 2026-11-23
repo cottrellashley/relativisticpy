@@ -16,9 +16,10 @@ import re
 import signal
 import threading
 import time
+import weakref
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
-from types import FrameType
+from types import CodeType, FrameType
 from typing import Any
 
 import sympy
@@ -278,12 +279,29 @@ def _leave() -> None:
         signal.setitimer(signal.ITIMER_REAL, remaining, around.again)
 
 
+def _weak_callbacks() -> frozenset[CodeType]:
+    """The callbacks the standard library gives the weak references of its sets and
+    dictionaries, which run when what they refer to is freed."""
+    found = set()
+    for kind in (weakref.WeakSet, weakref.WeakValueDictionary, weakref.WeakKeyDictionary):
+        made_in = getattr(kind.__init__, "__code__", None)
+        for constant in getattr(made_in, "co_consts", ()):
+            if isinstance(constant, CodeType) and constant.co_name in ("_remove", "remove"):
+                found.add(constant)
+    return frozenset(found)
+
+
+_WEAK_CALLBACKS = _weak_callbacks()
+
+
 def _collecting(frame: FrameType | None) -> bool:
-    """Whether ``frame`` is in a callback the garbage collector runs, where an exception
-    raised is lost: Python reports it as unraisable, and goes on."""
+    """Whether ``frame`` is where an exception raised is lost: in a callback the garbage
+    collector runs, in a finalizer, or in a callback of a weak reference of the standard
+    library's. Python reports it as unraisable, and goes on."""
     callbacks = {getattr(callback, "__code__", None) for callback in gc.callbacks}
     while frame is not None:
-        if frame.f_code in callbacks:
+        code = frame.f_code
+        if code in callbacks or code in _WEAK_CALLBACKS or code.co_name == "__del__":
             return True
         frame = frame.f_back
     return False
