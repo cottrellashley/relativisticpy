@@ -137,7 +137,6 @@ class TestSpecialFunctions:
             (r"\left(\tfrac{1}{2}\right)_3", sympy.Rational(15, 8)),
             ("W_0(e)", 1),
             (r"\Phi(0)", sympy.Rational(1, 2)),
-            (r"\left(N(0)\right)", sympy.Rational(1, 2)),  # in LaTeX
             (r"u_{\pi/4}(\pi)", 1),
             (r"\operatorname{K}(0)", sympy.pi / 2),
         ],
@@ -199,11 +198,24 @@ class TestReservations:
         assert said in refused.value.message
 
     def test_every_reserved_form_is_refused_in_latex(self):
-        # in LaTeX: in plain text N(x) stays numerical evaluation
+        # in LaTeX, where a form books write is read: in plain text a name is called
         for reservation in integrations.reservations():
             for written in reservation.written:
                 with pytest.raises(CompileError, match="is not supported yet"):
                     Workbook().expr(rf"\left({written}\right)")
+
+    def test_n_of_a_number_in_latex_is_no_distribution_function(self, wb):
+        # N(\pi) was the normal distribution function of pi (the review of the engines, 12):
+        # in LaTeX the letter is the program's own, as the lapse N(t) is, and \Phi the function
+        assert wb.expr(r"N(\pi)") == sympy.Function("N")(sympy.pi)
+        assert wb.expr(r"\left(N(0)\right)") == sympy.Function("N")(0)
+        *_, step = wb.each(r"N(\pi, 5)")
+        assert step.values == [sympy.Function("N")(sympy.pi, 5)]
+        assert step.notes[0].startswith(r"N is not defined, so N(\pi, 5) is an unknown function")
+        assert str(wb.expr("N(pi, 5)")) == "3.1416"  # numerical evaluation, in plain text
+        assert wb.expr(r"\Phi(0)") == sympy.Rational(1, 2)
+        wb.exe(r"X \sim N(1, 4)")  # after \sim, the normal distribution
+        assert wb.expr(r"\operatorname{Var}(X)") == 4
 
     @pytest.mark.parametrize(
         "source", [r"B(1, 2)", r"\beta(r)", r"\mathcal{L}(\phi)", r"L(x)", r"J_{\nu} (x)"]

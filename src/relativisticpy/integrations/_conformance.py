@@ -237,7 +237,8 @@ def _dependencies(capability: Capability) -> list[str]:
 def _written(capability: Capability) -> list[str]:
     """The plain text a capability is called with reads as a call of it; each written form
     parses, by the language's own parser, into a call written with the parameters of
-    exact, and reads as this capability and no other."""
+    exact, under a name that is no other capability's, and reads as this capability and
+    no other."""
     from relativisticpy.integrations import _forms
     from relativisticpy.language import parse
     from relativisticpy.language import syntax as ast
@@ -282,6 +283,13 @@ def _written(capability: Capability) -> list[str]:
                         r"J_{\nu}(x) or \operatorname{erfc}(x) does; write it as books do"
                     )
                     continue
+                named = catalogue().get(pattern.shape.head)
+                if named is not None and named is not capability:
+                    failures.append(
+                        f"{name}: the form {each} is written with {pattern.shape.head}, a name "
+                        f"of {named.name}, so that a call of {named.name} would read as {name}; "
+                        "write it with a name of its own"
+                    )
                 strange = [v for v in pattern.variables() if v not in parameters]
                 if strange:
                     failures.append(

@@ -344,7 +344,7 @@ class Pochhammer:
 
 @function(
     "normcdf",
-    latex=(r"\Phi(x)", "N(x)"),
+    latex=r"\Phi(x)",
     unicode="Φ(x)",
     summary="the standard normal distribution function, (1 + erf(x/√2))/2",
     requires="scipy",

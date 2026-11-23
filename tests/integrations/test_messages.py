@@ -156,6 +156,21 @@ EXAMPLES = [
 ]
 
 
+def test_a_form_written_with_the_name_of_another_capability_is_told():
+    # N(x) read as the normal distribution function, not as N (the review of the engines, 12)
+    class Normal:
+        def exact(self, x):
+            return x
+
+    normal = integrations.function(
+        "brokennormal", latex="N(x)", summary="the standard normal distribution function",
+        examples=EXAMPLES,
+    )(Normal)  # fmt: skip
+    failures = integrations.check(normal, ["declaration"])["declaration"]
+    assert told(failures, "the form N(x) is written with N, a name of N, so that a call of N")
+    assert told(failures, "would read as brokennormal; write it with a name of its own")
+
+
 def test_a_function_of_data_past_its_points_is_held_to_exact():
     # W_0 of data gave real parts only, where exact is complex (the review of the engines, 6)
     import sympy

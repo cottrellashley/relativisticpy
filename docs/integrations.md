@@ -254,7 +254,9 @@ it applies to its kind. A failure names the capability and says what to do:
 
 1. **Declaration.** Its names are its own, and the language reads each as one name; it
    has a summary, at least two examples, each with its source, and declares the library
-   it needs, which is imported only when it is used.
+   it needs, which is imported only when it is used. Each written form reads as it, under
+   a name that is no other capability's: `N(x)` could not be the normal distribution
+   function, as `N` is numerical evaluation.
 2. **Examples.** Each runs in the language, calls the capability, and gives its answer;
    an optimizer's is found by it.
 3. **Agreement.** `exact` and `numeric` agree at each point, `numeric` takes arrays of the

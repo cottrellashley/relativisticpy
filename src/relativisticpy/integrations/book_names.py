@@ -49,7 +49,7 @@ principal_logarithm = reserved(
 normal_distribution = reserved(
     "normcdf",
     what="the standard normal distribution function",
-    written=[r"\Phi(x)", "N(x)"],
+    written=r"\Phi(x)",
 )
 
 unit_step = reserved("Heaviside", what="the unit step", written=["Heaviside(x)"])
