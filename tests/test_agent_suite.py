@@ -33,7 +33,6 @@ a, Y = sympy.Function("a"), sympy.Function("y")
 
 #: The lines of work that own the causes of failures here, as they are named.
 TRACK_A = "reading, track A: "
-TRACK_B = "reading, track B: "
 
 
 def xfail(cause):
@@ -214,7 +213,6 @@ ANSWERS = [
         r"\left(xy\right)^2",
         lambda: (x * y) ** 2,
         id="latex-power-of-a-product",
-        marks=xfail(TRACK_B + r"\left(xy\right)^2 is read as x y^2, with no note"),
     ),
     # calculus
     pytest.param(
@@ -248,7 +246,6 @@ ANSWERS = [
         r"\frac{d}{dx} \left(xy\right)^2",
         lambda: sympy.diff((x * y) ** 2, x),
         id="latex-derivative-of-a-power-of-a-product",
-        marks=xfail(TRACK_B + r"\left(xy\right)^2 is read as x y^2, so its derivative is y^2"),
     ),
     pytest.param(
         "f(x) := x^2 e^{-x}\nf'(x)",

@@ -354,7 +354,7 @@ def incomplete(value: Any, notes: Sequence[str] = ()) -> list[str]:
     ([], [])
     """
     reasons = left_undone(value)
-    parts = _symbolic(value)
+    parts = symbolic(value)
     if any(_UNKNOWN_FUNCTION in note for note in notes) and any(
         part.atoms(AppliedUndef) for part in parts
     ):
@@ -371,7 +371,7 @@ def left_undone(value: Any) -> list[str]:
     components, or in the sides of a tensor equation too. The derivative of an unknown
     function, as f'(x), is the answer, not something left undone."""
     found: dict[str, None] = {}
-    for part in _symbolic(value):
+    for part in symbolic(value):
         if part.has(sympy.Integral):
             found["integral"] = None
         if part.has(sympy.Sum):
@@ -412,21 +412,21 @@ def approximate(value: Any) -> bool:
         if kind == "O":  # numbers of Python's or SymPy's, in an array of objects
             return any(approximate(item) for item in arrays.flatten(value))
         return kind in "fc"
-    return any(part.has(sympy.Float) for part in _symbolic(value))
+    return any(part.has(sympy.Float) for part in symbolic(value))
 
 
-def _symbolic(value: Any) -> list[Any]:
+def symbolic(value: Any) -> list[Any]:
     """The values of SymPy a value holds: itself, the items of a list, the keys and the
     values of a mapping, a tensor's components or the sides of a tensor equation, where
     they are SymPy's."""
     if isinstance(value, list | tuple):
-        return [part for item in value for part in _symbolic(item)]
+        return [part for item in value for part in symbolic(item)]
     if isinstance(value, Mapping):
-        return [part for pair in value.items() for item in pair for part in _symbolic(item)]
+        return [part for pair in value.items() for item in pair for part in symbolic(item)]
     if isinstance(value, Tensor):
-        return [] if value.numerical else _symbolic(value.components)
+        return [] if value.numerical else symbolic(value.components)
     if isinstance(value, TensorEquation):
-        return [] if value.numerical else [*_symbolic(value.lhs), *_symbolic(value.rhs)]
+        return [] if value.numerical else [*symbolic(value.lhs), *symbolic(value.rhs)]
     if isinstance(value, sympy.NDimArray):
         return [component for component in arrays.flatten(value) if hasattr(component, "has")]
     if isinstance(value, sympy.Basic | sympy.MatrixBase):

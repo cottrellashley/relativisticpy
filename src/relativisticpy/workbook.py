@@ -62,7 +62,7 @@ from relativisticpy.reading.families import Family
 from relativisticpy.reading.readings import Explanation
 from relativisticpy.runtime import Executor
 from relativisticpy.runtime.kernels import differs
-from relativisticpy.steps import LEFT_UNDONE, left_undone, steps_of
+from relativisticpy.steps import LEFT_UNDONE, left_undone, steps_of, symbolic
 from relativisticpy.tensors import Indices, Space, Tensor, arrays, numerical
 from relativisticpy.tensors.equation import TensorEquation, UndecidedError, asymptotic, holds
 from relativisticpy.tensors.indices import latex_label
@@ -1330,7 +1330,8 @@ def _left_undone(value: Any) -> list[str]:
         )
     at_numbers = {  # N(0.77), of N nothing defines (design/notation.md, 26)
         applied.func.__name__
-        for applied in value.atoms(AppliedUndef)
+        for part in symbolic(value)
+        for applied in part.atoms(AppliedUndef)
         if applied.args and all(arg.is_number for arg in applied.args)
     }
     notes.extend(
