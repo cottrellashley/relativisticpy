@@ -137,6 +137,15 @@ class TestSilentReadingsAreSaid:
             r"a name of its own, define \tilde{A} first"
         ]
 
+    def test_a_name_written_as_an_operator_applies_to_what_follows_and_says_so(self, wb):
+        # \\operatorname{lb} 8 was 8 lb, a symbol times 8, without a word (decision 26)
+        assert notes(wb, r"\operatorname{lb} 8 + 1") == [
+            r"\operatorname{lb} is not a function RelativisticPy knows, so \operatorname{lb} 8 "
+            "is an unknown function",
+            "lb is a function nothing defines, so it is left as written where it is applied "
+            "to a number; define it first, as in lb(x) := ...",
+        ]
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

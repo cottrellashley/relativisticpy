@@ -1910,6 +1910,8 @@ class Reader(Typer):
             return f"in LaTeX, {name} has a value, and multiplies" if valued else None
         if _names_builtin(func, latex=ctx.latex):
             return None  # sin(x)
+        if func.verbatim and func.span.text.lstrip().startswith("\\operatorname"):
+            return None  # \operatorname{lb} 8: written as an operator, so applied
         if self._never_a_function(func, ctx):
             return f"{name} is a constant, never a function"  # e(x + 1)
         coordinates = {c.name for c in self.session.coordinates or ()}
@@ -2133,9 +2135,32 @@ class Reader(Typer):
                         merged.append(call)
                         position += 1 + run
                         continue
+            if following is not None and self._unknown_operator(factor, following, scope):
+                run = _argument_run(factors[position + 1 :])  # \operatorname{lb} 8 is lb(8)
+                operand = reduce(_times, factors[position + 1 : position + 1 + run])
+                merged.append(ast.Call(factor, (operand,), span=factor.span.to(operand.span)))
+                position += 1 + run
+                continue
             merged.append(factor)
             position += 1
         return merged
+
+    def _unknown_operator(self, factor: ast.Expr, following: ast.Expr, scope: Scope) -> bool:
+        """Whether a factor is a name of several letters written as an operator's,
+        ``\\operatorname{lb}``, that nothing defines and nothing provides, before what it
+        acts on: a function, applied to it, as books write one they define, never a symbol
+        times it, so that ``\\operatorname{lb} 8`` is lb(8), an unknown function, which a note
+        says, where it was 8 lb (design/notation.md, decision 26)."""
+        if not (isinstance(factor, ast.Name) and factor.verbatim and len(factor.id) > 1):
+            return False
+        if not factor.span.text.lstrip().startswith("\\operatorname"):
+            return False  # \mathrm{kg} is upright, and no operator
+        name = factor.id
+        if scope.lookup(name) is not None or name in BUILTINS or name in self.session.functions:
+            return False
+        if name in _STATISTICS or name in _STATISTIC_ALIASES:
+            return False  # \operatorname{Var} X, a statistic
+        return _side_by_side(factor, following)
 
     def _book_scripted(self, node: ast.Scripted, scope: Scope) -> BookCall | None:
         """``(a)_n``, the Pochhammer symbol, written as a bracket with a subscript; and a

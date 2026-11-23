@@ -235,6 +235,17 @@ CONJUGATES = [
     ("x := [1, 2, 3, 6]\n\\bar{x}", sympy.Symbol("xbar")),
 ]
 
+OPERATOR_NAMES = [
+    # a name written as an operator that nothing defines applies to what follows it, an
+    # unknown function, as it does to brackets (8 lb and arsinh times x before)
+    (r"\operatorname{lb} 8", Function("lb")(8)),
+    (r"\operatorname{foo} x", Function("foo")(x)),
+    (r"\operatorname{foo} x y", Function("foo")(x * y)),
+    (r"2 \operatorname{sinc} x + 1", 2 * Function("sinc")(x) + 1),
+    (r"\operatorname{foo} \cdot x", sympy.Symbol("foo") * x),  # set apart, a product
+    (r"\operatorname{erf} x", sympy.erf(x)),
+]
+
 CHEMISTRY = [
     # the upright p of chemists (decision 39)
     (
@@ -279,6 +290,7 @@ def same(found: Any, expected: Any) -> bool:
     + case(ABSOLUTE_VALUES_AND_ROOTS)
     + case(NUMBERS)
     + case(CONJUGATES)
+    + case(OPERATOR_NAMES)
     + case(CHEMISTRY),
 )
 def test_a_form_gives_what_sympy_computes_or_is_refused(source, expected):
