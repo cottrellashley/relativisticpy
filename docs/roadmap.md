@@ -73,10 +73,12 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
   - units are names: \(\mathrm{Mpc}\,\mathrm{s}/(70\,\mathrm{Gyr}\,\mathrm{km})\) is
     not converted (`design/debt.md`).
 
-  Two statements fail with an internal error, where they should give a value or a
-  refusal: `\mathbb{E}[x]` of a list, after `x := [1, 2, 3, 6]`; and the data of an
-  equation of index notation whose identity SymPy cannot tell, as Carroll's (1.69), in
-  `--format json` and in the MCP server's `compute`.
+  Three fail with an internal error, where they should give a value or a refusal:
+  `\mathbb{E}[x]` of a list, after `x := [1, 2, 3, 6]`; an equation of index notation
+  whose identity SymPy cannot tell, as Carroll's (1.69), described as data, in
+  `--format json` and the MCP server's `compute`, and judged, in the check of the notes;
+  and, in that check, (7.89), \(-\infty < u < +\infty\) after (7.88) defines u, where
+  SymPy compares NaN.
 
   `uv run python benchmarks/curriculum.py --failures` and
   `uv run python benchmarks/notations.py --failures` list every wrong answer they find.
