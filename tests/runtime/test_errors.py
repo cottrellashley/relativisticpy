@@ -279,6 +279,22 @@ class TestRelations:
         assert type(error) is UndecidedError
         assert error.message == message
 
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            (r"\infty - \infty = 0", "the left side is undefined here, as 0/0 is"),
+            (r"\infty - \infty = \infty - \infty", "the left side is undefined here, as 0/0 is"),
+            (r"\infty - \infty \neq 1", "the left side is undefined here, as 0/0 is"),
+            (r"0 == \frac{0}{0}", "the right side is undefined here, as 0/0 is"),
+            (r"\frac{1}{0} = 2", "the left side is infinite here: a division by zero"),
+        ],
+    )
+    def test_a_side_with_no_value_is_neither_equal_nor_unequal(self, program, message):
+        # each had a truth value: ∞ - ∞ = 0 was false, ∞ - ∞ = ∞ - ∞ true, ∞ - ∞ ≠ 1 true
+        error = raised(program)
+        assert type(error) is UndecidedError
+        assert error.message == message
+
     def test_numbers_that_are_not_real_have_no_order(self):
         error = raised("1 + i > 0")
         assert type(error) is EvaluationError

@@ -689,11 +689,20 @@ def _decided(relation: Any, bounds: tuple[Any, ...]) -> Any:
 
 
 def equal(lhs: Any, rhs: Any) -> Any:
-    return sympy.Eq(lhs, rhs)
+    return sympy.Eq(*sides_valued(lhs, rhs))
 
 
 def unequal(lhs: Any, rhs: Any) -> Any:
-    return sympy.Ne(lhs, rhs)
+    return sympy.Ne(*sides_valued(lhs, rhs))
+
+
+def sides_valued(lhs: Any, rhs: Any) -> tuple[Any, Any]:
+    """The sides of an equation, of which SymPy would call one with no value, as ∞ - ∞,
+    unequal to anything, and equal to itself: the equation is not decided (see
+    :func:`valued`)."""
+    for side, value in (("left", lhs), ("right", rhs)):
+        valued(side, value)
+    return lhs, rhs
 
 
 def logical_not(value: Any) -> Any:

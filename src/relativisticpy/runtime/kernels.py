@@ -26,7 +26,7 @@ from relativisticpy.diffgeom import curvature
 from relativisticpy.diffgeom.metric import metric_from_line_element
 from relativisticpy.errors import NO_INVERSE, EvaluationError, MetricError
 from relativisticpy.ir import Node, ops
-from relativisticpy.runtime import registry
+from relativisticpy.runtime import core, registry
 from relativisticpy.tensors import arrays, linalg, numerical
 from relativisticpy.tensors.equation import TensorEquation
 from relativisticpy.tensors.simplification import is_zero
@@ -383,6 +383,7 @@ def _equation(op: ops.Equation, args: list[Any], executor: Executor) -> Any:
         rhs = rhs if isinstance(rhs, sympy.NDimArray) else arrays.zeros_of(array.shape)
         return TensorEquation(lhs, rhs)
     if isinstance(lhs, sympy.Expr) and isinstance(rhs, sympy.Expr):
+        core.sides_valued(lhs, rhs)  # ∞ - ∞ = 0 is neither true nor false
         decided = _proven(lhs, rhs)
         if decided is not None:
             return sympy.true if decided else sympy.false
