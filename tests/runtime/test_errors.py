@@ -304,6 +304,54 @@ class TestRelations:
         assert Workbook().expr("|1 + i| > 0") is sympy.true  # as its hint says
 
 
+class TestClaims:
+    """An equation, an inequality or a truth value is no number: arithmetic with one, which
+    failed inside RelativisticPy, is refused, saying so."""
+
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            # arXiv 2611.26576, line 2573, for c_u where ε_u² = 1
+            (
+                r"c_u (\varepsilon_u^2 = 1) = \frac{2}{3} - \frac{2}{15} (2 - q)^2",
+                "an equation, ε_u² = 1, is no number, and has no arithmetic",
+            ),
+            (r"-(x = 1)", "an equation, x = 1, is no number, and has no arithmetic"),
+            (r"(x = 1)^2", "an equation, x = 1, is no number, and has no arithmetic"),
+            (r"(x > 0) x", "a relation, x > 0, is no number, and has no arithmetic"),
+            (r"(1 < 2) \cdot 3", "a truth value, True, is no number, and has no arithmetic"),
+            (
+                "x := [1, 2]\n(x = [1, 2]) \\cdot 2",
+                "an equation is no number, and has no arithmetic",
+            ),
+        ],
+    )
+    def test_a_claim_is_no_number(self, program, message):
+        error = raised(program)
+        assert type(error) is EvaluationError
+        assert error.message == message
+
+    def test_a_function_whose_value_is_an_equation_is_no_number(self):
+        # arXiv 2611.26585 defines H_1 by a chain, on line 363, so that its value is an
+        # equation, which line 404 multiplies
+        error = raised(
+            r"\mathcal{H}_1(\lambda) := \mathcal{H}_c + \mathcal{N}(\lambda) \mathcal{C}"
+            r" = \mathcal{N}(\lambda) \mathcal{C}"
+            "\n"
+            r"\frac{d\lambda}{d\tilde{\lambda}} \mathcal{H}_1(\lambda)"
+        )
+        assert type(error) is EvaluationError
+        assert error.message.startswith("an equation, C N(λ) + H_c = C N(λ), is no number")
+
+    def test_what_a_relation_in_arithmetic_stands_for_is_written_with_cases(self):
+        error = raised(r"(x > 0) x")
+        assert error.hint is not None
+        written = error.hint.partition(", as ")[2]
+        x = sympy.Symbol("x")
+        found = sympy.piecewise_fold(Workbook().expr(f"{written} x"))
+        assert found == sympy.Piecewise((x, x > 0), (0, True))
+
+
 def test_a_metric_or_tensor_built_from_python_raises_relativisticpys_errors():
     # still ValueErrors, as Python code expects, and RelativisticPy's own kinds
     from relativisticpy import Metric, Tensor

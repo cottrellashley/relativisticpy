@@ -176,7 +176,15 @@ def one_by_one(node: Node, factors: Sequence[Any], product: Any) -> Any:
 
 
 def _arithmetic(value: Any) -> Any:
-    """A value as arithmetic sees it: lists and tuples are arrays."""
+    """A value as arithmetic sees it: lists and tuples are arrays. A claim, as an equation
+    or an inequality, is no number, and is refused, saying so: c_u (\\varepsilon_u^2 = 1),
+    which a paper writes for c_u where ε_u² = 1, multiplied an equation."""
+    claim = _claim(value)
+    if claim is not None:
+        shown = "" if isinstance(value, TensorEquation) else f", {display.unicode(value)},"
+        raise EvaluationError(
+            f"{claim}{shown} is no number, and has no arithmetic", hint=_CLAIMS_INSTEAD[claim]
+        )
     if not isinstance(value, list | tuple):
         return value
     try:
@@ -185,6 +193,29 @@ def _arithmetic(value: Any) -> Any:
         raise EvaluationError(
             "only rectangular lists, such as vectors and matrices, have arithmetic"
         ) from None
+
+
+#: What to write instead of arithmetic with each kind of claim.
+_CLAIMS_INSTEAD = {
+    "an equation": "to take a value where it holds, substitute with an evaluation bar, as "
+    "f |_{x = 1}, or solve it",
+    "a relation": "for a number that is 1 where it holds and 0 elsewhere, write it with "
+    "cases, as \\begin{cases} 1 & x > 0 \\\\ 0 & \\text{otherwise} \\end{cases}",
+}
+_CLAIMS_INSTEAD["a truth value"] = _CLAIMS_INSTEAD["a relation"]
+
+
+def _claim(value: Any) -> str | None:
+    """What a value that claims something is, as an equation of numbers, of tensors or of
+    arrays is, or an inequality, which is true or false rather than a number; ``None`` for
+    any other value. A symbol, which SymPy counts as a truth value too, is a number."""
+    if isinstance(value, TensorEquation | sympy.Equality):
+        return "an equation"
+    if isinstance(value, sympy.logic.boolalg.BooleanAtom):
+        return "a truth value"
+    if isinstance(value, sympy.logic.boolalg.Boolean) and not isinstance(value, sympy.Expr):
+        return "a relation"
+    return None
 
 
 def _shape(value: Any) -> tuple[int, ...]:
