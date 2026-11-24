@@ -4,7 +4,7 @@ Notable changes to RelativisticPy. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
-## 0.1.0 - Unreleased
+## 0.1.0 - 2026-11-23
 
 The first release of RelativisticPy as a language: mathematics written as its books
 and papers write it, in LaTeX, plain text or Unicode, with an engine that computes
