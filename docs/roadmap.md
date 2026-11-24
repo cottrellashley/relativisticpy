@@ -17,9 +17,9 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
 - **The core**: algebra; calculus, with derivatives in every notation, integrals,
   limits, sums, products, series, `solve` and `dsolve`; linear algebra; and index
   notation over any space, its rules checked before anything is computed.
-- **Fields in their books' notation**: special functions, vectors and matrices,
-  probability, signals, optimisation, number theory and combinatorics, and quantum
-  mechanics, with Dirac's notation and operators.
+- **Fields in their books' notation**, [each with a page](language.md#fields): special
+  functions, vectors and matrices, probability, signals, optimisation, number theory and
+  combinatorics, and quantum mechanics, with Dirac's notation and operators.
 - **General Relativity**: metrics from line elements; the Christoffel symbols and the
   Riemann, Ricci, Einstein and Weyl tensors; covariant and Lie derivatives; geodesics,
   symbolic and numerical; eight known spacetimes; and tensor equations solved as tensor
@@ -52,28 +52,37 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
 - **No silent wrong answer.** Version 0.1.0 waits on the wrong answers known in the
   core, algebra, calculus, linear algebra and index notation: each is to be fixed, or
   refused with what to write instead. Those of other fields are fixed too, or listed in
-  the notes of the release. Those known as this is written:
-  - a transpose written as Artin writes it, `A^t`, is a power by t, and of a 3 × 3
-    matrix a crash; Lang's \({}^tA\) and Griffiths' \(\tilde{A}\) are names;
-  - a row times a column is a 1 × 1 matrix written `A \cdot B`, or `AB` in LaTeX,
-    and a number written `A B`: one product, two answers;
-  - an accent on a defined name makes a new name: after `z := 3 + 4i`, `\bar{z}` is
-    `zbar`; and a plain name stands for a bold one: after `\mathbf{w} := (1, 2, 3)`
-    and `w := 7`, `\mathbf{w}` is 7;
-  - a partial derivative by the number of an argument, `f_1` or `D_1 f`, is a name or a
-    product;
-  - a name from a paper is read as a product, without a note, as \(\Phi_N(r)\) is;
-    and a check of a paper says that a relation between quantities nothing defines
-    differs, where it relates them;
-  - brackets after a defined number multiply: after `\delta := 0.1`, `\delta[n]` is
-    0.1 n;
-  - a coordinate along a path, \(q^i := (\theta(t), \phi(t))\), which the metric in a
-    Lagrangian does not follow.
+  the notes of the release. Those known as this is written, none of which says so in a
+  note:
+  - a plain name stands for a bold one: after `\mathbf{w} := (1, 2, 3)` and `w := 7`,
+    `\mathbf{w}` is 7 (decision 9 of `design/notation.md`);
+  - beside a path, \(q^i := (\theta(t), \phi(t))\), a sum of scalars keeps the
+    coordinate: the value of `L - m g_0 R \cos\theta` holds cos θ beside θ(t), and its
+    note says only that θ is taken along the path in L; its derivatives by the path are
+    right;
+  - a claim after equations that hold its names is not decided under them: Mandelstam's
+    \(s + t + u = \sum_i m_i^2\), after \(p_1 + p_2 = p_3 + p_4\) and
+    \(p_i^2 = m_i^2\), is shown as an equation;
+  - `C(n, k)`, as some books write the binomial coefficient, is an unknown function of
+    the names n and k;
+  - `j`, which nothing defines, is a name in \(\left|\frac{1}{1 + j}\right|\), where an
+    engineer means the imaginary unit: decision 24 gives a note only in an exponent;
+  - `\operatorname{Var} X`, without brackets, is Var times X, even of a random variable;
+  - a loop written in words, `\textbf{for } k = 1, \ldots, 5`, is read as a statement
+    about k, so `\lambda^{(5)}`, after it, is a name;
+  - units are names: \(\mathrm{Mpc}\,\mathrm{s}/(70\,\mathrm{Gyr}\,\mathrm{km})\) is
+    not converted (`design/debt.md`).
+
+  Two statements fail with an internal error, where they should give a value or a
+  refusal: `\mathbb{E}[x]` of a list, after `x := [1, 2, 3, 6]`; and the data of an
+  equation of index notation whose identity SymPy cannot tell, as Carroll's (1.69), in
+  `--format json` and in the MCP server's `compute`.
 
   `uv run python benchmarks/curriculum.py --failures` and
   `uv run python benchmarks/notations.py --failures` list every wrong answer they find.
-- **The forms agents write.** Refused today, each with a reason: `\|x\|_p` of a vector,
-  `eig(A)`, `dot(u, v)`, `cross(u, v)`, `A.T` and `A @ B`.
+- **The forms agents write.** Refused today, each with a reason: `eig(A)` of a matrix,
+  with a hint to write `spec(A)`; `A.T`; `A @ B`; and `||x||_1` typed in plain text, where
+  `\|x\|_1` works.
 - **Climbing the curriculum.** What it refuses most, by cause, is in its own
   [roadmap](https://github.com/cottrellashley/relativisticpy/blob/main/curriculum/ROADMAP.md).
 
@@ -92,9 +101,16 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
   with a velocity that has no components yet, kept as notation until it has.
 - **More of physics' implicit conventions**: \(x^\mu\) as the coordinates themselves,
   coordinates along a curve, \(x^\mu(\lambda)\), and \(\eta_{\mu\nu}\) as the
-  Minkowski metric, so that more of a paper can be checked.
-- **Premises in papers**: a condition a derivation states, as \(R_{\mu\nu} = 0\), so
-  that what follows from it is not read as a mistake.
+  Minkowski metric, so that more of a paper can be checked; and a field met with a path
+  taken along it in the IR, in every sum.
+- **Premises in papers**: a premise a derivation states in prose, as
+  \(R_{\mu\nu} = 0\), and an identity that holds at a point, as in Riemann normal
+  coordinates, so that neither reads as a mistake. An equation for the functions a
+  metric is written with relates already.
+- **Equations a program means to solve**: a design for which equations to solve unasked,
+  and which only state; and a claim decided under the equations stated before it.
+- **What an agent reads**: a note that carries its kind, which a value's `reasons` are
+  read from, and `compute`'s claims judged as `verify` judges them.
 - **Units**: quantities with units, converted and checked for dimensions.
 - **Optimisation over a vector written with its index**: minimise
   \(w^a \Sigma_{ab} w^b\) subject to constraints, with gradients from JAX.
