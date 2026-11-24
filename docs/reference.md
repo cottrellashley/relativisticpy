@@ -156,7 +156,7 @@ Given a tensor, these functions are linear algebra. They are written `\operatorn
 |---|---|
 | `det` | the determinant of a map |
 | `diag` | `\operatorname{diag}(d)_{ab}`, the diagonal matrix of a vector |
-| `eig` | `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)`: eigenvalues and eigenvectors |
+| `eig` | `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)`: eigenvalues and eigenvectors; `eig(A)` of a matrix written without indices, its eigenvalues, as MATLAB gives them |
 | `exp` | the exponential of a tensor named without indices: `\exp(-i H t)` |
 | `inv` | the inverse; `(\Sigma^{-1})^{ab}` is written as on paper, and solved for, not formed |
 | `log` | the logarithm of a matrix |

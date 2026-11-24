@@ -471,3 +471,15 @@ The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11)
 2. A name that runs one of LaTeX's functions whose argument books write after it, the trigonometric and hyperbolic functions and their inverses, exp, ln and log, into a letter, a Greek letter's name or a number, as `sinx`, `cos2theta` and `ln2` do, is in plain text one name, with a note that says how to write the function of it. In LaTeX and Unicode, where it would be a product of letters, it is refused, saying how to write either reading. The functions that begin names of their own, as arg, dim and min begin args, dims and mins, are not among them.
 3. In LaTeX, a run of three letters or more that nothing defines, right before brackets, is read as before, a product whose last letter is called, as `foo(x)` is f o o(x), wherever it is written, and a note says so and how to write the function, `\operatorname{foo}(x)` (23 November 2026: it said nothing). A run of two, as `Gm(r)`, is G m(r), as physics writes it, without a note.
 4. In the body of a function, a name that nothing defines, made only of the function's own parameters, letters or Greek letters' names, is their product, with a note, in plain text as in LaTeX: `xy` in `g(x, y) := x e^(xy)` is x·y. One name there would be a constant the function does not depend on, which no book means (23 November 2026: ∂g/∂x was e^{xy}, and ∂²g/∂y∂x was 0). A name the program defines, as `xy := 5`, keeps its value.
+
+## 42. What agents type as NumPy and MATLAB write it
+
+**Added** on 23 November 2026, for agents, which type the habits of the libraries they know.
+
+**Waiting on it:** the notation matrix's form `max-of-eig`, and the forms agents type, which `tests/test_agent_suite.py` holds.
+
+**Why it is open.** `eig(A)` is the eigenvalues of A in MATLAB, and its eigenvalues and eigenvectors in NumPy. The language's `eig` decomposes a tensor written with its indices, as `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)`, so that `eig(A)` of a matrix was refused, with a hint to write `spec(A)`.
+
+**Recommendation.** Read each habit as the library it comes from means it, where what it is written on says that this is what was meant, with a note; refuse it elsewhere, saying what to write.
+
+1. `eig(A)` of a matrix written without indices is its eigenvalues, each as often as it is one, from the smallest, as MATLAB's `eig(A)` gives them and `spec(A)` writes them, with a note. Written with its indices, `eig(A^{a}{}_{b})` is NumPy's decomposition, the eigenvalues and the eigenvectors, as before, and of what is no matrix, as a symbol, `eig` is refused, as before.

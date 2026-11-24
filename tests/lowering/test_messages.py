@@ -41,15 +41,22 @@ class TestArity:
     def test_linear_algebra_takes_a_tensor(self, wb, source):
         assert "takes a tensor written with its indices" in error(wb, source).message
 
-    def test_eig_of_a_matrix_says_how_to_write_its_eigenvalues(self, wb):
-        # MATLAB's eig(A) is the eigenvalues; here eig decomposes a tensor, and the refusal
-        # said nothing of how to write them
+    def test_eig_of_a_matrix_is_its_eigenvalues_as_matlab_gives_them(self, wb):
+        # MATLAB's eig(A) is the eigenvalues, which agents write; it was refused, with a
+        # hint to write spec(A) (decision 42)
         wb.exe("A := [[1, 2], [2, 1]]")
-        assert error(wb, "eig(A)").hint == (
-            r"for the eigenvalues of A, write spec(A); eig decomposes a tensor written with "
+        assert notes(wb, "eig(A)") == [
+            "eig(A) is read as the eigenvalues of A, as MATLAB gives them, spec(A); for the "
+            "eigenvectors too, write the matrix with its indices, as eig(A^{a}{}_{b})"
+        ]
+        assert [int(value) for value in wb.expr("eig(A)")] == [-1, 3]
+        assert list(wb.expr("eig(A)")) == list(wb.expr("spec(A)"))
+        assert list(wb.expr("eig([[2, 0], [0, 2]])")) == [2, 2]  # each as often as it is one
+        # of what is no matrix, it is refused as before, with the same hint
+        assert error(wb, "eig(x)").hint == (
+            r"for the eigenvalues of x, write spec(x); eig decomposes a tensor written with "
             r"its indices, as eig(\Sigma^{a}{}_{b})"
         )
-        assert [int(value) for value in wb.expr("spec(A)")] == [-1, 3]  # the hint works
 
     def test_the_spectrum_takes_a_matrix_or_a_tensor(self, wb):
         found = error(wb, "spec(2)", EvaluationError)

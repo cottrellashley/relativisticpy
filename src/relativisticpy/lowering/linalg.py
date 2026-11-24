@@ -277,8 +277,14 @@ class LinearAlgebra(Statistics):
             return None
         tensor = self.value(value.args[0], scope, ctx)
         if not isinstance(tensor.type, TensorType):
+            eig = value.func.id == "eig"
             raise CompileError(
-                f"{value.func.id} takes a tensor written with its indices", span=value.span
+                f"{value.func.id} takes a tensor written with its indices",
+                span=value.span,
+                hint="for the eigenvalues alone, write eig(A); for the eigenvectors too, write "
+                "the matrix with its indices, as \\lambda_k, v^a{}_k := eig(A^{a}{}_{b})"
+                if eig
+                else None,
             )
         if value.func.id == "svd":
             return self._svd(tensor, value)

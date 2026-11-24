@@ -177,7 +177,8 @@ _STATISTIC_MEANINGS: Mapping[str, tuple[str, str]] = {
 
 #: What each function of linear algebra does, given a tensor.
 _LINEAR_ALGEBRA_MEANINGS: Mapping[str, str] = {
-    "eig": r"`\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)`: eigenvalues and eigenvectors",
+    "eig": r"`\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)`: eigenvalues and eigenvectors; "
+    "`eig(A)` of a matrix written without indices, its eigenvalues, as MATLAB gives them",
     "spec": r"`\operatorname{spec}(A^a{}_b)`, the eigenvalues; with a second argument n, the "
     "n largest, or smallest if n is negative",
     "svd": r"`U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})`: the singular values and vectors",

@@ -584,6 +584,8 @@ class Expressions(LinearAlgebra):
                 span=node.span,
                 hint="in the language, geodesic_equations(\\tau) gives the equations they solve",
             )
+        if name == "eig" and (eigenvalues := self._eigenvalues_of(node, scope, ctx)) is not None:
+            return eigenvalues  # eig(A) of a matrix, as MATLAB writes its eigenvalues
         if name in ("eig", "svd"):  # what _linear_algebra leaves: no tensor
             count = ", and how many eigenvalues if not all" if name != "svd" else ""
             hint = f"for example {name}(\\Sigma^{{a}}{{}}_{{b}})"
@@ -636,6 +638,30 @@ class Expressions(LinearAlgebra):
         if values and all(value in coordinates for value in values) and name not in names:
             self.session.functions[name] = tuple(values)
         return self._call("core.function", args, SCALAR, node.span, (("name", name),))
+
+    def _eigenvalues_of(self, node: ast.Call, scope: Scope, ctx: Context) -> Node | None:
+        """``eig(A)`` of a matrix written without indices: its eigenvalues, each as often as
+        it is one, as MATLAB's ``eig(A)`` gives them and ``spec(A)`` writes them, with a
+        note; ``None`` for anything else, which is refused as before. A tensor written with
+        its indices, as ``eig(\\Sigma^{a}{}_{b})``, keeps NumPy's decomposition, its
+        eigenvalues and eigenvectors (design/notation.md, decision 42)."""
+        if len(node.args) != 1:
+            return None
+        matrix = self.value(node.args[0], scope, ctx)
+        if not _a_matrix(matrix):
+            return None
+        written = node.args[0].span.text
+        why = f"{written} is a matrix written without indices, of which MATLAB's eig is this"
+        note = (
+            f"eig({written}) is read as the eigenvalues of {written}, as MATLAB gives them, "
+            f"spec({written}); for the eigenvectors too, write the matrix with its indices, "
+            "as eig(A^{a}{}_{b})"
+        )
+        self._decide(CALL, node.span, f"the eigenvalues of {written}", why, note)
+        self._note(note)
+        found = self._map_function("spec", [matrix], node.span)
+        assert found is not None
+        return found
 
     def _depends(self, node: ast.Call, binding: object) -> bool:
         """Whether ``a(t)`` names a value the program gave ``a`` that depends on what is in

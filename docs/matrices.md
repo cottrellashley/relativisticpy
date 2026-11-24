@@ -104,19 +104,13 @@ line 1: R^T - \lambda I
 ```
 
 A power SymPy leaves undone, as \(A^n\) of some singular matrices, is refused, saying so.
-`eig(A)` decomposes a tensor written with its indices, so of a matrix it is refused, with a
-hint to write `spec(A)`:
+`eig(A)` of a matrix written without indices is its eigenvalues, as MATLAB gives them and
+`spec(A)` writes them, with a note; of a map written with its indices, as
+`eig(A^{a}{}_{b})`, it is the eigenvalues and the eigenvectors, as NumPy's `eig` gives them:
 
 ```python
 >>> wb.expr("eig(A)")
-Traceback (most recent call last):
-  ...
-relativisticpy.errors.CompileError: eig() takes a tensor written with its indices, and how many eigenvalues if not all
- --> <input>:1:1
-  |
-1 | eig(A)
-  | ^^^^^^
-hint: for the eigenvalues of A, write spec(A); eig decomposes a tensor written with its indices, as eig(\Sigma^{a}{}_{b})
+[-2, -1]
 
 ```
 
