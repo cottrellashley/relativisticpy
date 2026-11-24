@@ -488,7 +488,7 @@ The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11)
 
 **Added** on 23 November 2026, for agents, which type the habits of the libraries they know.
 
-**Waiting on it:** the notation matrix's form `max-of-eig`, and the forms agents type, which `tests/test_agent_suite.py` holds.
+**Waiting on it:** the notation matrix's forms `eig-call`, `matmul` and `attribute-T`, and `max-of-eig`, which waits too on the maximum of a list; and the forms agents type, which `tests/test_agent_suite.py` holds.
 
 **Why it is open.** `eig(A)` is the eigenvalues of A in MATLAB, and its eigenvalues and eigenvectors in NumPy. The language's `eig` decomposes a tensor written with its indices, as `\lambda_k, v^a{}_k := \operatorname{eig}(A^a{}_b)`, so that `eig(A)` of a matrix was refused, with a hint to write `spec(A)`.
 

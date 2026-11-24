@@ -61,14 +61,6 @@ def key(node: ast.Name) -> str | None:
     return None
 
 
-def plain(name: str) -> str:
-    """The plain name of a name bound apart, w of ``\\mathbf{w}``; any other as it is."""
-    for command, _ in _TYPEFACES:
-        if name.startswith(f"{command}{{") and name.endswith("}"):
-            return name[len(command) + 1 : -1]
-    return name
-
-
 def written(binding: Binding | None) -> str | None:
     """The typeface a binding of a plain name was defined in, as ``\\mathbf{w}``, where it
     was; ``None`` for one defined plain, and for anything else."""
@@ -153,7 +145,6 @@ def stands_for(node: ast.Name, binding: Binding) -> str | None:
     text = node.span.text
     if styled is None and any(s in text for _, spellings in _TYPEFACES for s in spellings):
         return None  # (\mathcal{L}), or \left. \mathbf{v} \right|: in a typeface, with more
-
     if styled == defined or not isinstance(binding, VariableBinding | TensorBinding):
         return None
     shown = node.span.text.strip()
