@@ -282,6 +282,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 *(23 November 2026)* Engineers write the imaginary part after j, as `3 + j4`, where `j4` is one name, as names with digits are: after `j := \sqrt{-1}`, `(3 + j4)^2` was (j4 + 3)², silently. A name nothing defines, made of a name the program defines and digits after it, stays one name, and a note says how to write the product, `4j`.
 
+*(23 November 2026)* The note was given only in an exponent, so that an engineer's `\left|\frac{1}{1 + j}\right|` was 1/|j + 1|, j a name, without a word (`sig.notation.imaginary-unit`). Wherever a j that nothing defines meets a number in a sum, as in `1 + j`, `3 + 4j` and `1 + j\omega R C`, a note says that j is a name of its own and not the imaginary unit, and how to write that, i or `j := \sqrt{-1}`; so does `j4`, beside a number, as engineers write 4j. What j means does not change. An index j, written as a script in the statement or bound by a sum, says nothing.
+
 ## 25. ∇² and ∇ of a function of a vector
 
 **Added** on 22 November 2026, from optimization and machine learning.

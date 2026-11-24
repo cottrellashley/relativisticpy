@@ -709,6 +709,39 @@ class Reader(Typer):
                 "which is i, as in 3 + 4*i"
             )
 
+    def _note_engineers_j(self, terms: Sequence[ast.Expr], scope: Scope) -> None:
+        """Say that a j that nothing defines is a name of its own where it meets a number in
+        a sum, as engineers write a complex number, ``1 + j``, ``3 + 4j`` and ``1 + j\\omega
+        RC``, with j the imaginary unit, which is i here; and so of ``j4``, as they write 4j.
+        What j means is not changed (design/notation.md, decision 24). An index j, written
+        as a script in the statement or bound by a sum, says nothing."""
+        coordinates = {c.name for c in self.session.coordinates or ()}
+        if scope.lookup("j") is not None or "j" in self.session.assumptions or "j" in coordinates:
+            return
+        if self._scripts["_"]["j"] or self._scripts["^"]["j"]:
+            return  # a_j + 1: j is an index
+        if not any(_numeric(term) for term in terms):
+            return
+        for term in terms:
+            for factor in _factors_of(term):
+                if not (isinstance(factor, ast.Name) and not factor.verbatim):
+                    continue
+                match = _LETTERS_THEN_DIGITS.fullmatch(factor.id)
+                if factor.id == "j":
+                    self._note(
+                        "j is a name of its own, as nothing defines it, and not the imaginary "
+                        "unit; for that, write i, or say j := \\sqrt{-1} first, as engineers do"
+                    )
+                    return
+                if match is not None and match["name"] == "j":
+                    digits = match["digits"]
+                    self._note(
+                        f"{factor.id} is a name of its own, as nothing defines it, and not "
+                        f"{digits} times the imaginary unit; for that, write {digits}i, or say "
+                        f"j := \\sqrt{{-1}} first and write {digits}j"
+                    )
+                    return
+
     def _parameters_product(
         self, node: ast.Name, letters: list[str], scope: Scope, ctx: Context
     ) -> Node:

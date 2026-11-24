@@ -291,6 +291,8 @@ class Expressions(LinearAlgebra):
         matrices = any(_a_matrix(v) or isinstance(v.type, TensorType) for _, v, _ in values)
         if not ctx.latex and not matrices:  # x + y*I in plain text: no imaginary unit, said so
             self._note_capital_i([term for _, term in terms], scope, sum_=True)
+        if not matrices:  # 1 + j, as engineers write it: no imaginary unit, said so
+            self._note_engineers_j([term for _, term in terms], scope)
         tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         if not tensors:
             kind = VALUE if any(v.type == VALUE for _, v, _ in values) else SCALAR

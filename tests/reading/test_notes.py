@@ -164,6 +164,27 @@ class TestSilentReadingsAreSaid:
         wb.exe("I := 2")
         assert notes(wb, "3 + 4*I") == []  # I has a value
 
+    def test_a_j_beside_a_number_in_a_sum_says_it_is_no_imaginary_unit(self, wb):
+        # sig.notation.imaginary-unit: |1/(1 + j)| was 1/|j + 1|, j a name, without a word,
+        # where an engineer means the imaginary unit (decision 24)
+        note = (
+            "j is a name of its own, as nothing defines it, and not the imaginary unit; for "
+            "that, write i, or say j := \\sqrt{-1} first, as engineers do"
+        )
+        assert notes(wb, r"\left|\frac{1}{1 + j}\right|") == [note]
+        assert notes(wb, "3 + 4j") == [note]
+        assert notes(wb, r"\frac{1}{1 + j\omega R C}") == [note]
+        assert notes(wb, "3 + j4") == [
+            "j4 is a name of its own, as nothing defines it, and not 4 times the imaginary "
+            "unit; for that, write 4i, or say j := \\sqrt{-1} first and write 4j"
+        ]
+        assert wb.expr(r"\left|\frac{1}{1 + j}\right|") == 1 / sympy.Abs(sympy.Symbol("j") + 1)
+        assert wb.expr(r"\left|\frac{1}{1 + i}\right|") == 1 / sympy.sqrt(2)  # the hint works
+        assert notes(wb, "j + k") == []  # no number
+        assert notes(wb, r"\sum_{j=1}^{3} (j + 1)") == []  # an index
+        wb.exe(r"j := \sqrt{-1}")
+        assert notes(wb, "1 + j") == []  # j has a value
+
     def test_a_defined_letter_run_into_digits_is_one_name_and_says_so(self, wb):
         # (3 + j4)^2 after j := \sqrt{-1} was (j4 + 3)^2, silently, where engineers mean 4j
         wb.exe(r"j := \sqrt{-1}")

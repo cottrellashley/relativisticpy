@@ -166,7 +166,8 @@ n, and the inverse gives a sequence back, with its step:
 The frequency response is written at \(e^{j\omega}\): `H(e^{j\omega}) := \sum_n h[n]
 e^{-j\omega n}` defines H as a function of ω, and H at \(e^{j\theta}\) is its value at θ,
 whose modulus and phase are `|H(e^{j\omega})|` and `\arg H(e^{j\omega})`. j is the imaginary
-unit where a program says so, `j := \sqrt{-1}`, as engineering books do.
+unit where a program says so, `j := \sqrt{-1}`, as engineering books do; elsewhere it is a
+name, and where it meets a number in a sum, as in `1 + j`, a note says so.
 
 ```python
 >>> dtft = Workbook()
