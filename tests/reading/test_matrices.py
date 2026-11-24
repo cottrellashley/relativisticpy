@@ -305,6 +305,14 @@ class TestNormsAndEntries:
         assert wb.expr(r"\|x\|_1") == 5
         assert wb.expr(r"\|x\|_2^2") == 9
 
+    def test_the_norm_of_a_vector_written_as_a_list(self, wb):
+        # \|x\|_2 of x := [3, 4] was refused: only a name can have a subscript
+        wb.exe("x := [3, 4]")
+        assert wb.expr(r"\|x\|_2") == 5
+        assert wb.expr(r"\|x\|_1") == 7
+        assert wb.expr(r"\|x\|_\infty") == 4
+        assert wb.expr(r"\|x\|_2^2") == 25
+
     def test_the_norm_of_a_matrix_without_an_order_says_which(self, wb):
         wb.exe(A)
         (step,) = list(wb.each(r"\|A\|"))

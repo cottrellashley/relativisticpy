@@ -260,9 +260,11 @@ class Matrices(Reader):
             return None
         matrix = self._matrix_operand(base.operand, scope, ctx)
         if matrix is None:
+            matrix = self._vector_operand(base.operand, scope)  # \|x\|_2 of x := [3, 4]
+        if matrix is None:
             return None
         written = base.operand.span.text
-        why = f"{written} is a matrix, and double bars with a subscript write a norm"
+        why = f"{written} is a matrix or a vector, and double bars with a subscript write a norm"
         self._decide(MATRIX, node.span, f"the norm of {written} of order {order}", why)
         value = self._of_a_matrix(
             "norm", [matrix, self.graph.const(_ORDERS[order], VALUE)], node.span
@@ -271,6 +273,20 @@ class Matrices(Reader):
             if power.body is None:
                 return None
             value = self._power(value, self.value(power.body, scope, ctx), node.span)
+        return value
+
+    def _vector_operand(self, node: ast.Expr, scope: Scope) -> Node | None:
+        """What a norm's bars hold, where it is a name the program gives a list of numbers,
+        a vector, as x of ``x := [3, 4]``; ``None`` for anything else."""
+        if not isinstance(node, ast.Name):
+            return None
+        binding = scope.lookup(node.id)
+        if not isinstance(binding, VariableBinding):
+            return None
+        value = binding.node
+        listed = isinstance(value.op, ops.Call) and value.op.name == "core.list"
+        if not listed or not value.args or any(arg.type != SCALAR for arg in value.args):
+            return None
         return value
 
     def _norm_of(self, node: ast.Abs, operand: Node) -> Node | None:
