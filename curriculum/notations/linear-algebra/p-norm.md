@@ -73,7 +73,7 @@ assert abs(float(expected) - by_numpy) < 1e-9
 
 ### The order beneath, without braces
 
-**Form** · `subscript-unbraced` · docs/language.md, Matrices: `\|A\|_2`, `\|A\|_F`, `\|A\|_\infty`, `\|x\|_1`
+**Form** · `subscript-unbraced` · docs/matrices.md, The notation of linear algebra: `\|A\|_2`, `\|A\|_F`, `\|A\|_\infty`, `\|x\|_1`
 
 ```latex
 «name» := «value»

@@ -70,7 +70,7 @@ else:
 
 ### The operator before a name
 
-**Form** · `tr` · Horn and Johnson (2013), chapter 0, Review and miscellanea: `\operatorname{tr} A`; docs/language.md, Matrices
+**Form** · `tr` · Horn and Johnson (2013), chapter 0, Review and miscellanea: `\operatorname{tr} A`; docs/matrices.md, The notation of linear algebra
 
 ```latex
 A := \begin{pmatrix} «A» \end{pmatrix}

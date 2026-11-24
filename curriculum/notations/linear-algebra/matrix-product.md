@@ -139,7 +139,7 @@ A*B
 
 ### Side by side in plain text
 
-**Form** · `text-juxtaposition` · docs/language.md, Numbers and arithmetic: juxtaposition is multiplication, and Matrices: matrices multiply as matrices
+**Form** · `text-juxtaposition` · docs/language.md, Numbers and arithmetic: juxtaposition is multiplication; docs/matrices.md, Arithmetic: matrices multiply as matrices
 
 ```text
 A := «A»
@@ -149,7 +149,7 @@ A B
 
 ### Lists of rows side by side
 
-**Form** · `lists` · docs/language.md, Matrices: lists of rows are matrices, and multiply as matrices
+**Form** · `lists` · docs/matrices.md, Writing a matrix: lists of rows are matrices, and multiply as matrices
 
 ```text
 «A» «B»

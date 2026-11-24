@@ -103,7 +103,7 @@ A^\top
 
 ### The symbol intercal
 
-**Form** · `intercal` · docs/language.md, Matrices: `A^\intercal`
+**Form** · `intercal` · docs/matrices.md, The notation of linear algebra: `A^\intercal`
 
 ```latex
 A := \begin{pmatrix} «A» \end{pmatrix}

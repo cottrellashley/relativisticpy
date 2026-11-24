@@ -103,7 +103,7 @@ A^{-1}
 
 ### The power −1 of a matrix in round brackets
 
-**Form** · `round-power` · docs/language.md, Matrices: `\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}^{-1}`
+**Form** · `round-power` · docs/matrices.md, Arithmetic: `\begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}^{-1}`
 
 ```latex
 \begin{pmatrix} «A» \end{pmatrix}^{-1}

@@ -169,8 +169,12 @@ True
 
 ```
 
-[The language](docs/language.md) has each of these in full, and `relativisticpy help NAME`
-describes any function: how it is written, what it takes, and what computes it.
+[The language](docs/language.md) and the page of each field, [matrices](docs/matrices.md),
+[vectors](docs/vectors.md), [random variables](docs/probability.md),
+[optima](docs/optima.md), [number theory and sequences](docs/discrete.md) and
+[quantum notation](docs/quantum.md), have each of these in full, and
+`relativisticpy help NAME` describes any function: how it is written, what it takes, and
+what computes it.
 
 ## It says how it read you
 
@@ -497,7 +501,10 @@ passing, and the ones that fail say what to build next.
 
 The documentation is in [docs](docs/), and `relativisticpy help` prints it offline:
 [Getting started](docs/getting-started.md), [the language](docs/language.md),
-[LaTeX](docs/latex.md), [tensors and geometry](docs/tensors.md),
+[LaTeX](docs/latex.md), the fields ([matrices](docs/matrices.md),
+[vectors](docs/vectors.md), [random variables](docs/probability.md),
+[optima](docs/optima.md), [number theory and sequences](docs/discrete.md) and
+[quantum notation](docs/quantum.md)), [tensors and geometry](docs/tensors.md),
 [solving tensor equations](docs/notation.md), [checking papers](docs/checking.md),
 [beyond spacetime](docs/spaces.md), [numerics](docs/numerics.md),
 [the language reference](docs/reference.md), [the Python API](docs/python.md),
