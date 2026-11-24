@@ -69,6 +69,7 @@ complex.analytic.harmonic-conjugate
 complex.maps.cayley
 complex.maps.principal-log
 complex.numbers.arithmetic
+complex.numbers.conjugate
 complex.numbers.roots-of-unity
 data.fft.dft-sum
 data.fft.named
@@ -101,6 +102,7 @@ de.pde.heat
 de.pde.laplace-disk
 de.second-order.amplitude
 de.second-order.harmonic
+de.second-order.impulse
 de.second-order.resonance
 de.second-order.system
 de.second-order.wronskian
@@ -260,6 +262,7 @@ graph.trees.reduced-laplacian
 graph.walks.closed
 graph.walks.count
 graph.walks.triangles
+group.finite.cyclic-orthogonality
 group.finite.necklaces
 group.finite.permutation-representation
 group.lorentz.boost-commutator
@@ -299,6 +302,7 @@ ml.kernels.inner-product
 ml.kernels.rbf
 ml.logistic.derivative
 ml.network.chain-rule
+ml.pca.explained-variance
 ml.regression.effective-df
 ml.regression.r-squared
 nt.arithmetic.mobius-inversion
