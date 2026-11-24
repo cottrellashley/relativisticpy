@@ -209,8 +209,11 @@ class TestScalarEquations:
             \end{equation}""")
         )
         assert [finding.verdict for finding in report] == ["defines", "relates"]
+        # Ĥ₁, a name nothing defines before a bracket, is an unknown function of λ
         hat = display.unicode(sympy.Symbol("Hhat_1"))
-        assert report.findings[1].detail.startswith(f"nothing defines C, H_c, {hat}, λ and N(λ): ")
+        assert report.findings[1].detail.startswith(
+            f"nothing defines C, H_c, λ, {hat}(λ) and N(λ): "
+        )
         # with every quantity known, a value beside an equation still differs
         report = Workbook().check(
             Document(r"""\begin{equation} f(x) := x = 1 \end{equation}
