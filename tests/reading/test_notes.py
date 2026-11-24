@@ -247,6 +247,14 @@ class TestSilentReadingsAreSaid:
         assert notes(wb, r"\frac{d}{dx} foo(x)") == [note]
         assert notes(wb, r"2 G m(r) + \alpha Gm(r)") == []  # two letters, as physics writes them
 
+    def test_delta_of_a_variable_is_diracs_and_says_so(self, wb):
+        # \\delta(x) was an unknown function, so that the heat kernel's limit, \\delta(x),
+        # was no distribution (de.pde.heat-kernel)
+        assert notes(wb, r"\delta(x)") == [
+            r"\delta is read as the Dirac delta, a distribution, DiracDelta; for a function of "
+            r"your own, define \delta first"
+        ]
+
     def test_a_function_run_into_its_argument_is_one_name_and_says_so(self, wb):
         # sinx and lnx were names, without a word that sin x and ln x were meant
         assert notes(wb, "sinx") == ["sinx is one name; for sin of x, write sin x or sin(x)"]

@@ -383,15 +383,20 @@ class UnitStep:
 
 @function(
     "DiracDelta",
-    latex=r"\operatorname{DiracDelta}(x)",
-    summary="the Dirac delta, a distribution; `\\delta(x)` is not read as it, as `\\delta` is "
-    "a variation in physics",
+    latex=[r"\operatorname{DiracDelta}(x)", r"\delta(x)"],
+    summary="the Dirac delta, a distribution; `\\delta(x)` too, where nothing defines "
+    "`\\delta`, with a note",
     examples=[
         Example("DiracDelta(1)", 0, "standard"),
         Example(
             "integrate(DiracDelta(x), (x, -1, 1))",
             1,
             "sympy.integrate(sympy.DiracDelta(x), (x, -1, 1))",
+        ),
+        Example(
+            r"\int_{-1}^{1} \delta(x - \tfrac{1}{2}) \, dx",
+            1,
+            "sympy.integrate(sympy.DiracDelta(x - sympy.Rational(1, 2)), (x, -1, 1))",
         ),
     ],
     points=[(1.0,), (-2.0,), (0.5,)],

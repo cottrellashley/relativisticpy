@@ -252,6 +252,11 @@ OPERATOR_NAMES = [
     (r"2 \operatorname{sinc} x + 1", 2 * Function("sinc")(x) + 1),
     (r"\operatorname{foo} \cdot x", sympy.Symbol("foo") * x),  # set apart, a product
     (r"\operatorname{erf} x", sympy.erf(x)),
+    # \\delta of a variable, nothing defining it, is Dirac's (an unknown function before)
+    (r"\int_{-1}^{1} \delta(x) \, dx", 1),
+    (r"\int_{0}^{2} x^2 \delta(x - 1) \, dx", 1),
+    (r"\delta(x - a)", sympy.DiracDelta(x - a)),
+    ("\\delta := 0.1\n\\delta(x + 1)", sympy.Rational(1, 10) * (x + 1)),  # a value multiplies
     # the ISO 80000-2 names of the inverse hyperbolic functions (an error before)
     (r"\operatorname{arsinh} x", sympy.asinh(x)),
     (r"\operatorname{arcosh}(x)", sympy.acosh(x)),
