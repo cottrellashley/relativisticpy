@@ -262,7 +262,7 @@ class Workbook:
         statement writes itself are said, not those of the values it names."""
         shown = self._session.shown_equations
         if any(_unsolved(value) for value in values):
-            return []  # an equation, remembered as it is shown
+            return self._undecided_under(statement, values)  # an equation, remembered
         coordinates = {c.name for c in self._session.coordinates or ()}
         written = {node.id for node in _walk(statement) if isinstance(node, ast.Name)}
         names = sorted(
@@ -281,6 +281,34 @@ class Workbook:
             if lines:
                 notes.append(_held_note(name, held, lines, latex=statement.latex))
         return notes
+
+    def _undecided_under(self, statement: ast.Statement, values: Sequence[Any]) -> list[str]:
+        """The note on a claim shown as an equation, neither true nor false, where the
+        equations shown before it hold its symbols, or their letters: it is not decided
+        under them, as Mandelstam's ``s + t + u = m_1^2 + m_2^2 + m_3^2 + m_4^2`` is not
+        under ``p_1 + p_2 = p_3 + p_4`` and ``p_i^2 = m_i^2`` (design/notation.md, decision
+        3). A claim writes a name the program gives a value, as s is; an equation of names
+        that nothing defines, as one of a system, says nothing."""
+        scope = self._session.globals
+        written = {node.id for node in _walk(statement) if isinstance(node, ast.Name)}
+        if not any(isinstance(scope.lookup(name), VariableBinding) for name in written):
+            return []
+        coordinates = {c.name for c in self._session.coordinates or ()}
+        claimed = {
+            symbol.name
+            for value in values
+            if isinstance(value, sympy.Equality)
+            for symbol in _free_symbols(value)
+        } - coordinates
+        letters = {name.partition("_")[0] for name in claimed}
+        span = statement.span
+        found: dict[str, Span] = {}
+        for held, where in self._session.shown_equations:
+            if where.source is span.source and span.start <= where.start < span.end:
+                continue  # the claim itself, remembered as it was shown
+            if held & claimed or {name.partition("_")[0] for name in held} & letters:
+                found.setdefault(" ".join(where.text.split()), where)
+        return [_undecided_note(found)] if found else []
 
     def _sides(self, statement: ast.Statement) -> tuple[Any, Any] | None:
         """The values of an equation's two sides, for saying how they differ."""
@@ -1421,6 +1449,28 @@ def _held_note(name: str, held: str, lines: Mapping[int, Span], *, latex: bool) 
         said = f"the equations on lines {listed} hold {holding}, and are shown"
         solve = f"solve them for {holding}, with solve"
     return f"{shown} is a symbol here: {said}, not solved; for the values of {holding}, {solve}"
+
+
+def _undecided_note(found: Mapping[str, Span]) -> str:
+    """The note on a claim shown as an equation that the equations ``found``, shown before
+    it and unsolved, by how each is written, hold the symbols of: which they are, and that
+    it is not decided under them."""
+    equations = list(found)
+    lines = sorted({where.line for where in found.values()})
+    one = len(equations) == 1
+    listed = equations[0] if one else f"{', '.join(equations[:-1])} and {equations[-1]}"
+    at = f"line {lines[0]}" if len(lines) == 1 else f"lines {_listed(list(map(str, lines)))}"
+    them, hold, give = ("it", "holds", "it gives") if one else ("them", "hold", "they give")
+    return (
+        f"this equation is not decided under the equation{'' if one else 's'} on {at}, "
+        f"{listed}, which {hold} its symbols, shown and not solved: it is shown as an "
+        f"equation, as it does not hold for every value of them; to decide it under {them}, "
+        f"substitute what {give}"
+    )
+
+
+def _listed(items: Sequence[str]) -> str:
+    return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} and {items[-1]}"
 
 
 def _left_undone(value: Any) -> list[str]:

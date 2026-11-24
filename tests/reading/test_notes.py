@@ -4,6 +4,7 @@ reading."""
 import pytest
 import sympy
 
+from relativisticpy import Workbook
 from relativisticpy.errors import CompileError, IndexNotationError
 
 SCHWARZSCHILD = "Coordinates := [t, r, \\theta, \\phi]\ng_{\\mu\\nu} := Schwarzschild(M)"
@@ -216,6 +217,28 @@ class TestSilentReadingsAreSaid:
             r"shown, not solved; for the values of \lambda, solve it, as in solve(y'' + "
             r"\lambda y = 0, \lambda)"
         ]
+
+    def test_a_claim_after_equations_that_hold_its_symbols_says_it_is_not_decided_under_them(
+        self, wb
+    ):
+        # sr.four-momentum.mandelstam: s + t + u = \sum m_i^2, after conservation and the
+        # mass shells, was shown as an equation, without a word (decision 3)
+        wb.exe(
+            "s = (p_1 + p_2)^2, \\quad t = (p_1 - p_3)^2, \\quad u = (p_1 - p_4)^2\n"
+            "p_1 + p_2 = p_3 + p_4, \\quad p_i^2 = m_i^2"
+        )
+        (step,) = list(wb.each("s + t + u = m_1^2 + m_2^2 + m_3^2 + m_4^2"))
+        assert isinstance(step.values[0], sympy.Equality)
+        assert step.notes == [
+            "this equation is not decided under the equations on line 2, p_1 + p_2 = p_3 + p_4 "
+            "and p_i^2 = m_i^2, which hold its symbols, shown and not solved: it is shown as an "
+            "equation, as it does not hold for every value of them; to decide it under them, "
+            "substitute what they give"
+        ]
+        # an equation of names nothing defines, as one of a system, says nothing
+        other = Workbook()
+        other.exe("x + y = 2")
+        assert notes(other, "x - y = 0") == []
 
     def test_a_symbol_of_a_value_a_statement_names_is_not_said_to_be_held(self, wb):
         # M of an equation shown, in a value a later statement names but does not write
