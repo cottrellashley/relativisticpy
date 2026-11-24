@@ -80,11 +80,11 @@ quantities for an identity. It now tells a condition from an identity where the
 difference of the sides holds only functions the program introduced as unknowns, as
 \(\beta(t, r)\) of a metric written with it: such an equation is one for those
 functions, and relates. So five steps of Carroll's derivation of Birkhoff's theorem, as
-\(\partial_0\beta = 0\), relate now. What is left: an equation that writes a quantity computed from the metric, as
-\(R_{00}\), and holds only under a premise stated in prose, as \(R_{\mu\nu} = 0\), which
-the first link of Carroll's (7.21) does; and an identity that holds only at a point, as
-(3.77) does in Riemann normal coordinates. Three of the notes' six statements that differ
-are such.
+\(\partial_0\beta = 0\), relate now. What is left: an equation that writes a quantity
+computed from the metric, as \(R_{00}\), and holds only under a premise stated in prose,
+as \(R_{\mu\nu} = 0\), which the first link of Carroll's (7.21) does; and an identity that
+holds only at a point, as (3.77) does in Riemann normal coordinates. Three of the notes'
+six statements that differ are such.
 
 - *Why it was left:* telling them apart needs the premises of the derivation, which the
   prose states in words. Reading "curvature = 0" as a condition would also turn a wrong
@@ -138,8 +138,8 @@ computes.
   the note that `foo` is an unknown function went with the definition. At a number, as
   `foo(2)`, the workbook says so again wherever the value is shown.
 - **`compute` and `verify` can call one claim two things.** A relation of names nothing
-  defines, as `x^2 = 4`, has `holds: false` in `compute`'s data, meaning no identity, where
-  `verify` says it relates. An equation of index notation that is no identity, as
+  defines, as `x^2 = 4`, has `holds: false` in `compute`'s data, meaning no identity,
+  where `verify` says it relates. An equation of index notation that is no identity, as
   `R_{ab} = 0` without a metric, agrees: `holds: null` in `compute`, relates in `verify`.
   `compute` could carry `verify`'s verdict for each claim.
 - **A tool error is text.** An MCP call that cannot be done at all is `isError`, with its
