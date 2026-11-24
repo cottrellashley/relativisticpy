@@ -284,16 +284,25 @@ def wrong_kind(
     name: str, capability: Capability, args: Sequence[Any]
 ) -> RelativisticPyError | None:
     """The error for a function given what it cannot take, as ``sin([1, 2])``: a list, a
-    matrix or a tensor where it takes numbers and expressions; ``None`` for any other
-    failure, or another kind of capability, which takes what it declares."""
+    tuple, a matrix or a tensor, or a claim, as an equation, where it takes numbers and
+    expressions; ``None`` for any other failure, or another kind of capability, which takes
+    what it declares. A tuple is what a parameter of any number of them takes, as the
+    limits of an integral are."""
+    from relativisticpy.tensors.equation import INSTEAD_OF_A_CLAIM
+
     if not isinstance(capability, Function):
         return None
-    for value in args:
+    variadic = [
+        p.kind is inspect.Parameter.VAR_POSITIONAL for p in capability.signature.parameters.values()
+    ]
+    for position, value in enumerate(args):
         kind = _kind_of(value)
+        if kind is None and isinstance(value, tuple) and not _variadic(variadic, position):
+            kind = "a tuple"
         if kind is None:
             continue
-        hint = None
-        if capability.lifts:
+        hint = INSTEAD_OF_A_CLAIM.get(kind)
+        if hint is None and capability.lifts:
             hint = (
                 f"{name} applies to each component of a tensor: write the entries as one, "
                 f"as in v_a := [1, 2], then {name}(v_a)"
@@ -302,11 +311,21 @@ def wrong_kind(
     return None
 
 
-def _kind_of(value: Any) -> str | None:
-    """What a value that is no number or expression is, as an error names it."""
-    from relativisticpy.tensors import Tensor
-    from relativisticpy.tensors.equation import TensorEquation
+def _variadic(variadic: Sequence[bool], position: int) -> bool:
+    """Whether an argument at ``position`` is taken by a parameter of any number of them,
+    as ``*limits``, given whether each parameter, in order, is one."""
+    return any(variadic[: position + 1])
 
+
+def _kind_of(value: Any) -> str | None:
+    """What a value that is no number or expression is, as an error names it: a claim, as
+    an equation is, too."""
+    from relativisticpy.tensors import Tensor
+    from relativisticpy.tensors.equation import TensorEquation, claim
+
+    claimed = claim(value)
+    if claimed is not None and not isinstance(value, TensorEquation):
+        return claimed
     kinds: Mapping[type, str] = {
         list: "a list",
         sympy.NDimArray: "an array",

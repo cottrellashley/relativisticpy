@@ -15,6 +15,7 @@ import sympy
 from relativisticpy import assumptions, display
 from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.equation import no_number
 from relativisticpy.tensors.numerical import whole_number
 
 x, y, a, b, n, N = sympy.symbols("x y a b n N")
@@ -227,14 +228,7 @@ class Differentiate:
 class Integrate:
     def exact(self, f: Any, *limits: Any, assuming: tuple[Any, ...] = ()) -> Any:
         for which, end in _ends(limits):
-            if end.has(sympy.nan, sympy.zoo):  # which SymPy compares, failing
-                none = "has no value, as ∞ - ∞ and 0/0 have none"
-                if not end.has(sympy.nan):
-                    none = "is infinite with no sign, as 1/0 is"
-                raise EvaluationError(
-                    f"the {which} limit of the integral {none}",
-                    hint="write each limit so that it has a value",
-                )
+            _an_end(which, end)
         try:
             return assumptions.integrated(f, limits, assuming)
         except TypeError:  # SymPy compares the limits, and fails where one is not real
@@ -261,6 +255,29 @@ def _ends(limits: Sequence[Any]) -> list[tuple[str, Any]]:
         if isinstance(limit, tuple | sympy.Tuple) and len(limit) == 3
         for which, end in zip(("lower", "upper"), limit[1:], strict=True)
     ]
+
+
+def _an_end(which: str, end: Any) -> None:
+    """Refuse a limit of an integral that is no number, which SymPy compares, failing: one
+    that has no value, as ∞ - ∞ and 1/0 have none; several values, as a list is; or a
+    claim, as an equation is."""
+    if isinstance(end, list | sympy.Tuple | sympy.NDimArray | sympy.MatrixBase):
+        raise EvaluationError(
+            f"the {which} limit of the integral is one value, and {display.unicode(end)} is "
+            "several",
+            hint="integrate once for each value",
+        )
+    refused = no_number(end, f"the {which} limit of an integral is a number")
+    if refused is not None:
+        raise refused
+    if end.has(sympy.nan, sympy.zoo):
+        none = "has no value, as ∞ - ∞ and 0/0 have none"
+        if not end.has(sympy.nan):
+            none = "is infinite with no sign, as 1/0 is"
+        raise EvaluationError(
+            f"the {which} limit of the integral {none}",
+            hint="write each limit so that it has a value",
+        )
 
 
 #: The sides a limit is taken from: above, below, or both.

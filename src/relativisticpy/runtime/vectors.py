@@ -97,7 +97,14 @@ def _components(vector: Any, size: int) -> list[sympy.Expr]:
 
 
 def gradient(f: Any, *metric: Any, coordinates: tuple[Symbol, ...]) -> list[sympy.Expr]:
-    """The gradient of ``f``: :math:`h_i g^{ij}\\partial_j f` along each unit vector."""
+    """The gradient of ``f``: :math:`h_i g^{ij}\\partial_j f` along each unit vector. Of a
+    matrix it would be a tensor of three indices, which is not taken, as of a vector."""
+    if isinstance(f, list | tuple | sympy.NDimArray | sympy.MatrixBase):
+        raise EvaluationError(
+            f"\\nabla of {display.unicode(f)} would be a tensor of more indices than a "
+            "vector has, which is not taken yet",
+            hint="take the gradient of a function of one value, as \\nabla f(x, y, z)",
+        )
     g = _metric(metric, coordinates)
     h = scale_factors(g, coordinates)
     inverse = curvature.inverse(g)

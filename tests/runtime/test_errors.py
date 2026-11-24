@@ -370,6 +370,74 @@ class TestClaims:
         assert found == sympy.Piecewise((x, x > 0), (0, True))
 
 
+class TestWhereANumberIsTaken:
+    """A claim, or several values, given where a number is taken, failed inside SymPy or
+    RelativisticPy: each is refused, saying what it is, as arithmetic with one is."""
+
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            ("(x = 1) < 1", "an equation, x = 1, is no number, and only numbers are ordered"),
+            (r"\sum_{n=1}^{3} (n > 1)", "a relation, n > 1, is no number, and a sum adds numbers"),
+            (
+                r"\prod_{n=1}^{(x = 2)} n",
+                "an equation, x = 2, is no number, and a product multiplies numbers",
+            ),
+            (
+                r"\lim_{x \to 0} (x > 0)",
+                "a relation, x > 0, is no number, and a limit is taken of a number, at a number",
+            ),
+            (
+                r"\left. x^2 \right|_{x = (1 < 2)}",
+                "a truth value, True, is no number, and an evaluation bar puts numbers for names",
+            ),
+            (r"\log(x > 0)", "log takes numbers and expressions, not a relation"),
+            (r"\int_0^1 (x > 0) \, dx", "integrate takes numbers and expressions, not a relation"),
+            (
+                "E := x^2 = 4\n\\min_{x} E",
+                "an equation, x² = 4, is no number, and \\min_{x} is of a number",
+            ),
+            (
+                "X \\sim \\mathcal{N}(0, 1)\nf_X((1 < 2))",
+                "a truth value, True, is no number, and the density of X is taken at a number",
+            ),
+        ],
+    )
+    def test_a_claim(self, program, message):
+        error = raised(program)
+        assert type(error) is EvaluationError
+        assert error.message == message
+
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            (
+                r"\lim_{x \to [1, 2]} x^2",
+                "[1, 2] is several values, and a limit is taken at one point",
+            ),
+            (
+                r"\left. x^2 \right|_{x = (1, 2)}",
+                "(1, 2) is several values, and an evaluation bar puts one value for each name",
+            ),
+            (
+                r"\int_0^{[1, 2]} x \, dx",
+                "the upper limit of the integral is one value, and [1, 2] is several",
+            ),
+            (r"\log((1, 2))", "log takes numbers and expressions, not a tuple"),
+            (r"\binom{(1, 2)}{2}", "binomial takes numbers and expressions, not a tuple"),
+            (
+                r"\nabla \begin{pmatrix} 1 & 2 \\ 3 & 4 \end{pmatrix}",
+                "\\nabla of [[1, 2], [3, 4]] would be a tensor of more indices than a vector "
+                "has, which is not taken yet",
+            ),
+        ],
+    )
+    def test_several_values(self, program, message):
+        error = raised(program)
+        assert type(error) is EvaluationError
+        assert error.message == message
+
+
 def test_a_metric_or_tensor_built_from_python_raises_relativisticpys_errors():
     # still ValueErrors, as Python code expects, and RelativisticPy's own kinds
     from relativisticpy import Metric, Tensor

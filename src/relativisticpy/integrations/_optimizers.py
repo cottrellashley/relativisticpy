@@ -49,6 +49,7 @@ from relativisticpy import assumptions
 from relativisticpy.errors import EvaluationError, RelativisticPyError
 from relativisticpy.integrations._declarations import Capability, Example, near
 from relativisticpy.integrations._discovery import catalogue
+from relativisticpy.tensors.equation import no_number
 
 #: How long an exact optimizer may look for a closed form, in seconds, where a numeric
 #: one could answer instead.
@@ -697,6 +698,9 @@ def optimum(
     found it, how, and whether it is global."""
     variables = tuple(rest[:unknowns])
     sides = rest[unknowns:]
+    refused = no_number(objective, f"{written} is of a number")
+    if refused is not None:
+        raise refused
     problem = _problem(objective, variables, sides, sense, relations, domains, written)
     problem = replace(problem, bounds=tuple(assuming))
     _refuse_unknown_functions(problem, written)

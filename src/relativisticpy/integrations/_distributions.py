@@ -68,6 +68,7 @@ from relativisticpy import assumptions
 from relativisticpy.errors import EvaluationError, RelativisticPyError
 from relativisticpy.integrations._declarations import Capability, Example, declares, near
 from relativisticpy.integrations._discovery import catalogue, on_change
+from relativisticpy.tensors.equation import no_number
 
 #: How long SymPy may look for a closed form, in seconds, before SciPy computes the value
 #: numerically, where the problem has no parameters.
@@ -793,6 +794,9 @@ def _one(value: Any, what: str, at: Any = None) -> RandomSymbol:
             f"the {what} of {value} is taken at one value, and {_shown(at)} is several",
             hint=f"take it at each, as ({', '.join(written)}{more})",
         )
+    refused = no_number(at, f"the {what} of {value} is taken at a number")
+    if refused is not None:
+        raise refused
     return value
 
 

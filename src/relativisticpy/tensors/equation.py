@@ -470,6 +470,51 @@ def holds(value: Any) -> bool | None:
     )
 
 
+def claim(value: Any) -> str | None:
+    """What a value that claims something is, which is true or false rather than a number:
+    an equation, of scalars, of tensors or of arrays, another relation, as an inequality,
+    or a truth value; ``None`` for any other value. A symbol, which SymPy counts as a truth
+    value too, is a number::
+
+        >>> x = sympy.Symbol("x")
+        >>> claim(sympy.Eq(x, 1)), claim(x > 0), claim(sympy.true), claim(x)
+        ('an equation', 'a relation', 'a truth value', None)
+    """
+    if isinstance(value, TensorEquation | sympy.Equality):
+        return "an equation"
+    if isinstance(value, sympy.logic.boolalg.BooleanAtom):
+        return "a truth value"
+    if isinstance(value, sympy.logic.boolalg.Boolean) and not isinstance(value, sympy.Expr):
+        return "a relation"
+    return None
+
+
+#: What to write instead of a claim where a number is taken, by what :func:`claim` says it is.
+INSTEAD_OF_A_CLAIM = {
+    "an equation": "to take a value where it holds, substitute with an evaluation bar, as "
+    "f |_{x = 1}, or solve it",
+    "a relation": "for a number that is 1 where it holds and 0 elsewhere, write it with "
+    "cases, as \\begin{cases} 1 & x > 0 \\\\ 0 & \\text{otherwise} \\end{cases}",
+}
+INSTEAD_OF_A_CLAIM["a truth value"] = INSTEAD_OF_A_CLAIM["a relation"]
+
+
+def no_number(value: Any, clause: str) -> RelativisticPyError | None:
+    """The error for a claim where a number is taken, saying what it is and ``clause``, as
+    "only numbers are ordered" of an inequality's side; ``None`` for a value that is no
+    claim. SymPy fails on one there, and the failure would be RelativisticPy's."""
+    from relativisticpy import display
+    from relativisticpy.errors import EvaluationError
+
+    kind = claim(value)
+    if kind is None:
+        return None
+    shown = "" if isinstance(value, TensorEquation) else f", {display.unicode(value)},"
+    return EvaluationError(
+        f"{kind}{shown} is no number, and {clause}", hint=INSTEAD_OF_A_CLAIM[kind]
+    )
+
+
 def _relation(relation: Any) -> bool | None:
     """Whether a relation of scalars holds: an equation by its sides' difference, an
     inequality by SymPy, where it decides it."""

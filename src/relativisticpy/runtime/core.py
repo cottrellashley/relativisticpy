@@ -33,7 +33,7 @@ from relativisticpy import assumptions, display, integrations
 from relativisticpy.diffgeom.metric import differential
 from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.tensors import Indices, Tensor, arrays, linalg, numerical
-from relativisticpy.tensors.equation import TensorEquation, UndecidedError
+from relativisticpy.tensors.equation import TensorEquation, UndecidedError, no_number
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import LARGE, is_zero, normal_trig
 
@@ -102,6 +102,7 @@ def summation(
     summing it numerically (see :mod:`relativisticpy.runtime.crosscheck`)."""
     from relativisticpy.runtime import crosscheck
 
+    _numbers("a sum adds numbers", body, lower, upper)
     written = sympy.Sum(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
     if finite is not written:
@@ -175,6 +176,7 @@ def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
     """A product, carried out as a sum is, where SymPy finds its closed form within a time
     budget: see :func:`summation`. An infinite one SymPy leaves undone is the limit of its
     partial products, where they have a closed form (see :func:`_partial_products`)."""
+    _numbers("a product multiplies numbers", body, lower, upper)
     written = sympy.Product(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
     if finite is not written:
@@ -415,6 +417,8 @@ def _finite(written: Any, lower: Any, upper: Any) -> Any:
 def limit(body: Any, variable: Any, point: Any, direction: str) -> Any:
     """A limit (see :func:`_limit`); where SymPy cannot take it for not knowing the sign of
     a parameter, the limit under the assumption books make, which a note says."""
+    _numbers("a limit is taken of a number, at a number", body, point)
+    _one("a limit is taken at one point", point)
     try:
         return _limit(body, variable, point, direction)
     except NotImplementedError:  # "Result depends on the sign of sign(k)"
@@ -603,6 +607,8 @@ def substitute(expr: Any, *pairs: Any) -> Any:
     the point as it stands, as (x^2 - 1)/(x - 1) is at x = 1, and as a scalar of the
     Schwarzschild metric is at r = 2M in the form it was computed in, which no one wrote:
     its value there is that of the form with what is common cancelled, as it is shown."""
+    _numbers("an evaluation bar puts numbers for names", *pairs[1::2])
+    _one("an evaluation bar puts one value for each name", *pairs[1::2])
     rules = list(zip(pairs[::2], pairs[1::2], strict=True))
     expr = sympy.sympify(expr)
     value = expr.subs(rules, simultaneous=True)
@@ -648,6 +654,7 @@ def _ordered(lhs: Any, rhs: Any) -> tuple[Any, Any]:
     decided in the first case, as it is neither true nor false, and refused in the second,
     as complex numbers have no order."""
     for side, value in (("left", lhs), ("right", rhs)):
+        _numbers("only numbers are ordered", value)
         valued(side, value)
         if isinstance(value, sympy.Expr) and value.is_extended_real is False:
             raise EvaluationError(
@@ -657,6 +664,24 @@ def _ordered(lhs: Any, rhs: Any) -> tuple[Any, Any]:
                 "moduli, as |z| < 1",
             )
     return lhs, rhs
+
+
+def _numbers(clause: str, *values: Any) -> None:
+    """Refuse a claim among ``values``, as an equation or an inequality, where numbers are
+    taken: SymPy fails on one there (see
+    :func:`~relativisticpy.tensors.equation.no_number`)."""
+    for value in values:
+        refused = no_number(value, clause)
+        if refused is not None:
+            raise refused
+
+
+def _one(clause: str, *values: Any) -> None:
+    """Refuse several values, a list, a tuple or an array, where one is taken, as at the
+    point of a limit, which SymPy fails on."""
+    for value in values:
+        if isinstance(value, list | tuple | sympy.Tuple | sympy.NDimArray | sympy.MatrixBase):
+            raise EvaluationError(f"{display.unicode(value)} is several values, and {clause}")
 
 
 def valued(side: str, value: Any) -> None:
