@@ -697,7 +697,7 @@ def _nested(value: Any) -> bool:
 def density(value: Any, at: Any) -> Any:
     """The density of a random variable at ``at``, ``f_X(x)``: of a discrete one, the
     probability that it takes the value."""
-    variable = _one(value, "density")
+    variable = _one(value, "density", at)
     if _given(variable):
         return _total(variable, variable, lambda each: density(each, at))
     law = _law(variable)
@@ -719,7 +719,7 @@ def density(value: Any, at: Any) -> Any:
 def cdf(value: Any, at: Any) -> Any:
     """The distribution function of a random variable at ``at``, ``F_X(x)``, the
     probability that it is at most ``at``."""
-    variable = _one(value, "distribution function")
+    variable = _one(value, "distribution function", at)
     if sympy.sympify(at).is_number:
         return _probability(sympy.Le(variable, at))
     if _given(variable):
@@ -735,7 +735,7 @@ def cdf(value: Any, at: Any) -> Any:
 def quantile(value: Any, at: Any) -> Any:
     """The quantile of a random variable at ``at``, ``F_X^{-1}(q)``: the least x at which its
     distribution function reaches q."""
-    variable = _one(value, "quantile")
+    variable = _one(value, "quantile", at)
     if _given(variable):
         raise EvaluationError(
             f"the quantile of {variable}, whose law is given by others, is not computed",
@@ -755,18 +755,21 @@ def quantile(value: Any, at: Any) -> Any:
 def generating(value: Any, at: Any) -> Any:
     """The moment-generating function of a random variable at ``at``, ``M_X(t)``,
     ``\\mathbb{E}[e^{tX}]``."""
-    variable = _one(value, "moment-generating function")
+    variable = _one(value, "moment-generating function", at)
     return _expect(sympy.exp(at * variable))
 
 
 def characteristic(value: Any, at: Any) -> Any:
     """The characteristic function of a random variable at ``at``, ``\\varphi_X(t)``,
     ``\\mathbb{E}[e^{itX}]``."""
-    variable = _one(value, "characteristic function")
+    variable = _one(value, "characteristic function", at)
     return _expect(sympy.exp(sympy.I * at * variable))
 
 
-def _one(value: Any, what: str) -> RandomSymbol:
+def _one(value: Any, what: str, at: Any = None) -> RandomSymbol:
+    """The random variable a function of one is of, at ``at``: refused where it is not one,
+    or its law is not given; and where ``at`` is several values, a list, at which the
+    function is taken one at a time."""
     value = sympy.sympify(value)
     if not isinstance(value, RandomSymbol):
         raise EvaluationError(
@@ -778,7 +781,29 @@ def _one(value: Any, what: str) -> RandomSymbol:
             f"the {what} of {value} is not known: its law is not given",
             hint=f"declare it, as {value} \\sim \\mathcal{{N}}(0, 1)",
         )
+    items = _several(at)
+    if items is not None:
+        from relativisticpy import display
+
+        written = [
+            _FUNCTIONS[what].format(display.latex(value), display.latex(item)) for item in items[:3]
+        ]
+        more = ", \\ldots" if len(items) > 3 else ""
+        raise EvaluationError(
+            f"the {what} of {value} is taken at one value, and {_shown(at)} is several",
+            hint=f"take it at each, as ({', '.join(written)}{more})",
+        )
     return value
+
+
+#: How each function of a random variable X is written, at x.
+_FUNCTIONS = {
+    "density": "f_{{{}}}({})",
+    "distribution function": "F_{{{}}}({})",
+    "quantile": "F_{{{}}}^{{-1}}({})",
+    "moment-generating function": "M_{{{}}}({})",
+    "characteristic function": "\\varphi_{{{}}}({})",
+}
 
 
 # -- conditioning ---------------------------------------------------------------------------------

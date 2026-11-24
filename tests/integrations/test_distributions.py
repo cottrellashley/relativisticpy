@@ -227,6 +227,27 @@ class TestComputing:
             with pytest.raises(EvaluationError, match="covariance here is between two"):
                 wb.expr(r"\operatorname{Cov}(X [1, 2], Y)")
 
+    def test_a_law_of_several_values_is_refused(self):
+        # the expectation failed inside SymPy, which cannot hash the list of its law
+        with Workbook() as wb:
+            wb.run("X \\sim \\mathcal{N}([0, 1], 1)")
+            with pytest.raises(EvaluationError, match=r"law is one value, and \[0, 1\] is several"):
+                wb.expr(r"\mathbb{E}[X]")
+
+    def test_a_function_of_a_random_variable_at_several_values_is_taken_at_each(self):
+        # each failed inside RelativisticPy, given a list where it takes a number
+        with Workbook() as wb:
+            wb.run("X \\sim \\mathcal{N}(0, 1)")
+            for written in ("f_X([1, 2])", "F_X([1, 2])", "M_X([1, 2])"):
+                with pytest.raises(EvaluationError, match=r"at one value, and \[1, 2\] is") as no:
+                    wb.expr(written)
+            assert no.value.hint == "take it at each, as (M_{X}(1), M_{X}(2))"
+            # as the hint writes it: M_X(t) = e^{t^2/2}, DeGroot and Schervish (2012), 5.6
+            assert wb.expr("(M_{X}(1), M_{X}(2))") == (
+                sympy.exp(sympy.Rational(1, 2)),
+                sympy.exp(2),
+            )
+
     def test_an_integral_scipy_says_diverges_is_no_expectation(self):
         # the mean of |T| of Cauchy's law is infinite: SciPy's quadrature gives a number
         # of it, with a warning

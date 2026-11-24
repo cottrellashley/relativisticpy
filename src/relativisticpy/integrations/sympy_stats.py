@@ -41,10 +41,17 @@ def _law(name: str, made: Any, *parameters: Any) -> Any:
     """SymPy's law ``made`` of ``parameters``, which it checks first: parameters a law does
     not allow are refused, saying which."""
     values = [sympy.sympify(each) for each in parameters]
+    shown = ", ".join(str(each) for each in parameters[: len(values)])
+    for each in values:
+        if isinstance(each, list | tuple | sympy.Tuple | sympy.NDimArray | sympy.MatrixBase):
+            raise EvaluationError(
+                f"{name}({shown}) is no distribution: a parameter of a law is one value, "
+                f"and {each} is several",
+                hint="declare a random variable for each value, each with a law of its own",
+            )
     try:
         made.check(*values)
     except (ValueError, TypeError) as error:  # TypeError: a parameter that is not real
-        shown = ", ".join(str(each) for each in parameters[: len(values)])
         raise EvaluationError(f"{name}({shown}) is no distribution: {error}") from None
     return made(*values)
 
