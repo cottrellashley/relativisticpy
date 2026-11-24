@@ -27,6 +27,7 @@ import sympy
 from sympy import Symbol
 from sympy.core.function import AppliedUndef
 from sympy.core.relational import Relational
+from sympy.logic.boolalg import Boolean
 
 from relativisticpy import assumptions, display, integrations
 from relativisticpy.diffgeom.metric import differential
@@ -706,15 +707,39 @@ def sides_valued(lhs: Any, rhs: Any) -> tuple[Any, Any]:
 
 
 def logical_not(value: Any) -> Any:
-    return sympy.Not(value)
+    return sympy.Not(*_truth_values("not", value))
 
 
 def logical_and(*values: Any) -> Any:
-    return sympy.And(*values)
+    return sympy.And(*_truth_values("and", *values))
 
 
 def logical_or(*values: Any) -> Any:
-    return sympy.Or(*values)
+    return sympy.Or(*_truth_values("or", *values))
+
+
+def _truth_values(connective: str, *values: Any) -> tuple[Any, ...]:
+    """What ``and``, ``or`` or ``not`` takes: truth values, as relations are, names, which
+    SymPy reads as propositions, as in x and y, and 0 and 1. Anything else, as the products
+    a sentence in words is read as, is refused, saying so, where SymPy fails."""
+    for value in values:
+        if isinstance(value, bool | Boolean) or (
+            isinstance(value, int | sympy.Integer) and value in (0, 1)
+        ):
+            continue
+        shown = display.unicode(value)
+        if connective == "not":
+            message = f"{shown} is neither true nor false, so not cannot negate it"
+            hint = "write a relation, as not (x > 0)"
+        else:
+            message = f"{shown} is neither true nor false, so {connective} cannot join it"
+            hint = f"write relations, as x > 0 {connective} y < 1"
+        raise EvaluationError(
+            message,
+            notes=["a relation, as x > 0 is, is true or false; a product or a number is neither"],
+            hint=hint,
+        )
+    return values
 
 
 def item(whole: Any, index: Any) -> Any:

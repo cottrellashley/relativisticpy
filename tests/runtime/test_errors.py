@@ -295,6 +295,24 @@ class TestRelations:
         assert type(error) is UndecidedError
         assert error.message == message
 
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            # a sentence of a test, read as a program, failed inside SymPy
+            (
+                "cannot add a scalar and an array",
+                "a add cannot scalar is neither true nor false, so and cannot join it",
+            ),
+            ("2 x or y > 0", "2x is neither true nor false, so or cannot join it"),
+            ("not (2 x)", "2x is neither true nor false, so not cannot negate it"),
+        ],
+    )
+    def test_a_connective_joins_what_is_true_or_false(self, program, message):
+        error = raised(program)
+        assert type(error) is EvaluationError
+        assert error.message == message
+        assert Workbook().expr("x > 0 and y") == sympy.And(sympy.Symbol("x") > 0, sympy.Symbol("y"))
+
     def test_numbers_that_are_not_real_have_no_order(self):
         error = raised("1 + i > 0")
         assert type(error) is EvaluationError
