@@ -8,6 +8,7 @@ import pytest
 import sympy
 
 from relativisticpy import Workbook
+from relativisticpy.errors import EvaluationError
 from relativisticpy.language.source import Source
 
 x = sympy.Symbol("x")
@@ -97,3 +98,17 @@ def test_limits_written_as_the_variable_equal_to_a_value_are_those_values():
     assert last.error.message == (
         "a limit of the integral over x is written y = 0, which does not say what x is"
     )
+
+
+def test_an_integral_sympy_fails_on_for_a_limit_that_is_not_real_is_refused():
+    # arXiv 2611.26576, line 6712: SymPy compares the limit -i∞, which is not real, and the
+    # failure was an internal error
+    *_, last = Workbook().each(
+        Source(r"\int_{z}^{-i \, \infty} p^{m - 1} e^{-i k p} \, dp", latex=True)
+    )
+    assert type(last.error) is EvaluationError
+    assert (
+        last.error.message == "SymPy could not compute this integral, whose limit −∞i is not real"
+    )
+    # where it compares no limit, SymPy computes one: -1/p is 0 at i∞
+    assert value(r"\int_{1}^{i \infty} \frac{1}{p^2} \, dp") == 1

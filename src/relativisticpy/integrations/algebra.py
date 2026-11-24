@@ -7,6 +7,7 @@ tensor, as ``simplify(R_{abcd})`` simplifies each.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import sympy
@@ -225,7 +226,32 @@ class Differentiate:
 )
 class Integrate:
     def exact(self, f: Any, *limits: Any, assuming: tuple[Any, ...] = ()) -> Any:
-        return assumptions.integrated(f, limits, assuming)
+        try:
+            return assumptions.integrated(f, limits, assuming)
+        except TypeError:  # SymPy compares the limits, and fails where one is not real
+            off = _off_the_real_line(limits)
+            if off is None:
+                raise
+            raise EvaluationError(
+                f"SymPy could not compute this integral, whose limit {display.unicode(off)} "
+                "is not real",
+                notes=[
+                    "SymPy computes an integral along a path off the real line only in "
+                    "simple cases, and fails where it compares a limit that is not real"
+                ],
+                hint="change its variable so that it runs along the real line",
+            ) from None
+
+
+def _off_the_real_line(limits: Sequence[Any]) -> Any:
+    """A limit of an integral that is not real, as -i∞ of \\int_z^{-i\\infty}; ``None``
+    where SymPy knows of none."""
+    for limit in limits:
+        if isinstance(limit, tuple | sympy.Tuple) and len(limit) == 3:
+            for end in limit[1:]:
+                if sympy.sympify(end).is_extended_real is False:
+                    return end
+    return None
 
 
 #: The sides a limit is taken from: above, below, or both.
