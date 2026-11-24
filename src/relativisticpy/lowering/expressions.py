@@ -1414,7 +1414,12 @@ class Expressions(LinearAlgebra):
         expr = self.value(node.expr, scope, ctx)
         pairs = []
         for target, value in node.bindings:
-            pairs += [self.value(target, scope, ctx), self.value(value, scope, ctx)]
+            path, self._the_path = self._the_path, None  # what is substituted for, as it is
+            try:
+                where = self.value(target, scope, ctx)
+            finally:
+                self._the_path = path
+            pairs += [where, self.value(value, scope, ctx)]
         return self._substituted(expr, pairs, node.span)
 
     def _substituted(self, expr: Node, pairs: list[Node], span: Span) -> Node:

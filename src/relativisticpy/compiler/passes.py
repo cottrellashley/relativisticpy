@@ -22,6 +22,7 @@ from relativisticpy.compiler.session import Session
 from relativisticpy.ir import Node, Type, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.language.source import Span
+from relativisticpy.reading.paths import Along
 from relativisticpy.reading.readings import Decision, Resolution
 from relativisticpy.tensors.spaces import Space
 
@@ -65,6 +66,9 @@ class Pass:
         self._checks: list[Check] = []
         # The identity a term of a sum beside a matrix is read with, as I is in A - \lambda I.
         self._identity: Node | None = None
+        # The path the statement being compiled is on, where a name it writes is bound to a
+        # quantity on one, as L of L - m g R \cos\theta (relativisticpy.reading.paths).
+        self._the_path: Along | None = None
 
     def _call(
         self,

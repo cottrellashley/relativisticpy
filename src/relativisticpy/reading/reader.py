@@ -40,7 +40,7 @@ from relativisticpy.language import syntax as ast
 from relativisticpy.language.parser import split_index_labels
 from relativisticpy.language.source import Span
 from relativisticpy.language.vocabulary import FUNCTION_WORDS, GREEK
-from relativisticpy.reading import arithmetic, typefaces
+from relativisticpy.reading import arithmetic, paths, typefaces
 from relativisticpy.reading.assumptions import numbers
 from relativisticpy.reading.names import (
     _BUILT_IN_SCALARS,
@@ -571,7 +571,7 @@ class Reader(Typer):
             kept = self._kept(binding.node)
             if kept is not None and kept is not binding.node:  # kept in another algebra
                 return kept
-            return binding.node
+            return self._on_the_path(node, binding)  # V in L - V, of L on a path
         if isinstance(binding, FunctionBinding):
             self._resolve(node.span, f"a function, defined on line {binding.definition.span.line}")
             return FunctionReference(node.span, name)
@@ -591,7 +591,9 @@ class Reader(Typer):
             return self.graph.const(list(session.coordinates), VALUE, node.span)
         if (quantity := self._builtin_scalar(name)) is not None:
             self._resolve(node.span, f"{describe(quantity)} of the metric in force")
-            return self._geometry(quantity, node.span)
+            return self._taken_along(node, self._geometry(quantity, node.span))
+        if (point := self._point_of_the_path(node)) is not None:  # \theta beside L on a path
+            return point
         self._note_symbol(node)
         if name in session.assumptions:
             symbol = session.assumptions[name]
@@ -638,6 +640,62 @@ class Reader(Typer):
         else:
             self._resolve(node.span, "a symbol", written=written_as)
         return self.graph.const(session.symbol(name), SCALAR, node.span)
+
+    def _point_of_the_path(self, node: ast.Name) -> Node | None:
+        """A coordinate written alone in a statement on a path, as θ in ``L - m g R
+        \\cos\\theta`` of L on the path ``q^i := (\\theta(t), \\phi(t))``: the path's θ(t),
+        with a note, as in L, so that the statement is all at one point; ``None`` for any
+        other name (design/notation.md, decision 16)."""
+        along = self._the_path
+        if along is None or node.id not in along.point:
+            return None
+        written = node.span.text.strip()
+        shown = f"{written}({self._written_label(along.parameter.name)})"
+        on = _listed(list(along.on))
+        self._note(
+            f"{written} is taken along the path, as {shown}, in all of the statement, as "
+            f"{on} {'is' if len(along.on) == 1 else 'are'} on it"
+        )
+        self._resolve(node.span, "a coordinate, taken along the path", written=shown)
+        return along.point[node.id]
+
+    def _on_the_path(self, node: ast.Name, binding: VariableBinding | TensorBinding) -> Node:
+        """The value of a name a statement on a path writes, as V in ``L - V`` of L on the
+        path: its coordinates taken along the path, as θ(t), where it holds them and is no
+        quantity on the path itself, with a note; its value as it is otherwise."""
+        along = self._the_path
+        value = binding.node
+        if along is None or not isinstance(binding, VariableBinding) or node.id in along.on:
+            return value
+        if self.session.globals.lookup(node.id) is not binding:
+            return value  # a variable of an integral or a sum, bound where it is written
+        return self._taken_along(node, value)
+
+    def _taken_along(self, node: ast.Name, value: Node) -> Node:
+        """A scalar a statement on a path writes by name, its coordinates taken along the
+        path, as θ(t), where it holds them, with a note: a name of the program's, as V, or
+        a quantity of the metric in force, as its determinant g (see
+        :meth:`_on_the_path`)."""
+        along = self._the_path
+        if along is None or value.type != SCALAR:
+            return value
+        held = paths.held(value, along.point)
+        if not held:
+            return value
+        symbols = {c.name: c for c in self.session.coordinates or ()}
+        pairs: list[Node] = []
+        for name in held:
+            pairs += [self.graph.const(symbols[name], SCALAR), along.point[name]]
+        written = node.span.text.strip()
+        letters = [self._written_label(name) for name in held]
+        parameter = self._written_label(along.parameter.name)
+        points = [f"{letter}({parameter})" for letter in letters]
+        on = _listed(list(along.on))
+        self._note(
+            f"{written} is taken along the path, its {_listed(letters)} as {_listed(points)}, "
+            f"as {on} {'is' if len(along.on) == 1 else 'are'} on it"
+        )
+        return self._call("core.subs", [value, *pairs], SCALAR, node.span)
 
     def _note_symbol(self, node: ast.Name) -> None:
         """Say so where a name bound to nothing is read as a symbol though it could be

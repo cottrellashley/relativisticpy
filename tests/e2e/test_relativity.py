@@ -405,6 +405,46 @@ class TestLatexRelativity:
         (step,) = wb.each(r"\frac{\partial V}{\partial q^i}")
         assert any("θ is taken along the path, as θ(t)" in note for note in step.notes)
 
+    def test_a_statement_that_writes_a_quantity_on_a_path_is_on_it_all(self, wb):
+        # L - m g_0 R \cos\theta held cos θ beside θ(t), so that its derivative by t lost the
+        # potential's term, and a note said only that θ was taken along the path in L
+        # (decision 16)
+        wb.exe(r"""
+            Coordinates := [\theta, \phi]
+            ds^2 = R^2 \left(d\theta^2 + \sin^2\theta\, d\phi^2\right)
+            q^i := (\theta(t), \phi(t))
+            L := \frac{1}{2} m\, g_{ij} \dot{q}^i \dot{q}^j
+            V := m g_0 R \cos\theta
+        """)
+        tm, m, R, g0 = symbols("t m R g_0")
+        th, ph = Function("theta")(tm), Function("phi")(tm)
+        kinetic = m * R**2 / 2 * (diff(th, tm) ** 2 + sin(th) ** 2 * diff(ph, tm) ** 2)
+        lagrangian = kinetic - m * g0 * R * cos(th)
+        for written in (r"L - m g_0 R \cos\theta", "L - V"):
+            assert same(wb.expr(written), lagrangian)
+            assert same(wb.expr(rf"\frac{{d}}{{dt}} ({written})"), diff(lagrangian, tm))
+        (step,) = wb.each(r"L - m g_0 R \cos\theta")
+        assert (
+            r"\theta is taken along the path, as \theta(t), in all of the statement, as L is "
+            "on it"
+        ) in "\n".join(step.notes)
+        (step,) = wb.each("L - V")
+        assert r"V is taken along the path, its \theta as \theta(t), as L is on it" in "\n".join(
+            step.notes
+        )
+        # Lagrange's equations of the pendulum on the sphere, with its weight
+        wb.exe(r"\mathcal{L} := L - V")
+        equations = wb.expr(
+            r"\frac{d}{dt} \frac{\partial \mathcal{L}}{\partial \dot{q}^i}"
+            r" - \frac{\partial \mathcal{L}}{\partial q^i}"
+        )
+        expected = [diff(diff(lagrangian, diff(q, tm)), tm) - diff(lagrangian, q) for q in (th, ph)]
+        assert all(same(equations[i], expected[i]) for i in range(2))
+        # what writes nothing on the path keeps the coordinate, and so does a variable of an
+        # integral
+        assert wb.expr(r"\cos\theta") == cos(Symbol("theta"))
+        assert same(wb.expr(r"L + \int_0^{\pi} \cos\theta \, d\theta"), kinetic)
+
     def test_geodesic_equations(self, wb):
         wb.exe(r"g_{\mu\nu} := Schwarzschild(M)")
         equations = wb.expr(r"geodesic_equations(\tau)")

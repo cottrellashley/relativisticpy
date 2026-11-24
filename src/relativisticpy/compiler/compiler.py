@@ -29,7 +29,7 @@ from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.lowering.vectors import VectorCalculus
-from relativisticpy.reading import assumptions, typefaces
+from relativisticpy.reading import assumptions, paths, typefaces
 
 # The tables of the language, which its reference reads from here.
 from relativisticpy.reading.names import _BUILTIN_TENSORS as _BUILTIN_TENSORS
@@ -103,7 +103,7 @@ class Compiler(VectorCalculus):
     def statement(
         self, statement: ast.Statement, scope: Scope, outer: Context | None = None
     ) -> list[Output]:
-        saved = self._labels, self._scripts, self._factors, self._text
+        saved = self._labels, self._scripts, self._factors, self._text, self._the_path
         top = self._depth == 0
         apart = typefaces.Apart()
         if top:
@@ -111,6 +111,9 @@ class Compiler(VectorCalculus):
             self._decided, self._resolved = {}, {}
             # \mathbf{w} and w, two names where the program defines both (decision 9)
             statement, apart = typefaces.prepare(statement, scope)
+            # L - m g R \cos\theta, of L on a path, is all on it (decision 16)
+            coordinates = [c.name for c in self.session.coordinates or ()]
+            self._the_path = paths.along(statement, scope, coordinates)
         self._depth += 1
         try:
             self._text = statement.span.text
@@ -127,7 +130,7 @@ class Compiler(VectorCalculus):
                 error.notes.extend(note for note in self._notes if note not in error.notes)
             raise
         finally:
-            self._labels, self._scripts, self._factors, self._text = saved
+            self._labels, self._scripts, self._factors, self._text, self._the_path = saved
             self._depth -= 1
         if top and self._notes:
             if outputs:
