@@ -286,6 +286,16 @@ C1*exp(x)
 
 ```
 
+An equation is shown, not solved, unless it is given to `solve`: a name it holds stays a
+symbol. A value after it that holds that name says so in a note, with how to solve it:
+
+```python
+>>> step = list(Workbook().each("x^2 = 4\nx + 1"))[1]
+>>> step.values, step.notes
+([x + 1], ['x is a symbol here: the equation on line 1 holds x, and is shown, not solved; for the values of x, solve it, as in solve(x^2 = 4, x)'])
+
+```
+
 ## Evaluation
 
 An evaluation bar substitutes values, as on paper:
@@ -335,6 +345,21 @@ Lagrange's primes differentiate a function you have defined, or an unknown one:
 
 ```
 
+A subscript on a function the program defines is a partial derivative, as Stewart writes
+it: `f_x` and `f_{xy}` by the variables they name, `f_1` and `f_{12}` by those they number,
+and `D_1 f` too, each with a note:
+
+```python
+>>> wb.exe(r"""
+...     f(x, y) := x^2 y^3
+...     f_x
+...     f_{12}(1, 2)
+...     D_1 f
+... """)
+[2*x*y**3, 24, 2*x*y**3]
+
+```
+
 Integrals end at their differential, which may also come first or sit in the
 numerator of a fraction, where it ends the integral with its term. An evaluation
 bar before the differential is inside the integral. A differential alone
@@ -351,6 +376,15 @@ integrates 1:
 ...     integrate(x y, (x, 0, 1), (y, 0, 2))
 ... """)
 [1/3, 1, log(x), 1 - pi, 2, L, 1]
+
+```
+
+Where nothing defines δ, `\delta(x)` of a variable, or of a point as in `\delta(x - a)`, is
+Dirac's delta, with a note; δ of what is no point, as `\delta(g^{-1})`, is not:
+
+```python
+>>> wb.expr(r"\int_{-\infty}^{\infty} x^2 \delta(x - 2) \, dx")
+4
 
 ```
 
@@ -433,7 +467,10 @@ is always a letter, so `\gamma(r)` in a metric is an unknown function; Euler's
 gamma function is `gamma(x)`, spelled out.
 
 A function you call without defining it stays unknown, which is how to write
-an unknown function such as \(A(r)\) in a metric.
+an unknown function such as \(A(r)\) in a metric. So does a name with a label that nothing
+defines, before names in brackets, as `\Phi_N(r)` and `V_{\rm eff}(r)`, and a name
+written with `\operatorname` that nothing defines, which applies to what follows it:
+`\operatorname{lb} 8` is lb(8). A note says each is unknown.
 
 ## Piecewise functions and other notation
 
