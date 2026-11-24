@@ -188,6 +188,26 @@ def test_json_lines_one_object_per_statement(capsys, program):
     assert err.startswith("1 of 3 statements failed")
 
 
+def test_json_says_an_equation_of_index_notation_it_cannot_tell_is_not_decided(capsys):
+    # Carroll's (1.69) failed inside RelativisticPy as it was described: T_{[μνρ]σ} is read
+    # as a symbol, beside a sum of tensors, and SymPy cannot subtract the two sides
+    carroll = (
+        r"T_{[\mu\nu\rho]\sigma} = {1\over 6}\left(T_{\mu\nu\rho\sigma} - T _{\mu\rho\nu\sigma}"
+        r" + T_{\rho\mu\nu\sigma} - T_{\nu\mu\rho\sigma} + T_{\nu\rho\mu\sigma}"
+        r" - T_{\rho\nu\mu\sigma} \right)"
+    )
+    status, out, _ = run(capsys, "-c", carroll, "--format", "json")
+    assert status == 0
+    record = json.loads(out)
+    assert record["error"] is None
+    [value] = record["values"]
+    assert (value["kind"], value["holds"], value["identity"]) == ("index equation", None, None)
+    assert record["notes"] == [
+        "whether this is an identity of index notation is not decided: as read, its sides "
+        "have different free indices, which SymPy cannot compare"
+    ]
+
+
 def test_latex_labels_are_comments(capsys):
     assert run(capsys, "-c", "\\frac{1}{x}", "--latex") == (0, "\\frac{1}{x}\n", "")
     _, out, _ = run(capsys, "-c", "y := 2\n\\frac{1}{y}", "--format", "latex")

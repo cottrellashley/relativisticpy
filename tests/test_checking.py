@@ -123,6 +123,29 @@ def test_index_notation_is_checked_as_notation():
     ]
 
 
+def test_an_equation_of_index_notation_sympy_cannot_tell_is_not_decided():
+    # Carroll's (1.69) failed inside RelativisticPy as it was judged: T_{[μνρ]σ} is read as
+    # a symbol, beside a sum of tensors, and SymPy cannot subtract the two sides
+    report = Workbook().check(
+        Document(
+            r"""
+        \be
+          T_{[\mu\nu\rho]\sigma} = {1\over 6}\left(T_{\mu\nu\rho\sigma}
+          - T _{\mu\rho\nu\sigma} + T_{\rho\mu\nu\sigma} - T_{\nu\mu\rho\sigma}
+          + T_{\nu\rho\mu\sigma} - T_{\rho\nu\mu\sigma} \right)\ .\label{1.69}
+        \ee
+        """.replace(r"\be", r"\begin{equation}").replace(r"\ee", r"\end{equation}")
+        )
+    )
+    [finding] = report.findings
+    assert finding.verdict is Verdict.NOT_COMPUTED
+    assert finding.detail.startswith("whether T_munurhosigma = 1/6 T_{μνρσ}")
+    assert finding.detail.endswith(
+        "is an identity of index notation is not decided: as read, its sides have different "
+        "free indices, which SymPy cannot compare"
+    )
+
+
 class TestScalarEquations:
     """An equation holds when it is proven; numbers tell one that differs from one that
     is not decided."""

@@ -7,6 +7,7 @@ from functools import reduce
 import pytest
 from sympy import Rational, Symbol, pi
 
+from relativisticpy import display
 from relativisticpy.abstract import (
     Algebra,
     IndexEquation,
@@ -19,6 +20,7 @@ from relativisticpy.abstract import (
     trace,
 )
 from relativisticpy.errors import CompileError
+from relativisticpy.tensors.equation import UndecidedError
 
 space = Algebra(4)
 mu, nu, rho, sigma, a = (space.index(name, False) for name in ("mu", "nu", "rho", "sigma", "a"))
@@ -230,6 +232,23 @@ class TestTruth:  # API-1, API-11, API-34
         assert trace_of_einstein == -R
         assert trace_of_einstein != R
         assert IndexExpression(T(mu, nu), space) != 0  # free indices: no scalar
+
+    def test_an_equation_sympy_cannot_tell_is_not_decided(self):
+        # as T_{[μν]} read as a symbol beside the sum of the T it permutes: SymPy's tensors
+        # refuse to subtract sides of different free indices, and the equation failed
+        # wherever it was asked whether it holds, described or hashed
+        written = Symbol("T_munu")
+        equation = IndexEquation(written, (T(mu, nu) - T(nu, mu)) / 2, space)
+        assert equation.holds() is None
+        assert equation.undecided() == (
+            "as read, its sides have different free indices, which SymPy cannot compare"
+        )
+        with pytest.raises(UndecidedError, match="is an identity is not decided"):
+            bool(equation)
+        data = display.data(equation)
+        assert (data["kind"], data["holds"], data["identity"]) == ("index equation", None, None)
+        assert equation == IndexEquation(written, (T(mu, nu) - T(nu, mu)) / 2, space)
+        assert len({equation, equation}) == 1
 
     def test_equal_values_hash_alike(self):
         one = IndexEquation(T(mu, nu), Lam * g(mu, nu), space)

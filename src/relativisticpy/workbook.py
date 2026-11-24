@@ -1480,11 +1480,8 @@ def _left_undone(value: Any) -> list[str]:
     :func:`~relativisticpy.steps.left_undone` finds it, in a list, a tensor or a tensor
     equation too; and the conditions SymPy puts on its parameters."""
     notes = [LEFT_UNDONE[reason] for reason in left_undone(value)]
-    if isinstance(value, IndexEquation) and _no_identity(value):
-        notes.append(
-            "this is no identity of index notation: it relates its tensors, as a law does, "
-            "and nothing here decides it"
-        )
+    if isinstance(value, IndexEquation):
+        notes.extend(_identity(value))
     if _conditional(value):
         notes.append(
             "this holds under the conditions SymPy gives, as it takes every symbol to be "
@@ -1504,14 +1501,25 @@ def _left_undone(value: Any) -> list[str]:
     return notes
 
 
-def _no_identity(equation: IndexEquation) -> bool:
-    """Whether an equation of index notation is shown to be no identity. Where SymPy fails
-    to tell, as of T_{[abc]d} beside a sum of the T it permutes, nothing is said here: the
-    equation is shown, and a check that judges it reports the failure."""
+def _identity(equation: IndexEquation) -> list[str]:
+    """The note on an equation of index notation that is shown to be no identity, which
+    relates its tensors, as a law does; and on one SymPy cannot tell, as of T_{[abc]d} read
+    as a symbol beside the sum of the T it permutes, which is not decided. None on an
+    identity, nor where telling fails otherwise: a check that judges it reports that."""
     try:
-        return not equation.holds()
-    except Exception:  # SymPy's tensors refuse some sums of differently written terms
-        return False
+        identity = equation.holds()
+    except Exception:  # a note is never a reason for a statement to fail
+        return []
+    if identity is None:
+        return [
+            f"whether this is an identity of index notation is not decided: {equation.undecided()}"
+        ]
+    if not identity:
+        return [
+            "this is no identity of index notation: it relates its tensors, as a law does, "
+            "and nothing here decides it"
+        ]
+    return []
 
 
 def _conditional(value: Any) -> bool:

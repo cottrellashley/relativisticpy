@@ -953,7 +953,8 @@ class IndexEquation:
     def _display_data(self) -> dict[str, Any]:
         """An identity holds; an equation that is none relates tensors, as Einstein's
         does, which index notation alone does not decide, as a check says: whether it
-        holds is ``None``, never ``False``, which would call it untrue."""
+        holds is ``None``, never ``False``, which would call it untrue. Where SymPy cannot
+        tell whether it is an identity, that is ``None`` too."""
         identity = self.holds()
         return {"kind": "index equation", "holds": True if identity else None, "identity": identity}
 
@@ -977,26 +978,63 @@ class IndexEquation:
     def _latex(self, printer: Any = None) -> str:
         return self.latex()
 
-    def holds(self) -> bool:
-        """Whether the equation is an identity, by canonical forms."""
-        return _vanishes(self.lhs - self.rhs, self.space)
+    def holds(self) -> bool | None:
+        """Whether the equation is an identity, by canonical forms; ``None`` where SymPy
+        cannot tell, as of sides it cannot subtract (see :meth:`undecided`)."""
+        difference = self._difference()
+        if difference is None:
+            return None
+        try:
+            return _vanishes(difference, self.space)
+        except ValueError:  # SymPy's tensors refuse to bring some sums to canonical form
+            return None
+
+    def undecided(self) -> str:
+        """Why :meth:`holds` is ``None``: SymPy cannot compare the sides, which, as they are
+        read, may have different free indices, as ``T_{[abc]d}`` read as a symbol beside
+        the sum of the T it permutes has."""
+        zero = any(not isinstance(side, TensExpr) and side == 0 for side in (self.lhs, self.rhs))
+        if _free_key(self.lhs) != _free_key(self.rhs) and not zero:  # 0 has any indices
+            return "as read, its sides have different free indices, which SymPy cannot compare"
+        return "SymPy cannot compare its sides"
+
+    def _difference(self) -> Value | None:
+        """The left side less the right; ``None`` where SymPy's tensors refuse to subtract
+        them, as terms of different free indices."""
+        try:
+            return self.lhs - self.rhs
+        except ValueError:
+            return None
 
     def __bool__(self) -> bool:
-        """Whether the equation is an identity: see :meth:`holds`."""
-        return self.holds()
+        """Whether the equation is an identity: see :meth:`holds`. An equation SymPy cannot
+        tell has no truth value, and says so."""
+        verdict = self.holds()
+        if verdict is None:
+            from relativisticpy.tensors.equation import UndecidedError
+
+            raise UndecidedError(
+                f"whether {self.display('unicode')} is an identity is not decided: "
+                f"{self.undecided()}",
+                hint="ask equation.holds(), which is None for an equation not decided",
+            )
+        return verdict
 
     def __eq__(self, other: object) -> bool:
         """Equations are equal when they say the same: their sides differ alike."""
         if not isinstance(other, IndexEquation):
             return NotImplemented
-        mine, theirs = self.lhs - self.rhs, other.lhs - other.rhs
+        mine, theirs = self._difference(), other._difference()
+        if mine is None or theirs is None:  # as they are written, then
+            return bool(self.lhs == other.lhs and self.rhs == other.rhs)
         if not _same_free(mine, theirs):
             return False
         return _vanishes(mine - theirs, self.space) or _vanishes(mine + theirs, self.space)
 
     def __hash__(self) -> int:
-        # Equal equations have sides that differ by the same free indices.
-        return hash(("IndexEquation", _free_key(self.lhs - self.rhs)))
+        # Equal equations have sides that differ by the same free indices: those of either
+        # side, where they can be subtracted.
+        return hash(("IndexEquation", _free_key(self.lhs) | _free_key(self.rhs)))
 
 
 def _free_key(value: Value) -> frozenset[tuple[str, bool]]:

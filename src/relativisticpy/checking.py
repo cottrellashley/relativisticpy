@@ -705,8 +705,16 @@ def _judge(value: Any, session: Workbook, state: _State) -> tuple[Verdict, str, 
     if _false(value):
         return Verdict.DIFFERS, "the two sides are not equal", None
     if isinstance(value, IndexEquation):  # a law, such as Einstein's, need not be an identity
-        if value.holds():
+        identity = value.holds()
+        if identity:
             return Verdict.HOLDS, "an identity of index notation", None
+        if identity is None:
+            claim = f"{_shown(value)} is an identity of index notation"
+            return (
+                Verdict.NOT_COMPUTED,
+                f"whether {claim} is not decided: {value.undecided()}",
+                None,
+            )
         unknown = _undefined_tensors(value, session)
         detail = f"index notation, not an identity: {_shown(value)}"
         return Verdict.RELATES, f"nothing defines {_listed(unknown)}: {detail}", None

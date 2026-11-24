@@ -352,6 +352,26 @@ def test_compute_and_verify_agree_on_an_equation_of_index_notation():
     assert computed["statements"][1]["notes"] == []
 
 
+def test_compute_says_an_equation_of_index_notation_it_cannot_tell_is_not_decided():
+    # Carroll's (1.69) failed inside RelativisticPy as compute described it: T_{[μνρ]σ} is
+    # read as a symbol, beside a sum of tensors, and SymPy cannot subtract the two sides
+    carroll = (
+        r"T_{[\mu\nu\rho]\sigma} = {1\over 6}\left(T_{\mu\nu\rho\sigma} - T _{\mu\rho\nu\sigma}"
+        r" + T_{\rho\mu\nu\sigma} - T_{\nu\mu\rho\sigma} + T_{\nu\rho\mu\sigma}"
+        r" - T_{\rho\nu\mu\sigma} \right)"
+    )
+
+    async def test(client, pool):
+        return await call(client, "compute", source=carroll)
+
+    computed = serve(test)
+    [entry] = computed["statements"]
+    assert entry["error"] is None
+    [value] = entry["values"]
+    assert (value["kind"], value["holds"], value["identity"]) == ("index equation", None, None)
+    assert "is an identity of index notation is not decided" in entry["notes"][0]
+
+
 def test_compute_verify_and_check_give_an_error_alike():
     claims = [r"\frac{1}{2 = x", r"\lim_{x \to \infty} \sin(x) = 0", r"e^x \geq 1 + x"]
     notebook = "\n\n".join(f"$${claim}$$" for claim in claims)

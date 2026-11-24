@@ -92,8 +92,9 @@ def test_an_equation_whose_sides_cannot_be_computed_keeps_its_verdict(monkeypatc
 
 
 def test_an_equation_of_index_notation_is_shown_where_its_identity_cannot_be_told():
-    # Carroll (1.79): SymPy's tensors refuse to subtract the sides, so whether it is an
-    # identity cannot be told; the note on one that is none must not make it fail
+    # Carroll (1.69): SymPy's tensors refuse to subtract the sides, so whether it is an
+    # identity cannot be told; the note on one that is none must not make it fail, and a
+    # note says that it is not decided
     written = (
         r"T_{[\mu\nu\rho]\sigma} = {1\over 6}\left(T_{\mu\nu\rho\sigma} - T _{\mu\rho\nu\sigma}"
         r" + T_{\rho\mu\nu\sigma} - T_{\nu\mu\rho\sigma} + T_{\nu\rho\mu\sigma}"
@@ -102,7 +103,10 @@ def test_an_equation_of_index_notation_is_shown_where_its_identity_cannot_be_tol
     (step,) = Workbook().each(written)
     assert step.error is None
     assert len(step.values) == 1
-    assert step.notes == []
+    assert step.notes == [
+        "whether this is an identity of index notation is not decided: as read, its sides "
+        "have different free indices, which SymPy cannot compare"
+    ]
     (law,) = Workbook().each(r"G_{\mu\nu} = 8\pi T_{\mu\nu}")
     assert law.notes == [
         "this is no identity of index notation: it relates its tensors, as a law does, and "
