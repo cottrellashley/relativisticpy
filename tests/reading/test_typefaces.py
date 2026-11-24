@@ -68,6 +68,24 @@ class TestOneNameSaysSo:
             STANDS_FOR.format(written=r"\mathcal{L}", defined="L")
         ]
 
+    def test_a_name_written_with_more_than_its_typeface_says_nothing(self, wb):
+        # each was said to stand for the program's name in another typeface
+        wb.exe("\\mathbf{b}^{(1)} := (1, 2)\n\\mathcal{L} := [[1, 0], [0, 2]]")
+        assert notes(wb, r"\mathbf{b}^{(1)}") == []  # the label makes the name b^(1)
+        assert wb.expr(r"\lambda_{\max}(\mathcal{L})") == 2
+        assert not any("typeface" in note for note in notes(wb, r"\lambda_{\max}(\mathcal{L})"))
+
+    def test_the_variable_of_an_optimum_is_its_own(self, wb):
+        wb.exe(
+            r"A := \begin{pmatrix} 1 & 1 & 0 \\ 0 & 1 & 1 \end{pmatrix}" "\n"
+            r"\mathbf{b} := \begin{pmatrix} 1 \\ 2 \end{pmatrix}"
+        )  # fmt: skip
+        program = (
+            r"\arg\min_{\mathbf{x}} \|\mathbf{x}\|_2 \quad \text{subject to} \quad "
+            r"A\mathbf{x} = \mathbf{b}"
+        )
+        assert not any("typeface" in note for note in notes(wb, program))
+
     def test_a_definition_that_fails_leaves_the_names_as_they_were(self, wb):
         wb.exe(r"\mathbf{w} := (1, 2, 3)")
         with pytest.raises(CompileError):

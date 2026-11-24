@@ -17,6 +17,7 @@ before anything else reads it.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, fields, replace
 from typing import Any
@@ -37,15 +38,26 @@ _TYPEFACES = (
 )
 
 
+#: A name written in a typeface, the command and the name: ``\mathbf{w}``,
+#: ``\boldsymbol{\sigma}`` or ``{\bf v}``.
+_WRITTEN = re.compile(
+    r"\\(?P<command>[A-Za-z]+)\s*\{\s*\\?(?P<name>[A-Za-z]+)\s*\}"
+    r"|\{\s*\\(?P<switch>bf|cal)\s+\\?(?P<switched>[A-Za-z]+)\s*\}"
+)
+
+
 def key(node: ast.Name) -> str | None:
     """The name a name set in a typeface of its own is bound to apart from the plain one,
     ``\\mathbf{w}`` of w set bold, however bold is written; ``None`` for a name set plain,
-    upright or italic, and for one already read as that name."""
-    text = node.span.text.lstrip()
+    upright or italic, for one already read as that name, and for a name made of more than
+    it is written with, as ``b^(1)`` of ``\\mathbf{b}^{(1)}``."""
+    match = _WRITTEN.fullmatch(node.span.text.strip())
+    if match is None or (match["name"] or match["switched"]) != node.id:
+        return None
+    written = f"\\{match['command'] or match['switch']}"
     for command, spellings in _TYPEFACES:
-        if text.startswith(spellings):
-            styled = f"{command}{{{node.id}}}"
-            return None if node.id.startswith("\\") else styled
+        if written in spellings or f"{{{written}" in spellings:
+            return f"{command}{{{node.id}}}"
     return None
 
 
@@ -138,6 +150,10 @@ def stands_for(node: ast.Name, binding: Binding) -> str | None:
     styled, defined = key(node), written(binding)
     if node.id.startswith("\\"):  # read as the name it is bound to apart
         return None
+    text = node.span.text
+    if styled is None and any(s in text for _, spellings in _TYPEFACES for s in spellings):
+        return None  # (\mathcal{L}), or \left. \mathbf{v} \right|: in a typeface, with more
+
     if styled == defined or not isinstance(binding, VariableBinding | TensorBinding):
         return None
     shown = node.span.text.strip()

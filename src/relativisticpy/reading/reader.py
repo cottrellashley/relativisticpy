@@ -565,7 +565,8 @@ class Reader(Typer):
         name = node.id
         binding = scope.lookup(name)
         if isinstance(binding, VariableBinding | TensorBinding):
-            if (other := typefaces.stands_for(node, binding)) is not None:
+            defined = self.session.globals.lookup(name) is binding  # not an optimum's variable
+            if defined and (other := typefaces.stands_for(node, binding)) is not None:
                 self._note(other)  # \mathbf{w}, read as the program's w (decision 9)
             self._resolve_binding(node.span, binding)
             kept = self._kept(binding.node)
