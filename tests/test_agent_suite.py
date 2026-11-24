@@ -304,6 +304,33 @@ ANSWERS = [
         lambda: set(sympy.Matrix([[2, 1], [1, 2]]).eigenvals()),
         id="plain-eigenvalues",
     ),
+    # the habits of NumPy and MATLAB, read as they mean (decision 42); each was refused
+    pytest.param(  # each as often as it is one, from the smallest, as MATLAB gives them
+        "eig([[2, 0, 0], [0, 3, 4], [0, 4, 9]])",
+        lambda: sorted(sympy.Matrix([[2, 0, 0], [0, 3, 4], [0, 4, 9]]).eigenvals(multiple=True)),
+        id="plain-matlab-eigenvalues",
+    ),
+    pytest.param(
+        "A := [[1, 2], [3, 4]]\nB := [[0, 1], [1, 0]]\nA @ B",
+        lambda: sympy.Matrix([[1, 2], [3, 4]]) * sympy.Matrix([[0, 1], [1, 0]]),
+        id="plain-numpy-matrix-product",
+    ),
+    pytest.param(
+        "A := [[1, 2], [3, 4]]\nA.T @ A",
+        lambda: sympy.Matrix([[1, 2], [3, 4]]).T * sympy.Matrix([[1, 2], [3, 4]]),
+        id="plain-numpy-transpose",
+    ),
+    pytest.param(
+        "x := [1, -2, 3]\n||x||_1",
+        lambda: sympy.Integer(6),
+        id="plain-norm",
+    ),
+    pytest.param("C(5, 2)", lambda: sympy.binomial(5, 2), id="plain-combinations"),
+    pytest.param(
+        "X \\sim \\mathcal{N}(0, 4)\n\\operatorname{Var} X",
+        lambda: sympy.Integer(4),
+        id="latex-variance-without-brackets",
+    ),
     pytest.param(
         "\\vec{a} := (1, 2, 3)\n\\vec{b} := (4, 5, 6)\n\\vec{a} \\times \\vec{b}",
         lambda: list(sympy.Matrix([1, 2, 3]).cross(sympy.Matrix([4, 5, 6]))),
@@ -502,6 +529,15 @@ REFUSALS = [
     pytest.param("simplfy(x)", "CompileError", True, id="plain-misspelt-function"),
     pytest.param(r"\infty - \infty", "EvaluationError", True, id="latex-no-value"),
     pytest.param(r"\lim_{x \to \infty} \sin x", "EvaluationError", False, id="latex-no-limit"),
+    # NumPy's transpose of what is no matrix, which x^T would read as a power
+    pytest.param("x.T", "CompileError", True, id="plain-numpy-transpose-of-a-symbol"),
+    # a loop written in words, which was a range of k and its body run once (decision 44)
+    pytest.param(
+        "v := 1\n\\textbf{for } k = 1, \\ldots, 5\n    v := 2 v",
+        "ParseError",
+        True,
+        id="latex-loop-in-words",
+    ),
     pytest.param(
         f"{SCHWARZSCHILD}\n" r"\Gamma^r_tt",
         "IndexNotationError",
