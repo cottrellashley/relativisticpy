@@ -51,7 +51,7 @@ by what you want to do:
 
 | I want to | Read, in order |
 |---|---|
-| compute: algebra, calculus, matrices, probability and more | [The language](language.md), [LaTeX](latex.md) |
+| compute: algebra, calculus, matrices, probability and more | [The language](language.md), the page of [each field](language.md#fields), [LaTeX](latex.md) |
 | give an AI agent mathematics to do | [MCP server, for agents](mcp.md), [the language reference](reference.md) |
 | study General Relativity | [Tensors and geometry](tensors.md), [Solving tensor equations](notation.md), [Numerics](numerics.md) |
 | check a paper | [LaTeX](latex.md), [Checking papers](checking.md) |

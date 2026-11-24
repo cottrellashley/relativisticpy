@@ -116,7 +116,7 @@ optimizers are asked in turn as it runs, the exact ones first. SymPy's are in
 ```
 
 A `distribution` is the law a random variable is declared with, `X \sim
-\mathcal{N}(\mu, \sigma^2)` (see [the language](language.md#random-variables)). Its `exact`
+\mathcal{N}(\mu, \sigma^2)` (see [Random variables](probability.md)). Its `exact`
 gives SymPy's law of its parameters, and its `numeric` SciPy's frozen law; its class has
 `mean` and `variance` methods, the closed forms of its moments, whose source it declares as
 `moments`, and may have `mgf(t, ...)`, its moment-generating function, where SymPy's law has

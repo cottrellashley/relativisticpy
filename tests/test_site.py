@@ -92,8 +92,9 @@ def test_llms_txt_indexes_every_page_in_a_few_lines(config, site):
         assert fact in text
     for fact in ("relativisticpy mcp", '"complete": false'):  # what an agent acts on
         assert fact in text
-    # about 1,750 tokens: the facts an agent needs to act on a result took it past 6,000
-    assert len(text) < 7_000
+    # about 1,850 tokens: the facts an agent needs to act on a result took it past 6,000,
+    # and a page for each field, six lines, past 7,000
+    assert len(text) < 8_000
 
 
 def test_llms_full_txt_holds_every_page_in_order(config, site):

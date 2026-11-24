@@ -70,9 +70,10 @@ Plain text and Unicode say the same, and mix with LaTeX:
 
 ```
 
-Results come back as SymPy values. [The language](language.md) has the rest: matrices,
-vectors, probability, sequences, optima, number theory and quantum notation, each as its
-books write it.
+Results come back as SymPy values. [The language](language.md) has the rest, and each
+field has a page, in the notation of its books: [matrices](matrices.md),
+[vectors](vectors.md), [random variables](probability.md), [optima](optima.md),
+[number theory and sequences](discrete.md) and [quantum notation](quantum.md).
 
 ## Tensors
 
@@ -216,9 +217,9 @@ From Python, `wb.check` takes a file, or the text of a document:
 
 ## Where next
 
-- [The language](language.md): statements, `:=` and `=`, functions, equations,
-  calculus and every field; and the [language reference](reference.md), all of it on
-  one page.
+- [The language](language.md): statements, `:=` and `=`, functions, equations and
+  calculus, with a page for each field; and the [language reference](reference.md), all
+  of it on one page.
 - [The MCP server](mcp.md), to give the language to an AI agent.
 - [Tensors and geometry](tensors.md), for General Relativity.
 - [Beyond spacetime](spaces.md), for data.

@@ -278,7 +278,7 @@ with whatever it multiplies, never forming the product of everything averaged. W
 | `\operatorname{LedoitWolf}_t(R_{ta})` | the Ledoit–Wolf shrinkage estimate of a covariance, from scikit-learn, which weighs every sample alike |
 
 Without an index, `\mathbb{E}[X]`, `\operatorname{Var}(X)` and `\operatorname{Cov}(X, Y)`
-are of random variables, as [the language](language.md#random-variables) declares them; of
+are of random variables, declared as [Random variables](probability.md) says; of
 data they are refused, saying which index to write.
 
 ```python
@@ -296,7 +296,7 @@ True
 | `\operatorname{spec}(A)` | the eigenvalues; with a second argument `n`, the `n` largest, or smallest if negative, as for a large sparse matrix |
 | `\operatorname{svd}(X_{ta})` | `U_{tk}, s_k, V_{ak} := \operatorname{svd}(X_{ta})`, so that \(X_{ta} = U_{tk} \operatorname{diag}(s)_{kl} V_{al}\) |
 | `\det`, `\operatorname{tr}` | of a map, or of a matrix of components |
-| `\operatorname{rank}`, `\rho`, `\lambda_{\max}`, `\kappa`, `expm`, `norm` | the [functions of a matrix](language.md#matrices), of a map's matrix of components: a number, or a map of the same space |
+| `\operatorname{rank}`, `\rho`, `\lambda_{\max}`, `\kappa`, `expm`, `norm` | the [functions of a matrix](matrices.md), of a map's matrix of components: a number, or a map of the same space |
 | `\|v\|` | the length of a vector, with the metric of its space: \(\sqrt{g_{ab} \bar v^a v^b}\) |
 | `\operatorname{diag}(d)_{ab}` | the diagonal matrix of a vector |
 | `A_{ta} \odot B_{ta}` | the elementwise product, which index notation has no other way to write |
@@ -389,7 +389,7 @@ An optimum over an index of data binds the index, as a sum does, and is the grea
 least value along it, for each value of any other index; `\arg\max` and `\arg\min` give the
 label of the element where it is, a number where the label is one, or else its position.
 Where several elements share it, the first is given, and a note says so. An optimum over
-variables is found by the optimizers (see [the language](language.md#optima)):
+variables is found by the optimizers (see [Optima](optima.md)):
 
 ```python
 >>> signal.exe(r"""

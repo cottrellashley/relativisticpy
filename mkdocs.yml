@@ -15,6 +15,13 @@ nav:
   - Guides:
       - The language: language.md
       - LaTeX: latex.md
+      - Fields:
+          - Matrices: matrices.md
+          - Vectors: vectors.md
+          - Random variables: probability.md
+          - Optima: optima.md
+          - Number theory and sequences: discrete.md
+          - Quantum notation: quantum.md
       - Tensors and geometry: tensors.md
       - Solving tensor equations: notation.md
       - Checking papers: checking.md

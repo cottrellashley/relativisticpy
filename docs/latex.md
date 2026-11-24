@@ -99,7 +99,7 @@ argument runs over the following factors (`\sin\omega t` is
 spacing, an operator, another function or a differential: in
 `\sin^2\theta\, d\phi^2` the argument is \(\theta\). Only `\log` takes a
 subscript, its base, as in `\log_2 x`, and `\max` and `\min` the variables they are
-over, as `\max_v` and `\arg\min_w` are [optima](language.md#optima): `\det_g` is an
+over, as `\max_v` and `\arg\min_w` are [optima](optima.md): `\det_g` is an
 error.
 
 **What RelativisticPy prints reads back.** Results are typeset as SymPy
