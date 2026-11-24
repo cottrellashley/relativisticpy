@@ -116,6 +116,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 **Recommendation.** Yes, a typeface makes a different name. `\mathcal{L}\{\ldots\}`, with braces, is the Laplace transform; `\mathcal{L} :=` is a Lagrangian density.
 
+**What implementing it settled** (23 November 2026). After `\mathbf{w} := (1, 2, 3)` and `w := 7`, `\mathbf{w}` was 7, without a word, and `\frac{\mathbf{r}}{r^3}`, after `r := \sqrt{x^2 + y^2 + z^2}`, was 1/(x² + y² + z²). Bold, however it is written (`\mathbf`, `\boldsymbol`, `\bm`, `{\bf}`), calligraphic, script, Fraktur and sans serif each make a name of their own; upright and italic do not, so that `\mathrm{d}x` is dx. Where the program defines a name in two typefaces, in either order, they are two names, and each is read as itself. Where it defines it in one, the other stands for it, as books also set one name in two, as mechanics sets r for \mathbf{r} where nothing else is r, and a note says so and that defining it makes it a name of its own: `\mathcal{L} + 1` after `L := 5` is 6, with the note. So `\mathbf{r} = (x, y, z), \quad r = |\mathbf{r}|` defines r, its length, where it was refused as a vector equated with its length. The reader takes each name written in a typeface as the program's name in it before anything else reads the statement (`reading/typefaces.py`). A function's name and a member of a family in a typeface are read as before, as one name.
+
 ## 10. Is LaTeX decided per statement or per program?
 
 **Waiting on it:** `latex-per-statement` (3).

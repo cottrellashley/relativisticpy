@@ -26,7 +26,9 @@ brackets of a wavefunction of x, or beside an operator that differentiates by x,
 `\hat{p} := -i\hbar \frac{d}{dx}` does, where the statement writes no hat that only a unit
 vector can be, as `\hat{y}` is; a function is read as it was where it is defined.
 `\hat{\mathbf{r}}` and `\mathbf{e}_\theta` are those of the coordinates in force. A
-typeface does not make a name of its own yet: `\mathbf{r}` is `r` (decision 9 of
+typeface makes a name of its own where the program defines both: after `\mathbf{r} := (x,
+y, z)` and `r := |\mathbf{r}|`, `\mathbf{r}` is the vector and r its length; where it
+defines one of them, the other stands for it, with a note (decision 9 of
 [the notation decisions](https://github.com/cottrellashley/relativisticpy/blob/main/design/notation.md)).
 
 ```python

@@ -341,10 +341,16 @@ class TestEquations:
         found = error(wb, r"\mathbf{v} = 1")
         assert found.message == r"\mathbf{v} = 1 equates a vector with 1, a number"
 
-    def test_bold_and_plain_letters_are_one_name_and_said_so(self, wb):
-        found = error(wb, r"\mathbf{r} = (x, y, z), \quad r = |\mathbf{r}|")
+    def test_bold_and_plain_letters_are_two_names_where_the_program_defines_both(self, wb):
+        # \mathbf{r} = (x, y, z), \quad r = |\mathbf{r}| was refused, as r and \mathbf{r}
+        # were one name: r = |\mathbf{r}| equated the vector with its length (decision 9)
+        wb.exe(r"\mathbf{r} = (x, y, z), \quad r = |\mathbf{r}|")
+        assert str(wb.expr("r")) == "sqrt(x**2 + y**2 + z**2)"
+        assert str(wb.expr(r"\mathbf{r} / r")) == str(wb.expr(r"\mathbf{r} / |\mathbf{r}|"))
+        found = error(wb, r"\mathbf{r} = r")
         assert found.notes[-1] == (
-            r"\mathbf{r} and r are one name, as typefaces do not make names of their own yet"
+            r"\mathbf{r} and r are two names, as the program defines both: a typeface makes "
+            "a name of its own"
         )
 
 

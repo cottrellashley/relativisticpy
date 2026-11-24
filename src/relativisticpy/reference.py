@@ -758,7 +758,8 @@ def _latex() -> list[str]:
         (_command("texttt"), r"a Python object, read by name from the workbook's scope: "
          r"`\texttt{prices}` (see Python objects)"),
         (_commands(vocab.STYLE_COMMANDS), r"typefaces: what they hold is read as it is, so "
-         r"`\mathrm{d}x` is `d x`"),
+         r"`\mathrm{d}x` is `d x`; bold, calligraphic, script, Fraktur and sans serif make "
+         r"a name of its own where the program defines it in two"),
         (_commands(vocab.FONT_DECLARATIONS), r"plain TeX's typefaces, for the rest of the "
          r"group: `{\rm d}x`"),
         (_commands(vocab.LAYOUT_COMMANDS | vocab.LAYOUT_COMMANDS_WITH_ARGUMENT),

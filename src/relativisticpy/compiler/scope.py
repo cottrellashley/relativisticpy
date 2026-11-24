@@ -13,18 +13,24 @@ from relativisticpy.tensors import Indices
 
 @dataclass(frozen=True)
 class VariableBinding:
-    """A name for a value: ``x := 2``."""
+    """A name for a value: ``x := 2``. ``written`` is the name as it was defined, where it
+    was defined in a typeface that makes a name of its own, as ``\\mathbf{w}``, and is
+    bound to the plain name, w, which the program defines in no other typeface
+    (design/notation.md, decision 9)."""
 
     node: Node
+    written: str | None = field(default=None, kw_only=True, compare=False)
 
 
 @dataclass(frozen=True)
 class TensorBinding:
     """A tensor defined in the program, ``T^{a}_{b} := ...``, with the index
-    positions it was defined with."""
+    positions it was defined with, and, as of a variable, the typeface it was ``written``
+    in where it makes a name of its own."""
 
     node: Node
     indices: Indices
+    written: str | None = field(default=None, kw_only=True, compare=False)
 
 
 @dataclass(frozen=True)
@@ -56,6 +62,10 @@ class Scope:
 
     def bind(self, name: str, binding: Binding) -> None:
         self._bindings[name] = binding
+
+    def unbind(self, name: str) -> Binding | None:
+        """Forget a name bound at this level; what it was bound to, if anything."""
+        return self._bindings.pop(name, None)
 
     def bindings(self) -> list[tuple[str, Binding]]:
         """The names bound at this level, with what they are bound to, in the order they

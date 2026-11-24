@@ -29,7 +29,7 @@ from relativisticpy.errors import CompileError, RelativisticPyError
 from relativisticpy.ir import SCALAR, ops
 from relativisticpy.language import syntax as ast
 from relativisticpy.lowering.vectors import VectorCalculus
-from relativisticpy.reading import assumptions
+from relativisticpy.reading import assumptions, typefaces
 
 # The tables of the language, which its reference reads from here.
 from relativisticpy.reading.names import _BUILTIN_TENSORS as _BUILTIN_TENSORS
@@ -105,9 +105,12 @@ class Compiler(VectorCalculus):
     ) -> list[Output]:
         saved = self._labels, self._scripts, self._factors, self._text
         top = self._depth == 0
+        apart = typefaces.Apart()
         if top:
             self._notes = []
             self._decided, self._resolved = {}, {}
+            # \mathbf{w} and w, two names where the program defines both (decision 9)
+            statement, apart = typefaces.prepare(statement, scope)
         self._depth += 1
         try:
             self._text = statement.span.text
@@ -117,8 +120,10 @@ class Compiler(VectorCalculus):
             outputs = self._statement(statement, scope, outer)
             if top:
                 self.session.factors.update(self._factors)
-        except RelativisticPyError as error:
-            if top:  # how something was read may say why it fails
+                typefaces.finish(apart, scope)
+        except BaseException as error:
+            typefaces.undo(apart, scope)  # a statement that fails changes nothing
+            if top and isinstance(error, RelativisticPyError):  # how it was read may say why
                 error.notes.extend(note for note in self._notes if note not in error.notes)
             raise
         finally:

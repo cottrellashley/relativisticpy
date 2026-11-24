@@ -1177,7 +1177,7 @@ class VectorCalculus(Vectors, Probability):
                     try:  # \{L_x, L_y\} = L_z or [a, b] = 0: its own check says what it is
                         self._check_pair_and_scalar(node, lhs, rhs)
                     except CompileError as refused:
-                        refused.notes.extend(self._typeface_notes(node.span))
+                        refused.notes.extend(self._typeface_notes(node.span, scope))
                         raise
                     return lhs, rhs
                 if _known_zero(other):
@@ -1185,7 +1185,10 @@ class VectorCalculus(Vectors, Probability):
                 raise CompileError(
                     f"{node.span.text} equates a vector with {written.span.text}, a number",
                     span=node.span,
-                    notes=[*_called_as_a_product(vector_written), *self._typeface_notes(node.span)],
+                    notes=[
+                        *_called_as_a_product(vector_written),
+                        *self._typeface_notes(node.span, scope),
+                    ],
                     hint="write the vector it equals, as \\mathbf{0} or (0, 0, 0)",
                 )
         if left is None and right is not None and _known_zero(lhs):
@@ -1210,10 +1213,10 @@ class VectorCalculus(Vectors, Probability):
         """``\\mathbf{0}`` or 0 beside a vector: the vector of zeros of its size."""
         return [self.graph.const(sympy.Integer(0), SCALAR, span) for _ in like]
 
-    def _typeface_notes(self, span: Span) -> list[str]:
+    def _typeface_notes(self, span: Span, scope: Scope) -> list[str]:
         """Say so where a letter is written both bold and plain, as r and \\mathbf{r} are in
-        ``r = |\\mathbf{r}|``: they are one name, as typefaces do not make names of their
-        own yet (decision 9 of design/notation.md)."""
+        ``\\mathbf{r} = r``, and the program defines both: they are two names, as a
+        typeface makes a name of its own (decision 9 of design/notation.md)."""
         text = span.text
         bold_letters = set(
             re.findall(r"\\(?:mathbf|boldsymbol|bm)\s*\{\s*\\?([A-Za-z]+)\s*\}", text)
@@ -1223,10 +1226,12 @@ class VectorCalculus(Vectors, Probability):
             letter
             for letter in bold_letters
             if re.search(rf"(?<![\\A-Za-z]){letter}(?![A-Za-z])", plain)
+            and scope.lookup(f"\\mathbf{{{letter}}}") is not None
+            and scope.lookup(letter) is not None
         )
         return [
-            f"\\mathbf{{{letter}}} and {letter} are one name, as typefaces do not make names "
-            "of their own yet"
+            f"\\mathbf{{{letter}}} and {letter} are two names, as the program defines both: a "
+            "typeface makes a name of its own"
             for letter in both
         ]
 
