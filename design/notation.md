@@ -204,6 +204,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 5. give an index whose components outnumber the coordinates a space of that size;
 6. read an undefined name with declared indices as an unknown vector, not a scalar.
 
+**A field met with a path** (23 November 2026, adopted from the engines track). Where a sum, a product or a contraction meets a field of the coordinates, as the metric g_{ij} of θ, and a path, quantities written as functions of one parameter named as the coordinates are, as `q^i := (\theta(t), \phi(t))`, the field is taken along the path, at its point: in `g_{ij} \dot q^i \dot q^j` the metric's θ is θ(t), with a note that says so ("θ is taken along the path, as θ(t)"). Tensors at two points neither add nor contract, so no other reading exists; before, θ stayed the coordinate, so that a Lagrangian's ∂L/∂q^θ was 0 (`cm.lagrangian.index-form`). The runtime does it (`runtime/paths.py`), where the coordinates and the path are known; a sum of scalars, which carries no coordinates, keeps its θ, and a derivative along the path takes it there. The lowering may later write it in the IR, as an operation that takes a field along a path.
+
 ## 17. Where a list's positions start
 
 **Waiting on it:** `list-subscript` (3).
