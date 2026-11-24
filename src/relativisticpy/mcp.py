@@ -1341,9 +1341,10 @@ notation you are unsure of. Without a topic: what the language looks like, and t
 topics. topic reference is the whole language on one page: every statement, command, \
 environment, constant, verdict and error, and every function by name. Other topics \
 include getting-started, language, latex, tensors, notation, checking, python and \
-troubleshooting. The name of a function, as besselj, gives that function in full: its \
-forms, its arguments, its examples with their answers, and what computes it; latex() is \
-the function where a topic has its name."""
+troubleshooting, and a page for each field: matrices, vectors, probability, optima, \
+discrete (number theory and sequences) and quantum. The name of a function, as besselj, \
+gives that function in full: its forms, its arguments, its examples with their answers, \
+and what computes it; latex() is the function where a topic has its name."""
 
 _LIST_SESSIONS = """\
 List the named sessions: for each, how many statements it has run, what it defines, \
