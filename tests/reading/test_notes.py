@@ -157,6 +157,10 @@ class TestSilentReadingsAreSaid:
         assert notes(wb, "(sqrt(3)/2)*I") == [note]
         assert sympy.expand(wb.expr("(3 + 4*i)^2")) == -7 + 24 * sympy.I  # the hint works
         assert notes(wb, "I*R") == []  # a current times a resistance, as physics writes it
+        wb.exe("A := [[1, 2], [3, 4]]")
+        assert notes(wb, "A - I") == [  # the identity, said so, and no imaginary unit
+            "I is read as the identity of the size of A, as it is added to it; to name it, define I"
+        ]
         wb.exe("I := 2")
         assert notes(wb, "3 + 4*I") == []  # I has a value
 
@@ -246,6 +250,8 @@ class TestSilentReadingsAreSaid:
         )
         assert notes(wb, r"\frac{d}{dx} foo(x)") == [note]
         assert notes(wb, r"2 G m(r) + \alpha Gm(r)") == []  # two letters, as physics writes them
+        wb.exe(SCHWARZSCHILD)
+        assert notes(wb, r"geodesic_equations(\tau)") == []  # a call of the language's own
 
     def test_delta_of_a_variable_is_diracs_and_says_so(self, wb):
         # \\delta(x) was an unknown function, so that the heat kernel's limit, \\delta(x),

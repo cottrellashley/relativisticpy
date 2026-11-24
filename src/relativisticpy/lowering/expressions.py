@@ -283,13 +283,14 @@ class Expressions(LinearAlgebra):
                 pending.append((sign, expr.left))
             else:
                 terms.append((sign, expr))
-        if not ctx.latex:  # x + y*I, in plain text: I is no imaginary unit, said so
-            self._note_capital_i([term for _, term in terms], scope, sum_=True)
         self._sums.append(node)
         try:
             values = self._terms_of_a_sum(terms, scope, ctx)  # A - \lambda I
         finally:
             self._sums.pop()
+        matrices = any(_a_matrix(v) or isinstance(v.type, TensorType) for _, v, _ in values)
+        if not ctx.latex and not matrices:  # x + y*I in plain text: no imaginary unit, said so
+            self._note_capital_i([term for _, term in terms], scope, sum_=True)
         tensors = [value for _, value, _ in values if isinstance(value.type, TensorType)]
         if not tensors:
             kind = VALUE if any(v.type == VALUE for _, v, _ in values) else SCALAR
@@ -603,6 +604,7 @@ class Expressions(LinearAlgebra):
         if builtin:
             self._check_keywords(BUILTINS[name], node)
         if multiplies == "letters":  # 2Gm(r) in LaTeX is 2 G m(r)
+            self._note_letters_called(node, scope)
             *leading, last = self._euler_letters(node, scope, ctx)
             factors = [self.value(n, scope, ctx) for n in leading]
             factors.append(self.value(last, scope, ctx))
@@ -678,15 +680,24 @@ class Expressions(LinearAlgebra):
         read = f"{' '.join(labels[:-1])} times {labels[-1]} called"
         why = "in LaTeX only the last letter of a run that names nothing is called"
         self._decide("letters", node.span, read, why)
-        if len(labels) > 2:  # foo(x), where a function foo may be meant, as plain text reads it
-            inside = ", ".join(arg.span.text for arg in node.args)
-            letters = " ".join(self._written_label(label) for label in labels[:-1])
-            self._note(
-                f"{node.span.text} is read as {letters} times {labels[-1]}({inside}), as LaTeX "
-                f"sets a run of letters; for a function {func.id}, write "
-                f"\\operatorname{{{func.id}}}({inside})"
-            )
         return "letters"
+
+    def _note_letters_called(self, node: ast.Call, scope: Scope) -> None:
+        """Say how a run of three letters or more that nothing defines, with brackets after
+        it, is read in LaTeX, as ``foo(x)`` is f o o(x), where a function foo may be meant,
+        as plain text reads it (design/notation.md, decision 41.3)."""
+        func = node.func
+        assert isinstance(func, ast.Name)
+        labels = self._letters_of(func, scope)
+        if len(labels) < 3:  # Gm(r), G m(r) as physics writes it
+            return
+        inside = ", ".join(arg.span.text for arg in node.args)
+        letters = " ".join(self._written_label(label) for label in labels[:-1])
+        self._note(
+            f"{node.span.text} is read as {letters} times {labels[-1]}({inside}), as LaTeX "
+            f"sets a run of letters; for a function {func.id}, write "
+            f"\\operatorname{{{func.id}}}({inside})"
+        )
 
     def _raised_product(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node | None:
         """A power written on brackets after a name that multiplies them: a power of the
@@ -717,6 +728,7 @@ class Expressions(LinearAlgebra):
             raised = ast.Scripted(group, node.scripts, span=group.span.to(node.span))
             times = ast.Binary("*", call.func, raised, implicit=True, span=node.span)
             return self.value(times, scope, ctx)
+        self._note_letters_called(call, scope)
         *leading, last = self._euler_letters(call, scope, ctx)
         factors = [self.value(n, scope, ctx) for n in leading]
         raised = ast.Scripted(last, node.scripts, span=last.span.to(node.span))
