@@ -87,7 +87,7 @@ about it, and the check goes on.
 |---|---|---|---|
 | ✓ | holds | proven equal: component by component, or, for an equation in [index notation](notation.md) without components, as notation. If both sides are zero the finding says so: such an equation may hold only because space is flat there, or its quantities are not yet defined | no |
 | ✗ | differs | every quantity is known, and the sides are not equal: a mistake, or a condition such as an equation of motion the text has not stated. The finding shows the difference of the sides, or, for tensors, in how many components they differ and the first few | yes |
-| ↔ | relates | the sides involve quantities nothing defines: not a coordinate, not a name the metric is written with, not declared or defined before. It is a relation to solve, such as a law or Einstein's equation, not an identity. The finding names those quantities | no |
+| ↔ | relates | the sides involve quantities nothing defines: not a coordinate, not a name the metric is written with, not declared or defined before. It is a relation to solve, such as a law or Einstein's equation, not an identity. An equation for functions nothing defines relates too, even of those a metric is written with, as \(\partial_0\beta = 0\) of \(\beta(t, r)\), unless it writes a quantity computed from the metric, as \(R_{00}\). The finding names those quantities | no |
 | ✗ | ill-formed | the notation breaks the rules of index notation, as written: an index three times in one term, a Greek index twice up or twice down, or terms or sides whose free indices differ. Only plain notation is judged, so the paper is never blamed for what RelativisticPy may have read otherwise | yes |
 | = | defines | a definition, which the equations after it use | no |
 | → | computes | an expression, computed | no |
@@ -218,8 +218,8 @@ Sean Carroll's *Lecture Notes on General Relativity*
 benchmark for this feature. Of their 797 display equations, 786 (98.6%)
 parse. The other eleven are words laid out as matrices, integrals over
 \(d^n\eta\) or with their differential on another line, `<<` for "much less
-than", a primed index, and \(\exp_p\). Checked from end to end, in about eight
-seconds, 124 statements hold, 83 of them with sides that are not both zero.
+than", a primed index, and \(\exp_p\). Checked from end to end, in about seventeen
+seconds, 139 statements hold, 98 of them with sides that are not both zero.
 
 The notes' chapter on the Schwarzschild solution makes 25 claims about the
 general spherically symmetric metric: twelve Christoffel symbols, eight
@@ -251,22 +251,28 @@ differs. In the second, the left side of (7.30) minus its right is
 \(36G^2M^2/r^6\). Each check runs what comes before its lines in their section, for
 its definitions, and reports only the lines.
 
-In all, of the statements whose sides are not equal, 11 involve only what the
-notes have defined, and so differ. Besides these two, eight are steps of a
-derivation whose conditions the prose states: \(\partial_0\beta = 0\) and the
-other consequences of \(R_{\mu\nu} = 0\), and the Riemann tensor in Riemann
-normal coordinates. The check takes every equation for an identity, so such a
-condition reads as differs. The last is (7.21), which holds for the metric
-\(e^{2\beta(r)}\,dr^2\) of (7.13), but not for (7.20) just before it, which
-writes \(e^{\beta(r)}\,dr^2\): another slip. The other 204 relate quantities the
-notes never define, as laws, equations of motion and the interval
-\(s^2 = (\Delta x)^2 + (\Delta y)^2\) do. One equation is ill-formed: (1.56)
-writes \(\eta_{\rho\nu}\eta^{\nu\mu} = \delta^\rho_\mu\), whose free indices call
-for \(\delta^\mu_\rho\).
+In all, six statements differ. Besides these two, (7.21), on line 9161, is a chain
+of two links. The first, \(0 = e^{2(\beta-\alpha)}R_{00} + R_{11}\), is the
+vacuum condition, which the prose states in words, "both \(R_{00}\) and \(R_{11}\)
+vanish": no check of the equation alone can tell it from an identity that fails. The
+second holds for the metric \(e^{2\beta(r)}\,dr^2\) of (7.13), but not for (7.20)
+just before it, which writes \(e^{\beta(r)}\,dr^2\): another slip. The last two are
+(3.77), on line 4413, the Riemann tensor in Riemann normal coordinates. It holds
+at the point where those coordinates are set up, where the Christoffel symbols
+vanish, and the check takes it over the metric in force, the plane in polar
+coordinates, where they do not.
+
+The steps the notes derive from \(R_{\mu\nu} = 0\), as \(\partial_0\beta = 0\) and
+\(\alpha = -\beta\), relate: each is an equation for the functions the metric is
+written with, and the check reads it so. Most of the other statements that relate,
+210 in all, relate quantities the notes never define, as laws, equations of motion and
+the interval \(s^2 = (\Delta x)^2 + (\Delta y)^2\) do. One equation is ill-formed:
+(1.56) writes \(\eta_{\rho\nu}\eta^{\nu\mu} = \delta^\rho_\mu\), whose free indices
+call for \(\delta^\mu_\rho\).
 
 Most of the notes concern tensors on general manifolds, without components.
 Their equations are read as [index notation](notation.md), and those that are
-identities are verified as such: five, among them
+identities are verified as such: four, among them
 \(g^{\mu\nu} g_{\nu\sigma} = \delta^\mu_\sigma\) and the definition of the
 Einstein tensor. Laws, such as Einstein's equation, are read but are not
 identities: they relate tensors, such as the stress–energy tensor, that nothing
@@ -288,10 +294,10 @@ uv run python benchmarks/corpus.py
 
 | Paper | Equations | Parse | Hold | Differ | Relate | Ill-formed |
 |---|---:|---:|---:|---:|---:|---:|
-| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 124 | 11 | 204 | 1 |
+| Carroll, *Lecture Notes on General Relativity* | 797 | 98.6% | 139 | 6 | 210 | 1 |
 | gr-qc 2611.26560 | 31 | 77.4% | 1 | 0 | 8 | 0 |
 | gr-qc 2611.26576 | 305 | 48.9% | 1 | 0 | 50 | 0 |
-| gr-qc 2611.26585 | 270 | 64.4% | 0 | 3 | 21 | 0 |
+| gr-qc 2611.26585 | 270 | 64.4% | 0 | 0 | 24 | 0 |
 | gr-qc 2611.26591 | 27 | 100.0% | 0 | 0 | 3 | 0 |
 | gr-qc 2611.26594 | 63 | 87.3% | 1 | 0 | 6 | 0 |
 | gr-qc 2611.26620 | 47 | 78.7% | 0 | 0 | 15 | 0 |
@@ -299,10 +305,7 @@ uv run python benchmarks/corpus.py
 Most of what the recent papers write between quantities they introduce relates
 them, as a paper's results do; few of their equations involve only what is
 defined. They lean on their own notation, from physics packages to macros built on
-TeX internals, so they are where the language grows next. The three equations that
-differ in 2611.26585 are misjudged, not mistakes of the paper: each, as
-\(\hat{\mathcal{H}}_1(\lambda) = \mathcal{H}_1(\lambda)\), is between quantities
-no equation of the paper defines, and should relate them.
+TeX internals, so they are where the language grows next.
 
 **Next:** [Solving tensor equations](notation.md), for how equations between tensors
 without components are verified, or the [verdicts](reference.md#verdicts-of-a-check) in
