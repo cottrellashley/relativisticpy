@@ -430,6 +430,14 @@ class TestWhereANumberIsTaken:
                 "\\nabla of [[1, 2], [3, 4]] would be a tensor of more indices than a vector "
                 "has, which is not taken yet",
             ),
+            (
+                r"\sum_{n=1}^{\pm 3} n",
+                "[3, −3] is several values, and a limit of a sum is one value",
+            ),
+            (
+                r"\prod_{n=1}^{[2, 3]} n",
+                "[2, 3] is several values, and a limit of a product is one value",
+            ),
         ],
     )
     def test_several_values(self, program, message):

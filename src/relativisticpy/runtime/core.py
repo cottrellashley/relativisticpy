@@ -105,6 +105,7 @@ def summation(
     if isinstance(body, list | tuple | sympy.NDimArray):  # a sum of each component
         return _each(body, lambda one: summation(one, variable, lower, upper, assuming=assuming))
     _numbers("a sum adds numbers", body, lower, upper)
+    _one("a limit of a sum is one value", lower, upper)
     written = sympy.Sum(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
     if finite is not written:
@@ -192,6 +193,7 @@ def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
     if isinstance(body, list | tuple | sympy.NDimArray):  # a product of each component
         return _each(body, lambda one: product(one, variable, lower, upper))
     _numbers("a product multiplies numbers", body, lower, upper)
+    _one("a limit of a product is one value", lower, upper)
     written = sympy.Product(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
     if finite is not written:
