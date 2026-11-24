@@ -146,6 +146,28 @@ def test_an_equation_of_index_notation_sympy_cannot_tell_is_not_decided():
     )
 
 
+def test_ranges_whose_side_has_no_value_are_a_verdict():
+    # Carroll's (7.89), after (7.88) defines u and v: the row -∞ < v < +∞ is read as going on
+    # from -∞ < u < +∞, so that a side is +∞ - ∞, which has no value, and SymPy failed as it
+    # compared it
+    report = Workbook().check(
+        Document(r"""
+        \begin{eqnarray}
+          u &=&  {1\over 2}(t+r)\cr v &=&  {1\over 2}(t-r)\ ,
+          \label{7.88}
+        \end{eqnarray}
+        with corresponding ranges given by
+        \begin{eqnarray}
+          &-\infty < u < +\infty &\cr &-\infty < v < +\infty &\cr
+          & v \leq u\ .&\label{7.89}
+        \end{eqnarray}
+        """)
+    )
+    assert [finding.verdict for finding in report.findings][:2] == [Verdict.DEFINES] * 2
+    for finding in report.findings:
+        assert finding.verdict is not Verdict.NOT_UNDERSTOOD, finding.detail
+
+
 class TestScalarEquations:
     """An equation holds when it is proven; numbers tell one that differs from one that
     is not decided."""

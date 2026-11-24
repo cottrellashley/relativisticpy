@@ -27,6 +27,7 @@ from relativisticpy.errors import (
     translate,
 )
 from relativisticpy.language import Source, Span
+from relativisticpy.tensors.equation import UndecidedError
 
 DEGENERATE = "Coordinates := [x, y]\ng_{ab} := [[1, 1], [1, 1]]\nR"
 
@@ -255,6 +256,36 @@ class TestTranslation:
     )
     def test_arithmetic_failures(self, error, message):
         assert translate(error).message.startswith(message)
+
+
+class TestRelations:
+    """An inequality SymPy cannot compare, which it says by failing, is refused, or not
+    decided, in RelativisticPy's words: a side that has no value, as ∞ - ∞ and 1/0 have
+    none, is neither greater nor less; and complex numbers have no order."""
+
+    @pytest.mark.parametrize(
+        ("program", "message"),
+        [
+            (r"\infty - \infty < 1", "the left side is undefined here, as 0/0 is"),
+            (r"1 \geq 0 \cdot \infty", "the right side is undefined here, as 0/0 is"),
+            (r"x := \infty - \infty" "\n" r"x > 2", "the left side is undefined here, as 0/0 is"),
+            (r"\frac{1}{0} > 2", "the left side is infinite here: a division by zero"),
+            (r"\Gamma(0) \leq 1", "the left side is infinite here: a division by zero"),
+        ],
+    )
+    def test_a_side_with_no_value_is_neither_greater_nor_less(self, program, message):
+        # as a check says it of an equation: not the jargon of complex infinity
+        error = raised(program)
+        assert type(error) is UndecidedError
+        assert error.message == message
+
+    def test_numbers_that_are_not_real_have_no_order(self):
+        error = raised("1 + i > 0")
+        assert type(error) is EvaluationError
+        assert error.message == (
+            "1 + i, on the left side, is not real, and only real numbers are ordered"
+        )
+        assert Workbook().expr("|1 + i| > 0") is sympy.true  # as its hint says
 
 
 def test_a_metric_or_tensor_built_from_python_raises_relativisticpys_errors():

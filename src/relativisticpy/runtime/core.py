@@ -32,7 +32,7 @@ from relativisticpy import assumptions, display, integrations
 from relativisticpy.diffgeom.metric import differential
 from relativisticpy.errors import EvaluationError, MetricError
 from relativisticpy.tensors import Indices, Tensor, arrays, linalg, numerical
-from relativisticpy.tensors.equation import TensorEquation
+from relativisticpy.tensors.equation import TensorEquation, UndecidedError
 from relativisticpy.tensors.indices import latex_label
 from relativisticpy.tensors.simplification import LARGE, is_zero, normal_trig
 
@@ -626,19 +626,57 @@ def function(*args: Any, name: str) -> Any:
 
 
 def less(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
-    return _decided(sympy.Lt(lhs, rhs), assuming)
+    return _decided(sympy.Lt(*_ordered(lhs, rhs)), assuming)
 
 
 def greater(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
-    return _decided(sympy.Gt(lhs, rhs), assuming)
+    return _decided(sympy.Gt(*_ordered(lhs, rhs)), assuming)
 
 
 def less_equal(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
-    return _decided(sympy.Le(lhs, rhs), assuming)
+    return _decided(sympy.Le(*_ordered(lhs, rhs)), assuming)
 
 
 def greater_equal(lhs: Any, rhs: Any, *, assuming: tuple[Any, ...] = ()) -> Any:
-    return _decided(sympy.Ge(lhs, rhs), assuming)
+    return _decided(sympy.Ge(*_ordered(lhs, rhs)), assuming)
+
+
+def _ordered(lhs: Any, rhs: Any) -> tuple[Any, Any]:
+    """The sides of an inequality, which SymPy fails to compare where one has no value, as
+    ∞ - ∞ and 1/0 have none, or is a number that is not real: the inequality is not
+    decided in the first case, as it is neither true nor false, and refused in the second,
+    as complex numbers have no order."""
+    for side, value in (("left", lhs), ("right", rhs)):
+        valued(side, value)
+        if isinstance(value, sympy.Expr) and value.is_extended_real is False:
+            raise EvaluationError(
+                f"{display.unicode(value)}, on the {side} side, is not real, and only real "
+                "numbers are ordered",
+                hint="compare their real parts, as \\operatorname{Re}(z) < 1, or their "
+                "moduli, as |z| < 1",
+            )
+    return lhs, rhs
+
+
+def valued(side: str, value: Any) -> None:
+    """Say that a relation is not decided where its ``side`` has no value: SymPy's nan, as
+    of ∞ - ∞ and 0/0, or its complex infinity, as of 1/0, which is neither equal to
+    anything nor greater or less. It is said as a check says it, without the jargon of
+    complex infinity."""
+    if not isinstance(value, sympy.Basic):
+        return  # data, whose numbers missing, nan, are compared as NumPy compares them
+    if value.has(sympy.nan):
+        found = f"the {side} side is undefined here, as 0/0 is"
+    elif value.has(sympy.zoo):
+        found = f"the {side} side is infinite here: a division by zero"
+    else:
+        return
+    raise UndecidedError(
+        found,
+        notes=["a side that has no value is neither equal to the other nor greater or less"],
+        hint="write that side so that it has a value, as the limit it may stand for, "
+        "\\lim_{x \\to \\infty}",
+    )
 
 
 def _decided(relation: Any, bounds: tuple[Any, ...]) -> Any:
