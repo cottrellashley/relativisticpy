@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from relativisticpy.compiler.builtins import BUILTINS
 from relativisticpy.compiler.scope import Scope
+from relativisticpy.integrations import _forms as forms
 from relativisticpy.language import syntax as ast
 from relativisticpy.typing.syntax import _walk
 
@@ -115,12 +116,16 @@ def _the_other_name(
 def _unknown_call(
     node: ast.Node, unknowns: dict[str, tuple[str, ast.Name, bool]], reader: Reader, scope: Scope
 ) -> bool:
-    r"""Whether a node calls a function nothing defines, other than an unknown, as
-    \delta(t - 5) does where no delta function is defined."""
+    r"""Whether a node calls a function nothing defines, other than an unknown, as g(t - 5)
+    does where no g is defined; not one books write a function of the language with, as
+    \delta(t - 5) is Dirac's delta (design/notation.md, decision 15.6)."""
     if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
         return False
     name = node.func.id
-    return name not in unknowns and name not in BUILTINS and reader._undefined(node.func, scope)
+    if name in unknowns or name in BUILTINS or not reader._undefined(node.func, scope):
+        return False
+    shape = forms.call_shape(node)
+    return shape is None or reader._book_reading(shape, node, node.func.span.text, scope) is None
 
 
 def _only(names: set[str]) -> str | None:

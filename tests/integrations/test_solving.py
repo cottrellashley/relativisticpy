@@ -262,7 +262,21 @@ class TestBoundsDecideInequalities:
 
 
 def test_an_unknown_beside_a_function_nothing_defines_is_not_read(wb):
-    """δ(t − 5) that nothing defines would leave the solution unknown too: the equation is
+    """g(t − 5) that nothing defines would leave the solution unknown too: the equation is
     read as written, and refused."""
     with pytest.raises(EvaluationError, match="is no differential equation"):
-        wb.exe(r"dsolve(2y'' + y' + 2y = \delta(t - 5), y(0) = 0, y'(0) = 0)")
+        wb.exe(r"dsolve(2y'' + y' + 2y = g(t - 5), y(0) = 0, y'(0) = 0)")
+
+
+def test_an_unknown_beside_diracs_delta_is_read(wb):
+    """δ(t − 5) is Dirac's delta (design/notation.md, decision 15.6), so the unknown beside
+    it is y(t), and the impulse problem of Boyce and DiPrima (2012), section 6.5, is solved;
+    it was refused, δ an unknown function."""
+    found = wb.expr(r"dsolve(2y'' + y' + 2y = \delta(t - 5), y(0) = 0, y'(0) = 0)")
+    t = sympy.Symbol("t")
+    root = sympy.sqrt(15)
+    expected = (
+        2 / root * sympy.exp(-(t - 5) / 4) * sympy.sin(root * (t - 5) / 4) * sympy.Heaviside(t - 5)
+    )
+    assert found.lhs == sympy.Function("y")(t)
+    assert sympy.simplify(found.rhs - expected) == 0
