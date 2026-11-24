@@ -10,11 +10,15 @@ of a sum gets one; of polynomials alone, it is theirs.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from typing import Any
 
 import sympy
 
+from relativisticpy import display
+from relativisticpy.errors import EvaluationError
 from relativisticpy.integrations import Example, function
+from relativisticpy.tensors.equation import no_number
 
 x, n = sympy.symbols("x n")
 
@@ -90,7 +94,7 @@ class Angle:
 )
 class Least:
     def exact(self, first: Any, *rest: Any) -> Any:
-        return sympy.Min(first, *rest)
+        return sympy.Min(*_ordered("least", (first, *rest)))
 
 
 @function(
@@ -105,7 +109,46 @@ class Least:
 )
 class Greatest:
     def exact(self, first: Any, *rest: Any) -> Any:
-        return sympy.Max(first, *rest)
+        return sympy.Max(*_ordered("greatest", (first, *rest)))
+
+
+def _ordered(what: str, arguments: Sequence[Any]) -> list[Any]:
+    """The values the least or the greatest is of: the arguments, and the values of each
+    list, tuple or matrix among them, as ``max([1, 2, 3])`` and the greatest eigenvalue
+    write them. Refused, saying why, where there are none, or one has no order: a number
+    that is not real, as complex numbers have none, a claim, or what has no value."""
+    values = _flattened(arguments)
+    if not values:
+        raise EvaluationError(f"the {what} of no values is not defined")
+    for value in values:
+        refused = no_number(value, f"the {what} is of numbers")
+        if refused is not None:
+            raise refused
+        if value.has(sympy.nan, sympy.zoo):
+            raise EvaluationError(
+                f"the {what} is not defined: one of the values is undefined, as ∞ - ∞ and 1/0 are"
+            )
+        if value.is_extended_real is False:
+            raise EvaluationError(
+                f"{display.unicode(value)} is not real, and only real numbers are ordered",
+                hint="compare their moduli, as max(|z|, |w|), or their real parts",
+            )
+    return values
+
+
+def _flattened(arguments: Sequence[Any]) -> list[Any]:
+    """Each value of ``arguments``, those of a list, a tuple or an array one by one."""
+    values: list[Any] = []
+    for argument in arguments:
+        if isinstance(argument, list | tuple | sympy.Tuple):
+            values.extend(_flattened(list(argument)))
+        elif isinstance(argument, sympy.NDimArray | sympy.MatrixBase) or (
+            type(argument).__module__ == "numpy" and len(getattr(argument, "shape", ())) > 0
+        ):
+            values.extend(_flattened(list(sympy.flatten(argument.tolist()))))
+        else:
+            values.append(sympy.sympify(argument))
+    return values
 
 
 class gcd(sympy.Function):  # type: ignore[misc]  # named as its calls print

@@ -128,6 +128,20 @@ def test_calculus_functions(wb, source, expected):
     assert wb.expr(source) == expected
 
 
+def test_the_least_and_the_greatest_of_a_list(wb):
+    # max([1, 2, 3]) was refused, SymPy saying that a list is not comparable, and so was
+    # the greatest eigenvalue, as max(spec(A)) writes it
+    assert wb.expr("max([1, 2, 3])") == 3  # numpy.max([1, 2, 3])
+    assert wb.expr("min((3, 1, 2))") == 1  # numpy.min([3, 1, 2])
+    assert wb.expr(r"\max([[1, 2], [3, 4]])") == 4  # numpy.max([[1, 2], [3, 4]])
+    wb.run("A := [[2, 1], [1, 2]]")
+    assert wb.expr("max(spec(A))") == 3  # numpy.linalg.eigvalsh([[2, 1], [1, 2]]): 1 and 3
+    with pytest.raises(EvaluationError, match=r"^i is not real, and only real numbers are ordered"):
+        wb.expr("max([1, i])")
+    with pytest.raises(EvaluationError, match=r"^the least of no values is not defined"):
+        wb.expr("min([])")
+
+
 def test_solve(wb):
     assert wb.expr("solve(x + 2*y - 3, x)") == solve(x + 2 * y - 3, x)
     assert wb.expr("solve([x + y - 2, x - y + 1], [x, y])") == solve([x + y - 2, x - y + 1], [x, y])
