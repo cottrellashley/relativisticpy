@@ -226,10 +226,19 @@ class Differentiate:
 )
 class Integrate:
     def exact(self, f: Any, *limits: Any, assuming: tuple[Any, ...] = ()) -> Any:
+        for which, end in _ends(limits):
+            if end.has(sympy.nan, sympy.zoo):  # which SymPy compares, failing
+                none = "has no value, as ∞ - ∞ and 0/0 have none"
+                if not end.has(sympy.nan):
+                    none = "is infinite with no sign, as 1/0 is"
+                raise EvaluationError(
+                    f"the {which} limit of the integral {none}",
+                    hint="write each limit so that it has a value",
+                )
         try:
             return assumptions.integrated(f, limits, assuming)
         except TypeError:  # SymPy compares the limits, and fails where one is not real
-            off = _off_the_real_line(limits)
+            off = next((end for _, end in _ends(limits) if end.is_extended_real is False), None)
             if off is None:
                 raise
             raise EvaluationError(
@@ -243,15 +252,15 @@ class Integrate:
             ) from None
 
 
-def _off_the_real_line(limits: Sequence[Any]) -> Any:
-    """A limit of an integral that is not real, as -i∞ of \\int_z^{-i\\infty}; ``None``
-    where SymPy knows of none."""
-    for limit in limits:
-        if isinstance(limit, tuple | sympy.Tuple) and len(limit) == 3:
-            for end in limit[1:]:
-                if sympy.sympify(end).is_extended_real is False:
-                    return end
-    return None
+def _ends(limits: Sequence[Any]) -> list[tuple[str, Any]]:
+    """The ends of each range of an integral, lower and upper, as -i∞ of
+    \\int_z^{-i\\infty}."""
+    return [
+        (which, sympy.sympify(end))
+        for limit in limits
+        if isinstance(limit, tuple | sympy.Tuple) and len(limit) == 3
+        for which, end in zip(("lower", "upper"), limit[1:], strict=True)
+    ]
 
 
 #: The sides a limit is taken from: above, below, or both.

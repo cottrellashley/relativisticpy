@@ -112,3 +112,23 @@ def test_an_integral_sympy_fails_on_for_a_limit_that_is_not_real_is_refused():
     )
     # where it compares no limit, SymPy computes one: -1/p is 0 at i∞
     assert value(r"\int_{1}^{i \infty} \frac{1}{p^2} \, dp") == 1
+
+
+@pytest.mark.parametrize(
+    ("program", "message"),
+    [
+        (
+            r"\int_0^{\infty - \infty} x \, dx",
+            "the upper limit of the integral has no value, as ∞ - ∞ and 0/0 have none",
+        ),
+        (
+            r"\int_{1/0}^{1} x \, dx",
+            "the lower limit of the integral is infinite with no sign, as 1/0 is",
+        ),
+    ],
+)
+def test_an_integral_whose_limit_has_no_value_is_refused(program, message):
+    # SymPy compared the limit ∞ - ∞, which is NaN, and the failure was an internal error
+    *_, last = Workbook().each(Source(program, latex=True))
+    assert type(last.error) is EvaluationError
+    assert last.error.message == message
