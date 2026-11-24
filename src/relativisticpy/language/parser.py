@@ -274,6 +274,9 @@ class Parser:
         self._power: int = Power.NONE
         # Inside what an optimum is of, "subject to" ends it, even written as letters.
         self._bodies = 0
+        # Where to go on after a statement that cannot be read, where it says, as a loop
+        # written in words does: after the lines of its body.
+        self._resume_at: int | None = None
 
     # -- cursor ---------------------------------------------------------------
 
@@ -399,6 +402,9 @@ class Parser:
         after its end, a separator at which the brackets and environments it opened are
         closed, and which no continuation line follows; or, if they never close, after
         the line of its error."""
+        if self._resume_at is not None:  # a loop written in words: after its body
+            found, self._resume_at = self._resume_at, None
+            return found
         tokens = self.tokens
         at = tokens[start].span.start
         if error.span is not None and error.span.source is self.source:
@@ -488,8 +494,9 @@ class Parser:
         A comma or full stop that ends the statement is the punctuation of the sentence
         the equation belongs to: ``E = mc^2 \\ .``"""
         statements: list[ast.Statement] = []
+        word: Token | None = None
         if self._at_connective(self.peek()) and self._starts_operand(self.peek(1)):
-            self.advance()  # \text{where} \ E^* \equiv ...: the word is prose
+            word = self.advance()  # \text{where} \ E^* \equiv ...: the word is prose
         clause = [self.expression()]
         joined = [False]  # whether each expression follows the one before after a comma alone
         while True:
@@ -511,7 +518,46 @@ class Parser:
             clause.append(self.expression())
             joined.append(separator == ",")
         self._skip_punctuation()
-        return _ranged(statements)
+        made = _ranged(statements)
+        if word is not None and word.value == "for" and _a_range(made):
+            raise self._loop(word, made[0])
+        return made
+
+    def _loop(self, word: Token, header: ast.Statement) -> ParseError:
+        """The error for a loop written in words, as Trefethen and Bau write an algorithm,
+        ``\\textbf{for } k = 1, \\ldots, 5``, with its body on the lines after it, indented
+        further: the language reads no loop, and read alone the line would be a range of k,
+        and each line of its body a statement of its own. The error is the loop's, body
+        and all, and the program goes on after it (design/notation.md, decision 44)."""
+        column = word.span.column
+        index = end = self.pos
+        while self.tokens[index].kind is K.NEWLINE:  # the lines after it, indented further
+            first = index
+            while self.tokens[first].kind is K.NEWLINE:
+                first += 1
+            if self.tokens[first].kind is K.EOF or self.tokens[first].span.column <= column:
+                break
+            index = first
+            while self.tokens[index].kind not in (K.NEWLINE, K.EOF):
+                index += 1
+            end = index
+        span = word.span.to(self.tokens[end - 1].span)
+        if end > self.pos:
+            self._resume_at = end
+        written = " ".join(word.span.to(header.span).text.split())
+        assert isinstance(header, ast.Evaluate)
+        assert isinstance(header.expr, ast.Relation)
+        return ParseError(
+            f"{written} is a loop, which the language does not read",
+            span=span,
+            notes=(
+                f"read alone, it would say what {' '.join(header.expr.lhs.span.text.split())} "
+                "ranges over, and each line of its body would be a statement of its own, run "
+                "once",
+            ),
+            hint="write each step out, as a definition of its own, or what the loop computes "
+            "as a sequence, from its first member, as x_0 := 1 then x_{k+1} := x_k / 2",
+        )
 
     def _separator(self) -> Literal[",", " "] | None:
         """Read what separates two expressions of a statement: a comma alone (``,``), or
@@ -3890,6 +3936,17 @@ def _ranged(statements: list[ast.Statement]) -> list[ast.Statement]:
             continue
         joined.append(statement)
     return joined
+
+
+def _a_range(statements: list[ast.Statement]) -> bool:
+    """Whether what a statement says is only that a name ranges over values, as ``k = 1,
+    \\ldots, 5`` does, written as the head of a loop is."""
+    if len(statements) != 1 or not isinstance(statements[0], ast.Evaluate):
+        return False
+    expr = statements[0].expr
+    if not (isinstance(expr, ast.Relation) and expr.op == "∈"):
+        return False
+    return not expr.written or any(isinstance(node, ast.Dots) for node in _walk(expr.rhs))
 
 
 def _members(node: ast.Expr) -> set[str] | None:

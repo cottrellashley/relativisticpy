@@ -1562,6 +1562,23 @@ class TestRecovery:
         assert [error for error, _ in errors] == [message]
         assert statements[-1] == "(:= g 1)"
 
+    def test_a_loop_written_in_words_is_refused_with_its_body(self):
+        # num.eigen.power-iteration: \textbf{for } k = 1, \ldots, 5 was read as a range of k,
+        # and each line of its body as a statement run once, so that \lambda^{(5)}, after
+        # it, was a name (decision 44)
+        statements, errors = recovered(
+            "v := 1\n\\textbf{for } k = 1, \\ldots, 5\n    w := 2 v\n\n    v := w\nv + 1"
+        )
+        assert statements == ["(:= v 1)", "(+ v 1)"]
+        loop = r"\textbf{for } k = 1, \ldots, 5 is a loop, which the language does not read"
+        assert errors == [(loop, 2)]
+        found = error("\\text{for } k \\in \\{1, \\ldots, 3\\}\n  y := k")
+        assert found.span.text == "\\text{for } k \\in \\{1, \\ldots, 3\\}\n  y := k"
+        assert found.hint.startswith("write each step out")
+        # a range alone, and one a definition is made for, are read as before
+        assert program("k = 1, \\ldots, 5") == ["(∈ k (tuple 1 ⋯ 5))"]
+        assert len(program("x_k := k^2 \\quad \\text{for } k = 1, \\ldots, 5")) == 1
+
     def test_errors_and_statements_in_the_order_they_are_written(self):
         program = parse("x := (1\ny := 2\nz := \\frca", recover=True)
         assert [type(item).__name__ for item in program.in_order()] == [

@@ -497,3 +497,13 @@ The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11)
 **Why it is open.** Rosen writes the number of r-combinations of n things `C(n, r)`, and so do agents, in plain text. Physics and chemistry write C for a concentration, `C(x, t)`, a heat capacity, `C(T)`, and a correlation, `C(t, t')`. `C(5, 2)` was an unknown function, kept as written, and `C(n, k)` one of the names n and k, with no note.
 
 **Recommendation.** A C that nothing defines, called with two arguments that are counts, is the binomial coefficient, with a note: `C(5, 2)` is 10 and `C(n, k)` is binomial(n, k). A count is a number, a name books write whole numbers with, i to n as Fortran takes them, r as Rosen writes it, and their capitals, a name the program assumes an integer or the index of a sum, and what sums, differences, products, quotients and whole powers make of these, as `n + 1` and `\frac{1}{2}`, Newton's. Anything else keeps C a function: `C(x, t)`, the coordinates, as `C(t, r)` in a metric, and C of one or three arguments. A program that defines C has its own.
+
+## 44. A loop written in words
+
+**Added** on 23 November 2026, from numerical methods.
+
+**Waiting on it:** `num.eigen.power-iteration`.
+
+**Why it is open.** Trefethen and Bau print an algorithm as a loop, `\textbf{for } k = 1, \ldots, 5`, with its steps on the lines after it, indented further. The word was dropped as prose, so that the head was read as a range of k (decision 16.3), each step as a statement of its own, run once, and `\lambda^{(5)}`, after it, was a name, without a word.
+
+**Recommendation.** Refuse it, steps and all: a statement that opens with the word for, set as text, `\textbf{for }` or `\text{for }`, and says only what a name ranges over, as `k = 1, \ldots, 5` or `k \in \{1, \ldots, 5\}`, is a loop, and the lines after it, indented further, are its body. The refusal says how to write it instead: each step out, or what the loop computes as a sequence from its first member, `x_0 := 1` then `x_{k+1} := x_k / 2`, which a recurrence computes (decision 5). Reading the loop itself would ask names given new values as it runs, which the language does not have, and labels such as `v^{(k-1)}` evaluated at each k: it was left. The word for after a statement, as in `x_k := k^2 \quad \text{for } k = 1, \ldots, 5`, still gives the range of the definition, and a range written alone is still read as one.

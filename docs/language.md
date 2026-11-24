@@ -55,6 +55,11 @@ statement before it, as long equations usually are:
 A line that ends with an operator by mistake is reported as the mistake, rather
 than the statement on the next line, which was read as its continuation.
 
+A loop written in words, as an algorithm is printed, `\textbf{for } k = 1, \ldots, 5`
+with its steps on the lines after it, indented further, is refused, steps and all: the
+language has no loops. Write each step out, or what the loop computes as a sequence, from
+its first member, as `x_0 := 1` then `x_{k+1} := x_k / 2`.
+
 ## Numbers and arithmetic
 
 Arithmetic is exact: `1/2` is one half, not `0.5`. Decimals stay decimals.
