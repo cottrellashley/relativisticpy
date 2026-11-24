@@ -769,7 +769,14 @@ class MatrixPower:
             decimals = _of_decimals(matrix, "fractional_matrix_power", float(power))
             if decimals is not None:
                 return decimals
-        return _simplified(matrix**power)
+        raised = matrix**power
+        if not isinstance(raised, sympy.MatrixBase):  # MatPow: SymPy left it undone
+            raise EvaluationError(
+                f"SymPy gives no closed form of this matrix to the power {power}",
+                hint="give the power as a number, or write the matrix in a basis where it "
+                "is diagonal",
+            )
+        return _simplified(raised)
 
     def numeric(self, xp: Any, A: Any, p: Any) -> Any:
         number = float(p)

@@ -180,6 +180,12 @@ def test_lists_are_vectors_and_matrices(wb, source, expected):
         ("matrix_power([[1, 0], [0, 0]], -1)", NO_INVERSE),
         ("matrix_power([[1, 2], [2, 4]], -1/2)", NO_INVERSE),
         ("matrix_power([[1.0, 2.0], [2.0, 4.0]], -1/2)", NO_INVERSE),  # SciPy gives nan
+        # SymPy leaves the power of this singular matrix undone, as MatPow, which failed
+        # with an IndexError when the value was shown
+        (
+            r"A := \begin{pmatrix} 1 & 2 & 3 \\ 4 & 5 & 6 \\ 7 & 8 & 9 \end{pmatrix}" "\nA^n",
+            "SymPy gives no closed form of this matrix to the power n",
+        ),
     ],
 )
 def test_arithmetic_errors(wb, source, message):
