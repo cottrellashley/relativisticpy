@@ -35,6 +35,7 @@ from relativisticpy.reading import probability
 from relativisticpy.reading.labels import label_name
 from relativisticpy.reading.probability import DISTRIBUTED, RANDOM, Declaration, Law
 from relativisticpy.reading.quantum import expectation_name
+from relativisticpy.reading.reader import _argument_run
 from relativisticpy.reading.subscripts import SAMPLE as _SAMPLE
 from relativisticpy.reading.subscripts import Reading
 from relativisticpy.typing.syntax import _walk
@@ -416,14 +417,31 @@ class Probability(Convolutions):
             factor = grouped[position]
             after = grouped[position + 1] if position + 1 < len(grouped) else None
             if isinstance(factor, ast.Expr) and isinstance(after, ast.Expr):
-                node = self._random_factor(factor, after, scope, ctx)
+                run = _unbracketed_run(factor, grouped[position + 1 :], scope)
+                operand = after if run < 2 else _product(grouped[position + 1 : position + 1 + run])
+                node = self._random_factor(factor, operand, scope, ctx)
                 if node is not None:
+                    if run > 1:
+                        self._note_operand_run(factor, operand, after)
                     found.append(node)
-                    position += 2
+                    position += 1 + run
                     continue
             found.append(factor)
             position += 1
         return found
+
+    def _note_operand_run(self, head: ast.Expr, operand: ast.Expr, first: ast.Expr) -> None:
+        """Say that an operator of random variables written without brackets acts on the
+        product of the factors after it, as ``\\operatorname{Var} X Y`` acts on X Y, and how
+        to write it of the first alone (design/notation.md, decisions 11 and 14)."""
+        written, of = head.span.text, " ".join(operand.span.text.split())
+        alone = first.span.text
+        kind = probability.operator(head) if isinstance(head, ast.Name) else None
+        bracketed = f"[{alone}]" if kind == "expectation" else f"({alone})"
+        self._note(
+            f"{written} {of} is read as {written} of {of}, as an operator acts on the product "
+            f"written after it; for {written} of {alone} alone, write {written}{bracketed}"
+        )
 
     def _random_factor(
         self, head: ast.Expr, operand: ast.Expr, scope: Scope, ctx: Context
@@ -447,9 +465,15 @@ class Probability(Convolutions):
                 inner, power = operand.base, operand.scripts[0].body  # \mathbb{E}[X]^2
             arguments = _bracket(inner)
             if arguments is None:
-                if kind != "expectation" or head.id == "E" or not _a_name(inner):
+                if kind == "covariance" and head.verbatim and _an_operand(inner):
+                    raise CompileError(
+                        f"{head.span.text} is of two random variables, in brackets",
+                        span=span,
+                        hint=f"for example {_WRITTEN[kind]}",
+                    )  # \operatorname{Cov} X was Cov times X
+                if not _without_brackets(kind, head) or not _an_operand(inner):
                     return None
-                arguments = (inner,)  # \mathbb{E} X
+                arguments = (inner,)  # \mathbb{E} X, \operatorname{Var} X
             square = isinstance(inner, ast.List)
             found = self._random_operator(kind, head, arguments, span, scope, ctx, square=square)
             if found is None or power is None:
@@ -791,6 +815,61 @@ def _name(node: ast.Expr) -> str | None:
 
 def _a_name(node: ast.Expr) -> bool:
     return _name(node) is not None
+
+
+def _without_brackets(kind: str, head: ast.Name) -> bool:
+    """Whether an operator of random variables acts on what is written after it without
+    brackets, as ``\\mathbb{E} X`` and ``\\operatorname{Var} X`` do, as ``\\sin x`` does: an
+    expectation or a variance, of one operand, written as an operator is, never the letter
+    E, an energy, unless it is set upright, ``\\operatorname{E} X``."""
+    if kind not in ("expectation", "variance"):
+        return False
+    return head.verbatim or head.id in ("𝔼", "Var")
+
+
+def _an_operand(node: ast.Expr | Node) -> bool:
+    """Whether a factor after an operator of random variables written without brackets is
+    what it acts on: a name, maybe with scripts, as ``X_1`` and ``X^2``, a number, a call,
+    as ``f(X)``, or a product of these, as the factors after it make."""
+    if isinstance(node, ast.Scripted):
+        return isinstance(node.base, ast.Name)
+    if isinstance(node, ast.Call):
+        return isinstance(node.func, ast.Name)
+    if isinstance(node, ast.Binary) and node.op == "*" and node.implicit:
+        return _an_operand(node.left) and _an_operand(node.right)
+    return isinstance(node, ast.Name | ast.Number)
+
+
+def _unbracketed_run(head: ast.Expr, rest: Sequence[ast.Expr | Node], scope: Scope) -> int:
+    """How many of the factors after ``head`` it acts on, where it is an operator of random
+    variables written without brackets: the product of them, as an operator's argument
+    runs (design/notation.md, decision 11), up to another such operator, so that
+    ``\\operatorname{Var} X Y`` is of X Y and ``\\mathbb{E} X \\mathbb{E} Y`` a product of
+    two; 1 for anything else, which is read as before."""
+    if not isinstance(head, ast.Name) or scope.lookup(head.id) is not None:
+        return 1
+    kind = probability.operator(head)
+    if kind is None or not _without_brackets(kind, head):
+        return 1
+    written: list[ast.Expr] = []
+    for factor in rest:
+        if not isinstance(factor, ast.Expr) or not _an_operand(factor):
+            break
+        if isinstance(factor, ast.Name) and probability.operator(factor) is not None:
+            break  # \mathbb{E} X \mathbb{E} Y
+        written.append(factor)
+    if not written or _bracket(written[0]) is not None:
+        return 1
+    return _argument_run(written)
+
+
+def _product(factors: Sequence[ast.Expr | Node]) -> ast.Expr:
+    """The factors, which are written, as one product, as they are written side by side."""
+    written = [factor for factor in factors if isinstance(factor, ast.Expr)]
+    product = written[0]
+    for factor in written[1:]:
+        product = ast.Binary("*", product, factor, implicit=True, span=product.span.to(factor.span))
+    return product
 
 
 def _names_in(expr: ast.Expr) -> list[str]:

@@ -26,9 +26,11 @@ uniform, gamma, χ², Student's t, beta and geometric distributions.
 `\Pr(A)`, `\mathbb{P}(A)` and `P(X = 2)` are probabilities, `\mathbb{E}[X]` an expectation,
 and `\operatorname{Var}(X)` and `\operatorname{Cov}(X, Y)` the variance and the covariance;
 inside them `\mid` is the conditional bar. P alone, a pressure elsewhere, is a probability
-only of an event of random variables, and E an expectation only of them. SymPy computes each
-exactly; where it finds no closed form in 5 seconds and the problem has no parameters, SciPy
-computes it numerically, and a note says so:
+only of an event of random variables, and E an expectation only of them. Without brackets,
+`\mathbb{E}` and `\operatorname{Var}` act on the product written after them, as
+`\operatorname{tr}` does, so that `\operatorname{Var} 3Z` is the variance of 3Z. SymPy
+computes each exactly; where it finds no closed form in 5 seconds and the problem has no
+parameters, SciPy computes it numerically, and a note says so:
 
 ```python
 >>> rv = Workbook()
@@ -39,8 +41,9 @@ computes it numerically, and a note says so:
 ...     \Pr(Z > 1)
 ...     \operatorname{Var}(3Z + 1)
 ...     \mathbb{E}[Z^4]
+...     \operatorname{Var} 3Z
 ... """)
-[lambda**2*exp(-lambda)/2, 1/2 - erf(sqrt(2)/2)/2, 9, 3]
+[lambda**2*exp(-lambda)/2, 1/2 - erf(sqrt(2)/2)/2, 9, 3, 9]
 
 ```
 

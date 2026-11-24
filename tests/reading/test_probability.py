@@ -300,6 +300,27 @@ class TestMoments:
         assert same(wb.expr(r"\mathbb{E}\left[X^2\right] - \mathbb{E}[X]^2"), sigma**2)
         assert same(wb.expr(r"\mathbb{E}X"), mu)
 
+    def test_an_operator_without_brackets_acts_on_what_follows_it(self, wb):
+        # \operatorname{Var} X was Var times X, even of a random variable, while
+        # \operatorname{Var}(X) was its variance
+        wb.run("X \\sim \\mathcal{N}(0, 4)\nY \\sim \\mathcal{N}(1, 1)")
+        assert wb.expr(r"\operatorname{Var} X") == 4
+        assert wb.expr(r"\operatorname{Var} X + 1") == 5
+        assert wb.expr(r"\operatorname{E} X + 1") == 1  # set upright, E is the expectation
+        assert wb.expr(r"\mathbb{E} X \mathbb{E} Y") == 0  # E[X] E[Y]
+        # as \operatorname{tr} A B is tr(AB), what it acts on is the product after it
+        assert wb.expr(r"\operatorname{Var} 2X") == 16
+        assert wb.expr(r"\operatorname{Var} X Y") == 8  # of independent X and Y
+        assert same(wb.expr(r"\operatorname{Var} X \, Y"), 4 * sympy.Symbol("Y"))
+        assert (
+            r"\operatorname{Var} X Y is read as \operatorname{Var} of X Y, as an operator acts "
+            r"on the product written after it; for \operatorname{Var} of X alone, write "
+            r"\operatorname{Var}(X)"
+        ) in "\n".join(notes(wb, r"\operatorname{Var} X Y"))
+        with pytest.raises(CompileError, match="is of two random variables"):
+            wb.expr(r"\operatorname{Cov} X")  # was Cov times X
+        assert same(wb.expr("E X"), sympy.Symbol("E") * sympy.Symbol("X"))  # E, an energy
+
     def test_independent_variables_are_said_so_where_the_program_does_not(self, wb):
         source = "X, Y \\sim \\mathcal{N}(0, 1)\n\\operatorname{Var}(X + Y)"
         assert wb.run(source)[-1] == 2
