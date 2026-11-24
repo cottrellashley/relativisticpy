@@ -745,7 +745,10 @@ def _known(node: Node) -> Any:
 
 def _double_bars(node: ast.Abs) -> bool:
     """Whether bars are double, as a norm is written: ``\\|x\\|``, ``\\lVert x \\rVert``,
-    ``‖x‖``."""
+    ``‖x‖``, and ``||x||`` in plain text, two bars side by side around what they hold, not
+    the absolute value of one in another, as ``||x| - |y||`` is."""
+    if node.span.text.startswith("||"):
+        return node.operand.span.start == node.span.start + 2
     return node.span.text.lstrip().startswith(
         ("\\|", "\\left\\|", "‖", "\\lVert", "\\Vert", "\\left\\lVert", "\\left\\Vert")
     )

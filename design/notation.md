@@ -461,6 +461,8 @@ A sum or a product whose index runs through a subscript, as `\sum_{n=0}^{3} a_n`
 
 The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11), where it was sin(x) y.
 
+*(23 November 2026)* Two bars side by side, `||x||`, are a norm, as `\|x\|` is and as plain text types it, where the first bar at the same depth after them is two side by side too: `||x||_1` was |(|x|)| with a subscript, refused. `||x| - |y||`, the absolute value of a difference of two, and `|a||b|`, a product, are read as before.
+
 ## 41. A run of letters that nothing defines
 
 **Added** on 23 November 2026, for agents, which type mathematics in plain text and Unicode.

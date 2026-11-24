@@ -1889,6 +1889,9 @@ class TestPlainTextAndUnicodeSpellLatex:
             ("lim_(x->0) sin(x)/x", r"\lim_{x \to 0} \sin(x)/x"),
             ("sum_(n=1)^oo 1/n^2", r"\sum_{n=1}^{oo} 1/n^2"),
             ("sum_{n=1}^oo 1/n^2", r"\sum_{n=1}^{oo} 1/n^2"),
+            # ||x||_1 was |(|x|)| with a subscript, refused: only a name can have one
+            ("||x||_1", r"\|x\|_1"),
+            ("||x - y||_2^2", r"\|x - y\|_2^2"),
         ],
     )
     def test_the_tree_is_that_of_the_latex(self, spelled, latex):

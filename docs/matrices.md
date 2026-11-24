@@ -71,7 +71,8 @@ a 1 × 1 matrix, as a row times a matrix times a column, is the number it holds,
 is written. A function of a matrix of a name nothing defines, as `\det M` or
 `\operatorname{tr}(\ln M)`, is an unknown value, det(M) or tr(log M), since M may be a
 matrix of any size: a claim about it relates, and is not proven by its 1 × 1 case. Each
-says so in a note.
+says so in a note. In plain text, two bars side by side are a norm, as `\|` writes one:
+`||x||_1` is `\|x\|_1`.
 
 ```python
 >>> wb.exe(r"""

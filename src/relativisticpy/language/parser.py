@@ -1491,12 +1491,41 @@ class Parser:
         return closer.kind is K.RPAREN and _RIGHT_DOT.fullmatch(closer.span.text) is not None
 
     def _absolute_value(self) -> ast.Abs:
+        double = self._at_double_bars()
         opener = self.advance()
+        if double:  # ||x||, as plain text writes \|x\|
+            self.advance()
         with self._nested():
             self._abs_depth = 1
             operand = self.expression()
             self.expect(K.BAR, opener=opener)
+            if double:
+                self.expect(K.BAR, opener=opener)
         return ast.Abs(operand, span=self._span(opener))
+
+    def _at_double_bars(self) -> bool:
+        """Whether two bars side by side open a norm, as plain text writes ``\\|x\\|``:
+        ``||x||_1``, where the first bar that follows at the same depth is two side by side
+        too. ``||x| - |y||`` is the absolute value of a difference of two, and ``|a||b|`` a
+        product."""
+        start = self._significant(self.pos)
+        if not _side_by_side_bars(self.tokens[start], self.tokens[start + 1]):
+            return False
+        depth = 0
+        for index in range(start + 2, len(self.tokens) - 1):
+            token = self.tokens[index]
+            kind = token.kind
+            if kind in _SEPARATORS and not depth and not self._nesting:
+                return False
+            if kind in _OPENERS or kind is K.BEGIN:
+                depth += 1
+            elif kind in _CLOSERS or kind is K.END:
+                depth -= 1
+                if depth < 0:
+                    return False
+            elif kind is K.BAR and not depth:
+                return _side_by_side_bars(token, self.tokens[index + 1])
+        return False
 
     def _bar(self, expr: ast.Expr, *, enclosed: bool = False) -> ast.Expr:
         """The evaluation bar after ``expr``: substitutions, ``|_{x = 2, y = 1}``, made at
@@ -3936,6 +3965,17 @@ def _ranged(statements: list[ast.Statement]) -> list[ast.Statement]:
             continue
         joined.append(statement)
     return joined
+
+
+def _side_by_side_bars(first: Token, second: Token) -> bool:
+    """Whether two tokens are plain bars written side by side, ``||``."""
+    return (
+        first.kind is K.BAR
+        and second.kind is K.BAR
+        and first.span.text == "|"
+        and second.span.text == "|"
+        and first.span.end == second.span.start
+    )
 
 
 def _a_range(statements: list[ast.Statement]) -> bool:

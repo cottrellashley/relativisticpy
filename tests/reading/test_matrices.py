@@ -313,6 +313,18 @@ class TestNormsAndEntries:
         assert wb.expr(r"\|x\|_\infty") == 4
         assert wb.expr(r"\|x\|_2^2") == 25
 
+    def test_two_bars_side_by_side_are_a_norm_as_plain_text_writes_it(self, wb):
+        # ||x||_1, as agents type \|x\|_1, was refused: only a name can have a subscript
+        wb.exe("x := [3, -4]\n" + A)
+        assert wb.expr("||x||_1") == 7
+        assert wb.expr("||x||") == 5
+        assert wb.expr("||x||_2^2") == 25
+        assert wb.expr("||A||_F") == wb.expr(r"\|A\|_F")
+        # bars that are no norm are read as before
+        x, y, a, b = sympy.symbols("x y a b")
+        assert Workbook().expr("||x| - |y||") == sympy.Abs(sympy.Abs(x) - sympy.Abs(y))
+        assert Workbook().expr("|a||b|") == sympy.Abs(a) * sympy.Abs(b)
+
     def test_the_norm_of_a_matrix_without_an_order_says_which(self, wb):
         wb.exe(A)
         (step,) = list(wb.each(r"\|A\|"))
