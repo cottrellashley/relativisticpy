@@ -229,6 +229,11 @@ class Integrate:
     def exact(self, f: Any, *limits: Any, assuming: tuple[Any, ...] = ()) -> Any:
         for which, end in _ends(limits):
             _an_end(which, end)
+        if isinstance(f, sympy.Basic) and f.has(sympy.nan, sympy.zoo):
+            raise EvaluationError(
+                "what is integrated has no value here, as 0/0 and 1/0 have none",
+                hint="write it so that it has a value, as the limit it may stand for",
+            )
         try:
             return assumptions.integrated(f, limits, assuming)
         except TypeError:  # SymPy compares the limits, and fails where one is not real

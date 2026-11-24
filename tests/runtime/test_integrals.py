@@ -132,3 +132,12 @@ def test_an_integral_whose_limit_has_no_value_is_refused(program, message):
     *_, last = Workbook().each(Source(program, latex=True))
     assert type(last.error) is EvaluationError
     assert last.error.message == message
+
+
+def test_an_integral_of_what_has_no_value_is_refused():
+    # SymPy compared NaN as it integrated complex infinity, and failed
+    *_, last = Workbook().each(
+        Source(r"\int_{-\infty}^{\infty} \frac{1}{0} e^{-x^2} \, dx", latex=True)
+    )
+    assert type(last.error) is EvaluationError
+    assert last.error.message == "what is integrated has no value here, as 0/0 and 1/0 have none"
