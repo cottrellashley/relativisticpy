@@ -216,6 +216,54 @@ def _integer_name(reader: Reader, name: str, scope: Scope, *, bound: bool) -> bo
     return symbol is not None and symbol.is_integer is True
 
 
+#: The letters books name whole numbers with: i to n, as Fortran takes them, and r, as
+#: Rosen writes the number of r-combinations of n things, C(n, r); and their capitals.
+COUNT_LETTERS = frozenset("ijklmnrIJKLMN")
+
+
+def combinations(reader: Reader, node: ast.Call, scope: Scope) -> str | None:
+    """The note that says ``C(n, k)``, a letter C that nothing defines, of two counts, is
+    read as the binomial coefficient, as Rosen writes the number of k-combinations of n
+    things; ``None`` where it is not, as ``C(x, t)``, a concentration, and C of one or
+    three arguments, which stay functions (design/notation.md, decision 43). A count is a
+    number, a name books write whole numbers with, as n and k, a name the program assumes
+    an integer or the index of a sum, or what sums, differences, products, quotients and
+    whole powers make of these, as ``n + 1`` and ``\\frac{1}{2}``."""
+    func = node.func
+    if not (isinstance(func, ast.Name) and func.id == "C" and len(node.args) == 2):
+        return None
+    if scope.lookup("C") is not None or "C" in reader.session.functions:
+        return None
+    coordinates = {c.name for c in reader.session.coordinates or ()}
+    if not all(_a_count(reader, argument, scope, coordinates) for argument in node.args):
+        return None
+    top, bottom = (argument.span.text for argument in node.args)
+    return (
+        f"{node.span.text} is read as the binomial coefficient, binomial({top}, {bottom}), as "
+        "Rosen writes it; for a function of your own, define C first"
+    )
+
+
+def _a_count(reader: Reader, node: ast.Node, scope: Scope, coordinates: set[str]) -> bool:
+    """Whether an argument of ``C(n, k)`` is written as a count is (see
+    :func:`combinations`)."""
+    if isinstance(node, ast.Number):
+        return True
+    if isinstance(node, ast.Name):
+        if node.id in coordinates:
+            return False
+        return node.id in COUNT_LETTERS or _integer_name(reader, node.id, scope, bound=True)
+    if isinstance(node, ast.Unary) and node.op in ("-", "+"):
+        return _a_count(reader, node.operand, scope, coordinates)
+    if isinstance(node, ast.Binary) and node.op in ("+", "-", "*", "/"):
+        return all(_a_count(reader, side, scope, coordinates) for side in (node.left, node.right))
+    if isinstance(node, ast.Scripted) and len(node.scripts) == 1 and node.scripts[0].kind == "^":
+        exponent = node.scripts[0].body
+        whole = isinstance(exponent, ast.Number) and exponent.text.isdigit()
+        return whole and _a_count(reader, node.base, scope, coordinates)
+    return False
+
+
 def _named(node: ast.Node) -> bool:
     """Whether an expression writes a name, as ``2n`` does and ``10`` does not."""
     if isinstance(node, ast.Name):

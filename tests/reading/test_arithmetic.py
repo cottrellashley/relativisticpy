@@ -125,6 +125,54 @@ class TestPi:
         assert wb.expr(r"\left. \pi(n) \right|_{n=100}") == 25
 
 
+class TestCombinations:
+    """Decision 43: C(n, k), a C nothing defines, of two counts, is the binomial
+    coefficient, as Rosen writes it, with a note."""
+
+    k = sympy.Symbol("k")
+
+    @pytest.mark.parametrize(
+        ("written", "value"),
+        [
+            ("C(5, 2)", 10),
+            ("C(3, 5)", 0),
+            (r"C(\frac{1}{2}, 2)", sympy.Rational(-1, 8)),  # Newton's
+            ("C(-1, 3)", -1),
+            (r"\sum_{j=0}^{4} C(4, j)", 16),
+        ],
+    )
+    def test_of_numbers_it_is_their_binomial_coefficient(self, wb, written, value):
+        # it was C(5, 2), an unknown function, kept as written
+        assert wb.expr(written) == value
+
+    def test_of_names_it_is_their_binomial_coefficient_and_says_so(self, wb):
+        # C(n, k) was an unknown function of n and k, and nothing said so
+        m = sympy.Symbol("n")
+        assert wb.expr("C(n, k)") == sympy.binomial(m, self.k)
+        assert notes(wb, "C(n, k)") == [
+            "C(n, k) is read as the binomial coefficient, binomial(n, k), as Rosen writes it; "
+            "for a function of your own, define C first"
+        ]
+        assert wb.expr("C(n + 1, k) - C(n, k) - C(n, k - 1)").equals(0)
+        wb.exe("n := 6\nk := 3")
+        assert wb.expr("C(n, k)") == 20
+
+    @pytest.mark.parametrize(
+        "written", ["C(x, t)", "C(x)", "C(1, 2, 3)", r"\frac{\partial C(x, t)}{\partial t}"]
+    )
+    def test_of_anything_else_it_stays_a_function(self, wb, written):
+        # a concentration, C(x, t), and a C of one or three arguments
+        assert not wb.expr(written).has(sympy.binomial)
+
+    def test_a_definition_of_c_wins_and_so_do_the_coordinates(self, wb):
+        wb.exe("C(n) := n^2")
+        with pytest.raises(CompileError):
+            wb.expr("C(5, 2)")
+        other = Workbook()
+        other.exe(r"Coordinates := [t, r, \theta, \phi]")
+        assert not other.expr("C(t, r)").has(sympy.binomial)
+
+
 class TestSubscripts:
     """Decisions 34 and 35: H_n and B_n are numbers only of names assumed integers."""
 

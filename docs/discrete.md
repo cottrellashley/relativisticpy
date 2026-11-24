@@ -23,7 +23,10 @@ so `\pi(10)` is 10π; `\pi(n)` counts primes only of a name assumed an integer. 
 `B_n` are the harmonic and the Bernoulli numbers only where n is such a name, so that `H_0`
 stays Hubble's constant; `H_n(x)` is Hermite's polynomial. The Stirling numbers are written
 in Karamata's brackets, `{n \brace k}` and `{n \brack k}`, and the Catalan, Fibonacci and Bell
-numbers by their names (see the [reference](reference.md#functions)):
+numbers by their names (see the [reference](reference.md#functions)). `C(n, k)`, as Rosen
+writes it, is the binomial coefficient where nothing defines C and both arguments are
+counts: numbers, or names books write whole numbers with, as n and k, with a note; `C(x, t)`
+stays a function, as a concentration is:
 
 ```python
 >>> nt = Workbook()
@@ -34,8 +37,9 @@ numbers by their names (see the [reference](reference.md#functions)):
 ...     n \in \mathbb{N}
 ...     H_{n+1} - H_n
 ...     \sum_{k=0}^{5} {5 \brace k}
+...     C(5, 2)
 ... """)
-[17, phi(x), 10*pi, 1/(n + 1), 52]
+[17, phi(x), 10*pi, 1/(n + 1), 52, 10]
 
 ```
 

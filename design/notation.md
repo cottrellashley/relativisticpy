@@ -483,3 +483,13 @@ The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11)
 **Recommendation.** Read each habit as the library it comes from means it, where what it is written on says that this is what was meant, with a note; refuse it elsewhere, saying what to write.
 
 1. `eig(A)` of a matrix written without indices is its eigenvalues, each as often as it is one, from the smallest, as MATLAB's `eig(A)` gives them and `spec(A)` writes them, with a note. Written with its indices, `eig(A^{a}{}_{b})` is NumPy's decomposition, the eigenvalues and the eigenvectors, as before, and of what is no matrix, as a symbol, `eig` is refused, as before.
+
+## 43. C(n, k): the binomial coefficient or a function
+
+**Added** on 23 November 2026, from combinatorics.
+
+**Waiting on it:** the notation matrix's forms `C` and `text-C` of `algebra.binomial`.
+
+**Why it is open.** Rosen writes the number of r-combinations of n things `C(n, r)`, and so do agents, in plain text. Physics and chemistry write C for a concentration, `C(x, t)`, a heat capacity, `C(T)`, and a correlation, `C(t, t')`. `C(5, 2)` was an unknown function, kept as written, and `C(n, k)` one of the names n and k, with no note.
+
+**Recommendation.** A C that nothing defines, called with two arguments that are counts, is the binomial coefficient, with a note: `C(5, 2)` is 10 and `C(n, k)` is binomial(n, k). A count is a number, a name books write whole numbers with, i to n as Fortran takes them, r as Rosen writes it, and their capitals, a name the program assumes an integer or the index of a sum, and what sums, differences, products, quotients and whole powers make of these, as `n + 1` and `\frac{1}{2}`, Newton's. Anything else keeps C a function: `C(x, t)`, the coordinates, as `C(t, r)` in a metric, and C of one or three arguments. A program that defines C has its own.

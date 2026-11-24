@@ -33,7 +33,7 @@ from relativisticpy.compiler.scope import (
 )
 from relativisticpy.compiler.session import GEOMETRY_POSITIONS, describe
 from relativisticpy.errors import CompileError, IndexNotationError, ParseError, RelativisticPyError
-from relativisticpy.integrations import Capability, MapFunction, Reservation
+from relativisticpy.integrations import Capability, MapFunction, Reservation, find
 from relativisticpy.integrations import _forms as forms
 from relativisticpy.ir import SCALAR, VALUE, Node, TensorType, ValueType, dependencies, ops
 from relativisticpy.language import syntax as ast
@@ -2148,7 +2148,14 @@ class Reader(Typer):
         shape = forms.call_shape(node)
         if shape is None:
             return None
-        return self._book_name(shape, node, node.func.span.text, scope)
+        found = self._book_name(shape, node, node.func.span.text, scope)
+        if found is None and (note := arithmetic.combinations(self, node, scope)) is not None:
+            capability = find("binomial")
+            assert isinstance(capability, Capability)
+            why = "C(n, k) is how Rosen writes it, of two counts, and nothing defines C"
+            call = BookCall(capability, node.args)
+            return self._book_said(BookReading(call, "the binomial coefficient", why, note), node)
+        return found
 
     def _book_factors(self, factors: list[ast.Expr], scope: Scope) -> list[ast.Expr]:
         """Factors with each name written with scripts and then, right after it, its
