@@ -2,7 +2,7 @@
 
 > **For:** anyone, person or agent, who needs to know what the language accepts. **You will learn:** every statement, command, environment, constant, verdict and error, and every function by name.
 
-This page is generated from the tables the language is read with and from what its integrations declare. `relativisticpy help reference` prints it offline, and `relativisticpy help NAME` one function in full, as `relativisticpy help besselj`: its forms, its arguments, its examples with their answers, and what computes it. The guides explain each part: [The language](language.md), [LaTeX](latex.md), [Tensors and geometry](tensors.md) and [Beyond spacetime](spaces.md).
+This page is generated from the tables the language is read with and from what its integrations declare. `relativisticpy help reference` prints it offline, and `relativisticpy help NAME` one function in full, as `relativisticpy help besselj`: its forms, its arguments, its examples with their answers, and what computes it. The guides explain each part: [The language](language.md) and the page of [each field](language.md#fields), [LaTeX](latex.md), [Tensors and geometry](tensors.md) and [Beyond spacetime](spaces.md).
 
 ## Statements
 

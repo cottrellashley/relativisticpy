@@ -301,7 +301,8 @@ def _header() -> list[str]:
         "its integrations declare. `relativisticpy help reference` prints it offline, and "
         "`relativisticpy help NAME` one function in full, as `relativisticpy help besselj`: "
         "its forms, its arguments, its examples with their answers, and what computes it. "
-        "The guides explain each part: [The language](language.md), [LaTeX](latex.md), "
+        "The guides explain each part: [The language](language.md) and the page of "
+        "[each field](language.md#fields), [LaTeX](latex.md), "
         "[Tensors and geometry](tensors.md) and [Beyond spacetime](spaces.md).",
     ]
 
