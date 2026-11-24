@@ -582,6 +582,7 @@ def _independent_terms(body: Any, limits: Any) -> None:
 def expectation(value: Any, *given: Any) -> Any:
     """``\\mathbb{E}[value]``, or ``\\mathbb{E}[value \\mid given]``: given random variables, a
     function of them; given that one takes a value, or an event, a number."""
+    _one_value(value, "expectation")
     return _conditioned(_expect, value, given, "expectation")
 
 
@@ -598,13 +599,99 @@ def probability(event: Any, *given: Any) -> Any:
 
 def variance(value: Any, *given: Any) -> Any:
     """``\\operatorname{Var}(value)``, or the conditional variance given ``given``."""
+    _one_value(value, "variance")
     return _conditioned(_variance, value, given, "variance")
 
 
 def covariance(first: Any, second: Any, *given: Any) -> Any:
     """``\\operatorname{Cov}(first, second)``."""
+    for value in (first, second):
+        _one_value(value, "covariance")
     pair = Tuple(first, second)
     return _conditioned(lambda both: _covariance(*both.args), pair, given, "covariance")
+
+
+#: How each statistic is written of random variables, and over an index of data, i, with
+#: what it gives there.
+_WRITTEN = {
+    "expectation": ("\\mathbb{{E}}[{}]", "\\mathbb{E}_i[x^i]", "mean"),
+    "variance": ("\\operatorname{{Var}}({})", "\\operatorname{Var}_i(x^i)", "variance"),
+    "covariance": (
+        "\\operatorname{{Cov}}({}, {})",
+        "\\operatorname{Cov}_i(x^i, y^i)",
+        "covariance",
+    ),
+}
+
+
+def _one_value(value: Any, what: str) -> None:
+    """Refuse a statistic of a list, a vector or a matrix, which hold several values, saying
+    what to write: of random variables, the statistic of each, as ``(\\mathbb{E}[X],
+    \\mathbb{E}[Y])``; of anything else, data, the statistic over an index, as
+    ``\\mathbb{E}_i[x^i]``, which is how the language writes the statistics of data. The
+    mean of a list's values is not given unasked: it would take a reading the program did
+    not state, as a bar over a list does not (design/notation.md, decision 8)."""
+    items = _several(value)
+    if items is None:
+        return
+    from relativisticpy import display
+
+    dimensions = len(getattr(value, "shape", ())) or (2 if _nested(value) else 1)
+    kind = "a list" if dimensions == 1 else "a matrix" if dimensions == 2 else "an array"
+    shown = _shown(value)
+    of = shown if len(shown) <= 60 else f"{kind} of {len(items)} values"
+    each, over, gives = _WRITTEN[what]
+    if any(_randoms(item) or sympy.sympify(item).has(Member) for item in items):
+        components = [display.latex(item) for item in items]
+        if what == "covariance":  # of two components at a time
+            hint = f"take it of two at a time, as {each.format(*(components * 2)[:2])}"
+        else:
+            written = [each.format(component) for component in components[:3]]
+            more = ", \\ldots" if len(items) > 3 else ""
+            hint = f"take it of each, as ({', '.join(written)}{more})"
+        taken = "between two values" if what == "covariance" else "of one value"
+        raise EvaluationError(
+            f"the {what} of {of} is not taken: it is {kind} of random variables, and the "
+            f"{what} here is {taken}",
+            hint=hint,
+        )
+    if dimensions == 1:
+        text = display.text(value) if len(shown) <= 60 else "[...]"
+        hint = (
+            f"give the list an index over a space, as \\mathcal{{N}} := \\mathbb{{R}}^{{"
+            f"{len(items)}}}, i \\in \\mathcal{{N}} and x^i := {text}; then {over} is the "
+            f"{gives} of its values"
+        )
+    else:
+        hint = (
+            f"give the data an index over a space for each axis, as X_{{ta}}; then "
+            f"{over.replace('x^i', 'X_{ta}').replace('y^i', 'Y_{ta}').replace('_i', '_t')} "
+            f"is the {gives} over t"
+        )
+    data = "of data, a statistic is written over an index, as \\mathbb{E}_t[X_t] is the mean"
+    raise EvaluationError(
+        f"the {what} of {of} is not taken: it is {kind}, which holds no random variable",
+        notes=[f"{data} over t"],
+        hint=hint,
+    )
+
+
+def _several(value: Any) -> list[Any] | None:
+    """The values a list, a tuple, a vector or a matrix holds, flattened; ``None`` for a
+    value that is one."""
+    if isinstance(value, list | tuple | Tuple):
+        return [item for each in value for item in (_several(each) or [each])]
+    shape = getattr(value, "shape", None)  # SymPy's arrays and matrices, NumPy's arrays
+    if isinstance(shape, tuple | Tuple) and len(shape) and callable(getattr(value, "tolist", None)):
+        return list(sympy.flatten(value.tolist()))
+    return None
+
+
+def _nested(value: Any) -> bool:
+    """Whether a list or a tuple holds lists or tuples, as the rows of a matrix."""
+    return isinstance(value, list | tuple | Tuple) and any(
+        isinstance(each, list | tuple | Tuple) for each in value
+    )
 
 
 def density(value: Any, at: Any) -> Any:

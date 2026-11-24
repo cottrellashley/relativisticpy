@@ -197,6 +197,36 @@ class TestComputing:
             with pytest.raises(integrations._discovery.EvaluationError, match="not 1"):
                 wb.expr(r"\mathbb{E}[X]")
 
+    def test_a_statistic_of_a_list_of_numbers_is_refused_saying_how_data_writes_it(self):
+        # it failed inside RelativisticPy: a list is data, whose statistics the language
+        # writes over an index, and whose mean it does not give unasked
+        with Workbook() as wb:
+            wb.run("x := [1, 2, 3, 6]")
+            for statistic in (
+                r"\operatorname{Var}(x)",
+                r"\operatorname{Cov}(x, x)",
+                "\\mathbb{E}[2x]",
+            ):
+                with pytest.raises(EvaluationError, match="a list, which holds no random"):
+                    wb.expr(statistic)
+            with pytest.raises(EvaluationError, match="a list, which holds no random") as no:
+                wb.expr(r"\mathbb{E}[x]")
+        hint = no.value.hint
+        assert "x^i := [1, 2, 3, 6]; then \\mathbb{E}_i[x^i] is the mean" in hint
+        with Workbook() as wb:  # what the hint writes gives the mean, (1 + 2 + 3 + 6)/4
+            wb.run("\\mathcal{N} := \\mathbb{R}^{4}\ni \\in \\mathcal{N}\nx^i := [1, 2, 3, 6]")
+            assert wb.expr(r"\mathbb{E}_i[x^i]") == 3
+
+    def test_a_statistic_of_a_vector_of_random_variables_is_taken_of_each(self):
+        with Workbook() as wb:
+            wb.run("X \\sim \\mathcal{N}(0, 1)\nY \\sim \\mathcal{N}(1, 1)")
+            with pytest.raises(EvaluationError, match="a list of random variables") as no:
+                wb.expr(r"\mathbb{E}[(X, Y)]")
+            assert no.value.hint == "take it of each, as (\\mathbb{E}[X], \\mathbb{E}[Y])"
+            assert wb.expr(r"(\mathbb{E}[X], \mathbb{E}[Y])") == (0, 1)
+            with pytest.raises(EvaluationError, match="covariance here is between two"):
+                wb.expr(r"\operatorname{Cov}(X [1, 2], Y)")
+
     def test_an_integral_scipy_says_diverges_is_no_expectation(self):
         # the mean of |T| of Cauchy's law is infinite: SciPy's quadrature gives a number
         # of it, with a warning
