@@ -63,6 +63,19 @@ class TestMarks:
     def test_a_star_on_a_name_nothing_defines_is_part_of_it(self, wb):
         assert wb.expr("r^* + 1") == sympy.Symbol("r^*") + 1
 
+    def test_a_full_stop_and_t_is_the_transpose_as_numpy_writes_it(self, wb):
+        # A.T was refused: '.' is not an operator (decision 42)
+        wb.exe(A + "\nT := 5")  # an attribute: T's value does not matter
+        assert matrix(wb.expr("A.T")) == sympy.Matrix([[1, 3], [2, 4]])
+        assert matrix(wb.expr("A.T @ A")) == sympy.Matrix([[1, 2], [3, 4]]).T * sympy.Matrix(
+            [[1, 2], [3, 4]]
+        )
+        (step,) = list(wb.each("A.T"))
+        assert step.notes == ["A.T is read as the transpose of A, A^T, as NumPy writes it"]
+        with pytest.raises(CompileError, match="and x is not a matrix") as refused:
+            wb.expr("x.T")  # never a power of x, as x^T would be
+        assert refused.value.hint == "define x as a matrix first, as in x := [[1, 2], [3, 4]]"
+
     @pytest.mark.parametrize("written", [r"x^\top", r"a^\dagger", r"\mathbf{x}^T"])
     def test_a_transpose_or_a_dagger_of_what_is_no_matrix_is_refused(self, wb, written):
         with pytest.raises(CompileError, match="which is not a matrix"):

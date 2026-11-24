@@ -490,6 +490,7 @@ The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11)
 
 1. `eig(A)` of a matrix written without indices is its eigenvalues, each as often as it is one, from the smallest, as MATLAB's `eig(A)` gives them and `spec(A)` writes them, with a note. Written with its indices, `eig(A^{a}{}_{b})` is NumPy's decomposition, the eigenvalues and the eigenvectors, as before, and of what is no matrix, as a symbol, `eig` is refused, as before.
 2. `A @ B` is the product of matrices, as NumPy writes it, `A B`, with a note, where each factor is a matrix, or a vector it acts on, and `A @ B @ C` is one product. Of anything else, as numbers or a symbol, it is refused, saying to write the product without it: `@` was an unexpected character.
+3. `A.T`, a full stop and T right after what it follows, is the transpose, as NumPy writes it, with a note, of a matrix, whatever T is; of anything else, as a symbol or a list, it is refused, since `x^T` would read as a power: it was refused, `'.'` being no operator. Another attribute, as `A.x`, is refused as before.
 
 ## 43. C(n, k): the binomial coefficient or a function
 

@@ -1271,6 +1271,12 @@ class Parser:
                     (node.base, node.scripts) if isinstance(node, ast.Scripted) else (node, ())
                 )
                 node = ast.Scripted(base, (*scripts, script), span=self._span(base.span))
+            elif kind is K.PERIOD and self._at_numpy_transpose(token):  # A.T, as NumPy writes it
+                self.advance()
+                mark = self.advance()
+                written = ast.Name("T", span=mark.span)
+                script = ast.Script("^", written, None, span=token.span.to(mark.span))
+                node, grouped = ast.Scripted(node, (script,), span=self._span(node.span)), False
             elif kind is K.BANG:
                 self.advance()
                 if self.check(K.BANG) and not self.peek().space_before:  # n!!
@@ -1281,6 +1287,21 @@ class Parser:
                     node = ast.Factorial(node, span=self._span(node.span))
             else:
                 return node
+
+    def _at_numpy_transpose(self, period: Token) -> bool:
+        """Whether a full stop right after what it follows, then T right after it, is the
+        transpose as NumPy writes it, ``A.T``: a script ``^T`` whose span is ``.T``, which
+        the reader takes for the transpose of a matrix, and refuses of anything else
+        (design/notation.md, decision 42)."""
+        mark, after = self.peek(1), self.peek(2)
+        return (
+            not period.space_before
+            and mark.kind is K.IDENT
+            and mark.value == "T"
+            and mark.span.text == "T"
+            and mark.span.start == period.span.end
+            and not (after.kind in (K.IDENT, K.NUMBER) and after.span.start == mark.span.end)
+        )
 
     def _primed(self, node: ast.Scripted, order: int) -> ast.Expr:
         """Primes after scripts. After an unbraced index label they prime the label:

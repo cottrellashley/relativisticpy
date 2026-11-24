@@ -131,6 +131,8 @@ class Matrices(Reader):
         script = node.scripts[0]
         if script.kind == "_":
             return self._entry(node, scope, ctx)
+        if script.span.text == ".T":  # A.T, as NumPy writes the transpose
+            return self._numpy_transpose(node, scope, ctx)
         mark = script.body.id if isinstance(script.body, ast.Name) else None
         if mark == "t" and self._means_nothing("t", scope):  # A^t, as Artin writes it
             return self._book_transpose(node.base, node.base.span.text, node.span, scope, ctx)
@@ -167,6 +169,25 @@ class Matrices(Reader):
         why = f"{written} is a matrix" + (", and T has no value" if mark == "T" else "")
         self._decide(MATRIX, node.span, f"{what} of {written}", why)
         return self._of_a_matrix(name, [matrix], node.span)
+
+    def _numpy_transpose(self, node: ast.Scripted, scope: Scope, ctx: Context) -> Node:
+        """``A.T``, the transpose as NumPy writes it: of a matrix, its transpose, with a
+        note; of anything else it is refused, as a power would be read otherwise
+        (design/notation.md, decision 42)."""
+        written, span = node.base.span.text, node.span
+        matrix = self._matrix_operand(node.base, scope, ctx)
+        if matrix is None:
+            raise CompileError(
+                f"{span.text} is the transpose as NumPy writes it, of a matrix, and {written} "
+                "is not a matrix",
+                span=span,
+                hint=f"define {written} as a matrix first, as in {written} := [[1, 2], [3, 4]]",
+            )
+        why = f"{written} is a matrix, and .T is NumPy's transpose"
+        note = f"{span.text} is read as the transpose of {written}, {written}^T, as NumPy writes it"
+        self._decide(MATRIX, span, f"the transpose of {written}", why, note)
+        self._note(note)
+        return self._of_a_matrix("transpose", [matrix], span)
 
     def _Name(self, node: ast.Name, scope: Scope, ctx: Context) -> Term:
         if (transposed := self._left_transpose(node, scope, ctx)) is not None:

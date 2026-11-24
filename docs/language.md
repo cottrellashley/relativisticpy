@@ -542,6 +542,10 @@ An equation in a call is an equation, as in `subs(x^2, x = 2)` or
 no space around `=`, and used by no other argument, is taken for a keyword
 argument.
 
+Three habits of NumPy and MATLAB are read as they mean, each with a note, where what they
+are written on is a matrix, and refused elsewhere: `A @ B` is the product of matrices,
+`A.T` the transpose, and `eig(A)` the eigenvalues, as `spec(A)` writes them.
+
 **Next:** [LaTeX](latex.md), for how LaTeX is read, then the page of your
 [field](#fields), [Tensors and geometry](tensors.md) for General Relativity, or
 [Beyond spacetime](spaces.md) for data. When a result surprises you, see

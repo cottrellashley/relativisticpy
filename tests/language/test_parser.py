@@ -1409,6 +1409,15 @@ class TestPythonHabits:
         assert sexpr("A @ B @ C") == "(@ (@ A B) C)"
         assert sexpr("2 A @ B + C") == "(+ (@ (* 2 A) B) C)"
 
+    def test_numpys_transpose_is_a_script_t_written_with_a_full_stop(self):
+        # A.T was refused: '.' is not an operator; the reader takes it for a transpose
+        (statement,) = parse("A.T @ B").statements
+        assert to_sexpr(statement) == "(@ (^ A T) B)"
+        assert statement.expr.left.scripts[0].span.text == ".T"
+        assert sexpr("(A B).T") == "(^ (* A B) T)"
+        assert "'.' is not an operator" in str(error("A.Tx"))
+        assert "'.' is not an operator" in str(error("A. T"))
+
 
 class TestWhereErrorsAre:
     """An error is reported where its cause is, and marks the places that explain it."""
