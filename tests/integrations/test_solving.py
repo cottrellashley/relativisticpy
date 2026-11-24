@@ -280,3 +280,13 @@ def test_an_unknown_beside_diracs_delta_is_read(wb):
     )
     assert found.lhs == sympy.Function("y")(t)
     assert sympy.simplify(found.rhs - expected) == 0
+
+
+def test_a_name_written_as_a_factor_is_a_function_at_a_number():
+    # y'' + \lambda y = 0 writes y as a factor; y(0) = 0 after it is an initial condition,
+    # which was read as y times 0, so that it held: True
+    with Workbook() as wb:
+        wb.exe(r"y'' + \lambda y = 0")
+        (step,) = wb.each("y(0) = 0")
+    assert step.values != [True]
+    assert any("y(0) is an unknown function applied to 0" in note for note in step.notes)

@@ -1967,6 +1967,8 @@ class Reader(Typer):
             return why
         if name in self._factors:
             return f"{name} is written as a factor in this statement"
+        if args and all(_a_number(arg) for arg in args):
+            return None  # y(0) after y'' + \lambda y = 0: a value at a point, as y(0) = 1 is
         written = name in self.session.factors and name not in self.session.functions
         if written and len(names) != len(args) and not _in_books(func, args):
             return f"{name} was written as a factor before"
@@ -2598,6 +2600,14 @@ def _a_point(node: ast.Expr) -> bool:
     if not (isinstance(node, ast.Binary) and node.op in ("+", "-")):
         return False
     return _a_variable(node.left) and _plain_arithmetic(node.right)
+
+
+def _a_number(node: ast.Expr) -> bool:
+    """Whether brackets hold a number, as y(0) and y(-1) do: a function's value at a point,
+    as an initial condition is written, never a name times the number."""
+    if isinstance(node, ast.Unary) and node.op == "-":
+        node = node.operand
+    return isinstance(node, ast.Number)
 
 
 def _a_variable(node: ast.Expr) -> bool:
