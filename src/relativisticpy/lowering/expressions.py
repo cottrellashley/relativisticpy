@@ -585,10 +585,17 @@ class Expressions(LinearAlgebra):
             )
         if name in ("eig", "svd"):  # what _linear_algebra leaves: no tensor
             count = ", and how many eigenvalues if not all" if name != "svd" else ""
+            hint = f"for example {name}(\\Sigma^{{a}}{{}}_{{b}})"
+            if name == "eig" and len(node.args) == 1:  # eig(A), MATLAB's eigenvalues
+                written = node.args[0].span.text
+                hint = (
+                    f"for the eigenvalues of {written}, write spec({written}); eig decomposes a "
+                    "tensor written with its indices, as eig(\\Sigma^{a}{}_{b})"
+                )
             raise CompileError(
                 f"{name}() takes a tensor written with its indices{count}",
                 span=node.span,
-                hint=f"for example {name}(\\Sigma^{{a}}{{}}_{{b}})",
+                hint=hint,
             )
         builtin = _names_builtin(func, latex=ctx.latex)  # \gamma(r) is an unknown function
         if not builtin and (book := self._book_call(node, scope)) is not None:

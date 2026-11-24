@@ -41,6 +41,16 @@ class TestArity:
     def test_linear_algebra_takes_a_tensor(self, wb, source):
         assert "takes a tensor written with its indices" in error(wb, source).message
 
+    def test_eig_of_a_matrix_says_how_to_write_its_eigenvalues(self, wb):
+        # MATLAB's eig(A) is the eigenvalues; here eig decomposes a tensor, and the refusal
+        # said nothing of how to write them
+        wb.exe("A := [[1, 2], [2, 1]]")
+        assert error(wb, "eig(A)").hint == (
+            r"for the eigenvalues of A, write spec(A); eig decomposes a tensor written with "
+            r"its indices, as eig(\Sigma^{a}{}_{b})"
+        )
+        assert [int(value) for value in wb.expr("spec(A)")] == [-1, 3]  # the hint works
+
     def test_the_spectrum_takes_a_matrix_or_a_tensor(self, wb):
         found = error(wb, "spec(2)", EvaluationError)
         assert found.message == "a spectrum takes a matrix, as [[1, 2], [3, 4]], not 2"
