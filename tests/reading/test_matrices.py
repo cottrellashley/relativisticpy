@@ -238,6 +238,22 @@ class TestProducts:
         found = matrix(wb.expr(rf"{self.SIGMA_X} \otimes {self.SIGMA_X}"))
         assert found == sympy.Matrix(np.kron([[0, 1], [1, 0]], [[0, 1], [1, 0]]))
 
+    def test_an_at_sign_between_matrices_is_their_product_as_numpy_writes_it(self, wb):
+        # A @ B, NumPy's product, was refused: unexpected character '@' (decision 42)
+        wb.exe(A + f"\nX := {self.SIGMA_X}")
+        assert matrix(wb.expr("A @ X")) == matrix(wb.expr("A X"))
+        assert matrix(wb.expr("A @ X @ A")) == matrix(wb.expr("A X A"))
+        (step,) = list(wb.each("A @ X"))
+        assert step.notes == ["A @ X is read as the product of matrices A X, as NumPy writes it"]
+        column = r"\begin{pmatrix} 5 \\ 6 \end{pmatrix}"
+        assert matrix(wb.expr(f"A @ {column}")) == sympy.Matrix([[17], [39]])
+        # of what is no matrix it is refused, saying what to write
+        with pytest.raises(CompileError, match="NumPy's product of matrices, and x is not a"):
+            wb.expr("A @ x")
+        with pytest.raises(CompileError, match="and 2 is not a matrix") as refused:
+            wb.expr("2 @ 3")
+        assert refused.value.hint == "for any other product, write 2 3, or with \\cdot between them"
+
     def test_a_kronecker_product_is_a_factor_of_its_own(self, wb):
         wb.exe(f"X := {self.SIGMA_X}")
         chi = r"\begin{pmatrix} 0 \\ 1 \\ -1 \\ 0 \end{pmatrix}"

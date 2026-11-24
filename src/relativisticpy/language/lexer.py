@@ -141,6 +141,7 @@ _SINGLE_CHARACTER: dict[str, TokenKind] = {
     ":": TokenKind.COLON,
     ";": TokenKind.SEMICOLON,
     "&": TokenKind.AMPERSAND,
+    "@": TokenKind.AT,
 }
 
 _TWO_CHARACTER: dict[str, TokenKind] = {

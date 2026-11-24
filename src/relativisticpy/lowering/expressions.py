@@ -62,6 +62,7 @@ from relativisticpy.reading.names import (
     _bold_one,
     _bracketed_order,
     _decoration,
+    _elements,
     _in_brackets,
     _letter,
     _mentions_symbol,
@@ -213,6 +214,8 @@ class Expressions(LinearAlgebra):
             return self._hadamard(node, scope, ctx)
         if node.op == "⊕":
             return self._direct_sum(node, scope, ctx)
+        if node.op == "@":
+            return self._numpy_product(node, scope, ctx)
         if node.op == "*":
             return self._product(node, scope, ctx)
         if node.op in ("and", "or"):
@@ -225,6 +228,33 @@ class Expressions(LinearAlgebra):
         if node.op == "/":
             return self._divide(left, right, node.span)
         return self._power(left, right, node.span)
+
+    def _numpy_product(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
+        """``A @ B``, NumPy's product of matrices: of matrices and the vectors they act on,
+        their product, as ``A B`` writes it, with a note; of anything else, as numbers or a
+        tensor written with its indices, it is refused, saying what to write
+        (design/notation.md, decision 42)."""
+        factors: list[ast.Expr] = [node.right]
+        left: ast.Expr = node.left
+        while isinstance(left, ast.Binary) and left.op == "@":  # A @ B @ C, as one product
+            factors.insert(0, left.right)
+            left = left.left
+        factors.insert(0, left)
+        values = [self.value(_operand(factor), scope, ctx) for factor in factors]
+        written = " ".join(factor.span.text for factor in factors)
+        for factor, value in zip(factors, values, strict=True):
+            if not (_a_matrix(value) or _elements(value) is not None):
+                raise CompileError(
+                    f"{node.span.text} is NumPy's product of matrices, and {factor.span.text} "
+                    "is not a matrix",
+                    span=node.span,
+                    hint=f"for any other product, write {written}, or with \\cdot between them",
+                )
+        why = "@ is NumPy's product of matrices, and each factor is a matrix or a vector"
+        note = f"{node.span.text} is read as the product of matrices {written}, as NumPy writes it"
+        self._decide(CALL, node.span, f"the product {written}", why, note)
+        self._note(note)
+        return self._multiply(values, node.span)
 
     def _hadamard(self, node: ast.Binary, scope: Scope, ctx: Context) -> Node:
         """``A_{ta} \\odot B_{ta}``: the elementwise product, of tensors with the same free

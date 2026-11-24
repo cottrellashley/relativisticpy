@@ -85,7 +85,7 @@ _STATEMENT_ENDS = frozenset({K.EOF, K.NEWLINE, K.ROW_SEP, K.END, K.SEMICOLON, K.
 # Equality and the relations RelativisticPy reads but does not compute; they chain.
 _RELATIONS = frozenset({K.EQUAL, K.RELATION, K.ARROW, K.COLON})
 _OPERATORS = frozenset(
-    {K.PLUS, K.MINUS, K.STAR, K.SLASH, K.DOUBLE_STAR, K.PLUS_MINUS, K.MINUS_PLUS, K.WEDGE}
+    {K.PLUS, K.MINUS, K.STAR, K.SLASH, K.DOUBLE_STAR, K.PLUS_MINUS, K.MINUS_PLUS, K.WEDGE, K.AT}
 )
 # A line that starts with one of these continues the statement on the line before it.
 _CONTINUING = _OPERATORS | _RELATIONS | frozenset(_COMPARISONS)
@@ -836,7 +836,7 @@ class Parser:
             return Power.COMPARISON
         if kind in (K.PLUS, K.MINUS, K.PLUS_MINUS, K.MINUS_PLUS) or self._direct_sum(token):
             return Power.SUM
-        if kind in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE) or self._hadamard(token):
+        if kind in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE, K.AT) or self._hadamard(token):
             return Power.PRODUCT
         if kind is K.DOUBLE_STAR:
             return Power.POWER
@@ -860,7 +860,7 @@ class Parser:
             self.advance()
             right = self.expression(Power.SUM)
             return ast.Binary("⊕", left, right, span=left.span.to(right.span))
-        if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE):
+        if power == Power.PRODUCT and kind not in (K.STAR, K.SLASH, K.WEDGE, K.COMPOSE, K.AT):
             self._numbers_apart(token)
             right = self.expression(Power.PRODUCT)
             return ast.Binary("*", left, right, implicit=True, span=left.span.to(right.span))
@@ -883,7 +883,7 @@ class Parser:
         if kind is K.SLASH and (derivative := self._solidus_derivative(left)) is not None:
             return derivative  # d/dx, dy/dx, d(x^3)/dx: Leibniz's fraction in a line of text
         right = self.expression(power)
-        op = cast(Literal["+", "-", "*", "/", "and", "or", "∧", "±", "∓", "∘"], token.value)
+        op = cast(Literal["+", "-", "*", "/", "and", "or", "∧", "±", "∓", "∘", "@"], token.value)
         if op == "/":
             return _quotient(left, right, left.span.to(right.span), leibniz=False)
         return ast.Binary(op, left, right, span=left.span.to(right.span))

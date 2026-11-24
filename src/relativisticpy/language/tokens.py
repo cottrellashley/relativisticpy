@@ -39,6 +39,7 @@ class TokenKind(Enum):
     MINUS_PLUS = "∓"
     WEDGE = "∧"
     COMPOSE = "∘"
+    AT = "@"  # NumPy's product of matrices
 
     # Relations and definitions
     EQUAL = "="

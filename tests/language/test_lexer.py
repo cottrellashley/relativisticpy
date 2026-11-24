@@ -559,19 +559,19 @@ class TestSpans:
 
     def test_source_name_appears_in_errors(self):
         with pytest.raises(ParseError) as error:
-            tokenize(Source("x @ y", name="metric.relpy"))
+            tokenize(Source("x ? y", name="metric.relpy"))
         assert "metric.relpy:1:3" in str(error.value)
 
 
 class TestErrors:
     def test_unexpected_character_is_underlined(self):
         with pytest.raises(ParseError) as error:
-            tokenize("x := 1 @ 2")
+            tokenize("x := 1 ? 2")
         assert str(error.value) == dedent("""\
-            unexpected character '@'
+            unexpected character '?'
              --> <input>:1:8
               |
-            1 | x := 1 @ 2
+            1 | x := 1 ? 2
               |        ^""")
 
     def test_unterminated_string(self):

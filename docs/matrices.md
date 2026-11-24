@@ -30,7 +30,8 @@ In arithmetic, lists and matrices are vectors and matrices: a number scales
 them, arrays of one shape add, matrices multiply as matrices, and a square
 matrix has integer powers, so \(A^{-1}\) is its inverse. A matrix written in blocks,
 as `\begin{pmatrix} B & AB \end{pmatrix}`, is one matrix. Anything else, such as
-adding a number to a list, is an error.
+adding a number to a list, is an error. NumPy's `A @ B` is the product `A B` of matrices,
+with a note, and of anything else it is refused.
 
 ```python
 >>> wb.exe(r"""

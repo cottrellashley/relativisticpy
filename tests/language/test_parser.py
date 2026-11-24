@@ -1404,6 +1404,11 @@ class TestPythonHabits:
         # x[n] is a sequence where x is one (design/notation.md, 31): only the reader knows
         assert to_sexpr(parse("x := [1, 2, 3]\nx[1]").statements[1]) == "(* x (list 1))"
 
+    def test_numpys_product_of_matrices_binds_as_a_product(self):
+        # A @ B was refused: unexpected character '@'; the reader says what it is of
+        assert sexpr("A @ B @ C") == "(@ (@ A B) C)"
+        assert sexpr("2 A @ B + C") == "(+ (@ (* 2 A) B) C)"
+
 
 class TestWhereErrorsAre:
     """An error is reported where its cause is, and marks the places that explain it."""
@@ -1537,10 +1542,10 @@ class TestRecovery:
         assert errors == [(r"unknown LaTeX command \frca", 4)]
 
     def test_errors_of_the_lexer_too(self):
-        statements, errors = recovered("x := 1\ny := 2 @ 3\nz := \frac\nw := 4")
+        statements, errors = recovered("x := 1\ny := 2 ? 3\nz := \frac\nw := 4")
         assert statements == ["(:= x 1)", "(:= w 4)"]
         assert errors == [
-            ("unexpected character '@'", 2),
+            ("unexpected character '?'", 2),
             (r"Python turned \f in \frac into a form feed", 3),
         ]
 
@@ -1551,7 +1556,7 @@ class TestRecovery:
             ("x := 1 +\ng := 1", "the expression on line 1 ends with '+'"),
             ("x := 1 )\ng := 1", "unmatched ')'"),
             ("\\begin{equation} x + 1\ng := 1", r"\begin{equation} has no matching \end{equation}"),
-            ("M := [[1, 2],\n  [3 @ 4],\n  [5, 6]]\ng := 1", "unexpected character '@'"),
+            ("M := [[1, 2],\n  [3 ? 4],\n  [5, 6]]\ng := 1", "unexpected character '?'"),
             ("\\begin{align} a &= 1 \\\\ b &= \\frca \\end{align}\ng := 1",
              r"unknown LaTeX command \frca"),
             ("y := a\n  + \\frca\n  + b\ng := 1", r"unknown LaTeX command \frca"),

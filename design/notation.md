@@ -489,6 +489,7 @@ The cost: in plain text `sin x y` is now sin(xy), as `\sin x y` is (decision 11)
 **Recommendation.** Read each habit as the library it comes from means it, where what it is written on says that this is what was meant, with a note; refuse it elsewhere, saying what to write.
 
 1. `eig(A)` of a matrix written without indices is its eigenvalues, each as often as it is one, from the smallest, as MATLAB's `eig(A)` gives them and `spec(A)` writes them, with a note. Written with its indices, `eig(A^{a}{}_{b})` is NumPy's decomposition, the eigenvalues and the eigenvectors, as before, and of what is no matrix, as a symbol, `eig` is refused, as before.
+2. `A @ B` is the product of matrices, as NumPy writes it, `A B`, with a note, where each factor is a matrix, or a vector it acts on, and `A @ B @ C` is one product. Of anything else, as numbers or a symbol, it is refused, saying to write the product without it: `@` was an unexpected character.
 
 ## 43. C(n, k): the binomial coefficient or a function
 
