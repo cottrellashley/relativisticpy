@@ -134,6 +134,20 @@ def test_an_integral_whose_limit_has_no_value_is_refused(program, message):
     assert last.error.message == message
 
 
+def test_an_integral_from_both_values_of_a_sign_is_refused_not_zero():
+    # arXiv 2611.26576 defines Γ(m, x) as the integral from x and writes Γ(n, ±ikτ): the
+    # integral from the list of both values was 0, so that the recurrence the paper writes
+    # with it, Γ(n, ±ikτ) = (n - 1) Γ(n - 1, ±ikτ) + ..., held in its first line
+    program = (
+        r"\Gamma(m, x) := \int_x^\infty t^{m - 1} e^{-t} \, dt" "\n" r"\Gamma(n, \pm i k \tau)"
+    )
+    *_, last = Workbook().each(Source(program, latex=True))
+    assert type(last.error) is EvaluationError
+    assert last.error.message == (
+        "the lower limit of the integral is one value, and [i k τ, −i k τ] is several"
+    )
+
+
 def test_an_integral_of_what_has_no_value_is_refused():
     # SymPy compared NaN as it integrated complex infinity, and failed
     *_, last = Workbook().each(
