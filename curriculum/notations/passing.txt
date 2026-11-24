@@ -3088,6 +3088,15 @@ linear-algebra.extreme-eigenvalue/lambda-call/min-irrational
 linear-algebra.extreme-eigenvalue/lambda-call/min-negative
 linear-algebra.extreme-eigenvalue/lambda-call/min-singular
 linear-algebra.extreme-eigenvalue/lambda-call/min-three
+linear-algebra.extreme-eigenvalue/max-of-eig/max
+linear-algebra.extreme-eigenvalue/max-of-eig/max-irrational
+linear-algebra.extreme-eigenvalue/max-of-eig/max-negative
+linear-algebra.extreme-eigenvalue/max-of-eig/max-three
+linear-algebra.extreme-eigenvalue/max-of-eig/min
+linear-algebra.extreme-eigenvalue/max-of-eig/min-irrational
+linear-algebra.extreme-eigenvalue/max-of-eig/min-negative
+linear-algebra.extreme-eigenvalue/max-of-eig/min-singular
+linear-algebra.extreme-eigenvalue/max-of-eig/min-three
 linear-algebra.extreme-eigenvalue/subscript-without-brackets/max
 linear-algebra.extreme-eigenvalue/subscript-without-brackets/max-irrational
 linear-algebra.extreme-eigenvalue/subscript-without-brackets/max-negative
