@@ -251,7 +251,7 @@ differs. In the second, the left side of (7.30) minus its right is
 \(36G^2M^2/r^6\). Each check runs what comes before its lines in their section, for
 its definitions, and reports only the lines.
 
-In all, six statements differ. Besides these two, (7.21), on line 9161, is a chain
+In all, 6 statements differ. Besides these two, (7.21), on line 9161, is a chain
 of two links. The first, \(0 = e^{2(\beta-\alpha)}R_{00} + R_{11}\), is the
 vacuum condition, which the prose states in words, "both \(R_{00}\) and \(R_{11}\)
 vanish": no check of the equation alone can tell it from an identity that fails. The
@@ -262,13 +262,13 @@ at the point where those coordinates are set up, where the Christoffel symbols
 vanish, and the check takes it over the metric in force, the plane in polar
 coordinates, where they do not.
 
+Of the 210 statements that relate, most relate quantities the notes never define, as
+laws, equations of motion and the interval \(s^2 = (\Delta x)^2 + (\Delta y)^2\) do.
 The steps the notes derive from \(R_{\mu\nu} = 0\), as \(\partial_0\beta = 0\) and
-\(\alpha = -\beta\), relate: each is an equation for the functions the metric is
-written with, and the check reads it so. Most of the other statements that relate,
-210 in all, relate quantities the notes never define, as laws, equations of motion and
-the interval \(s^2 = (\Delta x)^2 + (\Delta y)^2\) do. One equation is ill-formed:
-(1.56) writes \(\eta_{\rho\nu}\eta^{\nu\mu} = \delta^\rho_\mu\), whose free indices
-call for \(\delta^\mu_\rho\).
+\(\alpha = -\beta\), relate too: each is an equation for the functions the metric is
+written with, and the check reads it so. One equation is ill-formed: (1.56) writes
+\(\eta_{\rho\nu}\eta^{\nu\mu} = \delta^\rho_\mu\), whose free indices call for
+\(\delta^\mu_\rho\).
 
 Most of the notes concern tensors on general manifolds, without components.
 Their equations are read as [index notation](notation.md), and those that are

@@ -528,8 +528,8 @@ def test_the_table_of_the_corpus_agrees_with_its_prose():
     assert f"Of their {equations} display equations" in text
     assert f"({parsed}%)\nparse" in text
     assert f" {hold} statements hold" in text
-    assert f"sides are not equal, {differ} involve only what the\n" in text
-    assert f"The other {relate} relate" in text
+    assert f"In all, {differ} statements differ." in text
+    assert f"Of the {relate} statements that relate" in text
 
 
 #: A time limit is an alarm, where there is one.
