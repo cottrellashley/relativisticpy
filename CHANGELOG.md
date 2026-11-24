@@ -4,6 +4,38 @@ Notable changes to RelativisticPy. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### The language
+
+- **Typefaces**: where a program defines a name in two typefaces, `\mathbf{w}` and `w`,
+  they are two names; where it defines one, the other stands for it, with a note.
+- **Operators before their operand**: `\operatorname{Var} X` and `\mathbb{E} X` apply to
+  X, as with brackets, not Var times X.
+- **`C(n, k)`** is the binomial coefficient, with a note, where nothing defines C and
+  both arguments are counts.
+- **NumPy and MATLAB habits**: `A @ B` is the matrix product, `A.T` the transpose,
+  `||x||_p` the norm `\|x\|_p`, and `eig(A)` of a matrix its eigenvalues, each with a note.
+- **A whole statement along a path**: beside `q^i := (\theta(t), \phi(t))`,
+  `L - m g_0 R \cos\theta` takes θ along the path everywhere, not only in L.
+- **Said, where not computed**: `j` beside a number, where an engineer means the
+  imaginary unit; a claim after equations that hold its names, as Mandelstam's; and a
+  loop written in words, which is refused with how to write it as a recurrence.
+
+### Values with no answer
+
+- **No internal error left in what is measured**: the docs, the curriculum, the notation
+  matrix, the tests and the seven papers of the check. Each became a value or a
+  refusal: a statistic of a list, an equation of index notation SymPy cannot decide,
+  arithmetic with an equation or a truth value, and integrals and limits of what has no
+  value.
+- **A comparison of what has no value is refused**, and not decided in the check of a
+  paper: `\infty - \infty = 0` gave False, and `\infty - \infty \neq 1` gave True.
+- **An integral between limits with no value is refused**: a hold in one paper of the
+  check was false, through such an integral, which gave 0.
+- **`max` and `min` of a list**, as of the eigenvalues, give the greatest and the least,
+  or refuse complex values, which have no order.
+
 ## 0.1.0 - 2026-11-23
 
 The first release of RelativisticPy as a language: mathematics written as its books

@@ -50,10 +50,10 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
 
 ## Now
 
-- **No silent wrong answer.** Version 0.1.0 waits on the wrong answers known in the
-  core, algebra, calculus, linear algebra and index notation: each is to be fixed, or
-  refused with what to write instead. Those of other fields are fixed too, or listed in
-  the notes of the release. One is known as this is written that says nothing: units are
+- **No silent wrong answer.** A wrong answer known in the core, algebra, calculus,
+  linear algebra and index notation, is fixed before the next release, or refused with
+  what to write instead; those of other fields are fixed too, or listed in the notes of
+  the release. One is known as this is written that says nothing: units are
   names, so \(\mathrm{Mpc}\,\mathrm{s}/(70\,\mathrm{Gyr}\,\mathrm{km})\) is not
   converted (`design/debt.md`). Two say so in a note, and are not computed as meant: `j`,
   which nothing defines, is a name in \(\left|\frac{1}{1 + j}\right|\), where an
@@ -62,12 +62,8 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
   after \(p_1 + p_2 = p_3 + p_4\) and \(p_i^2 = m_i^2\), is shown as an equation, not
   decided under them (decision 3).
 
-  Three fail with an internal error, where they should give a value or a refusal:
-  `\mathbb{E}[x]` of a list, after `x := [1, 2, 3, 6]`; an equation of index notation
-  whose identity SymPy cannot tell, as Carroll's (1.69), described as data, in
-  `--format json` and the MCP server's `compute`, and judged, in the check of the notes;
-  and, in that check, (7.89), \(-\infty < u < +\infty\) after (7.88) defines u, where
-  SymPy compares NaN.
+  No program known gives an internal error: not in the docs, the curriculum, the
+  notation matrix, the tests, nor the seven papers the check is measured on.
 
   `uv run python benchmarks/curriculum.py --failures` and
   `uv run python benchmarks/notations.py --failures` list every wrong answer they find.
