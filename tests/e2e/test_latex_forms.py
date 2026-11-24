@@ -257,6 +257,9 @@ OPERATOR_NAMES = [
     (r"\int_{0}^{2} x^2 \delta(x - 1) \, dx", 1),
     (r"\delta(x - a)", sympy.DiracDelta(x - a)),
     ("\\delta := 0.1\n\\delta(x + 1)", sympy.Rational(1, 10) * (x + 1)),  # a value multiplies
+    # of what is no point, \\delta is a variation, as Carroll's \\delta(g^{-1}) is: not Dirac's
+    (r"\delta(g^{-1})", Function("delta")(1 / sympy.Symbol("g"))),
+    (r"\delta(\sqrt{-g})", Function("delta")(sqrt(-sympy.Symbol("g")))),
     # the ISO 80000-2 names of the inverse hyperbolic functions (an error before)
     (r"\operatorname{arsinh} x", sympy.asinh(x)),
     (r"\operatorname{arcosh}(x)", sympy.acosh(x)),

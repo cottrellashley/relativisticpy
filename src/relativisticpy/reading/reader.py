@@ -2250,6 +2250,8 @@ class Reader(Typer):
         if match is None or self._own_book_name(shape, node, scope):
             return None
         owner = match.pattern.owner
+        if shape.head == "delta" and not all(map(_a_point, shape.arguments)):
+            return None  # \delta(\det M), \delta(g^{-1}): a variation (decision 15.6)
         if any(self._an_index_label(slot) for slot in shape.scripts):
             return None
         if not shape.head and not self._a_pochhammer(shape, scope):
@@ -2584,6 +2586,41 @@ def _bound(
 
 #: A name of letters with digits after them, as j4.
 _LETTERS_THEN_DIGITS = re.compile(r"(?P<name>[A-Za-z]+)(?P<digits>[0-9]+)")
+
+
+def _a_point(node: ast.Expr) -> bool:
+    """Whether brackets hold a point, as books write Dirac's delta of one: a variable, a
+    name maybe with a subscript or a prime, or a variable plus or minus what is written
+    with names and numbers alone, as x - a, t - 5, x - x' and t - 1/2; not what a variation
+    is of, as \\det M, g^{-1} or \\sqrt{-g} (design/notation.md, decision 15.6)."""
+    if _a_variable(node):
+        return True
+    if not (isinstance(node, ast.Binary) and node.op in ("+", "-")):
+        return False
+    return _a_variable(node.left) and _plain_arithmetic(node.right)
+
+
+def _a_variable(node: ast.Expr) -> bool:
+    """A name, maybe with subscripts or primed: x, x_0, x'."""
+    if isinstance(node, ast.Scripted):
+        if any(script.kind != "_" for script in node.scripts):
+            return False
+        node = node.base
+    if isinstance(node, ast.Prime):
+        node = node.func
+    return isinstance(node, ast.Name)
+
+
+def _plain_arithmetic(node: ast.Expr) -> bool:
+    """Whether what is written is names and numbers in sums, differences, products and
+    quotients, with no power, root, call or derivative."""
+    if isinstance(node, ast.Number) or _a_variable(node):
+        return True
+    if isinstance(node, ast.Unary) and node.op in ("-", "+"):
+        return _plain_arithmetic(node.operand)
+    if isinstance(node, ast.Binary) and node.op in ("+", "-", "*", "/"):
+        return _plain_arithmetic(node.left) and _plain_arithmetic(node.right)
+    return False
 
 
 def _capital_i(node: ast.Expr) -> bool:
