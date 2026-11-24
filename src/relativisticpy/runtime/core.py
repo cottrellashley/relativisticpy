@@ -18,7 +18,7 @@ import signal
 import threading
 import time
 import weakref
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from types import CodeType, FrameType
 from typing import Any
@@ -102,6 +102,8 @@ def summation(
     summing it numerically (see :mod:`relativisticpy.runtime.crosscheck`)."""
     from relativisticpy.runtime import crosscheck
 
+    if isinstance(body, list | tuple | sympy.NDimArray):  # a sum of each component
+        return _each(body, lambda one: summation(one, variable, lower, upper, assuming=assuming))
     _numbers("a sum adds numbers", body, lower, upper)
     written = sympy.Sum(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)
@@ -117,6 +119,17 @@ def summation(
         return _kept(written)
     crosscheck.series(found, sympy.sympify(body), variable, lower, upper)
     return found
+
+
+def _each(value: Any, compute: Callable[[Any], Any]) -> Any:
+    """``compute`` of each component of a list, a tuple or an array, in its shape, as a sum
+    or a product of a vector is taken, component by component."""
+    if isinstance(value, list | tuple):
+        return type(value)(
+            _each(item, compute) if isinstance(item, list | tuple) else compute(item)
+            for item in value
+        )
+    return arrays.apply(value, compute)
 
 
 def _kept(written: Any) -> Any:
@@ -176,6 +189,8 @@ def product(body: Any, variable: Any, lower: Any, upper: Any) -> Any:
     """A product, carried out as a sum is, where SymPy finds its closed form within a time
     budget: see :func:`summation`. An infinite one SymPy leaves undone is the limit of its
     partial products, where they have a closed form (see :func:`_partial_products`)."""
+    if isinstance(body, list | tuple | sympy.NDimArray):  # a product of each component
+        return _each(body, lambda one: product(one, variable, lower, upper))
     _numbers("a product multiplies numbers", body, lower, upper)
     written = sympy.Product(body, (variable, lower, upper))
     finite = _finite(written, lower, upper)

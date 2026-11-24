@@ -155,6 +155,14 @@ def test_diag(wb):
         ),
         ("diag(1, 2)^2", Array([[1, 0], [0, 4]])),
         ("[[1, 2], [3, 4]]^{-1}", Array([[-2, 1], [Rational(3, 2), Rational(-1, 2)]])),
+        # a sum or a product of a vector or a matrix is of each component, as a sum of a
+        # list was; the others failed inside SymPy
+        (r"\prod_{n=1}^{3} [n, 2 n]", [6, 48]),  # a list, as a sum of a list is
+        (r"\sum_{n=1}^{3} \begin{pmatrix} n & 1 \\ 0 & n \end{pmatrix}", Array([[6, 3], [0, 6]])),
+        (
+            r"\sum_{n=1}^{\infty} \frac{1}{n^2} \begin{pmatrix} 1 \\ 2 \end{pmatrix}",
+            Array([[pi**2 / 6], [pi**2 / 3]]),  # Basel's sum, standard
+        ),
     ],
 )
 def test_lists_are_vectors_and_matrices(wb, source, expected):
