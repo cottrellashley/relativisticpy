@@ -37,7 +37,8 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
   and the check finds three mistakes in them.
 - **For agents**: an MCP server, to compute, verify a step, check a paper and read the
   documentation. Each value says whether it is a complete answer, and whether it is
-  approximate; each refusal says why.
+  approximate; each refusal says why. The habits of NumPy and MATLAB, `A @ B`, `A.T` and
+  `eig(A)`, and `||x||_1` typed in plain text, are read as they mean, with a note.
 - **Tools**: the command line, Markdown notebooks, Jupyter and marimo, and an editor
   that computes as it is typed. The documentation is offline, in `relativisticpy help`.
 - **A pipeline with one job for each pass**, from the lexer to the engines, and
@@ -52,26 +53,14 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
 - **No silent wrong answer.** Version 0.1.0 waits on the wrong answers known in the
   core, algebra, calculus, linear algebra and index notation: each is to be fixed, or
   refused with what to write instead. Those of other fields are fixed too, or listed in
-  the notes of the release. Those known as this is written, none of which says so in a
-  note:
-  - a plain name stands for a bold one: after `\mathbf{w} := (1, 2, 3)` and `w := 7`,
-    `\mathbf{w}` is 7 (decision 9 of `design/notation.md`);
-  - beside a path, \(q^i := (\theta(t), \phi(t))\), a sum of scalars keeps the
-    coordinate: the value of `L - m g_0 R \cos\theta` holds cos θ beside θ(t), and its
-    note says only that θ is taken along the path in L; its derivatives by the path are
-    right;
-  - a claim after equations that hold its names is not decided under them: Mandelstam's
-    \(s + t + u = \sum_i m_i^2\), after \(p_1 + p_2 = p_3 + p_4\) and
-    \(p_i^2 = m_i^2\), is shown as an equation;
-  - `C(n, k)`, as some books write the binomial coefficient, is an unknown function of
-    the names n and k;
-  - `j`, which nothing defines, is a name in \(\left|\frac{1}{1 + j}\right|\), where an
-    engineer means the imaginary unit: decision 24 gives a note only in an exponent;
-  - `\operatorname{Var} X`, without brackets, is Var times X, even of a random variable;
-  - a loop written in words, `\textbf{for } k = 1, \ldots, 5`, is read as a statement
-    about k, so `\lambda^{(5)}`, after it, is a name;
-  - units are names: \(\mathrm{Mpc}\,\mathrm{s}/(70\,\mathrm{Gyr}\,\mathrm{km})\) is
-    not converted (`design/debt.md`).
+  the notes of the release. One is known as this is written that says nothing: units are
+  names, so \(\mathrm{Mpc}\,\mathrm{s}/(70\,\mathrm{Gyr}\,\mathrm{km})\) is not
+  converted (`design/debt.md`). Two say so in a note, and are not computed as meant: `j`,
+  which nothing defines, is a name in \(\left|\frac{1}{1 + j}\right|\), where an
+  engineer means the imaginary unit (decision 24 of `design/notation.md`); and a claim
+  after equations that hold its names, as Mandelstam's \(s + t + u = \sum_i m_i^2\)
+  after \(p_1 + p_2 = p_3 + p_4\) and \(p_i^2 = m_i^2\), is shown as an equation, not
+  decided under them (decision 3).
 
   Three fail with an internal error, where they should give a value or a refusal:
   `\mathbb{E}[x]` of a list, after `x := [1, 2, 3, 6]`; an equation of index notation
@@ -82,9 +71,6 @@ What was left on purpose, and why, is in `design/debt.md` in the repository.
 
   `uv run python benchmarks/curriculum.py --failures` and
   `uv run python benchmarks/notations.py --failures` list every wrong answer they find.
-- **The forms agents write.** Refused today, each with a reason: `eig(A)` of a matrix,
-  with a hint to write `spec(A)`; `A.T`; `A @ B`; and `||x||_1` typed in plain text, where
-  `\|x\|_1` works.
 - **Climbing the curriculum.** What it refuses most, by cause, is in its own
   [roadmap](https://github.com/cottrellashley/relativisticpy/blob/main/curriculum/ROADMAP.md).
 
